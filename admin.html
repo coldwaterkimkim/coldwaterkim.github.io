@@ -9,6 +9,8 @@
   </script>
   <script defer src="js/auth.js"></script>
   <script defer src="js/editor.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
 </head>
 <body>
   <center>
@@ -30,11 +32,35 @@
           <h3>Write Post</h3>
           <form id="postForm">
             <table>
-              <tr><td>Title</td><td><input type="text" id="title" required style="width:420px"></td></tr>
-              <tr><td>Slug</td><td><input type="text" id="slug" placeholder="자동 생성됨(공백→-)" style="width:420px"></td></tr>
-              <tr><td>Date</td><td><input type="date" id="date"></td></tr>
-              <tr><td>Content (HTML)</td><td><textarea id="content" rows="12" cols="60" placeholder="HTML 또는 아주 간단한 태그만" required></textarea></td></tr>
-              <tr><td></td><td><button type="submit">Publish</button></td></tr>
+              <tr>
+                <td>Title</td>
+                <td><input type="text" id="title" required style="width:420px"></td>
+              </tr>
+              <tr>
+                <td>Slug</td>
+                <td><input type="text" id="slug" placeholder="자동 생성됨(공백→-)" style="width:420px"></td>
+              </tr>
+              <tr>
+                <td>Date</td>
+                <td><input type="date" id="date"></td>
+              </tr>
+              <tr>
+                <td>Mode</td>
+                <td>
+                  <label><input type="checkbox" id="useMarkdown" checked> Write in Markdown</label>
+                </td>
+              </tr>
+              <tr>
+                <td>Content</td>
+                <td>
+                  <textarea id="content" rows="12" cols="60" placeholder="Markdown 또는 HTML" required></textarea>
+                  <div id="preview" class="preview-box"></div>
+                </td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><button type="submit">Publish</button></td>
+              </tr>
             </table>
           </form>
           <div id="result" class="note"></div>
