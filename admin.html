@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Admin — coldwaterkim</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="css/styles.css">
+  <script>window.API_BASE = 'https://<YOUR_WORKER_SUBDOMAIN>.workers.dev';</script>
+  <script defer src="js/auth.js"></script>
+  <script defer src="js/editor.js"></script>
+</head>
+<body>
+  <center>
+    <table width="760" border="1" cellspacing="0" cellpadding="8" bgcolor="#ffffff">
+      <tr><td>
+        <h1>Admin</h1>
+        <div id="loginPanel">
+          <h3>Login</h3>
+          <form id="loginForm">
+            <table>
+              <tr><td>Password:</td><td><input type="password" id="password" required></td></tr>
+              <tr><td></td><td><button type="submit">Login</button></td></tr>
+            </table>
+          </form>
+          <p class="note">* 편의상 단일 비밀번호. (Cloudflare Worker의 환경변수로 관리)</p>
+        </div>
+
+        <div id="editorPanel" style="display:none;">
+          <h3>Write Post</h3>
+          <form id="postForm">
+            <table>
+              <tr><td>Title</td><td><input type="text" id="title" required style="width:420px"></td></tr>
+              <tr><td>Slug</td><td><input type="text" id="slug" placeholder="자동 생성됨(공백→-)" style="width:420px"></td></tr>
+              <tr><td>Date</td><td><input type="date" id="date"></td></tr>
+              <tr><td>Content (HTML)</td><td><textarea id="content" rows="12" cols="60" placeholder="HTML 또는 아주 간단한 태그만" required></textarea></td></tr>
+              <tr><td></td><td><button type="submit">Publish</button></td></tr>
+            </table>
+          </form>
+          <div id="result" class="note"></div>
+          <p><a href="index.html">← Home</a></p>
+        </div>
+      </td></tr>
+    </table>
+  </center>
+</body>
+</html>
