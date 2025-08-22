@@ -41,7 +41,7 @@
     const value = el.value;
     const selected = value.slice(start, end);
     const isMultiLine = selected.includes('\n');
-    const INDENT = '  '; // 탭 대신 공백 2칸(원하면 '\t')
+    const INDENT = '\t'; // 탭 대신 공백 2칸(원하면 '\t')
   
     e.preventDefault();
   
