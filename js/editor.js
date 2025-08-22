@@ -30,6 +30,56 @@
       previewEl.innerHTML = safe || '<i>(미리보기: 내용 없음)</i>';
     }
   }
+  // --- TAB/SHIFT+TAB in textarea: indent/outdent ---
+  function handleTabIndent(e) {
+    if (e.key !== 'Tab') return;
+    const el = contentEl;
+    const start = el.selectionStart;
+    const end   = el.selectionEnd;
+  
+    // 선택된 텍스트
+    const value = el.value;
+    const selected = value.slice(start, end);
+    const isMultiLine = selected.includes('\n');
+    const INDENT = '  '; // 탭 대신 공백 2칸(원하면 '\t')
+  
+    e.preventDefault();
+  
+    if (!isMultiLine) {
+      // 단일 커서 또는 단일행 선택
+      el.value = value.slice(0, start) + INDENT + value.slice(end);
+      const pos = start + INDENT.length;
+      el.setSelectionRange(pos, pos);
+      renderPreview();
+      return;
+    }
+  
+    // 여러 줄 선택
+    const lines = selected.split('\n');
+    if (e.shiftKey) {
+      // outdent
+      const newLines = lines.map(line =>
+        line.startsWith(INDENT) ? line.slice(INDENT.length) :
+        line.startsWith('\t') ? line.slice(1) : line
+      );
+      const replaced = newLines.join('\n');
+      el.value = value.slice(0, start) + replaced + value.slice(end);
+  
+      // 커서/선택 영역 보정
+      const removedPerLine = lines.reduce((n, line) => n + (line.startsWith(INDENT) || line.startsWith('\t') ? 1 : 0), 0);
+      const delta = removedPerLine * INDENT.length;
+      el.setSelectionRange(start, start + replaced.length);
+    } else {
+      // indent
+      const newLines = lines.map(line => INDENT + line);
+      const replaced = newLines.join('\n');
+      el.value = value.slice(0, start) + replaced + value.slice(end);
+      el.setSelectionRange(start, start + replaced.length);
+    }
+    renderPreview();
+  }
+
+if (contentEl) contentEl.addEventListener('keydown', handleTabIndent);
 
   // --- init: default date & slug auto-fill ---
   if (dateEl && !dateEl.value) dateEl.value = today();
@@ -44,7 +94,6 @@
       if (!userTouchedSlug) slugEl.value = slugify(titleEl.value) || '';
     });
   }
-
   // 콘텐츠 입력/모드 전환 시 즉시 미리보기
   if (contentEl) contentEl.addEventListener('input', renderPreview);
   if (useMarkdownEl) useMarkdownEl.addEventListener('change', renderPreview);
