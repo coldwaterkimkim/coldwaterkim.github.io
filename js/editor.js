@@ -11,11 +11,17 @@
 
   // --- helpers ---
   function today() { return new Date().toISOString().slice(0,10); }
-  function slugify(s){
-    return s.toLowerCase().trim()
-      .replace(/[^a-z0-9\s\-가-힣]/g,'')
-      .replace(/\s+/g,'-')
-      .replace(/\-+/g,'-');
+  function slugify(s) {
+    return s
+      .normalize('NFKD')        // 분해 정규화
+      .toLowerCase()
+      // 한글 등 비 ASCII 문자 제거
+      .replace(/[^\x00-\x7F]/g, ' ')
+      // 영문/숫자/공백/하이픈만 남기기
+      .replace(/[^a-z0-9\s-]/g, '')
+      .trim()
+      .replace(/\s+/g, '-')     // 공백 → -
+      .replace(/-+/g, '-');     // 하이픈 중복 제거
   }
   function renderPreview() {
     if (!previewEl) return;
