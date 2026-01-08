@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>Guestbook — coldwaterkim</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=800">
+  <link rel="stylesheet" href="css/styles.css">
+  <script type="module" src="js/site.js"></script>
+</head>
+
+<body>
+  <center>
+    <table width="760" border="1" cellspacing="0" cellpadding="8" bgcolor="#ffffff">
+      <tr>
+        <td>
+          <h1>Guestbook</h1>
+          <form id="guestbookForm">
+            <table>
+              <tr>
+                <td>Name:</td>
+                <td><input type="text" id="name" required></td>
+              </tr>
+              <tr>
+                <td>Message:</td>
+                <td><textarea id="message" rows="3" cols="40" required></textarea></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><input type="submit" value="Sign!"> <input type="reset" value="Reset"></td>
+              </tr>
+            </table>
+          </form>
+          <hr>
+          <div id="guestbookEntries"></div>
+          <p><a href="index.html">← Home</a></p>
+        </td>
+      </tr>
+    </table>
+  </center>
+</body>
+
+</html>
