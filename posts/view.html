@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Loading... — coldwaterkim</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=800">
+    <link rel="stylesheet" href="../css/styles.css">
+    <script type="module">
+        import { supabase } from '../js/supabase.js';
+
+        const params = new URLSearchParams(window.location.search);
+        const slug = params.get('slug');
+
+        if (!slug) {
+            document.body.innerHTML = '<center><h1>Post not found</h1><p><a href="index.html">Back to posts</a></p></center>';
+        } else {
+            loadPost(slug);
+        }
+
+        async function loadPost(slug) {
+            const { data, error } = await supabase
+                .from('posts')
+                .select('*')
+                .eq('slug', slug)
+                .single();
+
+            if (error || !data) {
+                document.title = 'Post Not Found';
+                document.getElementById('post-title').innerText = 'Post Not Found';
+                document.getElementById('post-content').innerHTML = '<p>Could not load post.</p>';
+                return;
+            }
+
+            document.title = `${data.title} — coldwaterkim`;
+            document.getElementById('post-title').innerText = data.title;
+            document.getElementById('post-date').innerText = `Published: ${data.date}`;
+            document.getElementById('post-content').innerHTML = data.content;
+        }
+    </script>
+</head>
+
+<body>
+    <center>
+        <table width="760" border="1" cellspacing="0" cellpadding="8" bgcolor="#ffffff">
+            <tr>
+                <td>
+                    <h1 id="post-title">Loading...</h1>
+                    <p><i id="post-date"></i></p>
+                    <hr>
+                    <div id="post-content">
+                        <p>Fetching content...</p>
+                    </div>
+                    <p><a href="index.html">← Back to Posts</a> · <a href="../index.html">Home</a></p>
+                </td>
+            </tr>
+        </table>
+    </center>
+</body>
+
+</html>
