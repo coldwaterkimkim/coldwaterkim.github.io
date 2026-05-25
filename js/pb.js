@@ -1,0 +1,354 @@
+/**
+ * PocketBase SDK Wrapper for coldwaterkim.com
+ *
+ * 사용법:
+ * import { pb, isLoggedIn, logout } from './pb.js';
+ *
+ * // 글 목록 가져오기
+ * const posts = await pb.collection('posts').getList(1, 10, {
+ *   filter: 'status = "published"',
+ *   sort: '-published_at'
+ * });
+ */
+
+import PocketBase from 'https://cdn.jsdelivr.net/npm/pocketbase@0.21.1/dist/pocketbase.es.mjs';
+
+// PocketBase API 경로
+// - 로컬 Vite: PocketBase 서버를 127.0.0.1:8090에서 따로 실행
+// - GitHub Pages: api.coldwaterkim.com의 PocketBase 서버 사용
+// - VPS 단일 배포: 같은 도메인의 PocketBase/Nginx 사용
+// - 필요하면 HTML에서 window.POCKETBASE_URL로 외부 CMS 주소를 덮어쓸 수 있음
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1']);
+const IS_LOCAL_FRONTEND = LOCAL_HOSTS.has(window.location.hostname);
+const API_HOSTS = new Map([
+    ['coldwaterkim.com', 'https://api.coldwaterkim.com'],
+    ['www.coldwaterkim.com', 'https://api.coldwaterkim.com'],
+    ['coldwaterkimkim.github.io', 'https://api.coldwaterkim.com'],
+]);
+const CONFIGURED_API_URL = window.POCKETBASE_URL
+    ? String(window.POCKETBASE_URL).replace(/\/+$/, '')
+    : '';
+const API_URL = CONFIGURED_API_URL
+    || (IS_LOCAL_FRONTEND
+        ? 'http://127.0.0.1:8090'
+        : API_HOSTS.get(window.location.hostname) || window.location.origin);
+
+// PocketBase 인스턴스 생성
+export const pb = new PocketBase(API_URL);
+pb.autoCancellation(false);
+
+// ─────────────────────────────────────────────────────────
+// 인증 헬퍼 함수들
+// ─────────────────────────────────────────────────────────
+
+/**
+ * 로그인 상태 확인
+ * @returns {boolean}
+ */
+export function isLoggedIn() {
+    return pb.authStore.isValid;
+}
+
+/**
+ * 현재 사용자 정보
+ * @returns {object|null}
+ */
+export function currentUser() {
+    return pb.authStore.model;
+}
+
+/**
+ * 로그인
+ * @param {string} email
+ * @param {string} password
+ * @returns {Promise<object>}
+ */
+export async function login(email, password) {
+    return await pb.collection('users').authWithPassword(email, password);
+}
+
+/**
+ * 로그아웃
+ */
+export function logout() {
+    pb.authStore.clear();
+}
+
+/**
+ * 관리자 페이지 접근 체크 (로그인 안 되어 있으면 리다이렉트)
+ */
+export function requireAuth() {
+    if (!isLoggedIn()) {
+        window.location.href = '/admin/login.html';
+        return false;
+    }
+    return true;
+}
+
+// ─────────────────────────────────────────────────────────
+// Posts 헬퍼 함수들
+// ─────────────────────────────────────────────────────────
+
+/**
+ * 발행된 글 목록 가져오기
+ * @param {number} page
+ * @param {number} perPage
+ * @returns {Promise<object>}
+ */
+export async function getPublishedPosts(page = 1, perPage = 10) {
+    return await pb.collection('posts').getList(page, perPage, {
+        filter: pb.filter('status = {:status}', { status: 'published' }),
+        sort: '-published_at'
+    });
+}
+
+/**
+ * 슬러그로 글 가져오기
+ * @param {string} slug
+ * @returns {Promise<object>}
+ */
+export async function getPostBySlug(slug) {
+    return await pb.collection('posts').getFirstListItem(
+        pb.filter('slug = {:slug} && status = {:status}', {
+            slug,
+            status: 'published'
+        })
+    );
+}
+
+/**
+ * 모든 글 목록 (관리자용)
+ * @param {number} page
+ * @param {number} perPage
+ * @returns {Promise<object>}
+ */
+export async function getAllPosts(page = 1, perPage = 20) {
+    return await pb.collection('posts').getList(page, perPage, {
+        sort: '-created'
+    });
+}
+
+/**
+ * 글 생성
+ * @param {object} data
+ * @returns {Promise<object>}
+ */
+export async function createPost(data) {
+    return await pb.collection('posts').create(data);
+}
+
+/**
+ * 글 수정
+ * @param {string} id
+ * @param {object} data
+ * @returns {Promise<object>}
+ */
+export async function updatePost(id, data) {
+    return await pb.collection('posts').update(id, data);
+}
+
+/**
+ * 글 삭제
+ * @param {string} id
+ * @returns {Promise<boolean>}
+ */
+export async function deletePost(id) {
+    return await pb.collection('posts').delete(id);
+}
+
+// ─────────────────────────────────────────────────────────
+// Guestbook 헬퍼 함수들
+// ─────────────────────────────────────────────────────────
+
+/**
+ * 방명록 목록 가져오기
+ * @param {number} page
+ * @param {number} perPage
+ * @returns {Promise<object>}
+ */
+export async function getGuestbookEntries(page = 1, perPage = 50) {
+    return await pb.collection('guestbook').getList(page, perPage, {
+        sort: '-created'
+    });
+}
+
+/**
+ * 방명록 작성
+ * @param {string} name
+ * @param {string} message
+ * @returns {Promise<object>}
+ */
+export async function addGuestbookEntry(name, message) {
+    return await pb.collection('guestbook').create({ name, message });
+}
+
+/**
+ * 방명록 삭제 (관리자용)
+ * @param {string} id
+ * @returns {Promise<boolean>}
+ */
+export async function deleteGuestbookEntry(id) {
+    return await pb.collection('guestbook').delete(id);
+}
+
+// ─────────────────────────────────────────────────────────
+// Media 헬퍼 함수들
+// ─────────────────────────────────────────────────────────
+
+/**
+ * 미디어 업로드
+ * @param {File} file
+ * @param {string} altText
+ * @param {string} caption
+ * @returns {Promise<object>}
+ */
+export async function uploadMedia(file, altText = '', caption = '') {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (altText) formData.append('alt_text', altText);
+    if (caption) formData.append('caption', caption);
+
+    return await pb.collection('media').create(formData);
+}
+
+/**
+ * 미디어 파일 URL 가져오기
+ * @param {object} record
+ * @param {string} filename
+ * @returns {string}
+ */
+export function getMediaUrl(record, filename) {
+    return pb.files.getURL(record, filename);
+}
+
+/**
+ * 미디어 목록 가져오기
+ * @param {number} page
+ * @param {number} perPage
+ * @returns {Promise<object>}
+ */
+export async function getMediaList(page = 1, perPage = 20) {
+    return await pb.collection('media').getList(page, perPage, {
+        sort: '-created'
+    });
+}
+
+/**
+ * 미디어 삭제
+ * @param {string} id
+ * @returns {Promise<boolean>}
+ */
+export async function deleteMedia(id) {
+    return await pb.collection('media').delete(id);
+}
+
+// ─────────────────────────────────────────────────────────
+// Site Settings 헬퍼 함수들
+// ─────────────────────────────────────────────────────────
+
+/**
+ * 사이트 설정 가져오기
+ * @param {string} key
+ * @returns {Promise<string|null>}
+ */
+export async function getSetting(key) {
+    try {
+        const record = await pb.collection('site_settings').getFirstListItem(
+            pb.filter('key = {:key}', { key })
+        );
+        return record?.value || null;
+    } catch (e) {
+        return null;
+    }
+}
+
+/**
+ * 사이트 설정 저장 (upsert)
+ * @param {string} key
+ * @param {string} value
+ * @returns {Promise<object>}
+ */
+export async function setSetting(key, value) {
+    try {
+        const existing = await pb.collection('site_settings').getFirstListItem(
+            pb.filter('key = {:key}', { key })
+        );
+        return await pb.collection('site_settings').update(existing.id, { value });
+    } catch (e) {
+        return await pb.collection('site_settings').create({ key, value });
+    }
+}
+
+// ─────────────────────────────────────────────────────────
+// 유틸리티
+// ─────────────────────────────────────────────────────────
+
+/**
+ * 슬러그 생성
+ * @param {string} text
+ * @returns {string}
+ */
+export function slugify(text) {
+    return text
+        .toString()
+        .normalize('NFKD')
+        .toLowerCase()
+        .replace(/[^\w\s-]/g, '')
+        .replace(/[\s_]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .substring(0, 100);
+}
+
+/**
+ * 날짜 포맷팅
+ * @param {string} dateString
+ * @returns {string}
+ */
+export function formatDate(dateString) {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('ko-KR', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+    });
+}
+
+/**
+ * HTML 이스케이프
+ * @param {string} str
+ * @returns {string}
+ */
+export function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+/**
+ * CMS 연결/인증 실패 메시지 정리
+ * @param {unknown} err
+ * @returns {string}
+ */
+export function cmsErrorMessage(err) {
+    const message = err?.message || String(err || '');
+
+    if (
+        err?.status === 0
+        || /Failed to fetch|NetworkError|Load failed|connection|refused/i.test(message)
+    ) {
+        return IS_LOCAL_FRONTEND
+            ? 'CMS 서버에 연결할 수 없습니다. 로컬에서는 PocketBase를 먼저 실행해야 합니다.'
+            : '글/방명록 서버에 잠시 연결할 수 없습니다. 조금 뒤에 다시 확인해주세요.';
+    }
+
+    if (err?.status === 401 || err?.status === 403) {
+        return '권한이 없습니다. 관리자 로그인이 필요하거나 CMS 권한 규칙을 확인해야 합니다.';
+    }
+
+    if (err?.status === 404) {
+        return 'CMS 컬렉션이나 글을 찾을 수 없습니다. PocketBase 스키마가 설정됐는지 확인해야 합니다.';
+    }
+
+    return message || '알 수 없는 CMS 오류가 발생했습니다.';
+}

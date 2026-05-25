@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>글 관리 — coldwaterkim Admin</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="../css/admin.css">
+    <!-- Quill Editor -->
+    <link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet">
+    <style>
+        .ql-editor {
+            min-height: 300px;
+            font-family: "Georgia", serif;
+            font-size: 16px;
+        }
+    </style>
+</head>
+
+<body class="admin-body">
+    <div class="admin-container">
+        <!-- Header -->
+        <div class="admin-header">
+            <h1>★ coldwaterkim ADMIN ★</h1>
+            <div>
+                <a href="../index.html">🏠 홈으로</a> |
+                <a href="#" id="logoutBtn">🚪 로그아웃</a>
+            </div>
+        </div>
+
+        <!-- Navigation -->
+        <nav class="admin-nav">
+            <a href="/admin/">📊 대시보드</a>
+            <a href="/admin/posts.html" class="active">📝 글 관리</a>
+            <a href="/admin/media.html">🖼️ 미디어</a>
+            <a href="/admin/guestbook.html">💬 방명록</a>
+        </nav>
+
+        <!-- Content -->
+        <div class="admin-content">
+            <div id="alert" class="alert" style="display: none;"></div>
+
+            <!-- 글 목록 뷰 -->
+            <div id="listView">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                    <h2 style="margin: 0;">📝 글 목록</h2>
+                    <button class="btn btn-primary" onclick="showEditor()">✚ 새 글 쓰기</button>
+                </div>
+
+                <table class="admin-table" id="postsTable">
+                    <thead>
+                        <tr>
+                            <th>제목</th>
+                            <th style="width: 80px;">상태</th>
+                            <th style="width: 120px;">날짜</th>
+                            <th style="width: 140px;">액션</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td colspan="4" class="loading">불러오는 중</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="pagination" id="pagination"></div>
+            </div>
+
+            <!-- 에디터 뷰 -->
+            <div id="editorView" style="display: none;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                    <h2 style="margin: 0;" id="editorTitle">✍️ 새 글 쓰기</h2>
+                    <button class="btn" onclick="showList()">← 목록으로</button>
+                </div>
+
+                <form id="postForm">
+                    <input type="hidden" id="postId">
+
+                    <div class="admin-panel">
+                        <div class="form-row">
+                            <div class="form-group" style="flex: 2;">
+                                <label for="title">제목 *</label>
+                                <input type="text" id="title" required placeholder="멋진 제목을 입력하세요">
+                            </div>
+                            <div class="form-group" style="flex: 1;">
+                                <label for="slug">슬러그 (URL)</label>
+                                <input type="text" id="slug" placeholder="자동 생성됨">
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="status">상태</label>
+                                <select id="status">
+                                    <option value="draft">📝 초안</option>
+                                    <option value="published">✅ 발행됨</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="published_at">발행일</label>
+                                <input type="date" id="published_at">
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="excerpt">요약 (선택)</label>
+                            <input type="text" id="excerpt" placeholder="글 목록에 표시될 요약문">
+                        </div>
+                    </div>
+
+                    <div class="admin-panel">
+                        <h2>본문</h2>
+                        <div class="editor-container">
+                            <div id="editor"></div>
+                        </div>
+                    </div>
+
+                    <div class="admin-panel">
+                        <h2>🖼️ 대표 이미지</h2>
+                        <div id="featuredImagePreview" style="margin-bottom: 12px;"></div>
+                        <input type="file" id="featuredImage" accept="image/*">
+                        <p style="font-size: 12px; color: #666; margin-top: 4px;">JPG, PNG, GIF, WebP (최대 10MB)</p>
+                    </div>
+
+                    <div class="action-buttons">
+                        <button type="submit" class="btn btn-primary">💾 저장</button>
+                        <button type="button" class="btn btn-success" onclick="saveAndPublish()">🚀 저장 후 발행</button>
+                        <button type="button" class="btn" onclick="previewPost()">👁️ 미리보기</button>
+                        <button type="button" class="btn btn-danger" id="deleteBtn" style="display: none;"
+                            onclick="deleteCurrentPost()">🗑️ 삭제</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quill JS -->
+    <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
+
+    <script type="module">
+        import { pb, isLoggedIn, logout, getAllPosts, deletePost, formatDate, slugify, cmsErrorMessage } from '../js/pb.js';
+
+        // 인증 체크
+        if (!isLoggedIn()) {
+            window.location.replace('/admin/login.html');
+            await new Promise(() => { });
+        }
+
+        // 로그아웃
+        document.getElementById('logoutBtn').addEventListener('click', (e) => {
+            e.preventDefault();
+            logout();
+            window.location.href = '/admin/login.html';
+        });
+
+        // Quill 에디터 초기화
+        const quill = new Quill('#editor', {
+            theme: 'snow',
+            placeholder: '여기에 글을 작성하세요...',
+            modules: {
+                toolbar: [
+                    [{ 'header': [1, 2, 3, false] }],
+                    ['bold', 'italic', 'underline', 'strike'],
+                    [{ 'color': [] }, { 'background': [] }],
+                    [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+                    ['blockquote', 'code-block'],
+                    ['link', 'image'],
+                    ['clean']
+                ]
+            }
+        });
+
+        // 이미지 핸들러 커스터마이즈 - 미디어 라이브러리 연동
+        const toolbar = quill.getModule('toolbar');
+        toolbar.addHandler('image', () => {
+            const url = prompt('이미지 URL을 입력하세요.\n(미디어 라이브러리에서 URL 복사 가능)');
+            if (url) {
+                const range = quill.getSelection();
+                quill.insertEmbed(range.index, 'image', url);
+            }
+        });
+
+        // 상태 변수
+        let currentPage = 1;
+        let editingPostId = null;
+
+        // 페이지 함수들을 전역으로 노출
+        window.showEditor = showEditor;
+        window.showList = showList;
+        window.editPost = editPost;
+        window.confirmDelete = confirmDelete;
+        window.saveAndPublish = saveAndPublish;
+        window.previewPost = previewPost;
+        window.deleteCurrentPost = deleteCurrentPost;
+        window.goToPage = goToPage;
+
+        // 알림 표시
+        function showAlert(message, type) {
+            const alertEl = document.getElementById('alert');
+            alertEl.textContent = message;
+            alertEl.className = `alert alert-${type}`;
+            alertEl.style.display = 'block';
+            setTimeout(() => alertEl.style.display = 'none', 5000);
+        }
+
+        // 목록 뷰
+        function showList() {
+            document.getElementById('listView').style.display = 'block';
+            document.getElementById('editorView').style.display = 'none';
+            editingPostId = null;
+            loadPosts();
+        }
+
+        // 에디터 뷰
+        function showEditor(post = null) {
+            document.getElementById('listView').style.display = 'none';
+            document.getElementById('editorView').style.display = 'block';
+
+            if (post) {
+                // 수정 모드
+                document.getElementById('editorTitle').textContent = '✏️ 글 수정';
+                document.getElementById('postId').value = post.id;
+                document.getElementById('title').value = post.title || '';
+                document.getElementById('slug').value = post.slug || '';
+                document.getElementById('status').value = post.status || 'draft';
+                document.getElementById('published_at').value = post.published_at ? post.published_at.split('T')[0] : '';
+                document.getElementById('excerpt').value = post.excerpt || '';
+                quill.root.innerHTML = post.content || '';
+                document.getElementById('deleteBtn').style.display = 'inline-block';
+                editingPostId = post.id;
+
+                // 대표 이미지 미리보기
+                if (post.featured_image) {
+                    const url = pb.files.getURL(post, post.featured_image);
+                    document.getElementById('featuredImagePreview').innerHTML = `<img src="${url}" style="max-width: 200px; max-height: 150px;">`;
+                } else {
+                    document.getElementById('featuredImagePreview').innerHTML = '';
+                }
+            } else {
+                // 새 글 모드
+                document.getElementById('editorTitle').textContent = '✍️ 새 글 쓰기';
+                document.getElementById('postForm').reset();
+                document.getElementById('postId').value = '';
+                quill.root.innerHTML = '';
+                document.getElementById('deleteBtn').style.display = 'none';
+                document.getElementById('featuredImagePreview').innerHTML = '';
+                editingPostId = null;
+
+                // 오늘 날짜 기본값
+                document.getElementById('published_at').value = new Date().toISOString().split('T')[0];
+            }
+        }
+
+        // 글 목록 로드
+        async function loadPosts(page = 1) {
+            const tbody = document.querySelector('#postsTable tbody');
+            tbody.innerHTML = '<tr><td colspan="4" class="loading">불러오는 중</td></tr>';
+
+            try {
+                const result = await getAllPosts(page, 10);
+                currentPage = page;
+
+                if (result.items.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4">아직 글이 없습니다. 첫 번째 글을 작성해보세요!</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = result.items.map(post => `
+          <tr>
+            <td>
+              <a href="javascript:void(0)" onclick="editPost('${post.id}')">${post.title || '(제목 없음)'}</a>
+            </td>
+            <td><span class="badge badge-${post.status}">${post.status === 'published' ? '발행' : '초안'}</span></td>
+            <td>${formatDate(post.published_at || post.created)}</td>
+            <td>
+              <button class="btn" onclick="editPost('${post.id}')" style="padding: 4px 8px;">✏️</button>
+              <button class="btn btn-danger" onclick="confirmDelete('${post.id}')" style="padding: 4px 8px;">🗑️</button>
+              ${post.status === 'published' ? `<a href="/posts/view.html?slug=${post.slug}" target="_blank" class="btn" style="padding: 4px 8px; text-decoration: none;">👁️</a>` : ''}
+            </td>
+          </tr>
+        `).join('');
+
+                // 페이지네이션
+                renderPagination(result.totalPages, page);
+            } catch (e) {
+                tbody.innerHTML = '<tr><td colspan="4">불러오기 실패: ' + cmsErrorMessage(e) + '</td></tr>';
+            }
+        }
+
+        // 페이지네이션 렌더링
+        function renderPagination(totalPages, currentPage) {
+            const paginationEl = document.getElementById('pagination');
+            if (totalPages <= 1) {
+                paginationEl.innerHTML = '';
+                return;
+            }
+
+            let html = '';
+            for (let i = 1; i <= totalPages; i++) {
+                if (i === currentPage) {
+                    html += `<span class="current">${i}</span>`;
+                } else {
+                    html += `<a href="javascript:void(0)" onclick="goToPage(${i})">${i}</a>`;
+                }
+            }
+            paginationEl.innerHTML = html;
+        }
+
+        function goToPage(page) {
+            loadPosts(page);
+        }
+
+        // 글 수정 (ID로 불러오기)
+        async function editPost(id) {
+            try {
+                const post = await pb.collection('posts').getOne(id);
+                showEditor(post);
+            } catch (e) {
+                showAlert('글을 불러올 수 없습니다: ' + cmsErrorMessage(e), 'error');
+            }
+        }
+
+        // 글 삭제 확인
+        async function confirmDelete(id) {
+            if (!confirm('정말 이 글을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.')) return;
+
+            try {
+                await deletePost(id);
+                showAlert('글이 삭제되었습니다.', 'success');
+                loadPosts(currentPage);
+            } catch (e) {
+                showAlert('삭제 실패: ' + cmsErrorMessage(e), 'error');
+            }
+        }
+
+        // 현재 글 삭제
+        async function deleteCurrentPost() {
+            if (!editingPostId) return;
+            await confirmDelete(editingPostId);
+            showList();
+        }
+
+        // 폼 제출 (저장)
+        document.getElementById('postForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            await savePost();
+        });
+
+        // 저장 후 발행
+        async function saveAndPublish() {
+            document.getElementById('status').value = 'published';
+            await savePost();
+        }
+
+        // 글 저장
+        async function savePost() {
+            const id = document.getElementById('postId').value;
+            const title = document.getElementById('title').value.trim();
+            let slug = document.getElementById('slug').value.trim();
+            const status = document.getElementById('status').value;
+            const published_at = document.getElementById('published_at').value || null;
+            const excerpt = document.getElementById('excerpt').value.trim();
+            const content = quill.root.innerHTML;
+
+            // 슬러그 자동 생성
+            if (!slug) {
+                slug = slugify(title) || `post-${Date.now()}`;
+                document.getElementById('slug').value = slug;
+            }
+
+            // FormData 생성 (파일 업로드 포함)
+            const formData = new FormData();
+            formData.append('title', title);
+            formData.append('slug', slug);
+            formData.append('status', status);
+            formData.append('content', content);
+            if (published_at) formData.append('published_at', published_at);
+            if (excerpt) formData.append('excerpt', excerpt);
+
+            // 대표 이미지
+            const featuredImageFile = document.getElementById('featuredImage').files[0];
+            if (featuredImageFile) {
+                formData.append('featured_image', featuredImageFile);
+            }
+
+            try {
+                let result;
+                if (id) {
+                    result = await pb.collection('posts').update(id, formData);
+                    showAlert('글이 수정되었습니다!', 'success');
+                } else {
+                    result = await pb.collection('posts').create(formData);
+                    document.getElementById('postId').value = result.id;
+                    editingPostId = result.id;
+                    document.getElementById('deleteBtn').style.display = 'inline-block';
+                    showAlert('글이 저장되었습니다!', 'success');
+                }
+            } catch (e) {
+                showAlert('저장 실패: ' + cmsErrorMessage(e), 'error');
+            }
+        }
+
+        // 미리보기
+        function previewPost() {
+            const slug = document.getElementById('slug').value || slugify(document.getElementById('title').value);
+            if (!slug) {
+                showAlert('먼저 제목을 입력해주세요.', 'info');
+                return;
+            }
+            window.open(`/posts/view.html?slug=${slug}`, '_blank');
+        }
+
+        // 제목 → 슬러그 자동 생성
+        let slugTouched = false;
+        document.getElementById('slug').addEventListener('input', () => {
+            slugTouched = document.getElementById('slug').value.trim().length > 0;
+        });
+        document.getElementById('title').addEventListener('input', () => {
+            if (!slugTouched && !editingPostId) {
+                document.getElementById('slug').value = slugify(document.getElementById('title').value);
+            }
+        });
+
+        // 초기 로드
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('new') === '1') {
+            showEditor();
+        } else if (urlParams.get('id')) {
+            editPost(urlParams.get('id'));
+        } else {
+            loadPosts();
+        }
+    </script>
+</body>
+
+</html>

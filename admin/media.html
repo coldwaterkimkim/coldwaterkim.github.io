@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>미디어 — coldwaterkim Admin</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="../css/admin.css">
+</head>
+
+<body class="admin-body">
+    <div class="admin-container">
+        <!-- Header -->
+        <div class="admin-header">
+            <h1>★ coldwaterkim ADMIN ★</h1>
+            <div>
+                <a href="../index.html">🏠 홈으로</a> |
+                <a href="#" id="logoutBtn">🚪 로그아웃</a>
+            </div>
+        </div>
+
+        <!-- Navigation -->
+        <nav class="admin-nav">
+            <a href="/admin/">📊 대시보드</a>
+            <a href="/admin/posts.html">📝 글 관리</a>
+            <a href="/admin/media.html" class="active">🖼️ 미디어</a>
+            <a href="/admin/guestbook.html">💬 방명록</a>
+        </nav>
+
+        <!-- Content -->
+        <div class="admin-content">
+            <h2 style="margin-top: 0;">🖼️ 미디어 라이브러리</h2>
+
+            <div id="alert" class="alert" style="display: none;"></div>
+
+            <!-- 업로드 영역 -->
+            <div class="admin-panel">
+                <h2>📤 파일 업로드</h2>
+                <div id="dropzone" class="dropzone">
+                    <p>📁 여기에 파일을 드래그하거나 클릭하여 업로드</p>
+                    <p style="font-size: 12px; color: #888;">이미지, 영상, MP3, PDF (최대 100MB)</p>
+                </div>
+                <input type="file" id="fileInput" style="display: none;" multiple accept="image/*,video/*,audio/*,.pdf">
+                <div id="uploadProgress" style="margin-top: 8px; display: none;">
+                    <progress id="progressBar" value="0" max="100" style="width: 100%;"></progress>
+                    <span id="progressText">업로드 중...</span>
+                </div>
+            </div>
+
+            <!-- 미디어 목록 -->
+            <div class="admin-panel">
+                <h2>📂 업로드된 파일</h2>
+                <div id="mediaGrid" class="media-grid">
+                    <div class="loading">불러오는 중</div>
+                </div>
+                <div class="pagination" id="pagination" style="margin-top: 16px;"></div>
+            </div>
+
+            <!-- 선택된 파일 정보 -->
+            <div id="selectedMedia" class="admin-panel" style="display: none;">
+                <h2>📋 파일 정보</h2>
+                <div id="mediaInfo"></div>
+                <div class="form-group" style="margin-top: 12px;">
+                    <label>파일 URL (복사해서 글에 사용)</label>
+                    <input type="text" id="mediaUrl" readonly onclick="this.select()">
+                </div>
+                <div class="action-buttons">
+                    <button class="btn" onclick="copyUrl()">📋 URL 복사</button>
+                    <button class="btn btn-danger" onclick="deleteSelectedMedia()">🗑️ 삭제</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { pb, isLoggedIn, logout, uploadMedia, getMediaList, deleteMedia, formatDate, cmsErrorMessage } from '../js/pb.js';
+
+        // 인증 체크
+        if (!isLoggedIn()) {
+            window.location.replace('/admin/login.html');
+            await new Promise(() => { });
+        }
+
+        // 로그아웃
+        document.getElementById('logoutBtn').addEventListener('click', (e) => {
+            e.preventDefault();
+            logout();
+            window.location.href = '/admin/login.html';
+        });
+
+        // 상태
+        let currentPage = 1;
+        let selectedMediaId = null;
+
+        // 전역 함수 노출
+        window.copyUrl = copyUrl;
+        window.deleteSelectedMedia = deleteSelectedMedia;
+        window.selectMedia = selectMedia;
+        window.goToPage = goToPage;
+
+        // 알림
+        function showAlert(message, type) {
+            const alertEl = document.getElementById('alert');
+            alertEl.textContent = message;
+            alertEl.className = `alert alert-${type}`;
+            alertEl.style.display = 'block';
+            setTimeout(() => alertEl.style.display = 'none', 5000);
+        }
+
+        // 드롭존 설정
+        const dropzone = document.getElementById('dropzone');
+        const fileInput = document.getElementById('fileInput');
+
+        dropzone.addEventListener('click', () => fileInput.click());
+
+        dropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropzone.classList.add('dragover');
+        });
+
+        dropzone.addEventListener('dragleave', () => {
+            dropzone.classList.remove('dragover');
+        });
+
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            handleFiles(files);
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            handleFiles(e.target.files);
+        });
+
+        // 파일 업로드 처리
+        async function handleFiles(files) {
+            const uploadProgress = document.getElementById('uploadProgress');
+            const progressBar = document.getElementById('progressBar');
+            const progressText = document.getElementById('progressText');
+
+            uploadProgress.style.display = 'block';
+
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                progressText.textContent = `업로드 중... (${i + 1}/${files.length}) ${file.name}`;
+                progressBar.value = ((i + 1) / files.length) * 100;
+
+                try {
+                    await uploadMedia(file);
+                } catch (e) {
+                    showAlert(`업로드 실패 (${file.name}): ${cmsErrorMessage(e)}`, 'error');
+                }
+            }
+
+            uploadProgress.style.display = 'none';
+            fileInput.value = '';
+            showAlert(`${files.length}개 파일이 업로드되었습니다.`, 'success');
+            loadMedia(1);
+        }
+
+        // 미디어 목록 로드
+        async function loadMedia(page = 1) {
+            const grid = document.getElementById('mediaGrid');
+            grid.innerHTML = '<div class="loading">불러오는 중</div>';
+
+            try {
+                const result = await getMediaList(page, 12);
+                currentPage = page;
+
+                if (result.items.length === 0) {
+                    grid.innerHTML = '<p>업로드된 파일이 없습니다.</p>';
+                    return;
+                }
+
+                grid.innerHTML = result.items.map(item => {
+                    const url = pb.files.getURL(item, item.file);
+                    const isImage = item.file.match(/\.(jpg|jpeg|png|gif|webp)$/i);
+                    const isVideo = item.file.match(/\.(mp4|webm)$/i);
+                    const isAudio = item.file.match(/\.(mp3|wav)$/i);
+
+                    let preview = '';
+                    if (isImage) {
+                        preview = `<img src="${url}" alt="${item.alt_text || item.file}">`;
+                    } else if (isVideo) {
+                        preview = `<video src="${url}"></video><div>🎬</div>`;
+                    } else if (isAudio) {
+                        preview = `<div style="font-size: 48px;">🎵</div>`;
+                    } else {
+                        preview = `<div style="font-size: 48px;">📄</div>`;
+                    }
+
+                    return `
+            <div class="media-item" onclick="selectMedia('${item.id}')">
+              ${preview}
+              <div class="filename">${item.file}</div>
+            </div>
+          `;
+                }).join('');
+
+                // 페이지네이션
+                renderPagination(result.totalPages, page);
+            } catch (e) {
+                grid.innerHTML = `<p>불러오기 실패: ${cmsErrorMessage(e)}</p>`;
+            }
+        }
+
+        // 페이지네이션
+        function renderPagination(totalPages, currentPage) {
+            const paginationEl = document.getElementById('pagination');
+            if (totalPages <= 1) {
+                paginationEl.innerHTML = '';
+                return;
+            }
+
+            let html = '';
+            for (let i = 1; i <= totalPages; i++) {
+                if (i === currentPage) {
+                    html += `<span class="current">${i}</span>`;
+                } else {
+                    html += `<a href="javascript:void(0)" onclick="goToPage(${i})">${i}</a>`;
+                }
+            }
+            paginationEl.innerHTML = html;
+        }
+
+        function goToPage(page) {
+            loadMedia(page);
+        }
+
+        // 미디어 선택
+        async function selectMedia(id) {
+            try {
+                const item = await pb.collection('media').getOne(id);
+                selectedMediaId = id;
+
+                const url = pb.files.getURL(item, item.file);
+                const isImage = item.file.match(/\.(jpg|jpeg|png|gif|webp)$/i);
+                const isVideo = item.file.match(/\.(mp4|webm)$/i);
+                const isAudio = item.file.match(/\.(mp3|wav)$/i);
+
+                let preview = '';
+                if (isImage) {
+                    preview = `<img src="${url}" style="max-width: 100%; max-height: 200px;">`;
+                } else if (isVideo) {
+                    preview = `<video src="${url}" controls style="max-width: 100%; max-height: 200px;"></video>`;
+                } else if (isAudio) {
+                    preview = `<audio src="${url}" controls style="width: 100%;"></audio>`;
+                }
+
+                document.getElementById('mediaInfo').innerHTML = `
+          ${preview}
+          <p><b>파일명:</b> ${item.file}</p>
+          <p><b>업로드:</b> ${formatDate(item.created)}</p>
+          ${item.alt_text ? `<p><b>대체 텍스트:</b> ${item.alt_text}</p>` : ''}
+        `;
+                document.getElementById('mediaUrl').value = url;
+                document.getElementById('selectedMedia').style.display = 'block';
+            } catch (e) {
+                showAlert('파일 정보를 불러올 수 없습니다: ' + cmsErrorMessage(e), 'error');
+            }
+        }
+
+        // URL 복사
+        function copyUrl() {
+            const urlInput = document.getElementById('mediaUrl');
+            urlInput.select();
+            document.execCommand('copy');
+            showAlert('URL이 클립보드에 복사되었습니다!', 'success');
+        }
+
+        // 미디어 삭제
+        async function deleteSelectedMedia() {
+            if (!selectedMediaId) return;
+            if (!confirm('정말 이 파일을 삭제하시겠습니까?')) return;
+
+            try {
+                await deleteMedia(selectedMediaId);
+                showAlert('파일이 삭제되었습니다.', 'success');
+                document.getElementById('selectedMedia').style.display = 'none';
+                selectedMediaId = null;
+                loadMedia(currentPage);
+            } catch (e) {
+                showAlert('삭제 실패: ' + cmsErrorMessage(e), 'error');
+            }
+        }
+
+        // 초기 로드
+        loadMedia();
+    </script>
+</body>
+
+</html>

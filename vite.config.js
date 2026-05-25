@@ -1,32 +1,25 @@
-import { resolve } from 'path'
 import { defineConfig } from 'vite'
 import fs from 'fs'
 import path from 'path'
 
-// Helper to find all HTML files
+const htmlDirs = ['.', 'posts', 'admin']
+
+// Helper to find all public HTML entry files
 function getHtmlEntries() {
     const pages = {}
 
-    // Root HTML files
-    const rootFiles = fs.readdirSync(__dirname)
-        .filter(file => file.endsWith('.html'))
+    htmlDirs.forEach(dir => {
+        const absoluteDir = path.resolve(__dirname, dir)
+        if (!fs.existsSync(absoluteDir)) return
 
-    rootFiles.forEach(file => {
-        const name = file.replace('.html', '')
-        pages[name] = resolve(__dirname, file)
-    })
-
-    // Posts HTML files
-    const postsDir = resolve(__dirname, 'posts')
-    if (fs.existsSync(postsDir)) {
-        const postFiles = fs.readdirSync(postsDir)
+        fs.readdirSync(absoluteDir)
             .filter(file => file.endsWith('.html'))
-
-        postFiles.forEach(file => {
-            const name = 'posts/' + file.replace('.html', '')
-            pages[name] = resolve(postsDir, file)
-        })
-    }
+            .forEach(file => {
+                const basename = file.replace('.html', '')
+                const name = dir === '.' ? basename : `${dir}/${basename}`
+                pages[name] = path.resolve(absoluteDir, file)
+            })
+    })
 
     return pages
 }

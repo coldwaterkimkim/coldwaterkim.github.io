@@ -1,0 +1,99 @@
+{
+  "collections": [
+    {
+      "name": "posts",
+      "type": "base",
+      "fields": [
+        { "name": "title", "type": "text", "required": true, "min": 1, "max": 200 },
+        { "name": "slug", "type": "text", "required": true, "min": 1, "max": 200, "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+        { "name": "content", "type": "editor", "required": false },
+        { "name": "excerpt", "type": "text", "required": false, "max": 500 },
+        {
+          "name": "featured_image",
+          "type": "file",
+          "required": false,
+          "maxSelect": 1,
+          "maxSize": 10485760,
+          "mimeTypes": ["image/jpeg", "image/png", "image/gif", "image/webp"]
+        },
+        { "name": "status", "type": "select", "required": true, "values": ["draft", "published"], "maxSelect": 1 },
+        { "name": "published_at", "type": "date", "required": false },
+        { "name": "created", "type": "autodate", "onCreate": true, "onUpdate": false },
+        { "name": "updated", "type": "autodate", "onCreate": true, "onUpdate": true }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX `idx_posts_slug` ON `posts` (`slug`)",
+        "CREATE INDEX `idx_posts_status` ON `posts` (`status`)",
+        "CREATE INDEX `idx_posts_published_at` ON `posts` (`published_at`)"
+      ],
+      "listRule": "status = 'published' || @request.auth.id != ''",
+      "viewRule": "status = 'published' || @request.auth.id != ''",
+      "createRule": "@request.auth.id != ''",
+      "updateRule": "@request.auth.id != ''",
+      "deleteRule": "@request.auth.id != ''"
+    },
+    {
+      "name": "guestbook",
+      "type": "base",
+      "fields": [
+        { "name": "name", "type": "text", "required": true, "min": 1, "max": 50 },
+        { "name": "message", "type": "text", "required": true, "min": 1, "max": 1000 },
+        { "name": "created", "type": "autodate", "onCreate": true, "onUpdate": false },
+        { "name": "updated", "type": "autodate", "onCreate": true, "onUpdate": true }
+      ],
+      "listRule": "",
+      "viewRule": "",
+      "createRule": "",
+      "updateRule": null,
+      "deleteRule": "@request.auth.id != ''"
+    },
+    {
+      "name": "site_settings",
+      "type": "base",
+      "fields": [
+        { "name": "key", "type": "text", "required": true, "min": 1, "max": 100 },
+        { "name": "value", "type": "text", "required": false },
+        { "name": "created", "type": "autodate", "onCreate": true, "onUpdate": false },
+        { "name": "updated", "type": "autodate", "onCreate": true, "onUpdate": true }
+      ],
+      "indexes": ["CREATE UNIQUE INDEX `idx_settings_key` ON `site_settings` (`key`)"],
+      "listRule": "",
+      "viewRule": "",
+      "createRule": "@request.auth.id != ''",
+      "updateRule": "@request.auth.id != ''",
+      "deleteRule": "@request.auth.id != ''"
+    },
+    {
+      "name": "media",
+      "type": "base",
+      "fields": [
+        {
+          "name": "file",
+          "type": "file",
+          "required": true,
+          "maxSelect": 1,
+          "maxSize": 104857600,
+          "mimeTypes": ["image/jpeg", "image/png", "image/gif", "image/webp", "video/mp4", "video/webm", "audio/mpeg", "audio/mp3", "application/pdf"]
+        },
+        { "name": "alt_text", "type": "text", "required": false, "max": 200 },
+        { "name": "caption", "type": "text", "required": false, "max": 500 },
+        { "name": "created", "type": "autodate", "onCreate": true, "onUpdate": false },
+        { "name": "updated", "type": "autodate", "onCreate": true, "onUpdate": true }
+      ],
+      "listRule": "",
+      "viewRule": "",
+      "createRule": "@request.auth.id != ''",
+      "updateRule": "@request.auth.id != ''",
+      "deleteRule": "@request.auth.id != ''"
+    }
+  ],
+  "users_collection_policy": {
+    "note": "PocketBase creates the users auth collection by default. Keep public signup disabled for this site.",
+    "authRule": "",
+    "createRule": null,
+    "listRule": "id = @request.auth.id",
+    "viewRule": "id = @request.auth.id",
+    "updateRule": "id = @request.auth.id",
+    "deleteRule": null
+  }
+}

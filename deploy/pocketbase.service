@@ -1,0 +1,20 @@
+[Unit]
+Description=PocketBase - coldwaterkim.com Backend
+After=network.target
+
+[Service]
+Type=simple
+User=pocketbase
+WorkingDirectory=/home/pocketbase
+ExecStart=/home/pocketbase/pocketbase serve --http=127.0.0.1:8090 --dir=/home/pocketbase/pb_data --origins=https://coldwaterkim.com,https://www.coldwaterkim.com
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# 리소스 제한 (선택적)
+# MemoryLimit=512M
+# CPUQuota=80%
+
+[Install]
+WantedBy=multi-user.target

@@ -9,31 +9,58 @@
   <script type="module" src="js/site.js"></script>
 </head>
 
-<body>
+<body background="" bgcolor="#e0e0e0">
   <center>
+    <marquee behavior="alternate" scrollamount="3" width="760">
+      <span class="marquee-text">📝 방명록에 한 줄 남겨주세요! Leave a message! ✍️</span>
+    </marquee>
+
     <table width="760" border="1" cellspacing="0" cellpadding="8" bgcolor="#ffffff">
       <tr>
-        <td>
-          <h1>Guestbook</h1>
+        <td colspan="2" align="center" class="banner">
+          <b>💬 GUESTBOOK 방명록</b>
+        </td>
+      </tr>
+      <tr>
+        <td width="200" valign="top" class="sidebar">
+          <center>
+            <img src="https://media.tenor.com/2jxZ4zR8f58AAAAi/mail-message.gif" width="60" height="60" alt="mail"><br>
+            <font size="+1"><b>SIGN!</b></font>
+          </center>
+
           <form id="guestbookForm">
-            <table>
-              <tr>
-                <td>Name:</td>
-                <td><input type="text" id="name" required></td>
-              </tr>
-              <tr>
-                <td>Message:</td>
-                <td><textarea id="message" rows="3" cols="40" required></textarea></td>
-              </tr>
-              <tr>
-                <td></td>
-                <td><input type="submit" value="Sign!"> <input type="reset" value="Reset"></td>
-              </tr>
-            </table>
+            <p>
+              <b>이름:</b><br>
+              <input type="text" id="name" style="width: 100%;" maxlength="50" required>
+            </p>
+            <p>
+              <b>메시지:</b><br>
+              <textarea id="message" rows="4" style="width: 100%;" maxlength="1000" required></textarea>
+            </p>
+            <p>
+              <button type="submit" style="width: 100%; padding: 8px; font-weight: bold; cursor: pointer;">
+                ✏️ 남기기
+              </button>
+            </p>
           </form>
+
           <hr>
-          <div id="guestbookEntries"></div>
-          <p><a href="index.html">← Home</a></p>
+          <p class="note">
+            📌 방명록은 누구나 작성할 수 있습니다.<br>
+            🚫 부적절한 내용은 삭제될 수 있어요.
+          </p>
+        </td>
+        <td valign="top" class="content">
+          <h2 style="margin-top: 0;">📜 방명록 목록</h2>
+
+          <div id="guestbookEntries">
+            <p>불러오는 중...</p>
+          </div>
+
+          <hr>
+          <p>
+            <a href="index.html">← Back to Home</a>
+          </p>
         </td>
       </tr>
     </table>

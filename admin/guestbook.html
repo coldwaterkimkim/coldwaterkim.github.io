@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>방명록 관리 — coldwaterkim Admin</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="../css/admin.css">
+</head>
+
+<body class="admin-body">
+    <div class="admin-container">
+        <!-- Header -->
+        <div class="admin-header">
+            <h1>★ coldwaterkim ADMIN ★</h1>
+            <div>
+                <a href="../index.html">🏠 홈으로</a> |
+                <a href="#" id="logoutBtn">🚪 로그아웃</a>
+            </div>
+        </div>
+
+        <!-- Navigation -->
+        <nav class="admin-nav">
+            <a href="/admin/">📊 대시보드</a>
+            <a href="/admin/posts.html">📝 글 관리</a>
+            <a href="/admin/media.html">🖼️ 미디어</a>
+            <a href="/admin/guestbook.html" class="active">💬 방명록</a>
+        </nav>
+
+        <!-- Content -->
+        <div class="admin-content">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h2 style="margin: 0;">💬 방명록 관리</h2>
+                <a href="../guestbook.html" target="_blank" class="btn">🌐 방명록 페이지 보기</a>
+            </div>
+
+            <div id="alert" class="alert" style="display: none;"></div>
+
+            <div class="admin-panel">
+                <table class="admin-table" id="guestbookTable">
+                    <thead>
+                        <tr>
+                            <th style="width: 120px;">이름</th>
+                            <th>메시지</th>
+                            <th style="width: 150px;">날짜</th>
+                            <th style="width: 80px;">액션</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td colspan="4" class="loading">불러오는 중</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="pagination" id="pagination" style="margin-top: 16px;"></div>
+            </div>
+
+            <div class="admin-panel">
+                <h2>📊 통계</h2>
+                <p id="stats">전체 방명록 수: 계산 중...</p>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { isLoggedIn, logout, getGuestbookEntries, deleteGuestbookEntry, formatDate, escapeHtml, cmsErrorMessage } from '../js/pb.js';
+
+        // 인증 체크
+        if (!isLoggedIn()) {
+            window.location.replace('/admin/login.html');
+            await new Promise(() => { });
+        }
+
+        // 로그아웃
+        document.getElementById('logoutBtn').addEventListener('click', (e) => {
+            e.preventDefault();
+            logout();
+            window.location.href = '/admin/login.html';
+        });
+
+        // 상태
+        let currentPage = 1;
+
+        // 전역 함수 노출
+        window.confirmDelete = confirmDelete;
+        window.goToPage = goToPage;
+
+        // 알림
+        function showAlert(message, type) {
+            const alertEl = document.getElementById('alert');
+            alertEl.textContent = message;
+            alertEl.className = `alert alert-${type}`;
+            alertEl.style.display = 'block';
+            setTimeout(() => alertEl.style.display = 'none', 5000);
+        }
+
+        // 방명록 목록 로드
+        async function loadGuestbook(page = 1) {
+            const tbody = document.querySelector('#guestbookTable tbody');
+            tbody.innerHTML = '<tr><td colspan="4" class="loading">불러오는 중</td></tr>';
+
+            try {
+                const result = await getGuestbookEntries(page, 20);
+                currentPage = page;
+
+                // 통계 업데이트
+                document.getElementById('stats').textContent = `전체 방명록 수: ${result.totalItems}개`;
+
+                if (result.items.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4">방명록이 비어있습니다.</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = result.items.map(entry => `
+          <tr>
+            <td><b>${escapeHtml(entry.name)}</b></td>
+            <td>${escapeHtml(entry.message)}</td>
+            <td>${formatDate(entry.created)}</td>
+            <td>
+              <button class="btn btn-danger" onclick="confirmDelete('${entry.id}')" style="padding: 4px 8px;">🗑️</button>
+            </td>
+          </tr>
+        `).join('');
+
+                // 페이지네이션
+                renderPagination(result.totalPages, page);
+            } catch (e) {
+                tbody.innerHTML = '<tr><td colspan="4">불러오기 실패: ' + cmsErrorMessage(e) + '</td></tr>';
+            }
+        }
+
+        // 페이지네이션 렌더링
+        function renderPagination(totalPages, currentPage) {
+            const paginationEl = document.getElementById('pagination');
+            if (totalPages <= 1) {
+                paginationEl.innerHTML = '';
+                return;
+            }
+
+            let html = '';
+            for (let i = 1; i <= totalPages; i++) {
+                if (i === currentPage) {
+                    html += `<span class="current">${i}</span>`;
+                } else {
+                    html += `<a href="javascript:void(0)" onclick="goToPage(${i})">${i}</a>`;
+                }
+            }
+            paginationEl.innerHTML = html;
+        }
+
+        function goToPage(page) {
+            loadGuestbook(page);
+        }
+
+        // 삭제 확인
+        async function confirmDelete(id) {
+            if (!confirm('정말 이 방명록을 삭제하시겠습니까?')) return;
+
+            try {
+                await deleteGuestbookEntry(id);
+                showAlert('방명록이 삭제되었습니다.', 'success');
+                loadGuestbook(currentPage);
+            } catch (e) {
+                showAlert('삭제 실패: ' + cmsErrorMessage(e), 'error');
+            }
+        }
+
+        // 초기 로드
+        loadGuestbook();
+    </script>
+</body>
+
+</html>

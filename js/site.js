@@ -1,32 +1,132 @@
-import { supabase } from './supabase.js';
+/**
+ * coldwaterkim.com - Public Site JavaScript
+ * PocketBase 연동 버전
+ */
 
-// 90s 느낌 나는 방문자 카운터 (브라우저별 로컬)
-(function () {
-  var el = document.getElementById('hitCounter');
+import { getPublishedPosts, getGuestbookEntries, addGuestbookEntry, getSetting, setSetting, isLoggedIn, deleteGuestbookEntry, formatDate, escapeHtml, cmsErrorMessage } from './pb.js';
+
+// ─────────────────────────────────────────────────────────
+// 방문자 카운터 (로컬 스토리지)
+// ─────────────────────────────────────────────────────────
+(function initCounter() {
+  const el = document.getElementById('hitCounter');
   if (!el) return;
-  var key = 'cwk_hit_counter';
-  var n = parseInt(localStorage.getItem(key) || '0', 10) + 1;
+  const key = 'cwk_hit_counter';
+  const n = parseInt(localStorage.getItem(key) || '0', 10) + 1;
   localStorage.setItem(key, String(n));
-  el.textContent = ("0000000" + n).slice(-7);
+  el.textContent = String(n).padStart(7, '0');
 })();
 
-// Guestbook Logic
+// ─────────────────────────────────────────────────────────
+// 사이트 설정 로드 (인라인 편집 가능한 요소들)
+// ─────────────────────────────────────────────────────────
+(async function initSettings() {
+  const editableElements = document.querySelectorAll('[data-editable="true"]');
+  if (editableElements.length === 0) return;
+
+  // 저장된 설정 불러오기
+  for (const el of editableElements) {
+    const key = el.getAttribute('data-key');
+    if (!key) continue;
+
+    try {
+      const value = await getSetting(key);
+      if (value) {
+        el.innerHTML = value;
+      }
+    } catch (e) {
+      // 설정이 없으면 기본값 유지
+    }
+  }
+
+  // 관리자인 경우 인라인 편집 활성화
+  if (!isLoggedIn()) return;
+
+  editableElements.forEach(el => {
+    el.contentEditable = 'true';
+    el.style.border = '2px dashed red';
+    el.title = '클릭해서 편집 (변경 후 포커스 아웃 시 저장)';
+
+    el.addEventListener('blur', async () => {
+      const key = el.getAttribute('data-key');
+      const value = el.innerHTML;
+
+      try {
+        await setSetting(key, value);
+        el.style.backgroundColor = '#ccffcc';
+        setTimeout(() => el.style.backgroundColor = '', 500);
+      } catch (e) {
+        console.error('Setting save failed:', e);
+        el.style.backgroundColor = '#ffcccc';
+      }
+    });
+  });
+})();
+
+// ─────────────────────────────────────────────────────────
+// 최근 글 목록 (index.html)
+// ─────────────────────────────────────────────────────────
+(async function initRecentPosts() {
+  const table = document.getElementById('recent-posts-table');
+  if (!table) return;
+
+  try {
+    const result = await getPublishedPosts(1, 3);
+
+    if (result.items.length === 0) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td colspan="2">아직 글이 없습니다.</td>';
+      table.appendChild(tr);
+      return;
+    }
+
+    result.items.forEach(post => {
+      const tr = document.createElement('tr');
+      const date = post.published_at || post.created;
+      tr.innerHTML = `
+        <td><a href="posts/view.html?slug=${post.slug}">${escapeHtml(post.title)}</a></td>
+        <td align="right">${formatDate(date)}</td>
+      `;
+      table.appendChild(tr);
+    });
+
+    // 모든 글 보기 링크
+    const trAll = document.createElement('tr');
+    trAll.innerHTML = '<td><a href="posts/index.html">모든 글 보기</a></td><td align="right">→</td>';
+    table.appendChild(trAll);
+  } catch (e) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td colspan="2">${escapeHtml(cmsErrorMessage(e))}</td>`;
+    table.appendChild(tr);
+  }
+})();
+
+// ─────────────────────────────────────────────────────────
+// 방명록 (guestbook.html)
+// ─────────────────────────────────────────────────────────
 const guestbookForm = document.getElementById('guestbookForm');
 const guestbookEntries = document.getElementById('guestbookEntries');
 
 if (guestbookForm) {
   guestbookForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const name = document.getElementById('name').value.trim();
-    const message = document.getElementById('message').value.trim();
-    if (!name || !message) return;
 
-    const { error } = await supabase.from('guestbook').insert({ name, message });
-    if (error) {
-      alert('Error signing guestbook: ' + error.message);
-    } else {
+    const nameEl = document.getElementById('name');
+    const messageEl = document.getElementById('message');
+    const name = nameEl.value.trim();
+    const message = messageEl.value.trim();
+
+    if (!name || !message) {
+      alert('이름과 메시지를 모두 입력해주세요.');
+      return;
+    }
+
+    try {
+      await addGuestbookEntry(name, message);
       guestbookForm.reset();
       loadGuestbook();
+    } catch (e) {
+      alert('방명록 작성 실패: ' + cmsErrorMessage(e));
     }
   });
 
@@ -35,135 +135,56 @@ if (guestbookForm) {
 
 async function loadGuestbook() {
   if (!guestbookEntries) return;
-  guestbookEntries.innerHTML = 'Loading entries...';
+  guestbookEntries.innerHTML = '<p>불러오는 중...</p>';
 
-  const { data, error } = await supabase
-    .from('guestbook')
-    .select('*')
-    .order('created_at', { ascending: false });
+  try {
+    const result = await getGuestbookEntries(1, 50);
 
-  if (error) {
-    guestbookEntries.innerHTML = 'Failed to load entries.';
-    return;
-  }
+    if (result.items.length === 0) {
+      guestbookEntries.innerHTML = '<p>아직 방명록이 없습니다. 첫 번째로 인사해주세요!</p>';
+      return;
+    }
 
-  if (!data || data.length === 0) {
-    guestbookEntries.innerHTML = '<p>No entries yet. Be the first!</p>';
-    return;
-  }
+    const isAdmin = isLoggedIn();
 
-  // Check if admin to show delete buttons
-  const { data: { session } } = await supabase.auth.getSession();
-  const isAdmin = !!session;
+    guestbookEntries.innerHTML = result.items.map(entry => {
+      const dateLabel = formatDate(entry.created);
+      const metaPrefix = dateLabel ? `[${dateLabel}] ` : '';
+      const deleteBtn = isAdmin
+        ? `<button class="del-btn" data-id="${entry.id}" style="font-size:10px; color:red; border:1px solid red; background:white; cursor:pointer; margin-left:5px;">[삭제]</button>`
+        : '';
 
-  guestbookEntries.innerHTML = data.map(e => {
-    const d = new Date(e.created_at).toLocaleString();
+      return `
+        <div class="entry">
+          <div class="meta">
+            ${metaPrefix}by <b>${escapeHtml(entry.name)}</b>
+            ${deleteBtn}
+          </div>
+          <div>${linkify(escapeHtml(entry.message))}</div>
+        </div>
+      `;
+    }).join('');
 
-    // Inline delete handler requires global function if not attaching listeners
-    // Using delegation below instead.
-    const del = isAdmin ? `<button class="del-btn" data-id="${e.id}" style="font-size:10px; color:red; border:1px solid red; background:white; cursor:pointer; margin-left:5px;">[del]</button>` : '';
-
-    return `<div class="entry" style="margin-bottom:10px; border-bottom:1px dashed #ccc; padding-bottom:5px;">
-      <div class="meta" style="font-size:12px; color:#555;">[${d}] by <b>${escapeHtml(e.name)}</b> ${del}</div>
-      <div>${linkify(escapeHtml(e.message))}</div>
-    </div>`;
-  }).join('');
-
-  // Attach delete handlers
-  if (isAdmin) {
-    document.querySelectorAll('.del-btn').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        if (!confirm('Delete this entry?')) return;
-        const id = btn.getAttribute('data-id');
-        const { error } = await supabase.from('guestbook').delete().eq('id', id);
-        if (error) alert('Delete failed: ' + error.message);
-        else loadGuestbook();
+    // 삭제 버튼 이벤트
+    if (isAdmin) {
+      document.querySelectorAll('.del-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          if (!confirm('이 방명록을 삭제하시겠습니까?')) return;
+          try {
+            await deleteGuestbookEntry(btn.dataset.id);
+            loadGuestbook();
+          } catch (e) {
+            alert('삭제 실패: ' + cmsErrorMessage(e));
+          }
+        });
       });
-    });
+    }
+  } catch (e) {
+    guestbookEntries.innerHTML = `<p>${escapeHtml(cmsErrorMessage(e))}</p>`;
   }
 }
 
-// Recent Posts Logic (for index.html)
-const recentPostsTable = document.getElementById('recent-posts-table');
-if (recentPostsTable) {
-  loadRecentPosts();
-}
-
-async function loadRecentPosts() {
-  const { data, error } = await supabase
-    .from('posts')
-    .select('title, slug, date')
-    .order('date', { ascending: false })
-    .limit(3);
-
-  if (data && data.length > 0) {
-    // append rows
-    data.forEach(p => {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `<td><a href="posts/view.html?slug=${p.slug}">${p.title}</a></td><td align="right">${p.date}</td>`;
-      recentPostsTable.appendChild(tr);
-    });
-
-    // Add 'View All' link
-    const trAll = document.createElement('tr');
-    trAll.innerHTML = `<td><a href="posts/index.html">모든 글 보기</a></td><td align="right">→</td>`;
-    recentPostsTable.appendChild(trAll);
-  } else {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `<td colspan="2">No posts yet.</td>`;
-    recentPostsTable.appendChild(tr);
-  }
-}
-
-function escapeHtml(str) {
-  return str.replace(/[&<>\"']/g, function (m) {
-    return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', '\'': '&#39;' }[m]);
-  });
-}
-
+// URL 링크 변환
 function linkify(str) {
   return str.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank">$1</a>');
 }
-
-// Inline Editing Logic
-(async function initInlineEditing() {
-  const editableElements = document.querySelectorAll('[data-editable="true"]');
-  if (editableElements.length === 0) return;
-
-  // 1. Load saved settings
-  const { data: settings } = await supabase.from('site_settings').select('key, value');
-  if (settings) {
-    settings.forEach(item => {
-      const el = document.querySelector(`[data-key="${item.key}"]`);
-      if (el) el.innerHTML = item.value; // Allow HTML in settings
-    });
-  }
-
-  // 2. Check if admin
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) return; // Not admin, stop here.
-
-  // 3. Enable editing
-  editableElements.forEach(el => {
-    el.contentEditable = "true";
-    el.style.border = "1px dashed red"; // Visual cue for admin
-    el.title = "Click to edit";
-
-    el.addEventListener('blur', async () => {
-      const key = el.getAttribute('data-key');
-      const value = el.innerHTML;
-
-      // Save to DB
-      const { error } = await supabase.from('site_settings').upsert({ key, value }, { onConflict: 'key' });
-      if (error) {
-        console.error('Failed to save setting', error);
-        el.style.border = "1px solid red";
-      } else {
-        el.style.border = "1px dashed red"; // Saved
-        const originalBg = el.style.backgroundColor;
-        el.style.backgroundColor = '#ccffcc';
-        setTimeout(() => el.style.backgroundColor = originalBg, 500);
-      }
-    });
-  });
-})();

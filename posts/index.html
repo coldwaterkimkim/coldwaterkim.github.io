@@ -6,52 +6,101 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=800">
   <link rel="stylesheet" href="../css/styles.css">
-  <script type="module">
-    import { supabase } from '../js/supabase.js';
-
-    const listEl = document.getElementById('post-list');
-
-    async function loadPosts() {
-      const { data, error } = await supabase
-        .from('posts')
-        .select('title, slug, date')
-        .order('date', { ascending: false });
-
-      if (error) {
-        listEl.innerHTML = '<li>Error loading posts</li>';
-        return;
-      }
-
-      if (!data || data.length === 0) {
-        listEl.innerHTML = '<li>No posts yet.</li>';
-        return;
-      }
-
-      const html = data.map(post => {
-        return `<li><a href="view.html?slug=${post.slug}">${post.title}</a> — <i>${post.date}</i></li>`;
-      }).join('');
-
-      listEl.innerHTML = html;
-    }
-
-    loadPosts();
-  </script>
 </head>
 
-<body>
+<body background="" bgcolor="#e0e0e0">
   <center>
     <table width="760" border="1" cellspacing="0" cellpadding="8" bgcolor="#ffffff">
       <tr>
         <td>
-          <h1>My Blog Posts</h1>
-          <ul id="post-list">
-            <li>Loading posts...</li>
-          </ul>
-          <p><a href="../index.html">← Back to Home</a></p>
+          <h1>📝 My Blog Posts</h1>
+          <p class="note">발행된 글 목록입니다.</p>
+
+          <table border="1" cellspacing="0" cellpadding="6" width="100%" id="posts-table">
+            <tr bgcolor="#f0f0f0">
+              <th align="left">제목</th>
+              <th style="width: 120px;">날짜</th>
+            </tr>
+            <tbody id="posts-list">
+              <tr>
+                <td colspan="2">불러오는 중...</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div id="pagination" style="margin-top: 16px; text-align: center;"></div>
+
+          <p style="margin-top: 20px;">
+            <a href="../index.html">← Back to Home</a>
+          </p>
         </td>
       </tr>
     </table>
   </center>
+
+  <script type="module">
+    import { getPublishedPosts, formatDate, escapeHtml, cmsErrorMessage } from '../js/pb.js';
+
+    let currentPage = 1;
+    const perPage = 10;
+
+    window.goToPage = goToPage;
+
+    async function loadPosts(page = 1) {
+      const tbody = document.getElementById('posts-list');
+      tbody.innerHTML = '<tr><td colspan="2">불러오는 중...</td></tr>';
+
+      try {
+        const result = await getPublishedPosts(page, perPage);
+        currentPage = page;
+
+        if (result.items.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="2">아직 발행된 글이 없습니다.</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = result.items.map(post => {
+          const date = post.published_at || post.created;
+          return `
+            <tr>
+              <td><a href="view.html?slug=${post.slug}">${escapeHtml(post.title)}</a></td>
+              <td align="center">${formatDate(date)}</td>
+            </tr>
+          `;
+        }).join('');
+
+        // 페이지네이션
+        renderPagination(result.totalPages, page);
+      } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="2">${escapeHtml(cmsErrorMessage(e))}</td></tr>`;
+      }
+    }
+
+    function renderPagination(totalPages, currentPage) {
+      const paginationEl = document.getElementById('pagination');
+      if (totalPages <= 1) {
+        paginationEl.innerHTML = '';
+        return;
+      }
+
+      let html = '[ ';
+      for (let i = 1; i <= totalPages; i++) {
+        if (i === currentPage) {
+          html += `<b>${i}</b> `;
+        } else {
+          html += `<a href="javascript:void(0)" onclick="goToPage(${i})">${i}</a> `;
+        }
+      }
+      html += ']';
+      paginationEl.innerHTML = html;
+    }
+
+    function goToPage(page) {
+      loadPosts(page);
+    }
+
+    loadPosts();
+  </script>
 </body>
 
 </html>
