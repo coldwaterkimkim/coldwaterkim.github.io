@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>방명록 관리 — coldwaterkim Admin</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script type="module" crossorigin src="/assets/admin/guestbook-dGI_Rkla.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/pb-jiI6snNn.js">
+  <link rel="stylesheet" crossorigin href="/assets/admin-DZjj8FfQ.css">
+</head>
+
+<body class="admin-body">
+    <div class="admin-container">
+        <!-- Header -->
+        <div class="admin-header">
+            <h1>★ coldwaterkim ADMIN ★</h1>
+            <div>
+                <a href="../index.html">🏠 홈으로</a> |
+                <a href="#" id="logoutBtn">🚪 로그아웃</a>
+            </div>
+        </div>
+
+        <!-- Navigation -->
+        <nav class="admin-nav">
+            <a href="/admin/">📊 대시보드</a>
+            <a href="/admin/posts.html">📝 글 관리</a>
+            <a href="/admin/media.html">🖼️ 미디어</a>
+            <a href="/admin/guestbook.html" class="active">💬 방명록</a>
+        </nav>
+
+        <!-- Content -->
+        <div class="admin-content">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h2 style="margin: 0;">💬 방명록 관리</h2>
+                <a href="../guestbook.html" target="_blank" class="btn">🌐 방명록 페이지 보기</a>
+            </div>
+
+            <div id="alert" class="alert" style="display: none;"></div>
+
+            <div class="admin-panel">
+                <table class="admin-table" id="guestbookTable">
+                    <thead>
+                        <tr>
+                            <th style="width: 120px;">이름</th>
+                            <th>메시지</th>
+                            <th style="width: 150px;">날짜</th>
+                            <th style="width: 80px;">액션</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td colspan="4" class="loading">불러오는 중</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="pagination" id="pagination" style="margin-top: 16px;"></div>
+            </div>
+
+            <div class="admin-panel">
+                <h2>📊 통계</h2>
+                <p id="stats">전체 방명록 수: 계산 중...</p>
+            </div>
+        </div>
+    </div>
+
+</body>
+
+</html>

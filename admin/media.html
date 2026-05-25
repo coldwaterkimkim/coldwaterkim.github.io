@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>미디어 — coldwaterkim Admin</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script type="module" crossorigin src="/assets/admin/media-DYFfvRgK.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/pb-jiI6snNn.js">
+  <link rel="stylesheet" crossorigin href="/assets/admin-DZjj8FfQ.css">
+</head>
+
+<body class="admin-body">
+    <div class="admin-container">
+        <!-- Header -->
+        <div class="admin-header">
+            <h1>★ coldwaterkim ADMIN ★</h1>
+            <div>
+                <a href="../index.html">🏠 홈으로</a> |
+                <a href="#" id="logoutBtn">🚪 로그아웃</a>
+            </div>
+        </div>
+
+        <!-- Navigation -->
+        <nav class="admin-nav">
+            <a href="/admin/">📊 대시보드</a>
+            <a href="/admin/posts.html">📝 글 관리</a>
+            <a href="/admin/media.html" class="active">🖼️ 미디어</a>
+            <a href="/admin/guestbook.html">💬 방명록</a>
+        </nav>
+
+        <!-- Content -->
+        <div class="admin-content">
+            <h2 style="margin-top: 0;">🖼️ 미디어 라이브러리</h2>
+
+            <div id="alert" class="alert" style="display: none;"></div>
+
+            <!-- 업로드 영역 -->
+            <div class="admin-panel">
+                <h2>📤 파일 업로드</h2>
+                <div id="dropzone" class="dropzone">
+                    <p>📁 여기에 파일을 드래그하거나 클릭하여 업로드</p>
+                    <p style="font-size: 12px; color: #888;">이미지, 영상, MP3, PDF (최대 100MB)</p>
+                </div>
+                <input type="file" id="fileInput" style="display: none;" multiple accept="image/*,video/*,audio/*,.pdf">
+                <div id="uploadProgress" style="margin-top: 8px; display: none;">
+                    <progress id="progressBar" value="0" max="100" style="width: 100%;"></progress>
+                    <span id="progressText">업로드 중...</span>
+                </div>
+            </div>
+
+            <!-- 미디어 목록 -->
+            <div class="admin-panel">
+                <h2>📂 업로드된 파일</h2>
+                <div id="mediaGrid" class="media-grid">
+                    <div class="loading">불러오는 중</div>
+                </div>
+                <div class="pagination" id="pagination" style="margin-top: 16px;"></div>
+            </div>
+
+            <!-- 선택된 파일 정보 -->
+            <div id="selectedMedia" class="admin-panel" style="display: none;">
+                <h2>📋 파일 정보</h2>
+                <div id="mediaInfo"></div>
+                <div class="form-group" style="margin-top: 12px;">
+                    <label>파일 URL (복사해서 글에 사용)</label>
+                    <input type="text" id="mediaUrl" readonly onclick="this.select()">
+                </div>
+                <div class="action-buttons">
+                    <button class="btn" onclick="copyUrl()">📋 URL 복사</button>
+                    <button class="btn btn-danger" onclick="deleteSelectedMedia()">🗑️ 삭제</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</body>
+
+</html>

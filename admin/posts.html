@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>글 관리 — coldwaterkim Admin</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- Quill Editor -->
+    <link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet">
+    <style>
+        .ql-editor {
+            min-height: 300px;
+            font-family: "Georgia", serif;
+            font-size: 16px;
+        }
+    </style>
+  <script type="module" crossorigin src="/assets/admin/posts-CW1mpMuK.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/pb-jiI6snNn.js">
+  <link rel="stylesheet" crossorigin href="/assets/admin-DZjj8FfQ.css">
+</head>
+
+<body class="admin-body">
+    <div class="admin-container">
+        <!-- Header -->
+        <div class="admin-header">
+            <h1>★ coldwaterkim ADMIN ★</h1>
+            <div>
+                <a href="../index.html">🏠 홈으로</a> |
+                <a href="#" id="logoutBtn">🚪 로그아웃</a>
+            </div>
+        </div>
+
+        <!-- Navigation -->
+        <nav class="admin-nav">
+            <a href="/admin/">📊 대시보드</a>
+            <a href="/admin/posts.html" class="active">📝 글 관리</a>
+            <a href="/admin/media.html">🖼️ 미디어</a>
+            <a href="/admin/guestbook.html">💬 방명록</a>
+        </nav>
+
+        <!-- Content -->
+        <div class="admin-content">
+            <div id="alert" class="alert" style="display: none;"></div>
+
+            <!-- 글 목록 뷰 -->
+            <div id="listView">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                    <h2 style="margin: 0;">📝 글 목록</h2>
+                    <button class="btn btn-primary" onclick="showEditor()">✚ 새 글 쓰기</button>
+                </div>
+
+                <table class="admin-table" id="postsTable">
+                    <thead>
+                        <tr>
+                            <th>제목</th>
+                            <th style="width: 80px;">상태</th>
+                            <th style="width: 120px;">날짜</th>
+                            <th style="width: 140px;">액션</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td colspan="4" class="loading">불러오는 중</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="pagination" id="pagination"></div>
+            </div>
+
+            <!-- 에디터 뷰 -->
+            <div id="editorView" style="display: none;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                    <h2 style="margin: 0;" id="editorTitle">✍️ 새 글 쓰기</h2>
+                    <button class="btn" onclick="showList()">← 목록으로</button>
+                </div>
+
+                <form id="postForm">
+                    <input type="hidden" id="postId">
+
+                    <div class="admin-panel">
+                        <div class="form-row">
+                            <div class="form-group" style="flex: 2;">
+                                <label for="title">제목 *</label>
+                                <input type="text" id="title" required placeholder="멋진 제목을 입력하세요">
+                            </div>
+                            <div class="form-group" style="flex: 1;">
+                                <label for="slug">슬러그 (URL)</label>
+                                <input type="text" id="slug" placeholder="자동 생성됨">
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="status">상태</label>
+                                <select id="status">
+                                    <option value="draft">📝 초안</option>
+                                    <option value="published">✅ 발행됨</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="published_at">발행일</label>
+                                <input type="date" id="published_at">
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="excerpt">요약 (선택)</label>
+                            <input type="text" id="excerpt" placeholder="글 목록에 표시될 요약문">
+                        </div>
+                    </div>
+
+                    <div class="admin-panel">
+                        <h2>본문</h2>
+                        <div class="editor-container">
+                            <div id="editor"></div>
+                        </div>
+                    </div>
+
+                    <div class="admin-panel">
+                        <h2>🖼️ 대표 이미지</h2>
+                        <div id="featuredImagePreview" style="margin-bottom: 12px;"></div>
+                        <input type="file" id="featuredImage" accept="image/*">
+                        <p style="font-size: 12px; color: #666; margin-top: 4px;">JPG, PNG, GIF, WebP (최대 10MB)</p>
+                    </div>
+
+                    <div class="action-buttons">
+                        <button type="submit" class="btn btn-primary">💾 저장</button>
+                        <button type="button" class="btn btn-success" onclick="saveAndPublish()">🚀 저장 후 발행</button>
+                        <button type="button" class="btn" onclick="previewPost()">👁️ 미리보기</button>
+                        <button type="button" class="btn btn-danger" id="deleteBtn" style="display: none;"
+                            onclick="deleteCurrentPost()">🗑️ 삭제</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quill JS -->
+    <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
+
+</body>
+
+</html>

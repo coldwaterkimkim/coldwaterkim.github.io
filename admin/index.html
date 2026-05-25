@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>Dashboard — coldwaterkim Admin</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script type="module" crossorigin src="/assets/admin/index-eKotj8yP.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/pb-jiI6snNn.js">
+  <link rel="stylesheet" crossorigin href="/assets/admin-DZjj8FfQ.css">
+</head>
+
+<body class="admin-body">
+    <div class="admin-container">
+        <!-- Header -->
+        <div class="admin-header">
+            <h1>★ coldwaterkim ADMIN ★</h1>
+            <div>
+                <a href="../index.html">🏠 홈으로</a> |
+                <a href="#" id="logoutBtn">🚪 로그아웃</a>
+            </div>
+        </div>
+
+        <!-- Navigation -->
+        <nav class="admin-nav">
+            <a href="/admin/" class="active">📊 대시보드</a>
+            <a href="/admin/posts.html">📝 글 관리</a>
+            <a href="/admin/media.html">🖼️ 미디어</a>
+            <a href="/admin/guestbook.html">💬 방명록</a>
+        </nav>
+
+        <!-- Content -->
+        <div class="admin-content">
+            <h2 style="margin-top: 0;">환영합니다! 👋</h2>
+            <p id="welcomeMsg">로딩 중...</p>
+
+            <!-- 빠른 통계 -->
+            <div style="display: flex; gap: 16px; flex-wrap: wrap; margin-top: 20px;">
+                <div class="admin-panel" style="flex: 1; min-width: 200px;">
+                    <h2>📝 글</h2>
+                    <p style="font-size: 32px; margin: 0; color: #000080;" id="postCount">-</p>
+                    <p style="font-size: 12px; color: #666;">총 게시글</p>
+                    <p style="margin-bottom: 0;">
+                        <a href="/admin/posts.html?new=1" class="btn btn-primary">새 글 쓰기</a>
+                    </p>
+                </div>
+
+                <div class="admin-panel" style="flex: 1; min-width: 200px;">
+                    <h2>💬 방명록</h2>
+                    <p style="font-size: 32px; margin: 0; color: #000080;" id="guestbookCount">-</p>
+                    <p style="font-size: 12px; color: #666;">총 방명록 항목</p>
+                    <p style="margin-bottom: 0;">
+                        <a href="/admin/guestbook.html" class="btn">관리하기</a>
+                    </p>
+                </div>
+
+                <div class="admin-panel" style="flex: 1; min-width: 200px;">
+                    <h2>🖼️ 미디어</h2>
+                    <p style="font-size: 32px; margin: 0; color: #000080;" id="mediaCount">-</p>
+                    <p style="font-size: 12px; color: #666;">업로드된 파일</p>
+                    <p style="margin-bottom: 0;">
+                        <a href="/admin/media.html" class="btn">업로드하기</a>
+                    </p>
+                </div>
+            </div>
+
+            <!-- 최근 글 -->
+            <div class="admin-panel" style="margin-top: 20px;">
+                <h2>📋 최근 글</h2>
+                <table class="admin-table" id="recentPosts">
+                    <thead>
+                        <tr>
+                            <th>제목</th>
+                            <th style="width: 100px;">상태</th>
+                            <th style="width: 120px;">날짜</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td colspan="3" class="loading">불러오는 중</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+</body>
+
+</html>
