@@ -80,7 +80,9 @@ GitHub Pages 배포에서는 이 `dist/` 폴더를 GitHub Actions가 `gh-pages` 
 
 VPS에서 API만 운영할 때는 `deploy/nginx-api-subdomain.conf`와 `deploy/pocketbase.service`를 사용한다. 전체 사이트까지 VPS로 옮기는 선택지를 택할 때는 `deploy/nginx.conf`를 사용한다.
 
-Fly.io로 API 서버를 올릴 때는 `fly.toml`, `deploy/fly/`, `scripts/deploy-pocketbase-fly.sh`를 사용한다. 이 경로가 현재 가장 빠른 PocketBase 운영 배포 후보이다.
+무료를 최대한 유지하려면 Oracle Always Free VM에 `api.coldwaterkim.com` PocketBase를 올리는 경로가 1순위다. 이때는 `deploy/oracle/`을 사용한다.
+
+Fly.io로 API 서버를 올릴 때는 `fly.toml`, `deploy/fly/`, `scripts/deploy-pocketbase-fly.sh`를 사용한다. Fly.io는 더 단순하지만 결제수단/사용량 과금 가능성이 있으므로 무료 최우선 경로는 아니다.
 
 ## 중요한 구조
 
