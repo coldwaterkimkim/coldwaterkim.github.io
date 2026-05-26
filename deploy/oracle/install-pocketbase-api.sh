@@ -6,6 +6,7 @@ PB_VERSION="${PB_VERSION:-0.23.5}"
 PB_USER="${PB_USER:-pocketbase}"
 PB_HOME="${PB_HOME:-/home/pocketbase}"
 PB_DATA_DIR="${PB_DATA_DIR:-$PB_HOME/pb_data}"
+OPEN_HOST_FIREWALL="${OPEN_HOST_FIREWALL:-1}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 if [[ "${EUID}" -ne 0 ]]; then
@@ -26,8 +27,46 @@ case "$(uname -m)" in
     ;;
 esac
 
+export DEBIAN_FRONTEND="${DEBIAN_FRONTEND:-noninteractive}"
+
 apt-get update
 apt-get install -y ca-certificates curl nginx unzip
+
+open_iptables_port() {
+  local port="$1"
+
+  if ! command -v iptables >/dev/null 2>&1; then
+    return
+  fi
+
+  if iptables -C INPUT -p tcp -m state --state NEW -m tcp --dport "$port" -j ACCEPT 2>/dev/null; then
+    return
+  fi
+
+  local reject_line
+  reject_line="$(iptables -L INPUT --line-numbers -n | awk '/REJECT/ { print $1; exit }')"
+
+  if [[ -n "$reject_line" ]]; then
+    iptables -I INPUT "$reject_line" -p tcp -m state --state NEW -m tcp --dport "$port" -j ACCEPT
+  else
+    iptables -A INPUT -p tcp -m state --state NEW -m tcp --dport "$port" -j ACCEPT
+  fi
+}
+
+if [[ "$OPEN_HOST_FIREWALL" == "1" ]]; then
+  open_iptables_port 80
+  open_iptables_port 443
+
+  if command -v debconf-set-selections >/dev/null 2>&1; then
+    printf "iptables-persistent iptables-persistent/autosave_v4 boolean true\niptables-persistent iptables-persistent/autosave_v6 boolean true\n" \
+      | debconf-set-selections
+  fi
+
+  apt-get install -y iptables-persistent
+  if command -v netfilter-persistent >/dev/null 2>&1; then
+    netfilter-persistent save
+  fi
+fi
 
 if ! id -u "$PB_USER" >/dev/null 2>&1; then
   useradd --system --create-home --home-dir "$PB_HOME" --shell /usr/sbin/nologin "$PB_USER"
