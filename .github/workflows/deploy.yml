@@ -35,8 +35,33 @@ jobs:
         run: npm run build
 
       - name: Deploy
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./dist
-          cname: coldwaterkim.com
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PUBLISH_DIR: ./dist
+          PUBLISH_BRANCH: gh-pages
+          CNAME: coldwaterkim.com
+        run: |
+          set -euo pipefail
+
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          deploy_dir="$(mktemp -d)"
+          git clone --depth=1 --single-branch --branch "$PUBLISH_BRANCH" \
+            "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            "$deploy_dir"
+
+          cd "$deploy_dir"
+          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp -R "${GITHUB_WORKSPACE}/${PUBLISH_DIR}/." .
+          touch .nojekyll
+          printf '%s\n' "$CNAME" > CNAME
+
+          git add --all
+          if git diff --cached --quiet; then
+            echo "No deployment changes."
+            exit 0
+          fi
+
+          git commit -m "deploy: ${GITHUB_SHA}"
+          git push origin "$PUBLISH_BRANCH"
