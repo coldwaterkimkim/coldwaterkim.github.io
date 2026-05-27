@@ -5,53 +5,86 @@
     <title>Loading... — coldwaterkim</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=800">
+    <link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet">
     <style>
         .post-content {
-            line-height: var(--cwk-post-line-height);
-            font-size: var(--cwk-post-size);
-        }
-
-        .post-content img {
-            max-width: 100%;
             height: auto;
+            min-height: 0;
+            overflow: visible;
+            padding: 12px 15px;
+            font-family: "Georgia", serif;
+            font-size: var(--cwk-post-size);
+            line-height: var(--cwk-post-line-height);
         }
 
-        .post-content pre {
-            background: var(--cwk-code-block-bg);
-            padding: 12px;
-            overflow-x: auto;
-            border: 1px solid var(--cwk-border-soft);
-        }
-
-        .post-content code {
-            font-family: var(--cwk-font-mono);
-            background: var(--cwk-surface-table-head);
-            padding: 2px 4px;
-        }
-
-        .post-content blockquote {
-            border-left: 4px solid var(--cwk-muted);
-            margin-left: 0;
-            padding-left: 16px;
-            color: var(--cwk-meta);
+        .post-content > * {
+            cursor: auto;
         }
     </style>
-  <script type="module" crossorigin src="/assets/posts/view-hZxLgZbe.js"></script>
+  <script type="module" crossorigin src="/assets/posts/view-bo6sx60H.js"></script>
   <link rel="modulepreload" crossorigin href="/assets/pb-DsJnrek3.js">
-  <link rel="stylesheet" crossorigin href="/assets/styles-RZ2y8Njg.css">
+  <link rel="modulepreload" crossorigin href="/assets/site-CrdpBRcK.js">
+  <link rel="stylesheet" crossorigin href="/assets/site-Cfw98jm0.css">
 </head>
 
 <body background="" bgcolor="#e0e0e0">
     <center>
+        <marquee behavior="alternate" scrollamount="4" width="760">
+            <span class="marquee-text">★ WELCOME TO <a href="/admin/login.html?next=/posts/view.html" class="secret-login"><b>coldwaterkim</b></a>'s HOME PAGE ★</span>
+        </marquee>
+
         <table width="760" border="1" cellspacing="0" cellpadding="8" bgcolor="#ffffff">
             <tr>
-                <td>
-                    <p class="site-nav">
-                        [ <a href="../index.html">Home</a> |
-                        <a href="index.html">글방</a> |
-                        <a href="../guestbook.html">Guestbook</a> |
-                        <a href="../about.html">About / Contact</a> ]
-                    </p>
+                <td colspan="2" align="center" class="banner">
+                    <span class="blink">UNDER CONSTRUCTION</span> · <span class="hit">VISITORS:</span>
+                    <span id="hitCounter">0000000</span>
+                </td>
+            </tr>
+            <tr>
+                <td width="180" valign="top" class="sidebar">
+                    <div class="profile-card">
+                        <center>
+                            <img class="profile-photo" src="/assets/profile-crop-DEsiL-rx.jpg" alt="coldwaterkim profile"><br>
+                            <b>김찬수</b><br>
+                            <span class="note">밀레니엄 베이비</span>
+                        </center>
+                        <p class="profile-email">
+                            <a href="mailto:ckstn1112@gmail.com?subject=Hello%20from%20your%20site">ckstn1112@gmail.com</a>
+                        </p>
+                        <div class="today-box">
+                            <b>TODAY IS...</b><br>
+                            <span data-editable="true" data-key="profile_today">온 몸 비틀기</span>
+                        </div>
+                        <center class="mini-player">
+                            <audio controls autoplay loop data-bgm>
+                                <source src="../assets/bgm/bgm.mp3" type="audio/mpeg">
+                                Your browser does not support the audio element.
+                            </audio>
+                        </center>
+                    </div>
+
+                    <hr>
+                    <b>Cool Links</b>
+                    <ul>
+                        <li><a href="https://www.archive.org/" target="_blank">Internet Archive</a></li>
+                        <li><a href="https://www.cameronsworld.net/" target="_blank">GeoCities Garden</a></li>
+                    </ul>
+                    <hr>
+                    <div class="webring">
+                        <b>My WebRing</b><br>
+                        [ <a href="#">Prev</a> | <a href="#">Random</a> | <a href="#">Next</a> ]
+                    </div>
+                </td>
+                <td valign="top" class="content">
+                    <center>
+                        <div class="top-nav">
+                            [ <a href="../index.html">Home</a> |
+                            <a href="index.html">글방</a> |
+                            <a href="../guestbook.html">Guestbook</a> |
+                            <a href="../about.html">About / Contact</a> ]
+                        </div>
+                    </center>
+
                     <h1 id="post-title">불러오는 중...</h1>
                     <div id="owner-tools"></div>
                     <p><i id="post-date"></i></p>
@@ -60,16 +93,18 @@
 
                     <hr>
 
-                    <div id="post-content" class="post-content">
+                    <div id="post-content" class="post-content ql-editor">
                         <p>글을 불러오고 있습니다...</p>
                     </div>
 
                     <hr>
 
                     <p>
-                        <a href="index.html">← 글 목록으로</a> ·
-                        <a href="../index.html">🏠 Home</a>
+                        <a href="index.html">← 글 목록으로</a>
                     </p>
+                    <center>
+                        <small>© coldwaterkim — powered by me</small>
+                    </center>
                 </td>
             </tr>
         </table>
