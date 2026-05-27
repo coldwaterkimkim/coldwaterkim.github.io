@@ -88,7 +88,15 @@
     }
   ],
   "users_collection_policy": {
-    "note": "PocketBase creates the users auth collection by default. Keep public signup disabled for this site.",
+    "note": "PocketBase creates the users auth collection by default. Keep public signup disabled for this site. The admin login ID is stored in the built-in name field and must have a unique index before name can be used as a password auth identity field.",
+    "passwordAuth": {
+      "enabled": true,
+      "identityFields": ["email", "name"]
+    },
+    "indexes": [
+      "CREATE UNIQUE INDEX `idx_email__pb_users_auth_` ON `users` (`email`) WHERE `email` != ''",
+      "CREATE UNIQUE INDEX `idx_name__pb_users_auth_` ON `users` (`name`) WHERE `name` != ''"
+    ],
     "authRule": "",
     "createRule": null,
     "listRule": "id = @request.auth.id",

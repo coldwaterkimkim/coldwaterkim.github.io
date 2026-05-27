@@ -59,12 +59,12 @@ export function currentUser() {
 
 /**
  * 로그인
- * @param {string} email
+ * @param {string} identity username or email
  * @param {string} password
  * @returns {Promise<object>}
  */
-export async function login(email, password) {
-    return await pb.collection('users').authWithPassword(email, password);
+export async function login(identity, password) {
+    return await pb.collection('users').authWithPassword(identity, password);
 }
 
 /**

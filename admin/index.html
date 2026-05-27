@@ -94,8 +94,9 @@
 
         // 환영 메시지
         const user = currentUser();
+        const displayName = user?.name || user?.username || user?.email || 'Admin';
         document.getElementById('welcomeMsg').textContent =
-            `${user?.email || 'Admin'}님으로 로그인되어 있습니다.`;
+            `${displayName}님으로 로그인되어 있습니다.`;
 
         // 로그아웃
         document.getElementById('logoutBtn').addEventListener('click', (e) => {

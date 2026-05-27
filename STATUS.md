@@ -22,7 +22,7 @@
 - 글 목록은 PocketBase `posts` 컬렉션의 `published` 글만 보여준다.
 - 글 상세는 `slug`로 PocketBase 글을 조회한다.
 - 방명록은 PocketBase `guestbook` 컬렉션을 읽고 쓴다.
-- `/admin/`은 PocketBase `users` auth collection 계정으로 로그인한다.
+- `/admin/`은 PocketBase `users` auth collection의 관리자 ID/비밀번호 계정으로 로그인한다.
 
 ## 남은 세팅
 
