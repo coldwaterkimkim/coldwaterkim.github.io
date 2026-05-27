@@ -203,10 +203,37 @@ a:hover { background: var(--cwk-link-hover-bg); }
 .entry .meta { color: var(--cwk-meta); font-size: var(--cwk-note-size); }
 
 /* Counter digits */
-#hitCounter {
+#hitCounter,
+#todayCounter,
+.counter-digits {
   font-family: var(--cwk-font-mono);
   background: var(--cwk-counter-bg); color: var(--cwk-counter-fg);
+  display: inline-block;
+  min-width: 7ch;
   padding: 2px 6px;
+  text-align: right;
+}
+#todayCounter,
+.counter-digits--today {
+  min-width: 4ch;
+}
+.counter-admin-controls {
+  white-space: nowrap;
+}
+.counter-admin-btn {
+  font-family: var(--cwk-font-mono);
+  font-size: 11px;
+  line-height: 1;
+  margin-left: 2px;
+  padding: 1px 4px;
+  border: 1px outset var(--cwk-ink);
+  background: var(--cwk-surface-table-head);
+  color: var(--cwk-ink);
+  cursor: pointer;
+}
+.counter-admin-btn:disabled {
+  color: var(--cwk-muted);
+  cursor: wait;
 }
 .preview-box {
   margin-top: 8px;

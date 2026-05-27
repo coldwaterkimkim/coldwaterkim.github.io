@@ -3,7 +3,7 @@
  * PocketBase 연동 버전
  */
 
-import { getPublishedPosts, getGuestbookEntries, addGuestbookEntry, getSetting, setSetting, isLoggedIn, deleteGuestbookEntry, formatDate, escapeHtml, cmsErrorMessage } from './pb.js';
+import { getPublishedPosts, getGuestbookEntries, addGuestbookEntry, getSetting, setSetting, isLoggedIn, deleteGuestbookEntry, recordVisitAndGetStats, setVisitorTodayMinimum, formatDate, escapeHtml, cmsErrorMessage } from './pb.js';
 
 // ─────────────────────────────────────────────────────────
 // BGM 자동 재생 시도
@@ -24,15 +24,70 @@ import { getPublishedPosts, getGuestbookEntries, addGuestbookEntry, getSetting, 
 })();
 
 // ─────────────────────────────────────────────────────────
-// 방문자 카운터 (로컬 스토리지)
+// 방문자 카운터 (PocketBase 30분 세션)
 // ─────────────────────────────────────────────────────────
-(function initCounter() {
-  const el = document.getElementById('hitCounter');
-  if (!el) return;
-  const key = 'cwk_hit_counter';
-  const n = parseInt(localStorage.getItem(key) || '0', 10) + 1;
-  localStorage.setItem(key, String(n));
-  el.textContent = String(n).padStart(7, '0');
+(async function initCounter() {
+  const totalEl = document.getElementById('hitCounter');
+  const todayEl = document.getElementById('todayCounter');
+  if (!totalEl) return;
+
+  const renderStats = (stats) => {
+    totalEl.textContent = String(stats.total).padStart(7, '0');
+    if (todayEl) {
+      todayEl.textContent = String(stats.today).padStart(4, '0');
+    }
+  };
+
+  const renderAdminControls = (stats) => {
+    if (!todayEl || !isLoggedIn()) return;
+
+    const controls = document.createElement('span');
+    controls.className = 'counter-admin-controls';
+
+    const makeButton = (label, delta) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'counter-admin-btn';
+      button.textContent = label;
+      button.title = `TODAY 표시값 ${delta > 0 ? '올리기' : '내리기'}`;
+
+      button.addEventListener('click', async () => {
+        const next = delta > 0
+          ? stats.today + 1
+          : Math.max(stats.realToday, stats.today - 1);
+
+        controls.querySelectorAll('button').forEach(btn => {
+          btn.disabled = true;
+        });
+
+        try {
+          stats = await setVisitorTodayMinimum(stats.dayKey, next);
+          renderStats(stats);
+        } catch (e) {
+          console.warn('Visitor counter edit failed:', cmsErrorMessage(e));
+        } finally {
+          controls.querySelectorAll('button').forEach(btn => {
+            btn.disabled = false;
+          });
+        }
+      });
+
+      return button;
+    };
+
+    controls.append(' ');
+    controls.append(makeButton('▲', 1));
+    controls.append(makeButton('▼', -1));
+    todayEl.insertAdjacentElement('afterend', controls);
+  };
+
+  try {
+    const stats = await recordVisitAndGetStats();
+    renderStats(stats);
+    renderAdminControls(stats);
+  } catch (e) {
+    console.warn('Visitor counter failed:', cmsErrorMessage(e));
+  }
 })();
 
 // ─────────────────────────────────────────────────────────

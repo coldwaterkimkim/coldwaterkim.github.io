@@ -205,6 +205,187 @@ export async function deleteGuestbookEntry(id) {
 }
 
 // ─────────────────────────────────────────────────────────
+// Visitor Counter 헬퍼 함수들
+// ─────────────────────────────────────────────────────────
+
+const VISITOR_ID_KEY = 'cwk_visitor_id';
+const VISITOR_SESSION_KEY = 'cwk_visitor_session';
+const VISITOR_SESSION_TIMEOUT_MS = 30 * 60 * 1000;
+const VISITOR_TOTAL_DISPLAY_OFFSET = 2000;
+const VISITOR_TODAY_MIN_KEY_PREFIX = 'visitor_today_min_';
+
+function getKstDateKey(date = new Date()) {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Seoul',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    }).formatToParts(date);
+    const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+    return `${values.year}-${values.month}-${values.day}`;
+}
+
+function randomId() {
+    if (globalThis.crypto?.randomUUID) {
+        return globalThis.crypto.randomUUID();
+    }
+
+    return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
+function storageGet(key) {
+    try {
+        return localStorage.getItem(key);
+    } catch (e) {
+        return null;
+    }
+}
+
+function storageSet(key, value) {
+    try {
+        localStorage.setItem(key, value);
+    } catch (e) {
+        // 저장소가 막힌 환경에서는 같은 브라우저 중복 방지만 포기한다.
+    }
+}
+
+function getVisitorId() {
+    const existing = storageGet(VISITOR_ID_KEY);
+    if (existing) return existing;
+
+    const id = randomId();
+    storageSet(VISITOR_ID_KEY, id);
+    return id;
+}
+
+async function sha256(input) {
+    if (globalThis.crypto?.subtle) {
+        const bytes = new TextEncoder().encode(input);
+        const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes);
+        return Array.from(new Uint8Array(digest))
+            .map(byte => byte.toString(16).padStart(2, '0'))
+            .join('');
+    }
+
+    let hash = 0;
+    for (let i = 0; i < input.length; i += 1) {
+        hash = ((hash << 5) - hash) + input.charCodeAt(i);
+        hash |= 0;
+    }
+    return Math.abs(hash).toString(16).padStart(64, '0').slice(0, 64);
+}
+
+function readActiveSession(now) {
+    try {
+        const session = JSON.parse(storageGet(VISITOR_SESSION_KEY) || 'null');
+        if (!session?.sessionKey || !session?.lastSeenAt) return null;
+
+        const lastSeenAt = Number(session.lastSeenAt);
+        if (!Number.isFinite(lastSeenAt)) return null;
+
+        if (now - lastSeenAt >= VISITOR_SESSION_TIMEOUT_MS) return null;
+
+        return session;
+    } catch (e) {
+        return null;
+    }
+}
+
+function saveActiveSession(sessionKey, dayKey, now) {
+    storageSet(VISITOR_SESSION_KEY, JSON.stringify({
+        sessionKey,
+        dayKey,
+        lastSeenAt: now
+    }));
+}
+
+async function getVisitorStats(dayKey) {
+    const [total, today] = await Promise.all([
+        pb.collection('visitor_sessions').getList(1, 1, {
+            fields: 'id',
+            requestKey: 'visitor-total'
+        }),
+        pb.collection('visitor_sessions').getList(1, 1, {
+            filter: pb.filter('day_key = {:dayKey}', { dayKey }),
+            fields: 'id',
+            requestKey: 'visitor-today'
+        })
+    ]);
+
+    return {
+        total: total.totalItems || 0,
+        today: today.totalItems || 0
+    };
+}
+
+function parseCounterValue(value) {
+    const n = Number.parseInt(value || '0', 10);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+async function getVisitorDisplayStats(dayKey) {
+    const stats = await getVisitorStats(dayKey);
+    const todayMinimum = parseCounterValue(await getSetting(`${VISITOR_TODAY_MIN_KEY_PREFIX}${dayKey}`));
+
+    return {
+        dayKey,
+        realTotal: stats.total,
+        realToday: stats.today,
+        todayMinimum,
+        total: stats.total + VISITOR_TOTAL_DISPLAY_OFFSET,
+        today: Math.max(stats.today, todayMinimum)
+    };
+}
+
+/**
+ * 30분 세션 기준으로 방문을 1회 기록하고 TOTAL/TODAY 값을 가져온다.
+ * 같은 브라우저의 새로고침과 페이지 이동은 localStorage 세션으로 중복 집계를 막는다.
+ * @returns {Promise<{dayKey: string, realTotal: number, realToday: number, todayMinimum: number, total: number, today: number}>}
+ */
+export async function recordVisitAndGetStats() {
+    const now = Date.now();
+    const dayKey = getKstDateKey(new Date(now));
+    const activeSession = readActiveSession(now);
+
+    if (activeSession?.dayKey === dayKey) {
+        saveActiveSession(activeSession.sessionKey, dayKey, now);
+        return await getVisitorDisplayStats(dayKey);
+    }
+
+    const visitorId = getVisitorId();
+    const sessionBucket = Math.floor(now / VISITOR_SESSION_TIMEOUT_MS);
+    const sessionKey = await sha256(`cwk-visitor-v1:${visitorId}:${sessionBucket}`);
+
+    try {
+        await pb.collection('visitor_sessions').create({
+            session_key: sessionKey,
+            day_key: dayKey
+        }, {
+            requestKey: `visitor-session-${sessionKey}`
+        });
+    } catch (e) {
+        if (e?.status !== 400) {
+            throw e;
+        }
+    }
+
+    saveActiveSession(sessionKey, dayKey, now);
+    return await getVisitorDisplayStats(dayKey);
+}
+
+/**
+ * 오늘 표시용 방문자 최소값을 저장한다. 실제 방문 수보다 낮으면 화면에서는 실제값이 우선된다.
+ * @param {string} dayKey
+ * @param {number} value
+ * @returns {Promise<{dayKey: string, realTotal: number, realToday: number, todayMinimum: number, total: number, today: number}>}
+ */
+export async function setVisitorTodayMinimum(dayKey, value) {
+    const n = Math.max(0, Number.parseInt(value || 0, 10) || 0);
+    await setSetting(`${VISITOR_TODAY_MIN_KEY_PREFIX}${dayKey}`, String(n));
+    return await getVisitorDisplayStats(dayKey);
+}
+
+// ─────────────────────────────────────────────────────────
 // Media 헬퍼 함수들
 // ─────────────────────────────────────────────────────────
 
@@ -275,6 +456,21 @@ export async function getSetting(key) {
     }
 }
 
+async function getSettingRecord(key) {
+    return await pb.collection('site_settings').getFirstListItem(
+        pb.filter('key = {:key}', { key })
+    );
+}
+
+function isNotFoundError(e) {
+    return e?.status === 404;
+}
+
+function isUniqueConstraintError(e) {
+    return e?.status === 400 && Object.values(e?.data?.data || {})
+        .some(field => field?.code === 'validation_not_unique');
+}
+
 /**
  * 사이트 설정 저장 (upsert)
  * @param {string} key
@@ -283,12 +479,23 @@ export async function getSetting(key) {
  */
 export async function setSetting(key, value) {
     try {
-        const existing = await pb.collection('site_settings').getFirstListItem(
-            pb.filter('key = {:key}', { key })
-        );
+        const existing = await getSettingRecord(key);
         return await pb.collection('site_settings').update(existing.id, { value });
     } catch (e) {
+        if (!isNotFoundError(e)) {
+            throw e;
+        }
+    }
+
+    try {
         return await pb.collection('site_settings').create({ key, value });
+    } catch (e) {
+        if (!isUniqueConstraintError(e)) {
+            throw e;
+        }
+
+        const existing = await getSettingRecord(key);
+        return await pb.collection('site_settings').update(existing.id, { value });
     }
 }
 
