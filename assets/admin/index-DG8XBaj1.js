@@ -1,0 +1,1 @@
+import{m as e}from"../pb-DsJnrek3.js";/* empty css               */e()||(window.location.replace(`/admin/login.html?next=/`),await new Promise(()=>{}));

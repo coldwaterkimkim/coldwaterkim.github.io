@@ -7,8 +7,8 @@
     <meta name="viewport" content="width=800">
     <style>
         .post-content {
-            line-height: 1.8;
-            font-size: 15px;
+            line-height: var(--cwk-post-line-height);
+            font-size: var(--cwk-post-size);
         }
 
         .post-content img {
@@ -17,28 +17,28 @@
         }
 
         .post-content pre {
-            background: #f5f5f5;
+            background: var(--cwk-code-block-bg);
             padding: 12px;
             overflow-x: auto;
-            border: 1px solid #ddd;
+            border: 1px solid var(--cwk-border-soft);
         }
 
         .post-content code {
-            font-family: "Courier New", monospace;
-            background: #f0f0f0;
+            font-family: var(--cwk-font-mono);
+            background: var(--cwk-surface-table-head);
             padding: 2px 4px;
         }
 
         .post-content blockquote {
-            border-left: 4px solid #666;
+            border-left: 4px solid var(--cwk-muted);
             margin-left: 0;
             padding-left: 16px;
-            color: #555;
+            color: var(--cwk-meta);
         }
     </style>
-  <script type="module" crossorigin src="/assets/posts/view-B8DLLxgi.js"></script>
-  <link rel="modulepreload" crossorigin href="/assets/pb-jiI6snNn.js">
-  <link rel="stylesheet" crossorigin href="/assets/styles-divmKw__.css">
+  <script type="module" crossorigin src="/assets/posts/view-hZxLgZbe.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/pb-DsJnrek3.js">
+  <link rel="stylesheet" crossorigin href="/assets/styles-RZ2y8Njg.css">
 </head>
 
 <body background="" bgcolor="#e0e0e0">
@@ -46,7 +46,14 @@
         <table width="760" border="1" cellspacing="0" cellpadding="8" bgcolor="#ffffff">
             <tr>
                 <td>
+                    <p class="site-nav">
+                        [ <a href="../index.html">Home</a> |
+                        <a href="index.html">글방</a> |
+                        <a href="../guestbook.html">Guestbook</a> |
+                        <a href="../about.html">About / Contact</a> ]
+                    </p>
                     <h1 id="post-title">불러오는 중...</h1>
+                    <div id="owner-tools"></div>
                     <p><i id="post-date"></i></p>
 
                     <div id="featured-image"></div>
