@@ -2,30 +2,82 @@
 <html>
 
 <head>
-  <title>About — coldwaterkim</title>
+  <title>About / Contact — coldwaterkim</title>
   <meta charset="utf-8">
   <meta name="viewport" content="width=800">
   <link rel="stylesheet" href="css/styles.css">
+  <script type="module" src="js/site.js"></script>
 </head>
 
-<body>
+<body background="" bgcolor="#e0e0e0">
   <center>
+    <marquee behavior="alternate" scrollamount="4" width="760">
+      <span class="marquee-text">★ WELCOME TO <a href="/admin/login.html?next=/about.html" class="secret-login"><b>coldwaterkim</b></a>'s HOME PAGE ★</span>
+    </marquee>
+
     <table width="760" border="1" cellspacing="0" cellpadding="8" bgcolor="#ffffff">
       <tr>
-        <td>
-          <p class="site-nav">
-            [ <a href="index.html">Home</a> |
-            <a href="posts/index.html">글방</a> |
-            <a href="guestbook.html">Guestbook</a> |
-            <a href="about.html">About / Contact</a> ]
-          </p>
+        <td colspan="2" align="center" class="banner">
+          <span class="blink">UNDER CONSTRUCTION</span> · <span class="hit">VISITORS:</span>
+          <span id="hitCounter">0000000</span>
+        </td>
+      </tr>
+      <tr>
+        <td width="180" valign="top" class="sidebar">
+          <div class="profile-card">
+            <center>
+              <img class="profile-photo" src="assets/profile-crop.jpg" alt="coldwaterkim profile"><br>
+              <b>김찬수</b><br>
+              <span class="note">밀레니엄 베이비</span>
+            </center>
+            <p class="profile-email">
+              <a href="mailto:ckstn1112@gmail.com?subject=Hello%20from%20your%20site">ckstn1112@gmail.com</a>
+            </p>
+            <div class="today-box">
+              <b>TODAY IS...</b><br>
+              <span data-editable="true" data-key="profile_today">온 몸 비틀기</span>
+            </div>
+            <center class="mini-player">
+              <audio controls autoplay loop data-bgm>
+                <source src="assets/bgm/bgm.mp3" type="audio/mpeg">
+                Your browser does not support the audio element.
+              </audio>
+            </center>
+          </div>
+
+          <hr>
+          <b>Cool Links</b>
+          <ul>
+            <li><a href="https://www.archive.org/" target="_blank">Internet Archive</a></li>
+            <li><a href="https://www.cameronsworld.net/" target="_blank">GeoCities Garden</a></li>
+          </ul>
+          <hr>
+          <div class="webring">
+            <b>My WebRing</b><br>
+            [ <a href="#">Prev</a> | <a href="#">Random</a> | <a href="#">Next</a> ]
+          </div>
+        </td>
+        <td valign="top" class="content">
+          <center>
+            <div class="top-nav">
+              [ <a href="index.html">Home</a> |
+              <a href="posts/index.html">글방</a> |
+              <a href="guestbook.html">Guestbook</a> |
+              <a href="about.html">About / Contact</a> ]
+            </div>
+          </center>
+
           <h1>About / Contact</h1>
           <p>찬수 / coldwaterkim — 대학생, 솔로 창업 러너. 이 사이트는 레트로 실험장.</p>
           <p>
             Email:
-            <a href="mailto:hello@coldwaterkim.com?subject=Hello%20from%20your%20site">hello@coldwaterkim.com</a>
+            <a href="mailto:ckstn1112@gmail.com?subject=Hello%20from%20your%20site">ckstn1112@gmail.com</a>
           </p>
-          <p><a href="index.html">← Back to Home</a></p>
+
+          <hr>
+          <center>
+            <small>© coldwaterkim — powered by me</small>
+          </center>
         </td>
       </tr>
     </table>

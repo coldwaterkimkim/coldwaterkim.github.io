@@ -39,8 +39,8 @@
   --cwk-blink-duration: 1s;
   --cwk-note-size: 12px;
   --cwk-preview-size: 14px;
-  --cwk-post-size: 15px;
-  --cwk-post-line-height: 1.8;
+  --cwk-post-size: 16px;
+  --cwk-post-line-height: 1.42;
 }
 
 /* 최대한 90s 감성: 테이블, 굵은 보더, 촌스러운 폰트, 배경 무늬 */

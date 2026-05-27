@@ -3,20 +3,7 @@
  * PocketBase 연동 버전
  */
 
-import { getPublishedPosts, getGuestbookEntries, addGuestbookEntry, getSetting, setSetting, isLoggedIn, logout, deleteGuestbookEntry, formatDate, escapeHtml, cmsErrorMessage } from './pb.js';
-
-function ownerBar(html) {
-  if (!isLoggedIn()) return '';
-  return `<div class="owner-bar"><b>OWNER MODE</b> · ${html} · <a href="#" data-owner-logout>로그아웃</a></div>`;
-}
-
-document.addEventListener('click', (event) => {
-  const logoutLink = event.target.closest('[data-owner-logout]');
-  if (!logoutLink) return;
-  event.preventDefault();
-  logout();
-  window.location.reload();
-});
+import { getPublishedPosts, getGuestbookEntries, addGuestbookEntry, getSetting, setSetting, isLoggedIn, deleteGuestbookEntry, formatDate, escapeHtml, cmsErrorMessage } from './pb.js';
 
 // ─────────────────────────────────────────────────────────
 // BGM 자동 재생 시도
@@ -72,13 +59,6 @@ document.addEventListener('click', (event) => {
 
   // 관리자인 경우 인라인 편집 활성화
   if (!isLoggedIn()) return;
-
-  if (editableElements.length > 0) {
-    editableElements[0].insertAdjacentHTML(
-      'beforebegin',
-      ownerBar('<a href="/admin/posts.html?new=1">새 글 쓰기</a> · 빨간 점선 영역은 클릭해서 바로 고칠 수 있음')
-    );
-  }
 
   editableElements.forEach(el => {
     el.contentEditable = 'true';
@@ -179,23 +159,17 @@ document.addEventListener('click', (event) => {
 // ─────────────────────────────────────────────────────────
 const guestbookForm = document.getElementById('guestbookForm');
 const guestbookEntries = document.getElementById('guestbookEntries');
-const guestbookOwnerTools = document.getElementById('guestbookOwnerTools');
-
-if (guestbookOwnerTools && isLoggedIn()) {
-  guestbookOwnerTools.innerHTML = ownerBar('<a href="/admin/guestbook.html">방명록 전체 관리</a> · 항목마다 삭제 버튼 표시됨');
-}
 
 if (guestbookForm) {
   guestbookForm.addEventListener('submit', async (e) => {
     e.preventDefault();
 
-    const nameEl = document.getElementById('name');
     const messageEl = document.getElementById('message');
-    const name = nameEl.value.trim();
+    const name = await nextGuestbookName();
     const message = messageEl.value.trim();
 
-    if (!name || !message) {
-      alert('이름과 메시지를 모두 입력해주세요.');
+    if (!message) {
+      alert('메시지를 입력해주세요.');
       return;
     }
 
@@ -260,6 +234,15 @@ async function loadGuestbook() {
   } catch (e) {
     guestbookEntries.innerHTML = `<p>${escapeHtml(cmsErrorMessage(e))}</p>`;
   }
+}
+
+async function nextGuestbookName() {
+  const result = await getGuestbookEntries(1, 200);
+  const maxNumber = result.items.reduce((max, entry) => {
+    const match = String(entry.name || '').match(/^익명의 누군가(\d+)$/);
+    return match ? Math.max(max, Number(match[1])) : max;
+  }, 0);
+  return `익명의 누군가${maxNumber + 1}`;
 }
 
 // URL 링크 변환

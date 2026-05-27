@@ -11,63 +11,95 @@
 
 <body background="" bgcolor="#e0e0e0">
   <center>
-    <marquee behavior="alternate" scrollamount="3" width="760">
-      <span class="marquee-text">📝 방명록에 한 줄 남겨주세요! Leave a message! ✍️</span>
+    <marquee behavior="alternate" scrollamount="4" width="760">
+      <span class="marquee-text">★ WELCOME TO <a href="/admin/login.html?next=/guestbook.html" class="secret-login"><b>coldwaterkim</b></a>'s HOME PAGE ★</span>
     </marquee>
 
     <table width="760" border="1" cellspacing="0" cellpadding="8" bgcolor="#ffffff">
       <tr>
         <td colspan="2" align="center" class="banner">
-          <b>💬 GUESTBOOK 방명록</b>
+          <span class="blink">UNDER CONSTRUCTION</span> · <span class="hit">VISITORS:</span>
+          <span id="hitCounter">0000000</span>
         </td>
       </tr>
       <tr>
-        <td width="200" valign="top" class="sidebar">
+        <td width="180" valign="top" class="sidebar">
+          <div class="profile-card">
+            <center>
+              <img class="profile-photo" src="assets/profile-crop.jpg" alt="coldwaterkim profile"><br>
+              <b>김찬수</b><br>
+              <span class="note">밀레니엄 베이비</span>
+            </center>
+            <p class="profile-email">
+              <a href="mailto:ckstn1112@gmail.com?subject=Hello%20from%20your%20site">ckstn1112@gmail.com</a>
+            </p>
+            <div class="today-box">
+              <b>TODAY IS...</b><br>
+              <span data-editable="true" data-key="profile_today">온 몸 비틀기</span>
+            </div>
+            <center class="mini-player">
+              <audio controls autoplay loop data-bgm>
+                <source src="assets/bgm/bgm.mp3" type="audio/mpeg">
+                Your browser does not support the audio element.
+              </audio>
+            </center>
+          </div>
+
+          <hr>
+          <b>Cool Links</b>
+          <ul>
+            <li><a href="https://www.archive.org/" target="_blank">Internet Archive</a></li>
+            <li><a href="https://www.cameronsworld.net/" target="_blank">GeoCities Garden</a></li>
+          </ul>
+          <hr>
+          <div class="webring">
+            <b>My WebRing</b><br>
+            [ <a href="#">Prev</a> | <a href="#">Random</a> | <a href="#">Next</a> ]
+          </div>
+        </td>
+        <td valign="top" class="content">
           <center>
-            <img src="https://media.tenor.com/2jxZ4zR8f58AAAAi/mail-message.gif" width="60" height="60" alt="mail"><br>
-            <font size="+1"><b>SIGN!</b></font>
+            <div class="top-nav">
+              [ <a href="index.html">Home</a> |
+              <a href="posts/index.html">글방</a> |
+              <a href="guestbook.html">Guestbook</a> |
+              <a href="about.html">About / Contact</a> ]
+            </div>
           </center>
 
-          <p class="site-nav">
-            [ <a href="index.html">Home</a> |
-            <a href="posts/index.html">글방</a> |
-            <a href="about.html">About / Contact</a> ]
+          <h1>💬 Guestbook 방명록</h1>
+          <p class="note">
+            📌 방명록은 누구나 작성할 수 있습니다.
+            🚫 부적절한 내용은 내 마음대로 삭제할꼬얌.ㅋ
           </p>
 
           <form id="guestbookForm">
-            <p>
-              <b>이름:</b><br>
-              <input type="text" id="name" style="width: 100%;" maxlength="50" required>
-            </p>
-            <p>
-              <b>메시지:</b><br>
-              <textarea id="message" rows="4" style="width: 100%;" maxlength="1000" required></textarea>
-            </p>
-            <p>
-              <button type="submit" style="width: 100%; padding: 8px; font-weight: bold; cursor: pointer;">
-                ✏️ 남기기
-              </button>
-            </p>
+            <table border="1" cellspacing="0" cellpadding="6" width="100%">
+              <tr bgcolor="#f0f0f0">
+                <th align="left">방명록에 한 줄 남기기</th>
+              </tr>
+              <tr>
+                <td>
+                  <textarea id="message" rows="4" style="width: 100%;" maxlength="1000" required></textarea>
+                  <p>
+                    <button type="submit" style="padding: 8px; font-weight: bold; cursor: pointer;">
+                      ✏️ 남기기
+                    </button>
+                  </p>
+                </td>
+              </tr>
+            </table>
           </form>
 
-          <hr>
-          <p class="note">
-            📌 방명록은 누구나 작성할 수 있습니다.<br>
-            🚫 부적절한 내용은 삭제될 수 있어요.
-          </p>
-        </td>
-        <td valign="top" class="content">
-          <h2 style="margin-top: 0;">📜 방명록 목록</h2>
-          <div id="guestbookOwnerTools"></div>
-
+          <h2 class="visitor-heading">방명록 목록</h2>
           <div id="guestbookEntries">
             <p>불러오는 중...</p>
           </div>
 
           <hr>
-          <p>
-            <a href="index.html">← Back to Home</a>
-          </p>
+          <center>
+            <small>© coldwaterkim — powered by me</small>
+          </center>
         </td>
       </tr>
     </table>

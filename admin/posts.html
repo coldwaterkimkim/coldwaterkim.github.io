@@ -75,36 +75,22 @@
 
                 <form id="postForm">
                     <input type="hidden" id="postId">
+                    <input type="hidden" id="slug">
+                    <input type="hidden" id="status" value="draft">
 
                     <div class="admin-panel">
                         <div class="form-row">
-                            <div class="form-group" style="flex: 2;">
+                            <div class="form-group">
                                 <label for="title">제목 *</label>
                                 <input type="text" id="title" required placeholder="멋진 제목을 입력하세요">
-                            </div>
-                            <div class="form-group" style="flex: 1;">
-                                <label for="slug">슬러그 (URL)</label>
-                                <input type="text" id="slug" placeholder="자동 생성됨">
                             </div>
                         </div>
 
                         <div class="form-row">
-                            <div class="form-group">
-                                <label for="status">상태</label>
-                                <select id="status">
-                                    <option value="draft">📝 초안</option>
-                                    <option value="published">✅ 발행됨</option>
-                                </select>
-                            </div>
                             <div class="form-group">
                                 <label for="published_at">발행일</label>
                                 <input type="date" id="published_at">
                             </div>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="excerpt">요약 (선택)</label>
-                            <input type="text" id="excerpt" placeholder="글 목록에 표시될 요약문">
                         </div>
                     </div>
 
@@ -125,7 +111,6 @@
                     <div class="action-buttons">
                         <button type="submit" class="btn btn-primary">💾 저장</button>
                         <button type="button" class="btn btn-success" onclick="saveAndPublish()">🚀 저장 후 발행</button>
-                        <button type="button" class="btn" onclick="previewPost()">👁️ 미리보기</button>
                         <button type="button" class="btn btn-danger" id="deleteBtn" style="display: none;"
                             onclick="deleteCurrentPost()">🗑️ 삭제</button>
                     </div>
@@ -190,7 +175,6 @@
         window.editPost = editPost;
         window.confirmDelete = confirmDelete;
         window.saveAndPublish = saveAndPublish;
-        window.previewPost = previewPost;
         window.deleteCurrentPost = deleteCurrentPost;
         window.goToPage = goToPage;
 
@@ -224,7 +208,6 @@
                 document.getElementById('slug').value = post.slug || '';
                 document.getElementById('status').value = post.status || 'draft';
                 document.getElementById('published_at').value = post.published_at ? post.published_at.split('T')[0] : '';
-                document.getElementById('excerpt').value = post.excerpt || '';
                 quill.root.innerHTML = post.content || '';
                 document.getElementById('deleteBtn').style.display = 'inline-block';
                 editingPostId = post.id;
@@ -241,6 +224,8 @@
                 document.getElementById('editorTitle').textContent = '✍️ 새 글 쓰기';
                 document.getElementById('postForm').reset();
                 document.getElementById('postId').value = '';
+                document.getElementById('slug').value = '';
+                document.getElementById('status').value = 'draft';
                 quill.root.innerHTML = '';
                 document.getElementById('deleteBtn').style.display = 'none';
                 document.getElementById('featuredImagePreview').innerHTML = '';
@@ -359,7 +344,6 @@
             let slug = document.getElementById('slug').value.trim();
             const status = document.getElementById('status').value;
             const published_at = document.getElementById('published_at').value || null;
-            const excerpt = document.getElementById('excerpt').value.trim();
             const content = quill.root.innerHTML;
 
             // 슬러그 자동 생성
@@ -375,7 +359,6 @@
             formData.append('status', status);
             formData.append('content', content);
             if (published_at) formData.append('published_at', published_at);
-            if (excerpt) formData.append('excerpt', excerpt);
 
             // 대표 이미지
             const featuredImageFile = document.getElementById('featuredImage').files[0];
@@ -400,23 +383,9 @@
             }
         }
 
-        // 미리보기
-        function previewPost() {
-            const slug = document.getElementById('slug').value || slugify(document.getElementById('title').value);
-            if (!slug) {
-                showAlert('먼저 제목을 입력해주세요.', 'info');
-                return;
-            }
-            window.open(`/posts/view.html?slug=${slug}`, '_blank');
-        }
-
-        // 제목 → 슬러그 자동 생성
-        let slugTouched = false;
-        document.getElementById('slug').addEventListener('input', () => {
-            slugTouched = document.getElementById('slug').value.trim().length > 0;
-        });
+        // 제목 → 내부 URL 슬러그 자동 생성
         document.getElementById('title').addEventListener('input', () => {
-            if (!slugTouched && !editingPostId) {
+            if (!editingPostId) {
                 document.getElementById('slug').value = slugify(document.getElementById('title').value);
             }
         });

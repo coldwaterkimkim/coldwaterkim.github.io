@@ -8,6 +8,8 @@
 
 공개 사이트의 디자인 기준은 현재 `index.html` 홈페이지, `design.md`, `css/styles.css`의 `:root` 디자인 토큰에 고정한다. 새 공개 페이지나 UI 수정은 현재 홈의 90s 개인 홈페이지 감성을 먼저 보존하고, 의도적으로 방향을 바꿀 때만 `design.md`, CSS 토큰, `STATUS.md`를 함께 갱신한다.
 
+공개 메인 IA 페이지(`Home`, `글방`, `글 상세`, `Guestbook`, `About / Contact`)는 모두 홈의 2-column shell을 기본 레이아웃으로 쓴다. 즉 상단 marquee, 노란 visitor banner, 왼쪽 프로필/sidebar, 오른쪽 content 상단 navigation은 유지하고, 페이지별 내용만 오른쪽 content 영역에서 바뀌게 한다.
+
 이 결정의 이유:
 
 - 글을 자주 쓰려면 HTML 파일 복사보다 관리자 화면이 편하다.
@@ -19,9 +21,9 @@
 ## 현재 동작
 
 - 공개 홈은 PocketBase에서 최근 발행 글을 가져온다.
-- 글 목록은 PocketBase `posts` 컬렉션의 `published` 글만 보여준다.
-- 글 상세는 `slug`로 PocketBase 글을 조회한다.
-- 방명록은 PocketBase `guestbook` 컬렉션을 읽고 쓴다.
+- 글 목록은 홈과 같은 shell 안에서 PocketBase `posts` 컬렉션의 `published` 글만 보여준다.
+- 글 상세는 홈과 같은 shell 안에서 `slug`로 PocketBase 글을 조회한다.
+- 방명록은 홈과 같은 shell 안에서 PocketBase `guestbook` 컬렉션을 읽고 쓴다.
 - 공개 메뉴에는 관리자 링크를 두지 않는다. 상단 marquee의 `coldwaterkim` 텍스트가 숨은 로그인 진입점이다.
 - 로그인한 관리자는 공개 사이트를 그대로 보면서 홈 문구 편집, 글방의 새 글/수정/삭제, 글 상세의 수정/삭제, 방명록 삭제 같은 `OWNER MODE` 권한을 추가로 본다.
 - `/admin/`은 별도 대시보드가 아니라 예전 북마크용 안내판이고, 실제 운영 시작점은 공개 Home이다. 글 편집기/미디어/방명록 관리 화면은 owner action에서 필요할 때만 열린다.
