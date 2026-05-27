@@ -1,11 +1,18 @@
-/* ═══════════════════════════════════════════════════════════
-   coldwaterkim ADMIN - 90s 레트로 감성 관리자 스타일
-   ═══════════════════════════════════════════════════════════ */
+@import url("./styles.css");
+
+/* coldwaterkim OWNER MODE - 공개 홈페이지 감성에 맞춘 편집 화면 */
 
 /* 기본 레이아웃 */
 body.admin-body {
-  background: repeating-linear-gradient(45deg, #c0c0c0, #c0c0c0 8px, #d4d4d4 8px, #d4d4d4 16px);
-  font-family: "Tahoma", "Arial", sans-serif;
+  background: repeating-linear-gradient(
+    45deg,
+    var(--cwk-bg-stripe-dark),
+    var(--cwk-bg-stripe-dark) var(--cwk-bg-stripe-step),
+    var(--cwk-bg-stripe-light) var(--cwk-bg-stripe-step),
+    var(--cwk-bg-stripe-light) var(--cwk-bg-tile-size)
+  );
+  font-family: var(--cwk-font-main);
+  color: var(--cwk-ink);
   margin: 0;
   padding: 20px;
   min-height: 100vh;
@@ -13,17 +20,17 @@ body.admin-body {
 
 /* 메인 컨테이너 */
 .admin-container {
-  max-width: 1000px;
+  max-width: var(--cwk-page-width);
   margin: 0 auto;
-  background: #fff;
-  border: 3px outset #fff;
-  box-shadow: 4px 4px 0 #888;
+  background: var(--cwk-surface-page);
+  border: 2px solid var(--cwk-ink);
+  box-shadow: none;
 }
 
 /* 헤더 */
 .admin-header {
-  background: linear-gradient(to right, #000080, #0000cd);
-  color: #fff;
+  background: var(--cwk-surface-banner);
+  color: var(--cwk-ink);
   padding: 8px 16px;
   display: flex;
   justify-content: space-between;
@@ -38,7 +45,7 @@ body.admin-body {
 }
 
 .admin-header a {
-  color: #ffff00;
+  color: var(--cwk-link);
   text-decoration: none;
   font-size: 12px;
 }
@@ -49,8 +56,8 @@ body.admin-body {
 
 /* 네비게이션 */
 .admin-nav {
-  background: #e8e8e8;
-  border-bottom: 2px groove #fff;
+  background: var(--cwk-surface-sidebar);
+  border-bottom: 1px solid var(--cwk-ink);
   padding: 4px 8px;
 }
 
@@ -58,9 +65,9 @@ body.admin-body {
   display: inline-block;
   padding: 6px 16px;
   margin: 2px;
-  background: #d4d4d4;
-  border: 2px outset #fff;
-  color: #000;
+  background: var(--cwk-surface-table-head);
+  border: 2px outset var(--cwk-surface-page);
+  color: var(--cwk-link);
   text-decoration: none;
   font-size: 13px;
 }
@@ -78,13 +85,13 @@ body.admin-body {
 /* 콘텐츠 영역 */
 .admin-content {
   padding: 20px;
-  min-height: 400px;
+  min-height: 360px;
 }
 
 /* 카드/패널 */
 .admin-panel {
-  background: #f5f5f5;
-  border: 2px inset #fff;
+  background: var(--cwk-surface-preview);
+  border: 1px dashed var(--cwk-border-dashed);
   padding: 16px;
   margin-bottom: 16px;
 }
@@ -92,8 +99,8 @@ body.admin-body {
 .admin-panel h2 {
   margin: 0 0 12px 0;
   font-size: 16px;
-  color: #000080;
-  border-bottom: 2px groove #ccc;
+  color: var(--cwk-ink);
+  border-bottom: 1px solid var(--cwk-border-dashed);
   padding-bottom: 8px;
 }
 
@@ -119,15 +126,15 @@ body.admin-body {
   padding: 8px;
   font-family: inherit;
   font-size: 14px;
-  border: 2px inset #fff;
-  background: #fff;
+  border: 2px inset var(--cwk-surface-page);
+  background: var(--cwk-surface-page);
   box-sizing: border-box;
 }
 
 .form-group input:focus,
 .form-group select:focus,
 .form-group textarea:focus {
-  outline: 2px solid #000080;
+  outline: 2px solid var(--cwk-hot-red);
 }
 
 .form-row {
@@ -145,12 +152,14 @@ body.admin-body {
   font-family: inherit;
   font-size: 13px;
   cursor: pointer;
-  border: 2px outset #fff;
-  background: #d4d4d4;
+  border: 2px outset var(--cwk-surface-page);
+  background: var(--cwk-surface-table-head);
+  color: var(--cwk-link);
+  text-decoration: underline;
 }
 
 .btn:hover {
-  background: #c0c0c0;
+  background: var(--cwk-link-hover-bg);
 }
 
 .btn:active {
@@ -158,33 +167,35 @@ body.admin-body {
 }
 
 .btn-primary {
-  background: #000080;
-  color: #fff;
-  border-color: #0000cd;
+  background: var(--cwk-surface-banner);
+  color: var(--cwk-ink);
+  border-color: var(--cwk-ink);
+  font-weight: bold;
 }
 
 .btn-primary:hover {
-  background: #0000cd;
+  background: var(--cwk-link-hover-bg);
 }
 
 .btn-danger {
-  background: #8b0000;
-  color: #fff;
-  border-color: #cd0000;
+  background: var(--cwk-surface-table-head);
+  color: var(--cwk-hot-red);
+  border-color: var(--cwk-hot-red);
 }
 
 .btn-danger:hover {
-  background: #cd0000;
+  background: #ffd6d6;
 }
 
 .btn-success {
-  background: #006400;
-  color: #fff;
-  border-color: #008000;
+  background: var(--cwk-counter-bg);
+  color: var(--cwk-counter-fg);
+  border-color: var(--cwk-ink);
+  font-family: var(--cwk-font-mono);
 }
 
 .btn-success:hover {
-  background: #008000;
+  background: var(--cwk-ink);
 }
 
 /* 테이블 */
@@ -198,20 +209,20 @@ body.admin-body {
 .admin-table td {
   padding: 8px;
   text-align: left;
-  border: 1px solid #999;
+  border: 1px solid var(--cwk-border-dashed);
 }
 
 .admin-table th {
-  background: #000080;
-  color: #fff;
+  background: var(--cwk-surface-table-head);
+  color: var(--cwk-ink);
 }
 
 .admin-table tr:nth-child(even) {
-  background: #f0f0f0;
+  background: var(--cwk-surface-table-head);
 }
 
 .admin-table tr:hover {
-  background: #ffffd4;
+  background: var(--cwk-link-hover-bg);
 }
 
 /* 상태 배지 */
@@ -234,20 +245,20 @@ body.admin-body {
 
 /* 에디터 영역 */
 .editor-container {
-  border: 2px inset #fff;
-  background: #fff;
+  border: 2px inset var(--cwk-surface-page);
+  background: var(--cwk-surface-page);
   min-height: 300px;
 }
 
 .editor-container .ql-toolbar {
-  background: #e8e8e8;
+  background: var(--cwk-surface-table-head);
   border: none;
-  border-bottom: 2px groove #ccc;
+  border-bottom: 1px solid var(--cwk-border-dashed);
 }
 
 .editor-container .ql-container {
   border: none;
-  font-family: "Courier New", monospace;
+  font-family: var(--cwk-font-mono);
   font-size: 14px;
 }
 
@@ -259,15 +270,15 @@ body.admin-body {
 }
 
 .media-item {
-  border: 2px inset #fff;
-  background: #f5f5f5;
+  border: 1px dashed var(--cwk-border-dashed);
+  background: var(--cwk-surface-preview);
   padding: 8px;
   text-align: center;
   cursor: pointer;
 }
 
 .media-item:hover {
-  background: #ffffd4;
+  background: var(--cwk-link-hover-bg);
 }
 
 .media-item img,
@@ -281,7 +292,7 @@ body.admin-body {
   font-size: 11px;
   margin-top: 4px;
   word-break: break-all;
-  color: #666;
+  color: var(--cwk-muted);
 }
 
 /* 알림 */
@@ -316,14 +327,14 @@ body.admin-body {
 }
 
 .login-box {
-  background: #fff;
-  border: 3px outset #fff;
-  box-shadow: 4px 4px 0 #888;
+  background: var(--cwk-surface-page);
+  border: 2px solid var(--cwk-ink);
+  box-shadow: none;
 }
 
 .login-header {
-  background: linear-gradient(to right, #000080, #0000cd);
-  color: #fff;
+  background: var(--cwk-surface-banner);
+  color: var(--cwk-ink);
   padding: 12px 16px;
   font-weight: bold;
   text-align: center;
@@ -337,7 +348,7 @@ body.admin-body {
 .loading {
   text-align: center;
   padding: 40px;
-  color: #666;
+  color: var(--cwk-muted);
 }
 
 .loading::after {
@@ -353,32 +364,32 @@ body.admin-body {
 
 /* 드롭존 (파일 업로드) */
 .dropzone {
-  border: 3px dashed #999;
+  border: 3px dashed var(--cwk-border-dashed);
   padding: 40px;
   text-align: center;
   cursor: pointer;
-  background: #fafafa;
+  background: var(--cwk-surface-preview);
   transition: background 0.2s;
 }
 
 .dropzone:hover,
 .dropzone.dragover {
-  background: #ffffd4;
-  border-color: #000080;
+  background: var(--cwk-link-hover-bg);
+  border-color: var(--cwk-hot-red);
 }
 
 .dropzone p {
   margin: 0;
   font-size: 14px;
-  color: #666;
+  color: var(--cwk-muted);
 }
 
 /* 미리보기 */
 .preview-box {
   margin-top: 16px;
   padding: 16px;
-  border: 2px inset #fff;
-  background: #fffef6;
+  border: 1px dashed var(--cwk-border-dashed);
+  background: var(--cwk-surface-preview);
   max-height: 400px;
   overflow: auto;
 }
@@ -417,18 +428,18 @@ body.admin-body {
 .pagination a,
 .pagination span {
   padding: 4px 12px;
-  border: 2px outset #fff;
-  background: #d4d4d4;
+  border: 2px outset var(--cwk-surface-page);
+  background: var(--cwk-surface-table-head);
   text-decoration: none;
   color: #000;
 }
 
 .pagination a:hover {
-  background: #c0c0c0;
+  background: var(--cwk-link-hover-bg);
 }
 
 .pagination .current {
-  background: #000080;
-  color: #fff;
+  background: var(--cwk-surface-banner);
+  color: var(--cwk-ink);
   border-style: inset;
 }

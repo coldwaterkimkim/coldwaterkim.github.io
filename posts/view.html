@@ -8,8 +8,8 @@
     <link rel="stylesheet" href="../css/styles.css">
     <style>
         .post-content {
-            line-height: 1.8;
-            font-size: 15px;
+            line-height: var(--cwk-post-line-height);
+            font-size: var(--cwk-post-size);
         }
 
         .post-content img {
@@ -18,23 +18,23 @@
         }
 
         .post-content pre {
-            background: #f5f5f5;
+            background: var(--cwk-code-block-bg);
             padding: 12px;
             overflow-x: auto;
-            border: 1px solid #ddd;
+            border: 1px solid var(--cwk-border-soft);
         }
 
         .post-content code {
-            font-family: "Courier New", monospace;
-            background: #f0f0f0;
+            font-family: var(--cwk-font-mono);
+            background: var(--cwk-surface-table-head);
             padding: 2px 4px;
         }
 
         .post-content blockquote {
-            border-left: 4px solid #666;
+            border-left: 4px solid var(--cwk-muted);
             margin-left: 0;
             padding-left: 16px;
-            color: #555;
+            color: var(--cwk-meta);
         }
     </style>
 </head>
@@ -44,7 +44,14 @@
         <table width="760" border="1" cellspacing="0" cellpadding="8" bgcolor="#ffffff">
             <tr>
                 <td>
+                    <p class="site-nav">
+                        [ <a href="../index.html">Home</a> |
+                        <a href="index.html">글방</a> |
+                        <a href="../guestbook.html">Guestbook</a> |
+                        <a href="../about.html">About / Contact</a> ]
+                    </p>
                     <h1 id="post-title">불러오는 중...</h1>
+                    <div id="owner-tools"></div>
                     <p><i id="post-date"></i></p>
 
                     <div id="featured-image"></div>
@@ -67,7 +74,7 @@
     </center>
 
     <script type="module">
-        import { pb, getPostBySlug, formatDate, escapeHtml, cmsErrorMessage } from '../js/pb.js';
+        import { pb, getPostBySlug, deletePost, isLoggedIn, logout, formatDate, escapeHtml, cmsErrorMessage } from '../js/pb.js';
 
         const params = new URLSearchParams(window.location.search);
         const slug = params.get('slug');
@@ -80,10 +87,10 @@
 
         async function loadPost(slug) {
             try {
-                const post = await getPostBySlug(slug);
+                const post = await getPostBySlug(slug, isLoggedIn());
 
                 // 발행되지 않은 글 체크 (관리자가 아닌 경우)
-                if (post.status !== 'published') {
+                if (post.status !== 'published' && !isLoggedIn()) {
                     // PocketBase RLS가 이미 처리하지만, 혹시 모를 상황 대비
                     showError('이 글은 아직 발행되지 않았습니다.', 'Not published');
                     return;
@@ -96,6 +103,33 @@
                 // 날짜
                 const date = post.published_at || post.created;
                 document.getElementById('post-date').textContent = `Published: ${formatDate(date)}`;
+
+                if (isLoggedIn()) {
+                    document.getElementById('owner-tools').innerHTML = `
+                        <div class="owner-bar">
+                            <b>OWNER MODE</b> ·
+                            <a href="../admin/posts.html?id=${post.id}">수정</a> ·
+                            <a href="../admin/posts.html?new=1">새 글</a> ·
+                            <a href="#" id="deletePostLink">삭제</a> ·
+                            <a href="#" id="logoutLink">로그아웃</a>
+                        </div>
+                    `;
+                    document.getElementById('deletePostLink').addEventListener('click', async (event) => {
+                        event.preventDefault();
+                        if (!confirm('이 글을 삭제할까요? 이 작업은 되돌릴 수 없습니다.')) return;
+                        try {
+                            await deletePost(post.id);
+                            window.location.href = 'index.html';
+                        } catch (e) {
+                            alert('삭제 실패: ' + cmsErrorMessage(e));
+                        }
+                    });
+                    document.getElementById('logoutLink').addEventListener('click', (event) => {
+                        event.preventDefault();
+                        logout();
+                        window.location.reload();
+                    });
+                }
 
                 // 대표 이미지
                 if (post.featured_image) {

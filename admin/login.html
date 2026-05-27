@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="utf-8">
-    <title>Login — coldwaterkim Admin</title>
+    <title>Login — coldwaterkim OWNER MODE</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" href="../css/admin.css">
 </head>
@@ -12,7 +12,7 @@
     <div class="login-container">
         <div class="login-box">
             <div class="login-header">
-                ★ coldwaterkim ADMIN LOGIN ★
+                ★ coldwaterkim OWNER LOGIN ★
             </div>
             <div class="login-body">
                 <div id="alert" class="alert" style="display: none;"></div>
@@ -43,9 +43,12 @@
     <script type="module">
         import { isLoggedIn, login, cmsErrorMessage } from '../js/pb.js';
 
-        // 이미 로그인되어 있으면 대시보드로 이동
+        const params = new URLSearchParams(window.location.search);
+        const next = params.get('next') || '/';
+
+        // 이미 로그인되어 있으면 원래 보던 공개 화면으로 이동
         if (isLoggedIn()) {
-            window.location.replace('/admin/');
+            window.location.replace(next);
             await new Promise(() => { });
         }
 
@@ -68,7 +71,7 @@
                 await login(identity, password);
                 showAlert('로그인 성공! 이동 중...', 'success');
                 setTimeout(() => {
-                    window.location.href = '/admin/';
+                    window.location.href = next;
                 }, 500);
             } catch (err) {
                 showAlert('로그인 실패: ' + cmsErrorMessage(err), 'error');

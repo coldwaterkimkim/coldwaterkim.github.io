@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "vite --host 127.0.0.1",
+    "dev:local-cms": "vite --host 127.0.0.1",
+    "dev:live-cms": "VITE_CMS_TARGET=live vite --host 127.0.0.1",
     "build": "vite build",
     "preview": "vite preview"
   },

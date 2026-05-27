@@ -2,7 +2,7 @@
 <html>
 
 <head>
-  <title>My Blog Posts — coldwaterkim</title>
+  <title>글방 — coldwaterkim</title>
   <meta charset="utf-8">
   <meta name="viewport" content="width=800">
   <link rel="stylesheet" href="../css/styles.css">
@@ -13,17 +13,26 @@
     <table width="760" border="1" cellspacing="0" cellpadding="8" bgcolor="#ffffff">
       <tr>
         <td>
-          <h1>📝 My Blog Posts</h1>
-          <p class="note">발행된 글 목록입니다.</p>
+          <p class="site-nav">
+            [ <a href="../index.html">Home</a> |
+            <a href="index.html">글방</a> |
+            <a href="../guestbook.html">Guestbook</a> |
+            <a href="../about.html">About / Contact</a> ]
+          </p>
+
+          <h1>📝 글방</h1>
+          <div id="owner-tools"></div>
+          <p class="note" id="posts-note">발행된 글 목록입니다.</p>
 
           <table border="1" cellspacing="0" cellpadding="6" width="100%" id="posts-table">
             <tr bgcolor="#f0f0f0">
               <th align="left">제목</th>
               <th style="width: 120px;">날짜</th>
+              <th id="owner-col-head" style="width: 160px; display: none;">OWNER</th>
             </tr>
             <tbody id="posts-list">
               <tr>
-                <td colspan="2">불러오는 중...</td>
+                <td colspan="3">불러오는 중...</td>
               </tr>
             </tbody>
           </table>
@@ -39,32 +48,62 @@
   </center>
 
   <script type="module">
-    import { getPublishedPosts, formatDate, escapeHtml, cmsErrorMessage } from '../js/pb.js';
+    import { getPublishedPosts, getAllPosts, deletePost, isLoggedIn, logout, formatDate, escapeHtml, cmsErrorMessage } from '../js/pb.js';
 
     let currentPage = 1;
     const perPage = 10;
+    const ownerMode = isLoggedIn();
 
     window.goToPage = goToPage;
+    window.deleteOwnerPost = deleteOwnerPost;
+
+    if (ownerMode) {
+      document.getElementById('owner-col-head').style.display = '';
+      document.getElementById('posts-note').textContent = 'OWNER MODE: 초안까지 같이 보입니다.';
+      document.getElementById('owner-tools').innerHTML = `
+        <div class="owner-bar">
+          <b>OWNER MODE</b> ·
+          <a href="../admin/posts.html?new=1">새 글 쓰기</a> ·
+          <a href="../admin/media.html">미디어</a> ·
+          <a href="#" id="logoutLink">로그아웃</a>
+        </div>
+      `;
+      document.getElementById('logoutLink').addEventListener('click', (event) => {
+        event.preventDefault();
+        logout();
+        window.location.reload();
+      });
+    }
 
     async function loadPosts(page = 1) {
       const tbody = document.getElementById('posts-list');
-      tbody.innerHTML = '<tr><td colspan="2">불러오는 중...</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="3">불러오는 중...</td></tr>';
 
       try {
-        const result = await getPublishedPosts(page, perPage);
+        const result = ownerMode
+          ? await getAllPosts(page, perPage)
+          : await getPublishedPosts(page, perPage);
         currentPage = page;
 
         if (result.items.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="2">아직 발행된 글이 없습니다.</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="3">아직 글이 없습니다.</td></tr>';
           return;
         }
 
         tbody.innerHTML = result.items.map(post => {
           const date = post.published_at || post.created;
+          const status = post.status === 'published' ? '' : ' <small class="note">[초안]</small>';
+          const ownerActions = ownerMode
+            ? `<td class="owner-actions">
+                <a class="owner-btn" href="../admin/posts.html?id=${post.id}">수정</a>
+                <button class="owner-btn owner-btn-danger" type="button" onclick="deleteOwnerPost('${post.id}')">삭제</button>
+              </td>`
+            : '';
           return `
             <tr>
-              <td><a href="view.html?slug=${post.slug}">${escapeHtml(post.title)}</a></td>
+              <td><a href="view.html?slug=${post.slug}">${escapeHtml(post.title)}</a>${status}</td>
               <td align="center">${formatDate(date)}</td>
+              ${ownerActions}
             </tr>
           `;
         }).join('');
@@ -72,7 +111,17 @@
         // 페이지네이션
         renderPagination(result.totalPages, page);
       } catch (e) {
-        tbody.innerHTML = `<tr><td colspan="2">${escapeHtml(cmsErrorMessage(e))}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="3">${escapeHtml(cmsErrorMessage(e))}</td></tr>`;
+      }
+    }
+
+    async function deleteOwnerPost(id) {
+      if (!confirm('이 글을 삭제할까요? 이 작업은 되돌릴 수 없습니다.')) return;
+      try {
+        await deletePost(id);
+        loadPosts(currentPage);
+      } catch (e) {
+        alert('삭제 실패: ' + cmsErrorMessage(e));
       }
     }
 

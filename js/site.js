@@ -3,7 +3,38 @@
  * PocketBase 연동 버전
  */
 
-import { getPublishedPosts, getGuestbookEntries, addGuestbookEntry, getSetting, setSetting, isLoggedIn, deleteGuestbookEntry, formatDate, escapeHtml, cmsErrorMessage } from './pb.js';
+import { getPublishedPosts, getGuestbookEntries, addGuestbookEntry, getSetting, setSetting, isLoggedIn, logout, deleteGuestbookEntry, formatDate, escapeHtml, cmsErrorMessage } from './pb.js';
+
+function ownerBar(html) {
+  if (!isLoggedIn()) return '';
+  return `<div class="owner-bar"><b>OWNER MODE</b> · ${html} · <a href="#" data-owner-logout>로그아웃</a></div>`;
+}
+
+document.addEventListener('click', (event) => {
+  const logoutLink = event.target.closest('[data-owner-logout]');
+  if (!logoutLink) return;
+  event.preventDefault();
+  logout();
+  window.location.reload();
+});
+
+// ─────────────────────────────────────────────────────────
+// BGM 자동 재생 시도
+// ─────────────────────────────────────────────────────────
+(function initBgm() {
+  const audio = document.querySelector('[data-bgm]');
+  if (!audio) return;
+
+  const tryPlay = () => {
+    audio.play().catch(() => {
+      // 브라우저가 소리 있는 autoplay를 막으면 첫 사용자 입력 때 다시 시도한다.
+    });
+  };
+
+  tryPlay();
+  document.addEventListener('click', tryPlay, { once: true });
+  document.addEventListener('keydown', tryPlay, { once: true });
+})();
 
 // ─────────────────────────────────────────────────────────
 // 방문자 카운터 (로컬 스토리지)
@@ -42,9 +73,15 @@ import { getPublishedPosts, getGuestbookEntries, addGuestbookEntry, getSetting, 
   // 관리자인 경우 인라인 편집 활성화
   if (!isLoggedIn()) return;
 
+  if (editableElements.length > 0) {
+    editableElements[0].insertAdjacentHTML(
+      'beforebegin',
+      ownerBar('<a href="/admin/posts.html?new=1">새 글 쓰기</a> · 빨간 점선 영역은 클릭해서 바로 고칠 수 있음')
+    );
+  }
+
   editableElements.forEach(el => {
     el.contentEditable = 'true';
-    el.style.border = '2px dashed red';
     el.title = '클릭해서 편집 (변경 후 포커스 아웃 시 저장)';
 
     el.addEventListener('blur', async () => {
@@ -85,16 +122,52 @@ import { getPublishedPosts, getGuestbookEntries, addGuestbookEntry, getSetting, 
       const date = post.published_at || post.created;
       tr.innerHTML = `
         <td><a href="posts/view.html?slug=${post.slug}">${escapeHtml(post.title)}</a></td>
-        <td align="right">${formatDate(date)}</td>
+        <td class="date-cell" align="right">${formatDate(date)}</td>
       `;
       table.appendChild(tr);
     });
 
     // 모든 글 보기 링크
     const trAll = document.createElement('tr');
-    trAll.innerHTML = '<td><a href="posts/index.html">모든 글 보기</a></td><td align="right">→</td>';
+    trAll.innerHTML = '<td><a href="posts/index.html">모든 글 보기</a></td><td class="date-cell" align="right">→</td>';
     table.appendChild(trAll);
   } catch (e) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td colspan="2">${escapeHtml(cmsErrorMessage(e))}</td>`;
+    table.appendChild(tr);
+  }
+})();
+
+// ─────────────────────────────────────────────────────────
+// 홈 방명록 미리보기 (index.html)
+// ─────────────────────────────────────────────────────────
+(async function initGuestbookPreview() {
+  const table = document.getElementById('guestbook-preview-table');
+  if (!table) return;
+
+  try {
+    const result = await getGuestbookEntries(1, 5);
+    const rows = Array.from(table.querySelectorAll('tr')).slice(1);
+    rows.forEach(row => row.remove());
+
+    if (result.items.length === 0) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td colspan="2">아직 방명록이 없습니다. 첫 번째로 인사해주세요!</td>';
+      table.appendChild(tr);
+      return;
+    }
+
+    result.items.slice(0, 5).forEach(entry => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><b>${escapeHtml(entry.name)}</b>: ${linkify(escapeHtml(entry.message))}</td>
+        <td class="date-cell" align="right">${formatDate(entry.created)}</td>
+      `;
+      table.appendChild(tr);
+    });
+  } catch (e) {
+    const rows = Array.from(table.querySelectorAll('tr')).slice(1);
+    rows.forEach(row => row.remove());
     const tr = document.createElement('tr');
     tr.innerHTML = `<td colspan="2">${escapeHtml(cmsErrorMessage(e))}</td>`;
     table.appendChild(tr);
@@ -106,6 +179,11 @@ import { getPublishedPosts, getGuestbookEntries, addGuestbookEntry, getSetting, 
 // ─────────────────────────────────────────────────────────
 const guestbookForm = document.getElementById('guestbookForm');
 const guestbookEntries = document.getElementById('guestbookEntries');
+const guestbookOwnerTools = document.getElementById('guestbookOwnerTools');
+
+if (guestbookOwnerTools && isLoggedIn()) {
+  guestbookOwnerTools.innerHTML = ownerBar('<a href="/admin/guestbook.html">방명록 전체 관리</a> · 항목마다 삭제 버튼 표시됨');
+}
 
 if (guestbookForm) {
   guestbookForm.addEventListener('submit', async (e) => {

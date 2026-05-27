@@ -6,7 +6,7 @@
 
 배포는 우선 하이브리드로 간다. `coldwaterkim.com` 프론트엔드는 GitHub Pages에 두고, PocketBase는 `api.coldwaterkim.com` API 서버로 붙인다.
 
-공개 사이트의 디자인 기준은 `design.md`에 고정한다. 새 공개 페이지나 UI 수정은 현재 홈의 90s 개인 홈페이지 감성을 먼저 보존하고, 의도적으로 방향을 바꿀 때만 `design.md`와 `STATUS.md`를 함께 갱신한다.
+공개 사이트의 디자인 기준은 현재 `index.html` 홈페이지, `design.md`, `css/styles.css`의 `:root` 디자인 토큰에 고정한다. 새 공개 페이지나 UI 수정은 현재 홈의 90s 개인 홈페이지 감성을 먼저 보존하고, 의도적으로 방향을 바꿀 때만 `design.md`, CSS 토큰, `STATUS.md`를 함께 갱신한다.
 
 이 결정의 이유:
 
@@ -22,7 +22,10 @@
 - 글 목록은 PocketBase `posts` 컬렉션의 `published` 글만 보여준다.
 - 글 상세는 `slug`로 PocketBase 글을 조회한다.
 - 방명록은 PocketBase `guestbook` 컬렉션을 읽고 쓴다.
-- `/admin/`은 PocketBase `users` auth collection의 관리자 ID/비밀번호 계정으로 로그인한다.
+- 공개 메뉴에는 관리자 링크를 두지 않는다. 상단 marquee의 `coldwaterkim` 텍스트가 숨은 로그인 진입점이다.
+- 로그인한 관리자는 공개 사이트를 그대로 보면서 홈 문구 편집, 글방의 새 글/수정/삭제, 글 상세의 수정/삭제, 방명록 삭제 같은 `OWNER MODE` 권한을 추가로 본다.
+- `/admin/`은 별도 대시보드가 아니라 예전 북마크용 안내판이고, 실제 운영 시작점은 공개 Home이다. 글 편집기/미디어/방명록 관리 화면은 owner action에서 필요할 때만 열린다.
+- 로컬 UI 수정 중 운영 글 데이터까지 같이 보고 싶을 때는 `npm run dev:live-cms`를 쓴다. 이때 로컬 Vite 서버의 `/api/*` 요청은 `https://api.coldwaterkim.com`으로 프록시된다.
 
 ## 남은 세팅
 
@@ -70,3 +73,4 @@ PocketBase 서버가 꺼져 있으면 공개 사이트는 렌더링되지만 글
 - `https://api.coldwaterkim.com/api/health`가 `200 OK`로 응답한다.
 - `https://coldwaterkim.com/admin/`에서 테스트 계정으로 로그인 후 대시보드 진입을 확인했고, 테스트 계정은 삭제했다.
 - `https://coldwaterkim.com/` 공개 홈은 CMS 연결 실패 없이 빈 글 목록 상태로 렌더링된다.
+- 로컬 프론트엔드에서 운영 CMS를 읽는 `dev:live-cms` 모드를 추가했다. 글을 도메인 관리자에서 작성하고 로컬 UI에서 레이아웃을 볼 때는 이 모드를 기본으로 쓴다.

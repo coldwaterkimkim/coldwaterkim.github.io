@@ -15,22 +15,29 @@ import PocketBase from 'https://cdn.jsdelivr.net/npm/pocketbase@0.21.1/dist/pock
 
 // PocketBase API 경로
 // - 로컬 Vite: PocketBase 서버를 127.0.0.1:8090에서 따로 실행
+// - 로컬 Vite live CMS 모드: Vite 프록시를 통해 운영 API 서버 사용
 // - GitHub Pages: api.coldwaterkim.com의 PocketBase 서버 사용
 // - VPS 단일 배포: 같은 도메인의 PocketBase/Nginx 사용
 // - 필요하면 HTML에서 window.POCKETBASE_URL로 외부 CMS 주소를 덮어쓸 수 있음
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1']);
 const IS_LOCAL_FRONTEND = LOCAL_HOSTS.has(window.location.hostname);
+const LOCAL_API_URL = 'http://127.0.0.1:8090';
+const LIVE_CMS_URL = 'https://api.coldwaterkim.com';
+const CMS_TARGET = String(import.meta.env?.VITE_CMS_TARGET || '').toLowerCase();
 const API_HOSTS = new Map([
-    ['coldwaterkim.com', 'https://api.coldwaterkim.com'],
-    ['www.coldwaterkim.com', 'https://api.coldwaterkim.com'],
-    ['coldwaterkimkim.github.io', 'https://api.coldwaterkim.com'],
+    ['coldwaterkim.com', LIVE_CMS_URL],
+    ['www.coldwaterkim.com', LIVE_CMS_URL],
+    ['coldwaterkimkim.github.io', LIVE_CMS_URL],
 ]);
 const CONFIGURED_API_URL = window.POCKETBASE_URL
     ? String(window.POCKETBASE_URL).replace(/\/+$/, '')
     : '';
+const DEFAULT_LOCAL_API_URL = CMS_TARGET === 'live'
+    ? window.location.origin
+    : LOCAL_API_URL;
 const API_URL = CONFIGURED_API_URL
     || (IS_LOCAL_FRONTEND
-        ? 'http://127.0.0.1:8090'
+        ? DEFAULT_LOCAL_API_URL
         : API_HOSTS.get(window.location.hostname) || window.location.origin);
 
 // PocketBase 인스턴스 생성
@@ -107,7 +114,13 @@ export async function getPublishedPosts(page = 1, perPage = 10) {
  * @param {string} slug
  * @returns {Promise<object>}
  */
-export async function getPostBySlug(slug) {
+export async function getPostBySlug(slug, includeDrafts = false) {
+    if (includeDrafts && isLoggedIn()) {
+        return await pb.collection('posts').getFirstListItem(
+            pb.filter('slug = {:slug}', { slug })
+        );
+    }
+
     return await pb.collection('posts').getFirstListItem(
         pb.filter('slug = {:slug} && status = {:status}', {
             slug,
@@ -337,9 +350,13 @@ export function cmsErrorMessage(err) {
         err?.status === 0
         || /Failed to fetch|NetworkError|Load failed|connection|refused/i.test(message)
     ) {
-        return IS_LOCAL_FRONTEND
-            ? 'CMS 서버에 연결할 수 없습니다. 로컬에서는 PocketBase를 먼저 실행해야 합니다.'
-            : '글/방명록 서버에 잠시 연결할 수 없습니다. 조금 뒤에 다시 확인해주세요.';
+        if (!IS_LOCAL_FRONTEND) {
+            return '글/방명록 서버에 잠시 연결할 수 없습니다. 조금 뒤에 다시 확인해주세요.';
+        }
+
+        return CMS_TARGET === 'live'
+            ? '운영 CMS에 연결할 수 없습니다. dev:live-cms 프록시나 api.coldwaterkim.com 상태를 확인해야 합니다.'
+            : 'CMS 서버에 연결할 수 없습니다. 로컬에서는 PocketBase를 먼저 실행해야 합니다.';
     }
 
     if (err?.status === 401 || err?.status === 403) {

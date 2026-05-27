@@ -3,153 +3,46 @@
 
 <head>
     <meta charset="utf-8">
-    <title>Dashboard — coldwaterkim Admin</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>OWNER MODE — coldwaterkim</title>
+    <meta name="viewport" content="width=800">
     <link rel="stylesheet" href="../css/admin.css">
 </head>
 
 <body class="admin-body">
-    <div class="admin-container">
-        <!-- Header -->
-        <div class="admin-header">
-            <h1>★ coldwaterkim ADMIN ★</h1>
-            <div>
-                <a href="../index.html">🏠 홈으로</a> |
-                <a href="#" id="logoutBtn">🚪 로그아웃</a>
-            </div>
-        </div>
-
-        <!-- Navigation -->
-        <nav class="admin-nav">
-            <a href="/admin/" class="active">📊 대시보드</a>
-            <a href="/admin/posts.html">📝 글 관리</a>
-            <a href="/admin/media.html">🖼️ 미디어</a>
-            <a href="/admin/guestbook.html">💬 방명록</a>
-        </nav>
-
-        <!-- Content -->
-        <div class="admin-content">
-            <h2 style="margin-top: 0;">환영합니다! 👋</h2>
-            <p id="welcomeMsg">로딩 중...</p>
-
-            <!-- 빠른 통계 -->
-            <div style="display: flex; gap: 16px; flex-wrap: wrap; margin-top: 20px;">
-                <div class="admin-panel" style="flex: 1; min-width: 200px;">
-                    <h2>📝 글</h2>
-                    <p style="font-size: 32px; margin: 0; color: #000080;" id="postCount">-</p>
-                    <p style="font-size: 12px; color: #666;">총 게시글</p>
-                    <p style="margin-bottom: 0;">
-                        <a href="/admin/posts.html?new=1" class="btn btn-primary">새 글 쓰기</a>
+    <center>
+        <table width="760" border="1" cellspacing="0" cellpadding="8" bgcolor="#ffffff">
+            <tr>
+                <td align="center" class="banner">
+                    <b>OWNER MODE</b>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    <h1>관리 화면은 홈 안으로 들어갔습니다.</h1>
+                    <p>
+                        이제 공개 사이트를 둘러보다가 로그인한 사람에게만 글쓰기/수정/삭제 버튼이 열립니다.
                     </p>
-                </div>
-
-                <div class="admin-panel" style="flex: 1; min-width: 200px;">
-                    <h2>💬 방명록</h2>
-                    <p style="font-size: 32px; margin: 0; color: #000080;" id="guestbookCount">-</p>
-                    <p style="font-size: 12px; color: #666;">총 방명록 항목</p>
-                    <p style="margin-bottom: 0;">
-                        <a href="/admin/guestbook.html" class="btn">관리하기</a>
+                    <p>
+                        [ <a href="../index.html">Home으로 가기</a> |
+                        <a href="posts.html?new=1">새 글 쓰기</a> |
+                        <a href="media.html">미디어</a> |
+                        <a href="guestbook.html">방명록 관리</a> ]
                     </p>
-                </div>
-
-                <div class="admin-panel" style="flex: 1; min-width: 200px;">
-                    <h2>🖼️ 미디어</h2>
-                    <p style="font-size: 32px; margin: 0; color: #000080;" id="mediaCount">-</p>
-                    <p style="font-size: 12px; color: #666;">업로드된 파일</p>
-                    <p style="margin-bottom: 0;">
-                        <a href="/admin/media.html" class="btn">업로드하기</a>
+                    <p class="note">
+                        이 페이지는 예전 북마크용 안내판입니다. 실제 운영 시작점은 Home입니다.
                     </p>
-                </div>
-            </div>
-
-            <!-- 최근 글 -->
-            <div class="admin-panel" style="margin-top: 20px;">
-                <h2>📋 최근 글</h2>
-                <table class="admin-table" id="recentPosts">
-                    <thead>
-                        <tr>
-                            <th>제목</th>
-                            <th style="width: 100px;">상태</th>
-                            <th style="width: 120px;">날짜</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td colspan="3" class="loading">불러오는 중</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
+                </td>
+            </tr>
+        </table>
+    </center>
 
     <script type="module">
-        import { pb, isLoggedIn, logout, currentUser, getAllPosts, formatDate, cmsErrorMessage } from '../js/pb.js';
+        import { isLoggedIn } from '../js/pb.js';
 
-        // 인증 체크
         if (!isLoggedIn()) {
-            window.location.replace('/admin/login.html');
+            window.location.replace('/admin/login.html?next=/');
             await new Promise(() => { });
         }
-
-        // 환영 메시지
-        const user = currentUser();
-        const displayName = user?.name || user?.username || user?.email || 'Admin';
-        document.getElementById('welcomeMsg').textContent =
-            `${displayName}님으로 로그인되어 있습니다.`;
-
-        // 로그아웃
-        document.getElementById('logoutBtn').addEventListener('click', (e) => {
-            e.preventDefault();
-            logout();
-            window.location.href = '/admin/login.html';
-        });
-
-        // 통계 로드
-        async function loadStats() {
-            try {
-                const posts = await pb.collection('posts').getList(1, 1);
-                document.getElementById('postCount').textContent = posts.totalItems;
-
-                const guestbook = await pb.collection('guestbook').getList(1, 1);
-                document.getElementById('guestbookCount').textContent = guestbook.totalItems;
-
-                const media = await pb.collection('media').getList(1, 1);
-                document.getElementById('mediaCount').textContent = media.totalItems;
-            } catch (e) {
-                console.error('Stats load error:', e);
-                document.getElementById('postCount').textContent = '!';
-                document.getElementById('guestbookCount').textContent = '!';
-                document.getElementById('mediaCount').textContent = '!';
-                document.getElementById('welcomeMsg').textContent = cmsErrorMessage(e);
-            }
-        }
-
-        // 최근 글 로드
-        async function loadRecentPosts() {
-            const tbody = document.querySelector('#recentPosts tbody');
-            try {
-                const result = await getAllPosts(1, 5);
-
-                if (result.items.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="3">아직 글이 없습니다.</td></tr>';
-                    return;
-                }
-
-                tbody.innerHTML = result.items.map(post => `
-          <tr>
-            <td><a href="/admin/posts.html?id=${post.id}">${post.title || '(제목 없음)'}</a></td>
-            <td><span class="badge badge-${post.status}">${post.status === 'published' ? '발행됨' : '초안'}</span></td>
-            <td>${formatDate(post.published_at || post.created)}</td>
-          </tr>
-        `).join('');
-            } catch (e) {
-                tbody.innerHTML = `<tr><td colspan="3">불러오기 실패: ${cmsErrorMessage(e)}</td></tr>`;
-            }
-        }
-
-        loadStats();
-        loadRecentPosts();
     </script>
 </body>
 
