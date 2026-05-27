@@ -185,6 +185,23 @@ export async function getGuestbookEntries(page = 1, perPage = 50) {
     });
 }
 
+export function guestbookDisplayDate(entry) {
+    return entry?.display_date || entry?.created || '';
+}
+
+function dateTimestamp(value) {
+    const n = Date.parse(value || '');
+    return Number.isFinite(n) ? n : 0;
+}
+
+export function sortGuestbookEntriesForDisplay(entries = []) {
+    return Array.from(entries).sort((a, b) => {
+        const byDisplayDate = dateTimestamp(guestbookDisplayDate(b)) - dateTimestamp(guestbookDisplayDate(a));
+        if (byDisplayDate !== 0) return byDisplayDate;
+        return dateTimestamp(b?.created) - dateTimestamp(a?.created);
+    });
+}
+
 /**
  * 방명록 작성
  * @param {string} name
@@ -192,7 +209,12 @@ export async function getGuestbookEntries(page = 1, perPage = 50) {
  * @returns {Promise<object>}
  */
 export async function addGuestbookEntry(name, message) {
-    return await pb.collection('guestbook').create({ name, message });
+    const safeName = String(name || '').trim().slice(0, 50) || '익명의 누군가';
+    const safeMessage = String(message || '').trim();
+    return await pb.collection('guestbook').create({
+        name: safeName,
+        message: safeMessage
+    });
 }
 
 /**

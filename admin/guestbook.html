@@ -64,7 +64,7 @@
     </div>
 
     <script type="module">
-        import { isLoggedIn, logout, getGuestbookEntries, deleteGuestbookEntry, formatDate, escapeHtml, cmsErrorMessage } from '../js/pb.js';
+        import { isLoggedIn, logout, getGuestbookEntries, deleteGuestbookEntry, guestbookDisplayDate, formatDate, escapeHtml, cmsErrorMessage } from '../js/pb.js';
 
         // 인증 체크
         if (!isLoggedIn()) {
@@ -116,7 +116,7 @@
           <tr>
             <td><b>${escapeHtml(entry.name)}</b></td>
             <td>${escapeHtml(entry.message)}</td>
-            <td>${formatDate(entry.created)}</td>
+            <td>${formatDate(guestbookDisplayDate(entry))}</td>
             <td>
               <button class="btn btn-danger" onclick="confirmDelete('${entry.id}')" style="padding: 4px 8px;">🗑️</button>
             </td>

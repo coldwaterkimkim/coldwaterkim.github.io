@@ -23,7 +23,7 @@
 - 공개 홈은 PocketBase에서 최근 발행 글을 가져온다.
 - 글 목록은 홈과 같은 shell 안에서 PocketBase `posts` 컬렉션의 `published` 글만 보여준다.
 - 글 상세는 홈과 같은 shell 안에서 `slug`로 PocketBase 글을 조회한다.
-- 방명록은 홈과 같은 shell 안에서 PocketBase `guestbook` 컬렉션을 읽고 쓴다.
+- 방명록은 홈과 같은 shell 안에서 PocketBase `guestbook` 컬렉션을 읽고 쓴다. 방문자는 닉네임을 직접 입력할 수 있고, 비워두면 `익명의 누군가N` 이름이 붙는다. 초기 방명록처럼 보이는 글은 `display_date`를 표시/정렬용 날짜로 쓰고, 일반 작성 글은 실제 `created` 날짜를 쓴다.
 - 방문자 카운터는 PocketBase `visitor_sessions` 컬렉션을 사용한다. 같은 브라우저의 30분 내 새로고침/페이지 이동은 중복 집계하지 않고, `TOTAL`은 실제 누적값에 2000을 더해 보여준다. `TODAY`는 KST 날짜 기준 실제값과 관리자 보정 최소값 중 큰 값을 보여주며, 로그인한 관리자만 공개 화면에서 위/아래 버튼으로 보정할 수 있다.
 - 공개 메뉴에는 관리자 링크를 두지 않는다. 상단 marquee의 `coldwaterkim` 텍스트가 숨은 로그인 진입점이다.
 - 로그인한 관리자는 공개 사이트를 그대로 보면서 홈 문구 편집, 글방의 새 글/수정/삭제, 글 상세의 수정/삭제, 방명록 삭제 같은 `OWNER MODE` 권한을 추가로 본다.
@@ -78,3 +78,4 @@ PocketBase 서버가 꺼져 있으면 공개 사이트는 렌더링되지만 글
 - `https://coldwaterkim.com/` 공개 홈은 CMS 연결 실패 없이 빈 글 목록 상태로 렌더링된다.
 - 로컬 프론트엔드에서 운영 CMS를 읽는 `dev:live-cms` 모드를 추가했다. 글을 도메인 관리자에서 작성하고 로컬 UI에서 레이아웃을 볼 때는 이 모드를 기본으로 쓴다.
 - 운영 PocketBase에 `visitor_sessions` 컬렉션을 반영했다. 공개 create/list/view는 열고, update/delete는 관리자만 가능하게 유지한다.
+- 운영 PocketBase `guestbook` 컬렉션에 `display_date` 필드를 추가했고, 2025년 11월부터 2026년 5월까지 지인형 초기 방명록 23개를 반영했다.

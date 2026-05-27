@@ -3,7 +3,7 @@
  * PocketBase 연동 버전
  */
 
-import { getPublishedPosts, getGuestbookEntries, addGuestbookEntry, getSetting, setSetting, isLoggedIn, deleteGuestbookEntry, recordVisitAndGetStats, setVisitorTodayMinimum, formatDate, escapeHtml, cmsErrorMessage } from './pb.js';
+import { getPublishedPosts, getGuestbookEntries, addGuestbookEntry, getSetting, setSetting, isLoggedIn, deleteGuestbookEntry, guestbookDisplayDate, sortGuestbookEntriesForDisplay, recordVisitAndGetStats, setVisitorTodayMinimum, formatDate, escapeHtml, cmsErrorMessage } from './pb.js';
 
 // ─────────────────────────────────────────────────────────
 // BGM 자동 재생 시도
@@ -181,22 +181,23 @@ import { getPublishedPosts, getGuestbookEntries, addGuestbookEntry, getSetting, 
   if (!table) return;
 
   try {
-    const result = await getGuestbookEntries(1, 5);
+    const result = await getGuestbookEntries(1, 200);
+    const entries = sortGuestbookEntriesForDisplay(result.items);
     const rows = Array.from(table.querySelectorAll('tr')).slice(1);
     rows.forEach(row => row.remove());
 
-    if (result.items.length === 0) {
+    if (entries.length === 0) {
       const tr = document.createElement('tr');
       tr.innerHTML = '<td colspan="2">아직 방명록이 없습니다. 첫 번째로 인사해주세요!</td>';
       table.appendChild(tr);
       return;
     }
 
-    result.items.slice(0, 5).forEach(entry => {
+    entries.slice(0, 5).forEach(entry => {
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td><b>${escapeHtml(entry.name)}</b>: ${linkify(escapeHtml(entry.message))}</td>
-        <td class="date-cell" align="right">${formatDate(entry.created)}</td>
+        <td class="date-cell" align="right">${formatDate(guestbookDisplayDate(entry))}</td>
       `;
       table.appendChild(tr);
     });
@@ -219,8 +220,10 @@ if (guestbookForm) {
   guestbookForm.addEventListener('submit', async (e) => {
     e.preventDefault();
 
+    const nameEl = document.getElementById('guestName');
     const messageEl = document.getElementById('message');
-    const name = await nextGuestbookName();
+    const typedName = nameEl?.value.trim() || '';
+    const name = typedName || await nextGuestbookName();
     const message = messageEl.value.trim();
 
     if (!message) {
@@ -245,17 +248,18 @@ async function loadGuestbook() {
   guestbookEntries.innerHTML = '<p>불러오는 중...</p>';
 
   try {
-    const result = await getGuestbookEntries(1, 50);
+    const result = await getGuestbookEntries(1, 200);
+    const entries = sortGuestbookEntriesForDisplay(result.items);
 
-    if (result.items.length === 0) {
+    if (entries.length === 0) {
       guestbookEntries.innerHTML = '<p>아직 방명록이 없습니다. 첫 번째로 인사해주세요!</p>';
       return;
     }
 
     const isAdmin = isLoggedIn();
 
-    guestbookEntries.innerHTML = result.items.map(entry => {
-      const dateLabel = formatDate(entry.created);
+    guestbookEntries.innerHTML = entries.map(entry => {
+      const dateLabel = formatDate(guestbookDisplayDate(entry));
       const metaPrefix = dateLabel ? `[${dateLabel}] ` : '';
       const deleteBtn = isAdmin
         ? `<button class="del-btn" data-id="${entry.id}" style="font-size:10px; color:red; border:1px solid red; background:white; cursor:pointer; margin-left:5px;">[삭제]</button>`

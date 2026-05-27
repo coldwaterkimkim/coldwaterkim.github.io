@@ -38,6 +38,7 @@
       "fields": [
         { "name": "name", "type": "text", "required": true, "min": 1, "max": 50 },
         { "name": "message", "type": "text", "required": true, "min": 1, "max": 1000 },
+        { "name": "display_date", "type": "date", "required": false },
         { "name": "created", "type": "autodate", "onCreate": true, "onUpdate": false },
         { "name": "updated", "type": "autodate", "onCreate": true, "onUpdate": true }
       ],
