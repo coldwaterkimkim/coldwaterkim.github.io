@@ -22,6 +22,11 @@
         .post-content > * {
             cursor: auto;
         }
+
+        .post-content img {
+            max-width: 100%;
+            height: auto;
+        }
     </style>
 </head>
 
@@ -110,7 +115,7 @@
     </center>
 
     <script type="module">
-        import { pb, getPostBySlug, deletePost, isLoggedIn, logout, formatDate, escapeHtml, cmsErrorMessage } from '../js/pb.js';
+        import { getPostBySlug, deletePost, isLoggedIn, logout, formatDate, escapeHtml, cmsErrorMessage, resolvePostFeaturedImageUrl } from '../js/pb.js';
 
         const params = new URLSearchParams(window.location.search);
         const slug = params.get('slug');
@@ -163,11 +168,16 @@
                     });
                 }
 
-                if (post.featured_image) {
-                    const imgUrl = pb.files.getURL(post, post.featured_image);
-                    document.getElementById('featured-image').innerHTML = `
-            <img src="${imgUrl}" alt="${post.title}" style="max-width: 100%; margin-bottom: 16px;">
-          `;
+                const featuredEl = document.getElementById('featured-image');
+                featuredEl.innerHTML = '';
+                const featuredImageUrl = resolvePostFeaturedImageUrl(post);
+                if (featuredImageUrl) {
+                    const featuredImg = document.createElement('img');
+                    featuredImg.src = featuredImageUrl;
+                    featuredImg.alt = post.title;
+                    featuredImg.style.maxWidth = '100%';
+                    featuredImg.style.marginBottom = '16px';
+                    featuredEl.appendChild(featuredImg);
                 }
 
                 document.getElementById('post-content').innerHTML = post.content || '<p>내용이 없습니다.</p>';

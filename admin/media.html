@@ -73,7 +73,7 @@
     </div>
 
     <script type="module">
-        import { pb, isLoggedIn, logout, uploadMedia, getMediaList, deleteMedia, formatDate, cmsErrorMessage } from '../js/pb.js';
+        import { pb, isLoggedIn, logout, uploadMedia, getMediaList, deleteMedia, formatDate, cmsErrorMessage, getMediaUrl } from '../js/pb.js';
 
         // 인증 체크
         if (!isLoggedIn()) {
@@ -174,7 +174,7 @@
                 }
 
                 grid.innerHTML = result.items.map(item => {
-                    const url = pb.files.getURL(item, item.file);
+                    const url = getMediaUrl(item, item.file);
                     const isImage = item.file.match(/\.(jpg|jpeg|png|gif|webp)$/i);
                     const isVideo = item.file.match(/\.(mp4|webm)$/i);
                     const isAudio = item.file.match(/\.(mp3|wav)$/i);
@@ -234,7 +234,7 @@
                 const item = await pb.collection('media').getOne(id);
                 selectedMediaId = id;
 
-                const url = pb.files.getURL(item, item.file);
+                const url = getMediaUrl(item, item.file);
                 const isImage = item.file.match(/\.(jpg|jpeg|png|gif|webp)$/i);
                 const isVideo = item.file.match(/\.(mp4|webm)$/i);
                 const isAudio = item.file.match(/\.(mp3|wav)$/i);

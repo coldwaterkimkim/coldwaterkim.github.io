@@ -99,13 +99,14 @@
                         <div class="editor-container">
                             <div id="editor"></div>
                         </div>
+                        <input type="file" id="editorImageInput" accept="image/*" multiple hidden>
+                        <div id="editorImageStatus" class="editor-image-status" aria-live="polite"></div>
                     </div>
 
                     <div class="admin-panel">
                         <h2>🖼️ 대표 이미지</h2>
-                        <div id="featuredImagePreview" style="margin-bottom: 12px;"></div>
-                        <input type="file" id="featuredImage" accept="image/*">
-                        <p style="font-size: 12px; color: #666; margin-top: 4px;">JPG, PNG, GIF, WebP (최대 10MB)</p>
+                        <div id="featuredImagePreview" class="featured-image-preview"></div>
+                        <div id="featuredImageControls" class="featured-image-controls"></div>
                     </div>
 
                     <div class="action-buttons">
@@ -123,7 +124,7 @@
     <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
 
     <script type="module">
-        import { pb, isLoggedIn, logout, getAllPosts, deletePost, formatDate, slugify, cmsErrorMessage } from '../js/pb.js';
+        import { pb, isLoggedIn, logout, getAllPosts, deletePost, formatDate, slugify, cmsErrorMessage, uploadMedia, getMediaUrl, extractImageUrlsFromHtml, normalizeFeaturedImageMode } from '../js/pb.js';
 
         // 인증 체크
         if (!isLoggedIn()) {
@@ -155,19 +156,83 @@
             }
         });
 
-        // 이미지 핸들러 커스터마이즈 - 미디어 라이브러리 연동
+        const editorContainer = document.querySelector('.editor-container');
+        const editorImageInput = document.getElementById('editorImageInput');
+        const editorImageStatus = document.getElementById('editorImageStatus');
+        const editorImageMimeTypes = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
+        let pendingEditorImageIndex = null;
+
+        // 이미지 핸들러 커스터마이즈 - 파일 업로드 후 본문에 자동 삽입
         const toolbar = quill.getModule('toolbar');
         toolbar.addHandler('image', () => {
-            const url = prompt('이미지 URL을 입력하세요.\n(미디어 라이브러리에서 URL 복사 가능)');
-            if (url) {
-                const range = quill.getSelection();
-                quill.insertEmbed(range.index, 'image', url);
-            }
+            pendingEditorImageIndex = currentEditorIndex();
+            editorImageInput.click();
         });
+
+        editorImageInput.addEventListener('change', async () => {
+            await insertEditorImages(editorImageInput.files, {
+                index: pendingEditorImageIndex
+            });
+            pendingEditorImageIndex = null;
+            editorImageInput.value = '';
+        });
+
+        editorContainer.addEventListener('dragenter', (event) => {
+            if (!hasImageTransfer(event.dataTransfer)) return;
+            event.preventDefault();
+            editorContainer.classList.add('is-image-dragover');
+        });
+
+        editorContainer.addEventListener('dragover', (event) => {
+            if (!hasImageTransfer(event.dataTransfer)) return;
+            event.preventDefault();
+            editorContainer.classList.add('is-image-dragover');
+        });
+
+        editorContainer.addEventListener('dragleave', (event) => {
+            if (event.relatedTarget instanceof Node && editorContainer.contains(event.relatedTarget)) return;
+            editorContainer.classList.remove('is-image-dragover');
+        });
+
+        editorContainer.addEventListener('drop', async (event) => {
+            if (!hasImageTransfer(event.dataTransfer)) return;
+            event.preventDefault();
+            event.stopPropagation();
+            editorContainer.classList.remove('is-image-dragover');
+
+            const imageFiles = imageFilesFromTransfer(event.dataTransfer);
+            if (!imageFiles.length) {
+                showAlert('JPG, PNG, GIF, WebP 이미지만 본문에 넣을 수 있습니다.', 'error');
+                return;
+            }
+
+            await insertEditorImages(imageFiles, {
+                index: editorIndexFromPoint(event.clientX, event.clientY)
+            });
+        }, true);
+
+        quill.root.addEventListener('paste', async (event) => {
+            if (!hasImageTransfer(event.clipboardData)) return;
+            event.preventDefault();
+            event.stopPropagation();
+
+            const imageFiles = imageFilesFromTransfer(event.clipboardData);
+            if (!imageFiles.length) {
+                showAlert('JPG, PNG, GIF, WebP 이미지만 본문에 넣을 수 있습니다.', 'error');
+                return;
+            }
+
+            await insertEditorImages(imageFiles, {
+                index: currentEditorIndex()
+            });
+        }, true);
 
         // 상태 변수
         let currentPage = 1;
         let editingPostId = null;
+        let featuredImageMode = 'auto';
+        let selectedFeaturedImageUrl = '';
+        let featuredImageRenderTimer = null;
 
         // 페이지 함수들을 전역으로 노출
         window.showEditor = showEditor;
@@ -186,6 +251,227 @@
             alertEl.style.display = 'block';
             setTimeout(() => alertEl.style.display = 'none', 5000);
         }
+
+        function setEditorImageStatus(message = '', type = 'info') {
+            editorImageStatus.textContent = message;
+            editorImageStatus.className = `editor-image-status editor-image-status-${type}`;
+            editorImageStatus.classList.toggle('is-visible', Boolean(message));
+        }
+
+        function isSupportedEditorImage(file) {
+            return file && editorImageMimeTypes.has(file.type);
+        }
+
+        function hasImageTransfer(dataTransfer) {
+            if (!dataTransfer) return false;
+
+            return Array.from(dataTransfer.items || []).some(item => item.type?.startsWith('image/'))
+                || Array.from(dataTransfer.files || []).some(file => file.type?.startsWith('image/'));
+        }
+
+        function imageFilesFromTransfer(dataTransfer) {
+            if (!dataTransfer) return [];
+
+            const files = Array.from(dataTransfer.files || []);
+            const itemFiles = Array.from(dataTransfer.items || [])
+                .filter(item => item.kind === 'file' && item.type?.startsWith('image/'))
+                .map(item => item.getAsFile())
+                .filter(Boolean);
+
+            return [...files, ...itemFiles]
+                .filter((file, index, allFiles) => {
+                    if (!isSupportedEditorImage(file)) return false;
+                    return allFiles.findIndex(candidate =>
+                        candidate.name === file.name
+                        && candidate.size === file.size
+                        && candidate.lastModified === file.lastModified
+                    ) === index;
+                })
+                .map((file, index) => namedImageFile(file, index));
+        }
+
+        function namedImageFile(file, index) {
+            if (file.name) return file;
+
+            const extensionByType = {
+                'image/jpeg': 'jpg',
+                'image/png': 'png',
+                'image/gif': 'gif',
+                'image/webp': 'webp'
+            };
+            const extension = extensionByType[file.type] || 'png';
+
+            return new File([file], `editor-image-${Date.now()}-${index + 1}.${extension}`, {
+                type: file.type
+            });
+        }
+
+        function clampEditorIndex(index) {
+            const maxIndex = Math.max(0, quill.getLength() - 1);
+            if (!Number.isFinite(index)) return maxIndex;
+            return Math.min(Math.max(0, index), maxIndex);
+        }
+
+        function currentEditorIndex() {
+            const range = quill.getSelection(true);
+            return clampEditorIndex(range?.index);
+        }
+
+        function editorIndexFromPoint(x, y) {
+            const range = document.caretRangeFromPoint
+                ? document.caretRangeFromPoint(x, y)
+                : null;
+            const position = !range && document.caretPositionFromPoint
+                ? document.caretPositionFromPoint(x, y)
+                : null;
+
+            const node = range?.startContainer || position?.offsetNode;
+            const offset = range?.startOffset ?? position?.offset;
+            if (!node) return currentEditorIndex();
+
+            const blot = Quill.find(node, true);
+            if (!blot) return currentEditorIndex();
+
+            let index = quill.getIndex(blot);
+            if (typeof blot.index === 'function') {
+                index += blot.index(node, offset);
+            } else {
+                index += offset || 0;
+            }
+
+            return clampEditorIndex(index);
+        }
+
+        async function insertEditorImages(files, options = {}) {
+            const imageFiles = Array.from(files || [])
+                .filter(isSupportedEditorImage)
+                .map((file, index) => namedImageFile(file, index));
+
+            if (!imageFiles.length) {
+                showAlert('JPG, PNG, GIF, WebP 이미지만 본문에 넣을 수 있습니다.', 'error');
+                return;
+            }
+
+            let insertIndex = clampEditorIndex(options.index);
+            let uploadedCount = 0;
+            editorContainer.classList.add('is-image-uploading');
+
+            for (let i = 0; i < imageFiles.length; i += 1) {
+                const file = imageFiles[i];
+                setEditorImageStatus(`이미지 업로드 중... (${i + 1}/${imageFiles.length}) ${file.name}`);
+
+                try {
+                    const media = await uploadMedia(file);
+                    const url = getMediaUrl(media, media.file);
+                    quill.insertEmbed(insertIndex, 'image', url, 'user');
+                    insertIndex += 1;
+                    quill.insertText(insertIndex, '\n', 'user');
+                    insertIndex += 1;
+                    uploadedCount += 1;
+                } catch (e) {
+                    showAlert(`본문 이미지 업로드 실패 (${file.name}): ${cmsErrorMessage(e)}`, 'error');
+                }
+            }
+
+            editorContainer.classList.remove('is-image-uploading');
+
+            if (uploadedCount > 0) {
+                quill.setSelection(insertIndex, 0, 'silent');
+                renderFeaturedImageControls();
+                setEditorImageStatus(`${uploadedCount}개 이미지가 본문에 들어갔습니다.`, 'success');
+                setTimeout(() => setEditorImageStatus(), 2500);
+            } else {
+                setEditorImageStatus();
+            }
+        }
+
+        function scheduleFeaturedImageRender() {
+            window.clearTimeout(featuredImageRenderTimer);
+            featuredImageRenderTimer = window.setTimeout(renderFeaturedImageControls, 120);
+        }
+
+        function editorImageUrls() {
+            return extractImageUrlsFromHtml(quill.root.innerHTML);
+        }
+
+        function escapeAttribute(value) {
+            return String(value || '')
+                .replace(/&/g, '&amp;')
+                .replace(/"/g, '&quot;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+        }
+
+        function normalizeFeaturedSelection(urls) {
+            if (featuredImageMode === 'selected' && !urls.includes(selectedFeaturedImageUrl)) {
+                featuredImageMode = 'auto';
+                selectedFeaturedImageUrl = '';
+            }
+
+            if (featuredImageMode !== 'selected') {
+                selectedFeaturedImageUrl = '';
+            }
+        }
+
+        function featuredImageUrlForPreview(urls) {
+            if (featuredImageMode === 'none') return '';
+            if (featuredImageMode === 'selected') return selectedFeaturedImageUrl || '';
+            return urls[0] || '';
+        }
+
+        function renderFeaturedImageControls() {
+            const urls = editorImageUrls();
+            normalizeFeaturedSelection(urls);
+
+            const previewUrl = featuredImageUrlForPreview(urls);
+            const previewEl = document.getElementById('featuredImagePreview');
+            const controlsEl = document.getElementById('featuredImageControls');
+
+            previewEl.innerHTML = previewUrl
+                ? `<img src="${escapeAttribute(previewUrl)}" alt="">`
+                : '<p class="featured-image-empty">대표 이미지 없음</p>';
+
+            const thumbnails = urls.length > 0
+                ? `<div class="featured-image-grid">
+                    ${urls.map((url, index) => `
+                        <button type="button" class="featured-image-choice ${featuredImageMode === 'selected' && selectedFeaturedImageUrl === url ? 'is-selected' : ''}" data-featured-url="${escapeAttribute(url)}">
+                            <img src="${escapeAttribute(url)}" alt="">
+                            <span>#${index + 1}</span>
+                        </button>
+                    `).join('')}
+                </div>`
+                : '<p class="featured-image-empty">본문 이미지 없음</p>';
+
+            controlsEl.innerHTML = `
+                <label class="featured-image-mode">
+                    <input type="radio" name="featuredImageMode" value="auto" ${featuredImageMode === 'auto' ? 'checked' : ''}>
+                    자동
+                </label>
+                <label class="featured-image-mode">
+                    <input type="radio" name="featuredImageMode" value="none" ${featuredImageMode === 'none' ? 'checked' : ''}>
+                    없음
+                </label>
+                ${thumbnails}
+            `;
+
+            controlsEl.querySelectorAll('input[name="featuredImageMode"]').forEach(input => {
+                input.addEventListener('change', () => {
+                    featuredImageMode = input.value;
+                    selectedFeaturedImageUrl = '';
+                    renderFeaturedImageControls();
+                });
+            });
+
+            controlsEl.querySelectorAll('[data-featured-url]').forEach(button => {
+                button.addEventListener('click', () => {
+                    featuredImageMode = 'selected';
+                    selectedFeaturedImageUrl = button.getAttribute('data-featured-url') || '';
+                    renderFeaturedImageControls();
+                });
+            });
+        }
+
+        quill.on('text-change', scheduleFeaturedImageRender);
 
         // 목록 뷰
         function showList() {
@@ -211,14 +497,9 @@
                 quill.root.innerHTML = post.content || '';
                 document.getElementById('deleteBtn').style.display = 'inline-block';
                 editingPostId = post.id;
-
-                // 대표 이미지 미리보기
-                if (post.featured_image) {
-                    const url = pb.files.getURL(post, post.featured_image);
-                    document.getElementById('featuredImagePreview').innerHTML = `<img src="${url}" style="max-width: 200px; max-height: 150px;">`;
-                } else {
-                    document.getElementById('featuredImagePreview').innerHTML = '';
-                }
+                featuredImageMode = normalizeFeaturedImageMode(post.featured_image_mode);
+                selectedFeaturedImageUrl = post.featured_image_url || '';
+                renderFeaturedImageControls();
             } else {
                 // 새 글 모드
                 document.getElementById('editorTitle').textContent = '✍️ 새 글 쓰기';
@@ -228,8 +509,10 @@
                 document.getElementById('status').value = 'draft';
                 quill.root.innerHTML = '';
                 document.getElementById('deleteBtn').style.display = 'none';
-                document.getElementById('featuredImagePreview').innerHTML = '';
                 editingPostId = null;
+                featuredImageMode = 'auto';
+                selectedFeaturedImageUrl = '';
+                renderFeaturedImageControls();
 
                 // 오늘 날짜 기본값
                 document.getElementById('published_at').value = new Date().toISOString().split('T')[0];
@@ -352,19 +635,17 @@
                 document.getElementById('slug').value = slug;
             }
 
-            // FormData 생성 (파일 업로드 포함)
+            normalizeFeaturedSelection(editorImageUrls());
+
+            // FormData 생성
             const formData = new FormData();
             formData.append('title', title);
             formData.append('slug', slug);
             formData.append('status', status);
             formData.append('content', content);
+            formData.append('featured_image_mode', normalizeFeaturedImageMode(featuredImageMode));
+            formData.append('featured_image_url', featuredImageMode === 'selected' ? selectedFeaturedImageUrl : '');
             if (published_at) formData.append('published_at', published_at);
-
-            // 대표 이미지
-            const featuredImageFile = document.getElementById('featuredImage').files[0];
-            if (featuredImageFile) {
-                formData.append('featured_image', featuredImageFile);
-            }
 
             try {
                 let result;

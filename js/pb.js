@@ -434,7 +434,62 @@ export async function uploadMedia(file, altText = '', caption = '') {
  * @returns {string}
  */
 export function getMediaUrl(record, filename) {
-    return pb.files.getURL(record, filename);
+    const getUrl = typeof pb.files.getURL === 'function'
+        ? pb.files.getURL
+        : pb.files.getUrl;
+    return normalizeFileUrl(getUrl.call(pb.files, record, filename));
+}
+
+export function extractImageUrlsFromHtml(html) {
+    const doc = new DOMParser().parseFromString(String(html || ''), 'text/html');
+    return Array.from(doc.querySelectorAll('img[src]'))
+        .map(img => img.getAttribute('src'))
+        .filter(Boolean)
+        .filter((url, index, urls) => urls.indexOf(url) === index);
+}
+
+export function normalizeFeaturedImageMode(mode) {
+    return ['auto', 'selected', 'none'].includes(mode) ? mode : 'auto';
+}
+
+export function resolvePostFeaturedImageUrl(post) {
+    const mode = normalizeFeaturedImageMode(post?.featured_image_mode);
+    if (mode === 'none') return '';
+
+    const contentImages = extractImageUrlsFromHtml(post?.content);
+    if (mode === 'selected' && post?.featured_image_url && contentImages.includes(post.featured_image_url)) {
+        return post.featured_image_url;
+    }
+
+    if (contentImages.length > 0) {
+        return contentImages[0];
+    }
+
+    if (post?.featured_image) {
+        return getMediaUrl(post, post.featured_image);
+    }
+
+    return '';
+}
+
+/**
+ * 저장되는 본문 HTML에는 로컬 Vite 프록시 주소가 아니라 실제 API 파일 주소가 들어가야 한다.
+ * dev:live-cms 모드에서 글을 쓰면 /api 프록시를 쓰지만 공개 사이트는 api.coldwaterkim.com에서 이미지를 읽는다.
+ * @param {string} url
+ * @returns {string}
+ */
+function normalizeFileUrl(url) {
+    const fileUrl = String(url || '');
+    if (!fileUrl) return fileUrl;
+
+    if (IS_LOCAL_FRONTEND && CMS_TARGET === 'live') {
+        const localApiPrefix = `${window.location.origin}/api/files/`;
+        if (fileUrl.startsWith(localApiPrefix)) {
+            return fileUrl.replace(window.location.origin, LIVE_CMS_URL);
+        }
+    }
+
+    return fileUrl;
 }
 
 /**
