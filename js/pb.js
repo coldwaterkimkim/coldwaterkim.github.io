@@ -233,7 +233,9 @@ export async function deleteGuestbookEntry(id) {
 const VISITOR_ID_KEY = 'cwk_visitor_id';
 const VISITOR_SESSION_KEY = 'cwk_visitor_session';
 const VISITOR_SESSION_TIMEOUT_MS = 30 * 60 * 1000;
-const VISITOR_TOTAL_DISPLAY_OFFSET = 2000;
+// 2026-05-30 운영 visitor_sessions 누적 23개를 공개 표시값 237의 기준점으로 삼는다.
+const VISITOR_TOTAL_DISPLAY_START = 237;
+const VISITOR_TOTAL_BASELINE_REAL_TOTAL = 23;
 const VISITOR_TODAY_MIN_KEY_PREFIX = 'visitor_today_min_';
 
 function getKstDateKey(date = new Date()) {
@@ -345,6 +347,10 @@ function parseCounterValue(value) {
     return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
+function visitorTotalForDisplay(realTotal) {
+    return VISITOR_TOTAL_DISPLAY_START + Math.max(0, realTotal - VISITOR_TOTAL_BASELINE_REAL_TOTAL);
+}
+
 async function getVisitorDisplayStats(dayKey) {
     const stats = await getVisitorStats(dayKey);
     const todayMinimum = parseCounterValue(await getSetting(`${VISITOR_TODAY_MIN_KEY_PREFIX}${dayKey}`));
@@ -354,7 +360,7 @@ async function getVisitorDisplayStats(dayKey) {
         realTotal: stats.total,
         realToday: stats.today,
         todayMinimum,
-        total: stats.total + VISITOR_TOTAL_DISPLAY_OFFSET,
+        total: visitorTotalForDisplay(stats.total),
         today: Math.max(stats.today, todayMinimum)
     };
 }
