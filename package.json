@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "prebuild": "node scripts/check-node-version.mjs",
     "dev": "vite --host 127.0.0.1",
     "dev:local-cms": "vite --host 127.0.0.1",
     "dev:live-cms": "VITE_CMS_TARGET=live vite --host 127.0.0.1",
