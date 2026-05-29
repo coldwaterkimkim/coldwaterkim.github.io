@@ -1,0 +1,9 @@
+import{C as e,_ as t,a as n,c as r,n as i,o as a,p as o,y as s}from"../pb-spct6Ye-.js";import"../site-gooiB_Ct.js";var c=new URLSearchParams(window.location.search).get(`slug`);c?l(c):u(`글을 찾을 수 없습니다.`,`Post not found`);async function l(a){try{let c=await o(a,t());if(c.status!==`published`&&!t()){u(`이 글은 아직 발행되지 않았습니다.`,`Not published`);return}document.title=`${c.title} — coldwaterkim`,document.getElementById(`post-title`).textContent=c.title;let l=c.published_at||c.created;document.getElementById(`post-date`).textContent=`Published: ${r(l)}`,t()&&(document.getElementById(`owner-tools`).innerHTML=`
+                        <div class="owner-bar">
+                            <b>OWNER MODE</b> ·
+                            <a href="../admin/posts.html?id=${c.id}">수정</a> ·
+                            <a href="../admin/posts.html?new=1">새 글</a> ·
+                            <a href="#" id="deletePostLink">삭제</a> ·
+                            <a href="#" id="logoutLink">로그아웃</a>
+                        </div>
+                    `,document.getElementById(`deletePostLink`).addEventListener(`click`,async e=>{if(e.preventDefault(),confirm(`이 글을 삭제할까요? 이 작업은 되돌릴 수 없습니다.`))try{await n(c.id),window.location.href=`index.html`}catch(e){alert(`삭제 실패: `+i(e))}}),document.getElementById(`logoutLink`).addEventListener(`click`,e=>{e.preventDefault(),s(),window.location.reload()}));let d=document.getElementById(`featured-image`);d.innerHTML=``;let f=e(c);if(f){let e=document.createElement(`img`);e.src=f,e.alt=c.title,e.style.maxWidth=`100%`,e.style.marginBottom=`16px`,d.appendChild(e)}document.getElementById(`post-content`).innerHTML=c.content||`<p>내용이 없습니다.</p>`}catch(e){u(i(e),`Post not found`)}}function u(e,t){document.title=`${t} — coldwaterkim`,document.getElementById(`post-title`).textContent=t,document.getElementById(`post-date`).textContent=``,document.getElementById(`post-content`).innerHTML=`<p>${a(e)}</p>`}

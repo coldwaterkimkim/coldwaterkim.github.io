@@ -1,0 +1,1 @@
+import{_ as e}from"../pb-spct6Ye-.js";/* empty css               */e()||(window.location.replace(`/admin/login.html?next=/`),await new Promise(()=>{}));

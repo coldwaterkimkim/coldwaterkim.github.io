@@ -1,1 +1,0 @@
-import{h as e}from"../pb-BugV6ctP.js";/* empty css               */e()||(window.location.replace(`/admin/login.html?next=/`),await new Promise(()=>{}));

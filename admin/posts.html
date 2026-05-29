@@ -14,9 +14,9 @@
             font-size: 16px;
         }
     </style>
-  <script type="module" crossorigin src="/assets/admin/posts-D0HxveJy.js"></script>
-  <link rel="modulepreload" crossorigin href="/assets/pb-BugV6ctP.js">
-  <link rel="stylesheet" crossorigin href="/assets/admin-B03sXMBg.css">
+  <script type="module" crossorigin src="/assets/admin/posts-DGFGO6TC.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/pb-spct6Ye-.js">
+  <link rel="stylesheet" crossorigin href="/assets/admin-Lq4lsHxd.css">
 </head>
 
 <body class="admin-body">
@@ -101,13 +101,14 @@
                         <div class="editor-container">
                             <div id="editor"></div>
                         </div>
+                        <input type="file" id="editorImageInput" accept="image/*" multiple hidden>
+                        <div id="editorImageStatus" class="editor-image-status" aria-live="polite"></div>
                     </div>
 
                     <div class="admin-panel">
                         <h2>🖼️ 대표 이미지</h2>
-                        <div id="featuredImagePreview" style="margin-bottom: 12px;"></div>
-                        <input type="file" id="featuredImage" accept="image/*">
-                        <p style="font-size: 12px; color: #666; margin-top: 4px;">JPG, PNG, GIF, WebP (최대 10MB)</p>
+                        <div id="featuredImagePreview" class="featured-image-preview"></div>
+                        <div id="featuredImageControls" class="featured-image-controls"></div>
                     </div>
 
                     <div class="action-buttons">
