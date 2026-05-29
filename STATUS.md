@@ -10,6 +10,8 @@
 
 공개 메인 IA 페이지(`Home`, `글방`, `글 상세`, `Guestbook`, `About / Contact`)는 모두 홈의 2-column shell을 기본 레이아웃으로 쓴다. 즉 상단 marquee, 노란 visitor banner, 왼쪽 프로필/sidebar, 오른쪽 content 상단 navigation은 유지하고, 페이지별 내용만 오른쪽 content 영역에서 바뀌게 한다.
 
+모바일에서는 같은 shell을 유지하되, 640px 이하 화면에서만 메인 2-column table이 세로로 접힌다. Home은 프로필을 가로형 미니 명함으로 압축하고 Cool Links/My WebRing은 본문 하단으로 보내 정체성을 남긴다. 글방/글 상세/Guestbook/About는 sidebar를 숨겨 navigation 다음에 본문이 바로 오게 한다. 데스크톱의 760px PC 레이아웃은 기본값으로 보존한다.
+
 이 결정의 이유:
 
 - 글을 자주 쓰려면 HTML 파일 복사보다 관리자 화면이 편하다.
