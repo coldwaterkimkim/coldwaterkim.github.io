@@ -7,7 +7,7 @@
  * // 글 목록 가져오기
  * const posts = await pb.collection('posts').getList(1, 10, {
  *   filter: 'status = "published"',
- *   sort: '-published_at'
+ *   sort: '-published_at,-created'
  * });
  */
 
@@ -105,7 +105,7 @@ export function requireAuth() {
 export async function getPublishedPosts(page = 1, perPage = 10) {
     return await pb.collection('posts').getList(page, perPage, {
         filter: pb.filter('status = {:status}', { status: 'published' }),
-        sort: '-published_at'
+        sort: '-published_at,-created'
     });
 }
 
