@@ -105,7 +105,7 @@
   </center>
 
   <script type="module">
-    import { getPublishedPosts, getAllPosts, deletePost, isLoggedIn, logout, formatDate, escapeHtml, cmsErrorMessage } from '../js/pb.js';
+    import { getPublishedPosts, getAllPosts, deletePost, isLoggedIn, logout, postDisplayDate, formatDate, escapeHtml, cmsErrorMessage } from '../js/pb.js';
 
     let currentPage = 1;
     const perPage = 10;
@@ -148,7 +148,7 @@
         }
 
         tbody.innerHTML = result.items.map(post => {
-          const date = post.published_at || post.created;
+          const date = postDisplayDate(post);
           const status = post.status === 'published' ? '' : ' <small class="note">[초안]</small>';
           const ownerActions = ownerMode
             ? `<td class="owner-actions">

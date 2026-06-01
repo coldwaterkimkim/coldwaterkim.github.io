@@ -247,6 +247,98 @@ a:hover { background: var(--cwk-link-hover-bg); }
 .preview-box h1, .preview-box h2, .preview-box h3 { margin: 8px 0 4px; }
 .preview-box pre, .preview-box code { font-family: var(--cwk-font-mono); }
 
+/* Post timeline: old-web entry blocks, not modern cards. */
+.post-timeline {
+  margin: 12px 0;
+}
+
+.timeline-loading {
+  border: 1px dashed var(--cwk-border-dashed);
+  background: var(--cwk-surface-preview);
+  padding: 8px;
+}
+
+.timeline-post {
+  position: relative;
+  margin: 16px 0;
+  border: 1px dashed var(--cwk-border-dashed);
+  background: var(--cwk-surface-page);
+}
+
+.timeline-post:focus {
+  outline: 2px dotted var(--cwk-hot-red);
+  outline-offset: 2px;
+}
+
+.timeline-post--focused {
+  border: 2px solid var(--cwk-hot-red);
+  background: #ffffcc;
+}
+
+.timeline-focus-badge {
+  padding: 4px 8px;
+  border-bottom: 1px dashed var(--cwk-border-dashed);
+  background: var(--cwk-surface-banner);
+  color: var(--cwk-hot-red);
+  font-family: var(--cwk-font-mono);
+  font-size: 12px;
+  font-weight: bold;
+  text-align: center;
+}
+
+.timeline-post-header {
+  padding: 8px 10px;
+  border-bottom: 1px dashed var(--cwk-border-dashed);
+  background: var(--cwk-surface-table-head);
+}
+
+.timeline-post-title {
+  margin: 0 0 4px;
+  font-size: 20px;
+  line-height: 1.25;
+}
+
+.timeline-post-meta {
+  font-family: var(--cwk-font-mono);
+  font-size: 12px;
+  color: var(--cwk-meta);
+}
+
+.timeline-owner-actions {
+  display: inline-block;
+  margin-left: 8px;
+}
+
+.timeline-featured-image {
+  padding: 10px 12px 0;
+  background: var(--cwk-surface-page);
+}
+
+.timeline-featured-image img {
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--cwk-ink);
+}
+
+.post-content {
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+  padding: 12px 15px;
+  font-family: "Georgia", serif;
+  font-size: var(--cwk-post-size);
+  line-height: var(--cwk-post-line-height);
+}
+
+.post-content > * {
+  cursor: auto;
+}
+
+.post-content img {
+  max-width: 100%;
+  height: auto;
+}
+
 @media (max-width: 640px) {
   body {
     margin: 0;

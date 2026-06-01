@@ -3,7 +3,7 @@
  * PocketBase 연동 버전
  */
 
-import { getPublishedPosts, getGuestbookEntries, addGuestbookEntry, getSetting, setSetting, isLoggedIn, deleteGuestbookEntry, guestbookDisplayDate, sortGuestbookEntriesForDisplay, recordVisitAndGetStats, setVisitorTodayMinimum, formatDate, escapeHtml, cmsErrorMessage } from './pb.js';
+import { getPublishedPosts, getGuestbookEntries, addGuestbookEntry, getSetting, setSetting, isLoggedIn, deleteGuestbookEntry, guestbookDisplayDate, sortGuestbookEntriesForDisplay, postDisplayDate, recordVisitAndGetStats, setVisitorTodayMinimum, formatDate, escapeHtml, cmsErrorMessage } from './pb.js';
 
 // ─────────────────────────────────────────────────────────
 // BGM 자동 재생 시도
@@ -154,7 +154,7 @@ import { getPublishedPosts, getGuestbookEntries, addGuestbookEntry, getSetting, 
 
     result.items.forEach(post => {
       const tr = document.createElement('tr');
-      const date = post.published_at || post.created;
+      const date = postDisplayDate(post);
       tr.innerHTML = `
         <td><a href="posts/view.html?slug=${post.slug}">${escapeHtml(post.title)}</a></td>
         <td class="date-cell" align="right">${formatDate(date)}</td>

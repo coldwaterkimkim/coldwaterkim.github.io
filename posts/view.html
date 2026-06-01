@@ -12,26 +12,6 @@
     <link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet">
     <link rel="stylesheet" href="../css/styles.css">
     <script type="module" src="../js/site.js"></script>
-    <style>
-        .post-content {
-            height: auto;
-            min-height: 0;
-            overflow: visible;
-            padding: 12px 15px;
-            font-family: "Georgia", serif;
-            font-size: var(--cwk-post-size);
-            line-height: var(--cwk-post-line-height);
-        }
-
-        .post-content > * {
-            cursor: auto;
-        }
-
-        .post-content img {
-            max-width: 100%;
-            height: auto;
-        }
-    </style>
 </head>
 
 <body class="page-subpage" background="" bgcolor="#e0e0e0">
@@ -97,22 +77,18 @@
                         </div>
                     </center>
 
-                    <h1 id="post-title">불러오는 중...</h1>
+                    <h1 id="timeline-title">글방</h1>
                     <div id="owner-tools"></div>
-                    <p><i id="post-date"></i></p>
+                    <p class="note" id="timeline-note">글 흐름을 불러오고 있습니다...</p>
 
-                    <div id="featured-image"></div>
-
-                    <hr>
-
-                    <div id="post-content" class="post-content ql-editor">
-                        <p>글을 불러오고 있습니다...</p>
+                    <div id="post-timeline" class="post-timeline">
+                        <div class="timeline-loading">글을 불러오고 있습니다...</div>
                     </div>
 
                     <hr>
 
                     <p>
-                        <a href="index.html">← 글 목록으로</a>
+                        <a href="index.html">← 글방 첫 페이지로</a>
                     </p>
                     <center>
                         <small>© coldwaterkim — powered by me</small>
@@ -123,39 +99,45 @@
     </center>
 
     <script type="module">
-        import { getPostBySlug, deletePost, isLoggedIn, logout, formatDate, escapeHtml, cmsErrorMessage, resolvePostFeaturedImageUrl } from '../js/pb.js';
+        import { getPostBySlug, getPublishedPostTimeline, getAllPostTimeline, deletePost, isLoggedIn, logout, postDisplayDate, formatDate, escapeHtml, cmsErrorMessage, resolvePostFeaturedImageUrl, extractImageUrlsFromHtml, sortPostsForDisplay } from '../js/pb.js';
 
         const params = new URLSearchParams(window.location.search);
         const slug = params.get('slug');
+        const ownerMode = isLoggedIn();
 
         if (!slug) {
             showError('글을 찾을 수 없습니다.', 'Post not found');
         } else {
-            loadPost(slug);
+            loadTimeline(slug);
         }
 
-        async function loadPost(slug) {
+        async function loadTimeline(slug) {
             try {
-                const post = await getPostBySlug(slug, isLoggedIn());
+                updateSecretLoginNext(slug);
 
-                if (post.status !== 'published' && !isLoggedIn()) {
+                const targetPost = await getPostBySlug(slug, ownerMode);
+
+                if (targetPost.status !== 'published' && !ownerMode) {
                     showError('이 글은 아직 발행되지 않았습니다.', 'Not published');
                     return;
                 }
 
-                document.title = `${post.title} — coldwaterkim`;
-                document.getElementById('post-title').textContent = post.title;
+                document.title = `${targetPost.title} — coldwaterkim`;
+                document.getElementById('timeline-title').textContent = '글방';
+                document.getElementById('timeline-note').innerHTML = `<b>${escapeHtml(targetPost.title)}</b>`;
 
-                const date = post.published_at || post.created;
-                document.getElementById('post-date').textContent = `Published: ${formatDate(date)}`;
+                const timelinePosts = ownerMode
+                    ? await getAllPostTimeline()
+                    : await getPublishedPostTimeline();
+                const posts = ensureTargetPost(timelinePosts, targetPost);
 
-                if (isLoggedIn()) {
+                if (ownerMode) {
                     document.getElementById('owner-tools').innerHTML = `
                         <div class="owner-bar">
                             <b>OWNER MODE</b> ·
-                            <a href="../admin/posts.html?id=${post.id}">수정</a> ·
+                            <a href="../admin/posts.html?id=${targetPost.id}">현재 글 수정</a> ·
                             <a href="../admin/posts.html?new=1">새 글</a> ·
-                            <a href="#" id="deletePostLink">삭제</a> ·
+                            <a href="#" id="deletePostLink">현재 글 삭제</a> ·
                             <a href="#" id="logoutLink">로그아웃</a>
                         </div>
                     `;
@@ -163,7 +145,7 @@
                         event.preventDefault();
                         if (!confirm('이 글을 삭제할까요? 이 작업은 되돌릴 수 없습니다.')) return;
                         try {
-                            await deletePost(post.id);
+                            await deletePost(targetPost.id);
                             window.location.href = 'index.html';
                         } catch (e) {
                             alert('삭제 실패: ' + cmsErrorMessage(e));
@@ -176,30 +158,141 @@
                     });
                 }
 
-                const featuredEl = document.getElementById('featured-image');
-                featuredEl.innerHTML = '';
-                const featuredImageUrl = resolvePostFeaturedImageUrl(post);
-                if (featuredImageUrl) {
-                    const featuredImg = document.createElement('img');
-                    featuredImg.src = featuredImageUrl;
-                    featuredImg.alt = post.title;
-                    featuredImg.style.maxWidth = '100%';
-                    featuredImg.style.marginBottom = '16px';
-                    featuredEl.appendChild(featuredImg);
-                }
-
-                document.getElementById('post-content').innerHTML = post.content || '<p>내용이 없습니다.</p>';
+                renderTimeline(posts, targetPost.id);
+                wireTimelineOwnerActions(targetPost.id);
+                focusTargetPost(targetPost.id);
 
             } catch (e) {
                 showError(cmsErrorMessage(e), 'Post not found');
             }
         }
 
+        function ensureTargetPost(posts, targetPost) {
+            const merged = posts.some(post => post.id === targetPost.id)
+                ? posts
+                : [...posts, targetPost];
+
+            return sortPostsForDisplay(merged);
+        }
+
+        function renderTimeline(posts, targetPostId) {
+            const timelineEl = document.getElementById('post-timeline');
+            if (posts.length === 0) {
+                timelineEl.innerHTML = '<p>아직 글이 없습니다.</p>';
+                return;
+            }
+
+            timelineEl.innerHTML = posts.map(post => renderTimelinePost(post, post.id === targetPostId)).join('');
+        }
+
+        function renderTimelinePost(post, isFocused) {
+            const date = postDisplayDate(post);
+            const status = post.status === 'published' ? '' : ' <small class="note">[초안]</small>';
+            const focusedBadge = isFocused ? '<div class="timeline-focus-badge">★ NOW READING ★</div>' : '';
+            const ownerActions = ownerMode ? `
+                <span class="timeline-owner-actions">
+                    <a href="../admin/posts.html?id=${encodeURIComponent(post.id)}">수정</a>
+                    <button type="button" class="owner-btn owner-btn-danger" data-delete-post-id="${post.id}">삭제</button>
+                </span>
+            ` : '';
+
+            return `
+                <article id="${postElementId(post.id)}" class="timeline-post${isFocused ? ' timeline-post--focused' : ''}" data-post-id="${post.id}">
+                    ${focusedBadge}
+                    <div class="timeline-post-header">
+                        <h2 class="timeline-post-title">
+                            <a href="view.html?slug=${encodeURIComponent(post.slug || '')}">${escapeHtml(post.title || 'Untitled')}</a>${status}
+                        </h2>
+                        <div class="timeline-post-meta">
+                            Published: ${formatDate(date)}
+                            ${ownerActions}
+                        </div>
+                    </div>
+                    ${renderFeaturedImage(post)}
+                    <div class="post-content timeline-post-content ql-editor">
+                        ${post.content || '<p>내용이 없습니다.</p>'}
+                    </div>
+                </article>
+            `;
+        }
+
+        function renderFeaturedImage(post) {
+            const featuredImageUrl = resolvePostFeaturedImageUrl(post);
+            if (!featuredImageUrl) return '';
+
+            const contentImages = extractImageUrlsFromHtml(post.content);
+            if (contentImages.includes(featuredImageUrl)) return '';
+
+            return `
+                <div class="timeline-featured-image">
+                    <img src="${escapeAttribute(featuredImageUrl)}" alt="${escapeAttribute(post.title || '')}">
+                </div>
+            `;
+        }
+
+        function wireTimelineOwnerActions(targetPostId) {
+            if (!ownerMode) return;
+
+            document.querySelectorAll('[data-delete-post-id]').forEach(button => {
+                button.addEventListener('click', async () => {
+                    const id = button.getAttribute('data-delete-post-id');
+                    if (!id || !confirm('이 글을 삭제할까요? 이 작업은 되돌릴 수 없습니다.')) return;
+
+                    try {
+                        await deletePost(id);
+                        if (id === targetPostId) {
+                            window.location.href = 'index.html';
+                            return;
+                        }
+
+                        document.getElementById(postElementId(id))?.remove();
+                    } catch (e) {
+                        alert('삭제 실패: ' + cmsErrorMessage(e));
+                    }
+                });
+            });
+        }
+
+        function focusTargetPost(id) {
+            const targetEl = document.getElementById(postElementId(id));
+            if (!targetEl) return;
+
+            targetEl.setAttribute('tabindex', '-1');
+            targetEl.focus({ preventScroll: true });
+
+            const scrollToTarget = () => targetEl.scrollIntoView({
+                block: 'start',
+                inline: 'nearest'
+            });
+
+            requestAnimationFrame(scrollToTarget);
+            setTimeout(scrollToTarget, 250);
+            setTimeout(scrollToTarget, 1000);
+        }
+
+        function postElementId(id) {
+            return `post-${id}`;
+        }
+
+        function escapeAttribute(value) {
+            return escapeHtml(value)
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function updateSecretLoginNext(slug) {
+            const loginLink = document.querySelector('.secret-login');
+            if (!loginLink) return;
+
+            const next = `/posts/view.html?slug=${encodeURIComponent(slug)}`;
+            loginLink.href = `/admin/login.html?next=${encodeURIComponent(next)}`;
+        }
+
         function showError(message, title) {
             document.title = `${title} — coldwaterkim`;
-            document.getElementById('post-title').textContent = title;
-            document.getElementById('post-date').textContent = '';
-            document.getElementById('post-content').innerHTML = `<p>${escapeHtml(message)}</p>`;
+            document.getElementById('timeline-title').textContent = title;
+            document.getElementById('timeline-note').textContent = '';
+            document.getElementById('post-timeline').innerHTML = `<p>${escapeHtml(message)}</p>`;
         }
     </script>
 </body>

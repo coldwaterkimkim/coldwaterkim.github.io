@@ -109,6 +109,41 @@ export async function getPublishedPosts(page = 1, perPage = 10) {
     });
 }
 
+export function postDisplayDate(post) {
+    return post?.published_at || post?.created || '';
+}
+
+export function sortPostsForDisplay(posts = []) {
+    return Array.from(posts).sort((a, b) => {
+        const byDisplayDate = dateTimestamp(postDisplayDate(b)) - dateTimestamp(postDisplayDate(a));
+        if (byDisplayDate !== 0) return byDisplayDate;
+
+        const byCreated = dateTimestamp(b?.created) - dateTimestamp(a?.created);
+        if (byCreated !== 0) return byCreated;
+
+        return String(b?.id || '').localeCompare(String(a?.id || ''));
+    });
+}
+
+async function collectPostPages(loader, perPage = 100) {
+    const items = [];
+    let page = 1;
+
+    while (true) {
+        const result = await loader(page, perPage);
+        items.push(...(result.items || []));
+
+        if (!result.totalPages || page >= result.totalPages) break;
+        page += 1;
+    }
+
+    return sortPostsForDisplay(items);
+}
+
+export async function getPublishedPostTimeline(perPage = 100) {
+    return await collectPostPages(getPublishedPosts, perPage);
+}
+
 /**
  * 슬러그로 글 가져오기
  * @param {string} slug
@@ -139,6 +174,10 @@ export async function getAllPosts(page = 1, perPage = 20) {
     return await pb.collection('posts').getList(page, perPage, {
         sort: '-created'
     });
+}
+
+export async function getAllPostTimeline(perPage = 100) {
+    return await collectPostPages(getAllPosts, perPage);
 }
 
 /**
