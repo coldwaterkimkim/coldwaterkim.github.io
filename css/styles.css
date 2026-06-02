@@ -407,18 +407,6 @@ a:hover { background: var(--cwk-link-hover-bg); }
   margin: 5px 0;
 }
 
-.download-index-table {
-  table-layout: fixed;
-  font-size: 13px;
-}
-
-.download-index-table th:nth-child(2),
-.download-index-table td:nth-child(2),
-.download-index-table th:nth-child(3),
-.download-index-table td:nth-child(3) {
-  width: 78px;
-}
-
 .program-note-box {
   margin: 10px 0;
   border: 1px dashed var(--cwk-border-dashed);
@@ -922,18 +910,6 @@ a:hover { background: var(--cwk-link-hover-bg); }
 
   .program-action-cell {
     font-size: 13px;
-  }
-
-  .download-index-table {
-    table-layout: auto;
-    font-size: 12px;
-  }
-
-  .download-index-table th:nth-child(2),
-  .download-index-table td:nth-child(2),
-  .download-index-table th:nth-child(3),
-  .download-index-table td:nth-child(3) {
-    width: auto;
   }
 
   .program-form-table,

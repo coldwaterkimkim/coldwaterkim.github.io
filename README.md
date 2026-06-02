@@ -118,7 +118,7 @@ Fly.io로 API 서버를 올릴 때는 `fly.toml`, `deploy/fly/`, `scripts/deploy
 ## 중요한 구조
 
 - `js/pb.js`: PocketBase 연결, 인증, 글/방명록/미디어 API 헬퍼
-- `js/programs.js`: 프로그램실 공개 목록, 다운로드 인덱스, owner 작성/수정/삭제 UI
+- `js/programs.js`: 프로그램실 공개 목록, row별 받기 링크, owner 작성/수정/삭제 UI
 - `js/program-detail.js`: 개별 프로그램 상세페이지 렌더링
 - `vite.config.js`: `npm run dev:live-cms`에서 로컬 `/api/*`를 운영 PocketBase로 프록시
 - `js/site.js`: 공개 사이트 공통 동작, 최근 글, 방명록

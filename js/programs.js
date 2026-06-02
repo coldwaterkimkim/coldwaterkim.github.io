@@ -95,7 +95,6 @@ const fallbackPrograms = [
 ];
 
 const programsList = document.getElementById('programsList');
-const downloadIndexBody = document.getElementById('downloadIndexBody');
 const ownerPanel = document.getElementById('programOwnerPanel');
 const ownerStatus = document.getElementById('programOwnerStatus');
 const programForm = document.getElementById('programForm');
@@ -167,25 +166,21 @@ loadPrograms();
 
 async function loadPrograms() {
     programsList.innerHTML = '<tr><td colspan="3" class="loading">프로그램 목록 불러오는 중...</td></tr>';
-    downloadIndexBody.innerHTML = '<tr><td colspan="4" class="loading">다운로드 목록 불러오는 중...</td></tr>';
 
     try {
         programs = ownerMode
             ? await getAllProgramTimeline()
             : await getPublishedProgramTimeline();
         renderPrograms();
-        renderDownloadIndex();
     } catch (error) {
         if (!ownerMode && error?.status === 404) {
             programs = fallbackPrograms;
             renderPrograms();
-            renderDownloadIndex();
             return;
         }
 
         const message = cmsErrorMessage(error);
         programsList.innerHTML = `<tr><td colspan="3">불러오기 실패: ${escapeHtml(message)}</td></tr>`;
-        downloadIndexBody.innerHTML = `<tr><td colspan="4">불러오기 실패: ${escapeHtml(message)}</td></tr>`;
         setOwnerStatus(`CMS 확인 필요: ${message}`, 'error');
     }
 }
@@ -302,37 +297,6 @@ function defaultStatusNote(status) {
         unreleased: '예고편',
         archived: '보관됨'
     }[status] || '진행중';
-}
-
-function renderDownloadIndex() {
-    if (!programs.length) {
-        downloadIndexBody.innerHTML = '<tr><td colspan="4">아직 다운로드 항목이 없습니다.</td></tr>';
-        return;
-    }
-
-    downloadIndexBody.innerHTML = programs.flatMap(program => {
-        const targets = programDownloadTargets(program);
-
-        if (!targets.length) {
-            return [`
-                <tr>
-                    <td>${escapeHtml(program.title || '(이름 없음)')}</td>
-                    <td align="center">${escapeHtml(program.platform || '-')}</td>
-                    <td align="center">${escapeHtml(programStatusLabel(program.status))}</td>
-                    <td><span class="note">준비중</span></td>
-                </tr>
-            `];
-        }
-
-        return targets.map(target => `
-            <tr>
-                <td>${escapeHtml(program.title || '(이름 없음)')}</td>
-                <td align="center">${escapeHtml(program.platform || '-')}</td>
-                <td align="center">${escapeHtml(programStatusLabel(program.status))}</td>
-                <td><a href="${escapeAttribute(target.url)}" target="_blank" rel="noopener">${escapeHtml(target.label)}</a></td>
-            </tr>
-        `);
-    }).join('');
 }
 
 async function saveProgram() {
