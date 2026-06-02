@@ -247,6 +247,346 @@ a:hover { background: var(--cwk-link-hover-bg); }
 .preview-box h1, .preview-box h2, .preview-box h3 { margin: 8px 0 4px; }
 .preview-box pre, .preview-box code { font-family: var(--cwk-font-mono); }
 
+/* Programs room */
+.programs-table {
+  table-layout: fixed;
+}
+
+.program-cover-head,
+.program-cover-cell {
+  width: 128px;
+}
+
+.program-action-head,
+.program-action-cell {
+  width: 118px;
+}
+
+.program-cover-cell,
+.program-action-cell {
+  vertical-align: top;
+}
+
+.program-story-cell {
+  vertical-align: top;
+}
+
+.program-story-cell h2 {
+  margin: 0 0 4px;
+  font-size: 17px;
+  line-height: 1.25;
+}
+
+.program-story-cell p {
+  margin: 5px 0;
+  line-height: 1.35;
+}
+
+.program-meta {
+  color: var(--cwk-meta);
+  font-family: var(--cwk-font-mono);
+  font-size: 12px;
+}
+
+.program-label {
+  color: var(--cwk-hot-red);
+  font-family: var(--cwk-font-mono);
+  font-size: 12px;
+}
+
+.program-cover {
+  box-sizing: border-box;
+  width: 112px;
+  min-height: 92px;
+  border: 2px inset var(--cwk-surface-table-head);
+  background: var(--cwk-surface-preview);
+  color: var(--cwk-ink);
+  text-align: center;
+  overflow: hidden;
+}
+
+.program-cover-link {
+  display: inline-block;
+  text-decoration: none;
+}
+
+.program-cover-link:hover {
+  background: transparent;
+  outline: 2px dotted var(--cwk-link);
+}
+
+.program-window-bar {
+  padding: 2px 4px;
+  border-bottom: 1px solid var(--cwk-ink);
+  background: navy;
+  color: white;
+  font-family: var(--cwk-font-mono);
+  font-size: 10px;
+  line-height: 1.2;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.program-cover-title {
+  padding: 12px 4px 5px;
+  font-family: var(--cwk-font-mono);
+  font-size: 20px;
+  font-weight: bold;
+  line-height: 1.05;
+}
+
+.program-cover-caption {
+  padding: 0 4px 8px;
+  color: var(--cwk-meta);
+  font-size: 10px;
+  line-height: 1.15;
+}
+
+.program-cover--image {
+  min-height: 92px;
+  background: var(--cwk-surface-table-head);
+}
+
+.program-cover--image img {
+  display: block;
+  width: 100%;
+  height: 92px;
+  object-fit: cover;
+  background: var(--cwk-surface-page);
+}
+
+.program-cover--onecut {
+  background: #fff8dc;
+}
+
+.program-cover--doodle {
+  background:
+    linear-gradient(90deg, transparent 31px, #cfcfcf 32px),
+    linear-gradient(0deg, transparent 31px, #cfcfcf 32px),
+    #f4fff4;
+  background-size: 32px 32px;
+}
+
+.program-cover--wisdom {
+  background: #f8f8ff;
+}
+
+.program-cover--dump {
+  background: #fffef6;
+}
+
+.program-cover--secret {
+  background: #eeeeee;
+}
+
+.program-cover--released {
+  background: #f4fff4;
+}
+
+.program-cover--beta {
+  background: #fff8dc;
+}
+
+.program-cover--prototype {
+  background: #fffef6;
+}
+
+.program-cover--unreleased,
+.program-cover--archived {
+  background: #eeeeee;
+}
+
+.program-action-cell {
+  font-family: var(--cwk-font-mono);
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.program-action-cell hr {
+  margin: 5px 0;
+}
+
+.download-index-table {
+  table-layout: fixed;
+  font-size: 13px;
+}
+
+.download-index-table th:nth-child(2),
+.download-index-table td:nth-child(2),
+.download-index-table th:nth-child(3),
+.download-index-table td:nth-child(3) {
+  width: 78px;
+}
+
+.program-note-box {
+  margin: 10px 0;
+  border: 1px dashed var(--cwk-border-dashed);
+  background: var(--cwk-surface-entry);
+  padding: 8px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.program-owner-panel {
+  margin: 10px 0 14px;
+}
+
+.program-owner-status {
+  display: inline-block;
+  margin-left: 6px;
+  color: var(--cwk-meta);
+  font-size: 12px;
+}
+
+.program-owner-status--success {
+  color: green;
+  font-weight: bold;
+}
+
+.program-owner-status--error {
+  color: var(--cwk-hot-red);
+  font-weight: bold;
+}
+
+.program-form {
+  margin: 10px 0 16px;
+  border: 1px dashed var(--cwk-border-dashed);
+  background: var(--cwk-surface-preview);
+  padding: 8px;
+}
+
+.program-form-table {
+  background: var(--cwk-surface-page);
+  font-size: 13px;
+}
+
+.program-form-table input[type="text"],
+.program-form-table input[type="url"],
+.program-form-table input[type="number"],
+.program-form-table input[type="date"],
+.program-form-table select,
+.program-form-table textarea {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  font-family: var(--cwk-font-main);
+  font-size: 13px;
+}
+
+.program-form-table textarea {
+  resize: vertical;
+}
+
+.program-form-table input[type="file"] {
+  max-width: 100%;
+  font-size: 12px;
+}
+
+.program-url-input {
+  margin-top: 4px;
+}
+
+.program-inline-check {
+  display: inline-block;
+  margin-left: 8px;
+  white-space: nowrap;
+}
+
+.program-form-actions {
+  margin: 8px 0 0;
+  text-align: right;
+}
+
+.program-detail-body {
+  margin: 8px 0;
+}
+
+.program-detail-hero {
+  display: table;
+  width: 100%;
+  margin: 8px 0 12px;
+  border: 1px dashed var(--cwk-border-dashed);
+  background: var(--cwk-surface-preview);
+}
+
+.program-detail-cover,
+.program-detail-summary {
+  display: table-cell;
+  vertical-align: top;
+  padding: 8px;
+}
+
+.program-detail-cover {
+  width: 180px;
+  text-align: center;
+}
+
+.program-detail-cover img,
+.program-screenshot-table img {
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--cwk-ink);
+  background: var(--cwk-surface-page);
+}
+
+.program-detail-poster {
+  box-sizing: border-box;
+  width: 168px;
+  min-height: 136px;
+  border: 2px inset var(--cwk-surface-table-head);
+  background: var(--cwk-surface-preview);
+  overflow: hidden;
+  text-align: center;
+}
+
+.program-detail-poster-title {
+  padding: 28px 8px 8px;
+  font-family: var(--cwk-font-mono);
+  font-size: 22px;
+  font-weight: bold;
+  line-height: 1.1;
+}
+
+.program-detail-meta-table {
+  font-size: 12px;
+  background: var(--cwk-surface-page);
+}
+
+.program-detail-meta-table th {
+  width: 70px;
+  background: var(--cwk-surface-table-head);
+}
+
+.program-story-block {
+  margin: 10px 0;
+  padding: 8px;
+  border: 1px dashed var(--cwk-border-dashed);
+  background: var(--cwk-surface-entry);
+}
+
+.program-story-block h2 {
+  margin: 0 0 6px;
+  font-size: 17px;
+}
+
+.program-story-block p {
+  margin: 0;
+  line-height: 1.55;
+}
+
+.program-screenshot-table {
+  background: var(--cwk-surface-page);
+}
+
+.program-screenshot-table td {
+  vertical-align: top;
+}
+
+.program-detail-download-table {
+  font-size: 13px;
+}
+
 /* Post timeline: old-web entry blocks, not modern cards. */
 .post-timeline {
   margin: 12px 0;
@@ -540,5 +880,99 @@ a:hover { background: var(--cwk-link-hover-bg); }
 
   .post-content {
     padding: 10px 8px;
+  }
+
+  .programs-table,
+  .programs-table tbody,
+  .programs-table tr,
+  .programs-table th,
+  .programs-table td {
+    display: block;
+    width: 100% !important;
+    box-sizing: border-box;
+  }
+
+  .programs-table tr {
+    border-bottom: 1px solid var(--cwk-ink);
+  }
+
+  .programs-table thead {
+    display: none;
+  }
+
+  .program-cover-cell {
+    text-align: center;
+    background: var(--cwk-surface-table-head);
+  }
+
+  .program-cover {
+    width: min(220px, 100%);
+    min-height: 130px;
+    margin: 0 auto;
+  }
+
+  .program-cover--image img {
+    height: 130px;
+  }
+
+  .program-cover-title {
+    padding-top: 22px;
+    font-size: 28px;
+  }
+
+  .program-action-cell {
+    font-size: 13px;
+  }
+
+  .download-index-table {
+    table-layout: auto;
+    font-size: 12px;
+  }
+
+  .download-index-table th:nth-child(2),
+  .download-index-table td:nth-child(2),
+  .download-index-table th:nth-child(3),
+  .download-index-table td:nth-child(3) {
+    width: auto;
+  }
+
+  .program-form-table,
+  .program-form-table tbody,
+  .program-form-table tr,
+  .program-form-table th,
+  .program-form-table td {
+    display: block;
+    width: 100% !important;
+    box-sizing: border-box;
+  }
+
+  .program-form-table th {
+    text-align: left;
+  }
+
+  .program-inline-check {
+    margin: 4px 0 0;
+  }
+
+  .program-detail-hero,
+  .program-detail-cover,
+  .program-detail-summary {
+    display: block;
+    width: 100% !important;
+    box-sizing: border-box;
+  }
+
+  .program-detail-poster {
+    width: min(260px, 100%);
+    margin: 0 auto;
+  }
+
+  .program-screenshot-table,
+  .program-screenshot-table tbody,
+  .program-screenshot-table tr,
+  .program-screenshot-table td {
+    display: block;
+    width: 100% !important;
+    box-sizing: border-box;
   }
 }

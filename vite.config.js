@@ -2,7 +2,7 @@ import { defineConfig } from 'vite'
 import fs from 'fs'
 import path from 'path'
 
-const htmlDirs = ['.', 'posts', 'admin']
+const htmlDirs = ['.', 'posts', 'programs', 'admin']
 const liveCmsUrl = 'https://api.coldwaterkim.com'
 const useLiveCmsProxy = process.env.VITE_CMS_TARGET === 'live'
 

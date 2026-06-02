@@ -209,6 +209,259 @@ export async function deletePost(id) {
 }
 
 // ─────────────────────────────────────────────────────────
+// Programs 헬퍼 함수들
+// ─────────────────────────────────────────────────────────
+
+export const PROGRAM_STATUS_LABELS = {
+    released: 'RELEASED',
+    beta: 'BETA',
+    prototype: 'PROTOTYPE',
+    unreleased: 'UNRELEASED',
+    archived: 'ARCHIVED'
+};
+
+const PROGRAM_STATUS_VALUES = Object.keys(PROGRAM_STATUS_LABELS);
+
+/**
+ * 프로그램 상태값 정규화
+ * @param {string} status
+ * @returns {string}
+ */
+export function normalizeProgramStatus(status) {
+    return PROGRAM_STATUS_VALUES.includes(status) ? status : 'prototype';
+}
+
+/**
+ * 공개 표시용 프로그램 상태 라벨
+ * @param {string} status
+ * @returns {string}
+ */
+export function programStatusLabel(status) {
+    return PROGRAM_STATUS_LABELS[normalizeProgramStatus(status)];
+}
+
+/**
+ * 프로그램 표시 날짜
+ * @param {object} program
+ * @returns {string}
+ */
+export function programDisplayDate(program) {
+    return program?.published_at || program?.created || '';
+}
+
+function sortProgramsForDisplay(programs = []) {
+    return Array.from(programs).sort((a, b) => {
+        const bySortOrder = normalizedSortOrder(a) - normalizedSortOrder(b);
+        if (bySortOrder !== 0) return bySortOrder;
+
+        const byDisplayDate = dateTimestamp(programDisplayDate(b)) - dateTimestamp(programDisplayDate(a));
+        if (byDisplayDate !== 0) return byDisplayDate;
+
+        return String(b?.id || '').localeCompare(String(a?.id || ''));
+    });
+}
+
+function normalizedSortOrder(program) {
+    const n = Number(program?.sort_order);
+    return Number.isFinite(n) ? n : 100;
+}
+
+async function collectProgramPages(loader, perPage = 100) {
+    const items = [];
+    let page = 1;
+
+    while (true) {
+        const result = await loader(page, perPage);
+        items.push(...(result.items || []));
+
+        if (!result.totalPages || page >= result.totalPages) break;
+        page += 1;
+    }
+
+    return sortProgramsForDisplay(items);
+}
+
+/**
+ * 공개 프로그램 목록 가져오기
+ * @param {number} page
+ * @param {number} perPage
+ * @returns {Promise<object>}
+ */
+export async function getPublishedPrograms(page = 1, perPage = 50) {
+    return await pb.collection('programs').getList(page, perPage, {
+        filter: pb.filter('is_public = {:isPublic}', { isPublic: true }),
+        sort: 'sort_order,-published_at,-created'
+    });
+}
+
+/**
+ * 모든 프로그램 목록 (관리자용)
+ * @param {number} page
+ * @param {number} perPage
+ * @returns {Promise<object>}
+ */
+export async function getAllPrograms(page = 1, perPage = 50) {
+    return await pb.collection('programs').getList(page, perPage, {
+        sort: 'sort_order,-published_at,-created'
+    });
+}
+
+export async function getPublishedProgramTimeline(perPage = 100) {
+    return await collectProgramPages(getPublishedPrograms, perPage);
+}
+
+export async function getAllProgramTimeline(perPage = 100) {
+    return await collectProgramPages(getAllPrograms, perPage);
+}
+
+/**
+ * 슬러그로 프로그램 가져오기
+ * @param {string} slug
+ * @param {boolean} includePrivate
+ * @returns {Promise<object>}
+ */
+export async function getProgramBySlug(slug, includePrivate = false) {
+    if (includePrivate && isLoggedIn()) {
+        return await pb.collection('programs').getFirstListItem(
+            pb.filter('slug = {:slug}', { slug })
+        );
+    }
+
+    return await pb.collection('programs').getFirstListItem(
+        pb.filter('slug = {:slug} && is_public = {:isPublic}', {
+            slug,
+            isPublic: true
+        })
+    );
+}
+
+/**
+ * 프로그램 생성
+ * @param {object|FormData} data
+ * @returns {Promise<object>}
+ */
+export async function createProgram(data) {
+    return await pb.collection('programs').create(data);
+}
+
+/**
+ * 프로그램 수정
+ * @param {string} id
+ * @param {object|FormData} data
+ * @returns {Promise<object>}
+ */
+export async function updateProgram(id, data) {
+    return await pb.collection('programs').update(id, data);
+}
+
+/**
+ * 프로그램 삭제
+ * @param {string} id
+ * @returns {Promise<boolean>}
+ */
+export async function deleteProgram(id) {
+    return await pb.collection('programs').delete(id);
+}
+
+function fileList(value) {
+    if (Array.isArray(value)) return value.filter(Boolean);
+    return value ? [value] : [];
+}
+
+/**
+ * 프로그램 파일 URL 가져오기
+ * @param {object} record
+ * @param {string} filename
+ * @returns {string}
+ */
+export function getProgramFileUrl(record, filename) {
+    return getMediaUrl(record, filename);
+}
+
+/**
+ * 프로그램 대표 이미지 URL. 업로드된 cover_image가 없으면 빈 문자열을 반환한다.
+ * @param {object} program
+ * @returns {string}
+ */
+export function resolveProgramCoverUrl(program) {
+    const filename = fileList(program?.cover_image)[0];
+    return filename ? getProgramFileUrl(program, filename) : '';
+}
+
+/**
+ * 프로그램 다운로드 파일 목록
+ * @param {object} program
+ * @returns {Array<{label: string, url: string, filename: string, type: string}>}
+ */
+export function programDownloadFiles(program) {
+    return fileList(program?.download_files).map(filename => ({
+        label: filename,
+        filename,
+        url: getProgramFileUrl(program, filename),
+        type: 'file'
+    }));
+}
+
+/**
+ * 프로그램 외부 링크 목록. 첫 줄은 "라벨 | URL" 또는 URL만 허용한다.
+ * @param {object} program
+ * @returns {Array<{label: string, url: string, type: string}>}
+ */
+export function programExternalLinks(program) {
+    const links = [];
+
+    if (program?.primary_link_url) {
+        links.push({
+            label: program.primary_link_label || '바로가기',
+            url: program.primary_link_url,
+            type: 'external'
+        });
+    }
+
+    const extraLinks = String(program?.external_links || '')
+        .split(/\r?\n/)
+        .map(line => line.trim())
+        .filter(Boolean)
+        .map(line => {
+            const [labelPart, ...urlParts] = line.split('|');
+            const maybeUrl = urlParts.join('|').trim();
+            const label = maybeUrl ? labelPart.trim() : '';
+            const url = maybeUrl || labelPart.trim();
+            return {
+                label: label || '링크',
+                url,
+                type: 'external'
+            };
+        })
+        .filter(link => /^https?:\/\//i.test(link.url));
+
+    return [...links, ...extraLinks];
+}
+
+export function programDownloadTargets(program) {
+    return [
+        ...programDownloadFiles(program),
+        ...programExternalLinks(program)
+    ];
+}
+
+/**
+ * 프로그램 상세 스크린샷 URL 목록
+ * @param {object} program
+ * @returns {Array<{url: string, filename: string}>}
+ */
+export function programScreenshotUrls(program) {
+    return fileList(program?.screenshots).map(filename => ({
+        filename,
+        url: getProgramFileUrl(program, filename)
+    }));
+}
+
+export function programDetailUrl(program) {
+    return `/programs/view.html?slug=${encodeURIComponent(program?.slug || '')}`;
+}
+
+// ─────────────────────────────────────────────────────────
 // Guestbook 헬퍼 함수들
 // ─────────────────────────────────────────────────────────
 
