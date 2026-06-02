@@ -575,6 +575,230 @@ a:hover { background: var(--cwk-link-hover-bg); }
   font-size: 13px;
 }
 
+/* Nasajab: a little archive of things that caught the owner. */
+.nasajab-page-title {
+  margin: 12px 0 8px;
+  font-size: 42px;
+  line-height: 1.15;
+  text-align: center;
+}
+
+.nasajab-intro {
+  margin: 0 0 12px;
+  text-align: center;
+}
+
+.nasajab-owner-panel {
+  margin: 10px 0 14px;
+}
+
+.nasajab-owner-status {
+  display: inline-block;
+  margin-left: 6px;
+  color: var(--cwk-meta);
+  font-size: 12px;
+}
+
+.nasajab-owner-status--success {
+  color: green;
+  font-weight: bold;
+}
+
+.nasajab-owner-status--error {
+  color: var(--cwk-hot-red);
+  font-weight: bold;
+}
+
+.nasajab-form {
+  margin: 10px 0 16px;
+  border: 1px dashed var(--cwk-border-dashed);
+  background: var(--cwk-surface-preview);
+  padding: 8px;
+}
+
+.nasajab-form-table {
+  background: var(--cwk-surface-page);
+  font-size: 13px;
+}
+
+.nasajab-form-table input[type="text"],
+.nasajab-form-table input[type="url"],
+.nasajab-form-table input[type="datetime-local"],
+.nasajab-form-table textarea {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  font-family: var(--cwk-font-main);
+  font-size: 13px;
+}
+
+.nasajab-form-table textarea {
+  resize: vertical;
+}
+
+.nasajab-form-table input[type="file"] {
+  max-width: 100%;
+  font-size: 12px;
+}
+
+.nasajab-form-actions {
+  margin: 8px 0 0;
+  text-align: right;
+}
+
+.nasajab-today-table {
+  margin: 12px 0;
+  background: var(--cwk-surface-page);
+}
+
+.nasajab-today-table th {
+  font-family: var(--cwk-font-mono);
+  font-size: 16px;
+}
+
+.nasajab-featured-image-cell {
+  width: 58%;
+  vertical-align: top;
+  background: var(--cwk-surface-preview);
+  text-align: center;
+}
+
+.nasajab-featured-image-cell img {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  max-height: 280px;
+  object-fit: contain;
+  border: 1px solid var(--cwk-ink);
+  background: var(--cwk-surface-page);
+}
+
+.nasajab-today-table--stacked .nasajab-featured-image-cell,
+.nasajab-today-table--stacked .nasajab-featured-text-cell {
+  display: block;
+  width: 100% !important;
+  box-sizing: border-box;
+}
+
+.nasajab-today-table--stacked .nasajab-featured-text-cell {
+  min-height: 0;
+}
+
+.nasajab-today-table--stacked .nasajab-featured-image-cell img {
+  max-height: 360px;
+}
+
+.nasajab-today-table--stacked .nasajab-featured-date {
+  margin-top: 10px;
+  text-align: left;
+}
+
+.nasajab-missing-image {
+  min-height: 170px;
+  border: 1px dashed var(--cwk-border-dashed);
+  background: var(--cwk-surface-page);
+  font-family: var(--cwk-font-mono);
+  line-height: 170px;
+  text-align: center;
+}
+
+.nasajab-featured-text-cell {
+  position: relative;
+  vertical-align: top;
+  min-height: 220px;
+  line-height: 1.5;
+}
+
+.nasajab-featured-memo {
+  margin: 4px 0 12px;
+  font-size: 17px;
+  line-height: 1.55;
+}
+
+.nasajab-source {
+  font-family: var(--cwk-font-mono);
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.nasajab-featured-date {
+  margin-top: 24px;
+  font-family: var(--cwk-font-mono);
+  font-size: 13px;
+  text-align: right;
+}
+
+.nasajab-owner-actions {
+  display: inline-block;
+  margin-top: 4px;
+}
+
+.nasajab-archive-table {
+  margin: 12px 0 4px;
+  background: var(--cwk-surface-page);
+  table-layout: fixed;
+}
+
+.nasajab-no-head,
+.nasajab-no-cell {
+  width: 44px;
+  font-family: var(--cwk-font-mono);
+}
+
+.nasajab-thumb-head,
+.nasajab-thumb-cell {
+  width: 96px;
+}
+
+.nasajab-date-head,
+.nasajab-archive-date {
+  width: 118px;
+  font-family: var(--cwk-font-mono);
+  font-size: 12px;
+}
+
+.nasajab-owner-head,
+.nasajab-owner-cell {
+  width: 92px;
+  text-align: center;
+}
+
+.nasajab-thumb-cell img {
+  display: block;
+  width: 76px;
+  height: 44px;
+  margin: 0 auto;
+  object-fit: cover;
+  border: 1px solid var(--cwk-ink);
+  background: var(--cwk-surface-page);
+}
+
+.nasajab-thumb-cell a:hover {
+  background: transparent;
+  outline: 2px dotted var(--cwk-link);
+}
+
+.nasajab-archive-row--selected {
+  background: #ffffcc;
+}
+
+.nasajab-mobile-date {
+  display: none;
+}
+
+.nasajab-pagination {
+  margin: 10px 0 14px;
+  text-align: center;
+  font-family: var(--cwk-font-mono);
+}
+
+.nasajab-pagination a,
+.nasajab-pagination b {
+  display: inline-block;
+  min-width: 18px;
+  padding: 1px 3px;
+}
+
 /* Post timeline: old-web entry blocks, not modern cards. */
 .post-timeline {
   margin: 12px 0;
@@ -950,5 +1174,75 @@ a:hover { background: var(--cwk-link-hover-bg); }
     display: block;
     width: 100% !important;
     box-sizing: border-box;
+  }
+
+  .nasajab-page-title {
+    font-size: 27px;
+    line-height: 1.2;
+  }
+
+  .nasajab-today-table,
+  .nasajab-today-table tbody,
+  .nasajab-today-table tr,
+  .nasajab-today-table th,
+  .nasajab-today-table td,
+  .nasajab-form-table,
+  .nasajab-form-table tbody,
+  .nasajab-form-table tr,
+  .nasajab-form-table th,
+  .nasajab-form-table td {
+    display: block;
+    width: 100% !important;
+    box-sizing: border-box;
+  }
+
+  .nasajab-featured-image-cell img {
+    max-height: 240px;
+  }
+
+  .nasajab-featured-text-cell {
+    min-height: 0;
+  }
+
+  .nasajab-featured-date {
+    margin-top: 10px;
+    text-align: left;
+  }
+
+  .nasajab-archive-table {
+    font-size: 12px;
+  }
+
+  .nasajab-no-head,
+  .nasajab-no-cell {
+    width: 34px !important;
+  }
+
+  .nasajab-thumb-head,
+  .nasajab-thumb-cell {
+    width: 70px !important;
+  }
+
+  .nasajab-date-head,
+  .nasajab-archive-date {
+    display: none;
+  }
+
+  .nasajab-mobile-date {
+    display: block;
+    margin-top: 3px;
+    color: var(--cwk-meta);
+    font-family: var(--cwk-font-mono);
+    font-size: 11px;
+  }
+
+  .nasajab-owner-head,
+  .nasajab-owner-cell {
+    width: 62px !important;
+  }
+
+  .nasajab-thumb-cell img {
+    width: 54px;
+    height: 36px;
   }
 }

@@ -462,6 +462,117 @@ export function programDetailUrl(program) {
 }
 
 // ─────────────────────────────────────────────────────────
+// Nasajab 헬퍼 함수들
+// ─────────────────────────────────────────────────────────
+
+/**
+ * 나사잡 표시 날짜
+ * @param {object} item
+ * @returns {string}
+ */
+export function nasajabDisplayDate(item) {
+    return item?.display_at || item?.created || '';
+}
+
+function sortNasajabForDisplay(items = []) {
+    return Array.from(items).sort((a, b) => {
+        const byDisplayDate = dateTimestamp(nasajabDisplayDate(b)) - dateTimestamp(nasajabDisplayDate(a));
+        if (byDisplayDate !== 0) return byDisplayDate;
+
+        const byCreated = dateTimestamp(b?.created) - dateTimestamp(a?.created);
+        if (byCreated !== 0) return byCreated;
+
+        return String(b?.id || '').localeCompare(String(a?.id || ''));
+    });
+}
+
+async function collectNasajabPages(loader, perPage = 100) {
+    const items = [];
+    let page = 1;
+
+    while (true) {
+        const result = await loader(page, perPage);
+        items.push(...(result.items || []));
+
+        if (!result.totalPages || page >= result.totalPages) break;
+        page += 1;
+    }
+
+    return sortNasajabForDisplay(items);
+}
+
+/**
+ * 공개 나사잡 목록 가져오기
+ * @param {number} page
+ * @param {number} perPage
+ * @returns {Promise<object>}
+ */
+export async function getPublishedNasajab(page = 1, perPage = 50) {
+    return await pb.collection('nasajab').getList(page, perPage, {
+        filter: pb.filter('is_public = {:isPublic}', { isPublic: true }),
+        sort: '-display_at,-created'
+    });
+}
+
+/**
+ * 모든 나사잡 목록 (관리자용)
+ * @param {number} page
+ * @param {number} perPage
+ * @returns {Promise<object>}
+ */
+export async function getAllNasajab(page = 1, perPage = 50) {
+    return await pb.collection('nasajab').getList(page, perPage, {
+        sort: '-display_at,-created'
+    });
+}
+
+export async function getPublishedNasajabTimeline(perPage = 100) {
+    return await collectNasajabPages(getPublishedNasajab, perPage);
+}
+
+export async function getAllNasajabTimeline(perPage = 100) {
+    return await collectNasajabPages(getAllNasajab, perPage);
+}
+
+/**
+ * 나사잡 생성
+ * @param {object|FormData} data
+ * @returns {Promise<object>}
+ */
+export async function createNasajab(data) {
+    return await pb.collection('nasajab').create(data);
+}
+
+/**
+ * 나사잡 수정
+ * @param {string} id
+ * @param {object|FormData} data
+ * @returns {Promise<object>}
+ */
+export async function updateNasajab(id, data) {
+    return await pb.collection('nasajab').update(id, data);
+}
+
+/**
+ * 나사잡 삭제
+ * @param {string} id
+ * @returns {Promise<boolean>}
+ */
+export async function deleteNasajab(id) {
+    return await pb.collection('nasajab').delete(id);
+}
+
+/**
+ * 나사잡 이미지 URL
+ * @param {object} item
+ * @returns {string}
+ */
+export function getNasajabImageUrl(item) {
+    const filename = fileList(item?.image)[0];
+    return filename ? getMediaUrl(item, filename) : '';
+}
+
+// ─────────────────────────────────────────────────────────
 // Guestbook 헬퍼 함수들
 // ─────────────────────────────────────────────────────────
 

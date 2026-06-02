@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>나사잡 — coldwaterkim</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="stylesheet" href="../css/styles.css">
+  <script type="module" src="../js/site.js"></script>
+  <script type="module" src="../js/nasajab.js"></script>
+</head>
+
+<body class="page-subpage page-nasajab" background="" bgcolor="#e0e0e0">
+  <center>
+    <marquee behavior="alternate" scrollamount="4" width="760">
+      <span class="marquee-text">★ WELCOME TO <a href="/admin/login.html?next=/nasajab/index.html" class="secret-login"><b>coldwaterkim</b></a>'s HOME PAGE ★</span>
+    </marquee>
+
+    <table width="760" border="1" cellspacing="0" cellpadding="8" bgcolor="#ffffff">
+      <tr>
+        <td colspan="2" align="center" class="banner">
+          <span class="blink">UNDER CONSTRUCTION</span> · <span class="hit">VISITORS:</span>
+          TOTAL <span id="hitCounter" class="counter-digits">0000000</span>
+          TODAY <span id="todayCounter" class="counter-digits counter-digits--today">0000</span>
+        </td>
+      </tr>
+      <tr>
+        <td width="180" valign="top" class="sidebar">
+          <div class="profile-card">
+            <div class="profile-person">
+              <center>
+                <img class="profile-photo" src="../assets/profile-crop.jpg" alt="coldwaterkim profile"><br>
+                <b>김찬수</b><br>
+                <span class="note">밀레니엄 베이비</span>
+              </center>
+            </div>
+            <div class="profile-info">
+              <p class="profile-email">
+                <a href="mailto:ckstn1112@gmail.com?subject=Hello%20from%20your%20site">ckstn1112@gmail.com</a>
+              </p>
+              <div class="today-box">
+                <b>TODAY IS...</b><br>
+                <span data-editable="true" data-key="profile_today">온 몸 비틀기</span>
+              </div>
+              <center class="mini-player">
+                <audio controls autoplay loop data-bgm>
+                  <source src="../assets/bgm/bgm.mp3" type="audio/mpeg">
+                  Your browser does not support the audio element.
+                </audio>
+              </center>
+            </div>
+          </div>
+
+          <hr>
+          <b>Cool Links</b>
+          <ul>
+            <li><a href="https://www.archive.org/" target="_blank">Internet Archive</a></li>
+            <li><a href="https://www.cameronsworld.net/" target="_blank">GeoCities Garden</a></li>
+          </ul>
+          <hr>
+          <div class="webring">
+            <b>My WebRing</b><br>
+            [ <a href="#">Prev</a> | <a href="#">Random</a> | <a href="#">Next</a> ]
+          </div>
+        </td>
+        <td valign="top" class="content">
+          <center>
+            <div class="top-nav">
+              [ <a href="../index.html">Home</a> |
+              <a href="../posts/index.html">글방</a> |
+              <a href="../programs/index.html">프로그램실</a> |
+              <a href="index.html">나사잡</a> |
+              <a href="../guestbook.html">Guestbook</a> |
+              <a href="../about.html">About / Contact</a> ]
+            </div>
+          </center>
+
+          <h1 class="nasajab-page-title">나를 사로 잡은 것들</h1>
+          <p class="note nasajab-intro">
+            어쩌다 나를 웃게 하거나, 멈추게 하거나, 괜히 다시 보게 만든 것들.
+          </p>
+
+          <div id="nasajabOwnerPanel" class="nasajab-owner-panel" hidden>
+            <div class="owner-bar">
+              <b>OWNER MODE</b> · 나를 잡은 사진/캡처를 바로 올리기
+              <button type="button" id="newNasajabButton" class="owner-btn">새 나사잡</button>
+              <span id="nasajabOwnerStatus" class="nasajab-owner-status"></span>
+            </div>
+
+            <form id="nasajabForm" class="nasajab-form" hidden>
+              <h2 id="nasajabFormTitle" class="visitor-heading">✚ 새 나사잡 올리기</h2>
+              <table border="1" cellspacing="0" cellpadding="6" width="100%" class="nasajab-form-table">
+                <tr bgcolor="#f0f0f0">
+                  <th align="left" colspan="2">잡힌 것 기록하기</th>
+                </tr>
+                <tr>
+                  <td width="120"><label for="nasajabImage"><b>이미지 *</b></label></td>
+                  <td>
+                    <input type="file" id="nasajabImage" name="image" accept="image/*">
+                    <div class="note">사진, 캡처, GIF 가능. 수정할 때 비워두면 기존 이미지 유지.</div>
+                  </td>
+                </tr>
+                <tr>
+                  <td><label for="nasajabMemo"><b>메모</b></label></td>
+                  <td><textarea id="nasajabMemo" name="memo" rows="3" maxlength="600" placeholder="짧게 한 줄. 없어도 됨."></textarea></td>
+                </tr>
+                <tr>
+                  <td><label for="nasajabSourceUrl"><b>출처 링크</b></label></td>
+                  <td><input type="url" id="nasajabSourceUrl" name="source_url" placeholder="https://..."></td>
+                </tr>
+                <tr>
+                  <td><label for="nasajabDisplayAt"><b>잡힌 시각</b></label></td>
+                  <td>
+                    <input type="datetime-local" id="nasajabDisplayAt" name="display_at">
+                    <div class="note">비워두면 CMS 저장 시각을 날짜로 씀.</div>
+                  </td>
+                </tr>
+                <tr>
+                  <td><b>공개</b></td>
+                  <td>
+                    <label>
+                      <input type="checkbox" id="nasajabIsPublic" name="is_public" checked>
+                      방문자에게 보여주기
+                    </label>
+                  </td>
+                </tr>
+              </table>
+              <p class="nasajab-form-actions">
+                <button type="submit" class="owner-btn">저장</button>
+                <button type="button" id="cancelNasajabEdit" class="owner-btn">취소</button>
+              </p>
+            </form>
+          </div>
+
+          <div id="nasajabFeatured">
+            <p>나사잡 불러오는 중...</p>
+          </div>
+
+          <table border="1" cellspacing="0" cellpadding="6" width="100%" class="nasajab-archive-table">
+            <thead>
+              <tr bgcolor="#f0f0f0">
+                <th align="center" class="nasajab-no-head">No.</th>
+                <th align="center" class="nasajab-thumb-head">Thumbnail</th>
+                <th align="left">메모</th>
+                <th align="center" class="nasajab-date-head">날짜</th>
+                <th align="center" id="nasajabOwnerHead" class="nasajab-owner-head" hidden>OWNER</th>
+              </tr>
+            </thead>
+            <tbody id="nasajabArchive">
+              <tr>
+                <td colspan="5">아카이브 불러오는 중...</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div id="nasajabPagination" class="nasajab-pagination"></div>
+
+          <hr>
+          <center>
+            <small>© coldwaterkim — powered by me</small>
+          </center>
+        </td>
+      </tr>
+    </table>
+  </center>
+</body>
+
+</html>
