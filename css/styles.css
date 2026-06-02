@@ -141,6 +141,20 @@ a:hover { background: var(--cwk-link-hover-bg); }
   padding: 4px;
   margin-bottom: 6px;
 }
+.profile-photo--editable {
+  cursor: pointer;
+}
+.profile-photo--editable:hover,
+.profile-photo--editable:focus {
+  outline: 2px dashed var(--cwk-hot-red);
+  outline-offset: 2px;
+}
+.profile-photo.is-media-uploading {
+  opacity: 0.55;
+}
+.profile-photo.is-media-saved {
+  background: #ccffcc;
+}
 
 .profile-email {
   margin: 8px 0;
@@ -161,6 +175,37 @@ a:hover { background: var(--cwk-link-hover-bg); }
 .mini-player audio {
   width: 150px;
   height: 28px;
+}
+.track-title-marquee {
+  display: block;
+  box-sizing: border-box;
+  width: 150px;
+  margin: 4px auto 3px;
+  padding: 1px 4px;
+  border: 1px inset var(--cwk-surface-table-head);
+  background: var(--cwk-counter-bg);
+  color: var(--cwk-counter-fg);
+  font-family: var(--cwk-font-mono);
+  font-size: 11px;
+  line-height: 1.4;
+}
+.bgm-owner-row {
+  margin-top: 4px;
+  line-height: 1.2;
+}
+.bgm-owner-btn {
+  font-size: 11px;
+  padding: 1px 5px;
+}
+.bgm-owner-btn:disabled {
+  color: var(--cwk-muted);
+  cursor: wait;
+}
+.bgm-upload-status {
+  display: inline-block;
+  margin-left: 4px;
+  color: var(--cwk-meta);
+  font-size: 11px;
 }
 
 .top-nav {
@@ -1015,6 +1060,11 @@ a:hover { background: var(--cwk-link-hover-bg); }
   .page-home .mini-player audio {
     width: min(180px, 100%);
     height: 26px;
+  }
+
+  .page-home .track-title-marquee {
+    width: min(180px, 100%);
+    margin-left: 0;
   }
 
   .page-home .home-side-links > hr {

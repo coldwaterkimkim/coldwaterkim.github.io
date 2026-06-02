@@ -3,14 +3,97 @@
  * PocketBase 연동 버전
  */
 
-import { getPublishedPosts, getGuestbookEntries, addGuestbookEntry, getSetting, setSetting, isLoggedIn, deleteGuestbookEntry, guestbookDisplayDate, sortGuestbookEntriesForDisplay, postDisplayDate, recordVisitAndGetStats, setVisitorTodayMinimum, formatDate, escapeHtml, cmsErrorMessage } from './pb.js';
+import { getPublishedPosts, getGuestbookEntries, addGuestbookEntry, getSetting, setSetting, isLoggedIn, deleteGuestbookEntry, guestbookDisplayDate, sortGuestbookEntriesForDisplay, postDisplayDate, recordVisitAndGetStats, setVisitorTodayMinimum, formatDate, escapeHtml, cmsErrorMessage, uploadMedia, getMediaUrl } from './pb.js';
 
 // ─────────────────────────────────────────────────────────
-// BGM 자동 재생 시도
+// 프로필 사진 + BGM 설정
 // ─────────────────────────────────────────────────────────
-(function initBgm() {
+const PROFILE_PHOTO_SETTING_KEY = 'profile_photo_url';
+const BGM_URL_SETTING_KEY = 'bgm_audio_url';
+const BGM_TITLE_SETTING_KEY = 'bgm_audio_title';
+
+(async function initProfileMedia() {
+  const photo = document.querySelector('.profile-photo');
   const audio = document.querySelector('[data-bgm]');
-  if (!audio) return;
+  const player = audio?.closest('.mini-player');
+  const trackTitle = ensureTrackTitle(player, audio);
+
+  await loadProfileMediaSettings(photo, audio, trackTitle);
+
+  if (audio) {
+    initBgmAutoplay(audio);
+  }
+
+  if (!isLoggedIn()) return;
+
+  initProfilePhotoUpload(photo);
+  initBgmUpload(player, audio, trackTitle);
+})();
+
+async function loadProfileMediaSettings(photo, audio, trackTitle) {
+  const tasks = [];
+
+  if (photo) {
+    tasks.push((async () => {
+      const savedPhotoUrl = await getSetting(PROFILE_PHOTO_SETTING_KEY);
+      if (savedPhotoUrl) {
+        photo.src = savedPhotoUrl;
+      }
+    })());
+  }
+
+  if (audio) {
+    tasks.push((async () => {
+      const [savedBgmUrl, savedBgmTitle] = await Promise.all([
+        getSetting(BGM_URL_SETTING_KEY),
+        getSetting(BGM_TITLE_SETTING_KEY),
+      ]);
+
+      if (savedBgmUrl) {
+        audio.src = savedBgmUrl;
+        audio.load();
+      }
+
+      if (trackTitle) {
+        trackTitle.textContent = savedBgmTitle || defaultBgmTitle(audio);
+      }
+    })());
+  }
+
+  try {
+    await Promise.all(tasks);
+  } catch (e) {
+    console.warn('Profile media settings failed:', cmsErrorMessage(e));
+  }
+}
+
+function ensureTrackTitle(player, audio) {
+  if (!player || !audio) return null;
+
+  let trackTitle = player.querySelector('[data-bgm-title]');
+  if (!trackTitle) {
+    const marquee = document.createElement('marquee');
+    marquee.className = 'track-title-marquee';
+    marquee.direction = 'left';
+    marquee.scrollAmount = 2;
+    marquee.setAttribute('aria-label', 'current background music');
+
+    const prefix = document.createTextNode('♫ ');
+    trackTitle = document.createElement('span');
+    trackTitle.setAttribute('data-bgm-title', '');
+    trackTitle.textContent = defaultBgmTitle(audio);
+    const suffix = document.createTextNode(' ♫');
+
+    marquee.append(prefix, trackTitle, suffix);
+    player.insertBefore(marquee, audio);
+  }
+
+  return trackTitle;
+}
+
+function initBgmAutoplay(audio) {
+  audio.autoplay = true;
+  audio.loop = true;
 
   const tryPlay = () => {
     audio.play().catch(() => {
@@ -19,9 +102,151 @@ import { getPublishedPosts, getGuestbookEntries, addGuestbookEntry, getSetting, 
   };
 
   tryPlay();
+  if (audio.dataset.bgmAutoplayBound === 'true') return;
+
+  audio.dataset.bgmAutoplayBound = 'true';
   document.addEventListener('click', tryPlay, { once: true });
   document.addEventListener('keydown', tryPlay, { once: true });
-})();
+}
+
+function initProfilePhotoUpload(photo) {
+  if (!photo) return;
+
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.hidden = true;
+  document.body.appendChild(input);
+
+  photo.classList.add('profile-photo--editable');
+  photo.tabIndex = 0;
+  photo.title = 'OWNER MODE: 클릭해서 프로필 사진 바꾸기';
+
+  photo.addEventListener('click', () => input.click());
+  photo.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      input.click();
+    }
+  });
+
+  input.addEventListener('change', async () => {
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('이미지 파일만 올릴 수 있어요.');
+      return;
+    }
+
+    setMediaBusy(photo, true);
+    try {
+      const media = await uploadMedia(file, 'coldwaterkim profile photo', 'Profile photo');
+      const url = getMediaUrl(media, media.file);
+      await setSetting(PROFILE_PHOTO_SETTING_KEY, url);
+      photo.src = url;
+      flashSaved(photo);
+    } catch (e) {
+      alert('프로필 사진 저장 실패: ' + cmsErrorMessage(e));
+    } finally {
+      setMediaBusy(photo, false);
+    }
+  });
+}
+
+function initBgmUpload(player, audio, trackTitle) {
+  if (!player || !audio) return;
+
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'audio/mpeg,.mp3';
+  input.hidden = true;
+  document.body.appendChild(input);
+
+  const ownerRow = document.createElement('div');
+  ownerRow.className = 'bgm-owner-row';
+
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'owner-btn bgm-owner-btn';
+  button.textContent = 'MP3 바꾸기';
+
+  const status = document.createElement('span');
+  status.className = 'bgm-upload-status';
+  status.setAttribute('aria-live', 'polite');
+
+  ownerRow.append(button, status);
+  player.appendChild(ownerRow);
+
+  button.addEventListener('click', () => input.click());
+
+  input.addEventListener('change', async () => {
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+
+    if (!isMp3(file)) {
+      alert('MP3 파일만 올릴 수 있어요.');
+      return;
+    }
+
+    button.disabled = true;
+    status.textContent = '업로드 중...';
+
+    try {
+      const media = await uploadMedia(file, file.name, 'Home BGM');
+      const url = getMediaUrl(media, media.file);
+      const title = file.name;
+
+      await Promise.all([
+        setSetting(BGM_URL_SETTING_KEY, url),
+        setSetting(BGM_TITLE_SETTING_KEY, title),
+      ]);
+
+      audio.src = url;
+      audio.load();
+      if (trackTitle) {
+        trackTitle.textContent = title;
+      }
+      initBgmAutoplay(audio);
+      status.textContent = '저장됨';
+      setTimeout(() => status.textContent = '', 1600);
+    } catch (e) {
+      status.textContent = '실패';
+      alert('MP3 저장 실패: ' + cmsErrorMessage(e));
+    } finally {
+      button.disabled = false;
+    }
+  });
+}
+
+function defaultBgmTitle(audio) {
+  const src = audio?.currentSrc || audio?.getAttribute('src') || audio?.querySelector('source')?.getAttribute('src') || 'bgm.mp3';
+  return fileNameFromUrl(src) || 'bgm.mp3';
+}
+
+function fileNameFromUrl(value) {
+  try {
+    const url = new URL(value, window.location.href);
+    return decodeURIComponent(url.pathname.split('/').pop() || '');
+  } catch (e) {
+    return String(value || '').split('/').pop() || '';
+  }
+}
+
+function isMp3(file) {
+  return file.type === 'audio/mpeg' || /\.mp3$/i.test(file.name);
+}
+
+function setMediaBusy(el, isBusy) {
+  el.classList.toggle('is-media-uploading', isBusy);
+}
+
+function flashSaved(el) {
+  el.classList.add('is-media-saved');
+  setTimeout(() => el.classList.remove('is-media-saved'), 700);
+}
 
 // ─────────────────────────────────────────────────────────
 // 방문자 카운터 (PocketBase 30분 세션)
