@@ -11,6 +11,7 @@ import { getPublishedPosts, getGuestbookEntries, addGuestbookEntry, getSetting, 
 const PROFILE_PHOTO_SETTING_KEY = 'profile_photo_url';
 const BGM_URL_SETTING_KEY = 'bgm_audio_url';
 const BGM_TITLE_SETTING_KEY = 'bgm_audio_title';
+let spaNavigationToken = 0;
 
 (async function initProfileMedia() {
   const photo = document.querySelector('.profile-photo');
@@ -29,6 +30,9 @@ const BGM_TITLE_SETTING_KEY = 'bgm_audio_title';
   initProfilePhotoUpload(photo);
   initBgmUpload(player, audio, trackTitle);
 })();
+
+initSpaRouter();
+initDynamicContent();
 
 async function loadProfileMediaSettings(photo, audio, trackTitle) {
   const tasks = [];
@@ -249,6 +253,162 @@ function flashSaved(el) {
 }
 
 // ─────────────────────────────────────────────────────────
+// SPA-like 내부 라우팅: shell/BGM은 유지하고 오른쪽 content만 교체
+// ─────────────────────────────────────────────────────────
+function initSpaRouter() {
+  if (window.__coldwaterkimSpaRouterReady) return;
+  window.__coldwaterkimSpaRouterReady = true;
+
+  document.addEventListener('click', (event) => {
+    const link = event.target.closest('a[href]');
+    if (!link || event.defaultPrevented || !shouldHandleSpaLink(link, event)) return;
+
+    event.preventDefault();
+    navigateSpa(link.href);
+  });
+
+  window.addEventListener('popstate', () => {
+    navigateSpa(window.location.href, { historyMode: 'replace', restoreScroll: true });
+  });
+}
+
+function shouldHandleSpaLink(link, event) {
+  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return false;
+  if (link.target && link.target !== '_self') return false;
+  if (link.hasAttribute('download')) return false;
+
+  const rawHref = link.getAttribute('href') || '';
+  if (!rawHref || rawHref.startsWith('#') || rawHref.startsWith('mailto:') || rawHref.startsWith('tel:')) return false;
+  if (/^javascript:/i.test(rawHref)) return false;
+
+  const url = new URL(link.href, window.location.href);
+  if (url.origin !== window.location.origin) return false;
+  if (url.pathname.startsWith('/admin/') || url.pathname.startsWith('/assets/')) return false;
+  if (!url.pathname.endsWith('/') && !url.pathname.endsWith('.html')) return false;
+
+  if (url.pathname === window.location.pathname && url.search === window.location.search) {
+    return false;
+  }
+
+  return true;
+}
+
+async function navigateSpa(href, options = {}) {
+  const token = ++spaNavigationToken;
+  const url = new URL(href, window.location.href);
+  const content = document.querySelector('.content');
+  if (!content) {
+    window.location.href = url.href;
+    return;
+  }
+
+  content.classList.add('is-spa-loading');
+
+  try {
+    const response = await fetch(url.href, { credentials: 'same-origin' });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    const html = await response.text();
+    if (token !== spaNavigationToken) return;
+
+    const nextDoc = new DOMParser().parseFromString(html, 'text/html');
+    const nextContent = nextDoc.querySelector('.content');
+    if (!nextContent) throw new Error('content 영역을 찾을 수 없음');
+
+    const historyMode = options.historyMode || 'push';
+    if (historyMode === 'replace') {
+      history.replaceState({}, '', url.href);
+    } else {
+      history.pushState({}, '', url.href);
+    }
+
+    document.title = nextDoc.title || document.title;
+    document.body.className = nextDoc.body.className;
+    updatePersistentShell(nextDoc);
+
+    content.innerHTML = nextContent.innerHTML;
+    await runPageModules(nextDoc, url);
+    await initDynamicContent(content);
+
+    if (!options.restoreScroll) {
+      window.scrollTo(0, 0);
+    }
+  } catch (error) {
+    console.warn('SPA navigation failed, falling back to full load:', error);
+    window.location.href = url.href;
+  } finally {
+    content.classList.remove('is-spa-loading');
+  }
+}
+
+function updatePersistentShell(nextDoc) {
+  const currentLogin = document.querySelector('.secret-login');
+  const nextLogin = nextDoc.querySelector('.secret-login');
+  if (currentLogin && nextLogin) {
+    currentLogin.href = nextLogin.href;
+  }
+}
+
+async function runPageModules(nextDoc, url) {
+  const scripts = Array.from(nextDoc.querySelectorAll('script[type="module"]'))
+    .filter(script => shouldRunFetchedModule(script, url));
+
+  for (const script of scripts) {
+    await appendSpaModuleScript(script, url);
+  }
+}
+
+function shouldRunFetchedModule(script, pageUrl) {
+  const src = script.getAttribute('src') || '';
+  if (!src) return true;
+
+  const srcUrl = new URL(src, pageUrl);
+  return !/\/js\/site\.js$|\/assets\/site-[\w-]+\.js$|\/assets\/pb-[\w-]+\.js$|pocketbase/i.test(srcUrl.pathname);
+}
+
+function appendSpaModuleScript(script, pageUrl) {
+  return new Promise((resolve, reject) => {
+    const nextScript = document.createElement('script');
+    nextScript.type = 'module';
+
+    if (script.src) {
+      const srcUrl = new URL(script.getAttribute('src') || script.src, pageUrl);
+      const cacheKey = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      if (srcUrl.searchParams.has('html-proxy')) {
+        srcUrl.hash = `spa-${cacheKey}`;
+      } else {
+        srcUrl.searchParams.set('spa', cacheKey);
+      }
+      nextScript.src = srcUrl.href;
+    } else {
+      nextScript.textContent = script.textContent;
+    }
+
+    nextScript.addEventListener('load', resolve, { once: true });
+    nextScript.addEventListener('error', () => reject(new Error(`module load failed: ${nextScript.src || 'inline'}`)), { once: true });
+    document.body.appendChild(nextScript);
+
+    if (!script.src) {
+      requestAnimationFrame(() => {
+        nextScript.remove();
+        resolve();
+      });
+    } else {
+      nextScript.addEventListener('load', () => nextScript.remove(), { once: true });
+    }
+  });
+}
+
+async function initDynamicContent(scope = document) {
+  await Promise.all([
+    initSettings(scope),
+    initRecentPosts(scope),
+    initGuestbookPreview(scope),
+  ]);
+  initGuestbookPage(scope);
+}
+
+// ─────────────────────────────────────────────────────────
 // 방문자 카운터 (PocketBase 30분 세션)
 // ─────────────────────────────────────────────────────────
 (async function initCounter() {
@@ -318,8 +478,9 @@ function flashSaved(el) {
 // ─────────────────────────────────────────────────────────
 // 사이트 설정 로드 (인라인 편집 가능한 요소들)
 // ─────────────────────────────────────────────────────────
-(async function initSettings() {
-  const editableElements = document.querySelectorAll('[data-editable="true"]');
+async function initSettings(scope = document) {
+  const editableElements = Array.from(scope.querySelectorAll('[data-editable="true"]'))
+    .filter(el => el.dataset.settingsReady !== 'true');
   if (editableElements.length === 0) return;
 
   // 저장된 설정 불러오기
@@ -335,6 +496,7 @@ function flashSaved(el) {
     } catch (e) {
       // 설정이 없으면 기본값 유지
     }
+    el.dataset.settingsReady = 'true';
   }
 
   // 관리자인 경우 인라인 편집 활성화
@@ -358,14 +520,19 @@ function flashSaved(el) {
       }
     });
   });
-})();
+}
 
 // ─────────────────────────────────────────────────────────
 // 최근 글 목록 (index.html)
 // ─────────────────────────────────────────────────────────
-(async function initRecentPosts() {
-  const table = document.getElementById('recent-posts-table');
+async function initRecentPosts(scope = document) {
+  const table = scope.querySelector('#recent-posts-table');
   if (!table) return;
+  if (table.dataset.recentPostsReady === 'true') return;
+  table.dataset.recentPostsReady = 'true';
+
+  const rows = Array.from(table.querySelectorAll('tr')).slice(1);
+  rows.forEach(row => row.remove());
 
   try {
     const result = await getPublishedPosts(1, 3);
@@ -396,14 +563,16 @@ function flashSaved(el) {
     tr.innerHTML = `<td colspan="2">${escapeHtml(cmsErrorMessage(e))}</td>`;
     table.appendChild(tr);
   }
-})();
+}
 
 // ─────────────────────────────────────────────────────────
 // 홈 방명록 미리보기 (index.html)
 // ─────────────────────────────────────────────────────────
-(async function initGuestbookPreview() {
-  const table = document.getElementById('guestbook-preview-table');
+async function initGuestbookPreview(scope = document) {
+  const table = scope.querySelector('#guestbook-preview-table');
   if (!table) return;
+  if (table.dataset.guestbookPreviewReady === 'true') return;
+  table.dataset.guestbookPreviewReady = 'true';
 
   try {
     const result = await getGuestbookEntries(1, 200);
@@ -433,23 +602,26 @@ function flashSaved(el) {
     tr.innerHTML = `<td colspan="2">${escapeHtml(cmsErrorMessage(e))}</td>`;
     table.appendChild(tr);
   }
-})();
+}
 
 // ─────────────────────────────────────────────────────────
 // 방명록 (guestbook.html)
 // ─────────────────────────────────────────────────────────
-const guestbookForm = document.getElementById('guestbookForm');
-const guestbookEntries = document.getElementById('guestbookEntries');
+function initGuestbookPage(scope = document) {
+  const guestbookForm = scope.querySelector('#guestbookForm');
+  const guestbookEntries = scope.querySelector('#guestbookEntries');
+  if (!guestbookForm || !guestbookEntries) return;
+  if (guestbookForm.dataset.guestbookReady === 'true') return;
+  guestbookForm.dataset.guestbookReady = 'true';
 
-if (guestbookForm) {
   guestbookForm.addEventListener('submit', async (e) => {
     e.preventDefault();
 
-    const nameEl = document.getElementById('guestName');
-    const messageEl = document.getElementById('message');
+    const nameEl = guestbookForm.querySelector('#guestName');
+    const messageEl = guestbookForm.querySelector('#message');
     const typedName = nameEl?.value.trim() || '';
     const name = typedName || await nextGuestbookName();
-    const message = messageEl.value.trim();
+    const message = messageEl?.value.trim() || '';
 
     if (!message) {
       alert('메시지를 입력해주세요.');
@@ -459,16 +631,16 @@ if (guestbookForm) {
     try {
       await addGuestbookEntry(name, message);
       guestbookForm.reset();
-      loadGuestbook();
+      loadGuestbook(guestbookEntries);
     } catch (e) {
       alert('방명록 작성 실패: ' + cmsErrorMessage(e));
     }
   });
 
-  loadGuestbook();
+  loadGuestbook(guestbookEntries);
 }
 
-async function loadGuestbook() {
+async function loadGuestbook(guestbookEntries) {
   if (!guestbookEntries) return;
   guestbookEntries.innerHTML = '<p>불러오는 중...</p>';
 
@@ -503,12 +675,12 @@ async function loadGuestbook() {
 
     // 삭제 버튼 이벤트
     if (isAdmin) {
-      document.querySelectorAll('.del-btn').forEach(btn => {
+      guestbookEntries.querySelectorAll('.del-btn').forEach(btn => {
         btn.addEventListener('click', async () => {
           if (!confirm('이 방명록을 삭제하시겠습니까?')) return;
           try {
             await deleteGuestbookEntry(btn.dataset.id);
-            loadGuestbook();
+            loadGuestbook(guestbookEntries);
           } catch (e) {
             alert('삭제 실패: ' + cmsErrorMessage(e));
           }
