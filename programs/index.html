@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>프로그램실 — coldwaterkim</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <script type="module" crossorigin src="/assets/programs/index-6A7ozACj.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/pb-CrrKWHU8.js">
+  <link rel="modulepreload" crossorigin href="/assets/site-C15qtE1W.js">
+  <link rel="stylesheet" crossorigin href="/assets/site-C4O_VQKM.css">
+</head>
+
+<body class="page-subpage page-programs" background="" bgcolor="#e0e0e0">
+  <center>
+    <marquee behavior="alternate" scrollamount="4" width="760">
+      <span class="marquee-text">★ WELCOME TO <a href="/admin/login.html?next=/programs/index.html" class="secret-login"><b>coldwaterkim</b></a>'s HOME PAGE ★</span>
+    </marquee>
+
+    <table width="760" border="1" cellspacing="0" cellpadding="8" bgcolor="#ffffff">
+      <tr>
+        <td colspan="2" align="center" class="banner">
+          <span class="blink">UNDER CONSTRUCTION</span> · <span class="hit">VISITORS:</span>
+          TOTAL <span id="hitCounter" class="counter-digits">0000000</span>
+          TODAY <span id="todayCounter" class="counter-digits counter-digits--today">0000</span>
+        </td>
+      </tr>
+      <tr>
+        <td width="180" valign="top" class="sidebar">
+          <div class="profile-card">
+            <div class="profile-person">
+              <center>
+                <img class="profile-photo" src="/assets/profile-crop-DEsiL-rx.jpg" alt="coldwaterkim profile"><br>
+                <b>김찬수</b><br>
+                <span class="note">밀레니엄 베이비</span>
+              </center>
+            </div>
+            <div class="profile-info">
+              <p class="profile-email">
+                <a href="mailto:ckstn1112@gmail.com?subject=Hello%20from%20your%20site">ckstn1112@gmail.com</a>
+              </p>
+              <div class="today-box">
+                <b>TODAY IS...</b><br>
+                <span data-editable="true" data-key="profile_today">온 몸 비틀기</span>
+              </div>
+              <center class="mini-player">
+                <audio controls autoplay loop data-bgm>
+                  <source src="../assets/bgm/bgm.mp3" type="audio/mpeg">
+                  Your browser does not support the audio element.
+                </audio>
+              </center>
+            </div>
+          </div>
+
+          <hr>
+          <b>Cool Links</b>
+          <ul>
+            <li><a href="https://www.archive.org/" target="_blank">Internet Archive</a></li>
+            <li><a href="https://www.cameronsworld.net/" target="_blank">GeoCities Garden</a></li>
+          </ul>
+          <hr>
+          <div class="webring">
+            <b>My WebRing</b><br>
+            [ <a href="#">Prev</a> | <a href="#">Random</a> | <a href="#">Next</a> ]
+          </div>
+        </td>
+        <td valign="top" class="content">
+          <center>
+            <div class="top-nav">
+              [ <a href="../index.html">Home</a> |
+              <a href="../posts/index.html">글방</a> |
+              <a href="index.html">프로그램실</a> |
+              <a href="../guestbook.html">Guestbook</a> |
+              <a href="../about.html">About / Contact</a> ]
+            </div>
+          </center>
+
+          <h1>💾 프로그램실</h1>
+          <p>
+            내가 만든 프로그램들. 바로 받아도 되고,
+            <font color="red"><b>이게 뭐지? 킥킥</b></font> 하고 구경만 해도 됨.
+          </p>
+          <p class="note">
+            1시간짜리든 오래 가져가는 앱이든 전부 같은 무게의 작품으로 둡니다.
+            공개 전 프로젝트도 예고편처럼 올릴 수 있음.
+          </p>
+
+          <div id="programOwnerPanel" class="program-owner-panel" hidden>
+            <div class="owner-bar">
+              <b>OWNER MODE</b> · 프로그램실에서 바로 글/파일/링크 올리기
+              <button type="button" id="newProgramButton" class="owner-btn">새 프로그램</button>
+              <span id="programOwnerStatus" class="program-owner-status"></span>
+            </div>
+
+            <form id="programForm" class="program-form" hidden>
+              <h2 id="programFormTitle" class="visitor-heading">✚ 새 프로그램 올리기</h2>
+              <table border="1" cellspacing="0" cellpadding="6" width="100%" class="program-form-table">
+                <tr bgcolor="#f0f0f0">
+                  <th align="left" colspan="2">기본 정보</th>
+                </tr>
+                <tr>
+                  <td width="130"><label for="programTitle"><b>이름 *</b></label></td>
+                  <td><input type="text" id="programTitle" name="title" required placeholder="예: OneCut"></td>
+                </tr>
+                <tr>
+                  <td><label for="programSlug"><b>slug</b></label></td>
+                  <td>
+                    <input type="text" id="programSlug" name="slug" placeholder="onecut">
+                    <div class="note">URL/파일 식별용. 비워두면 이름으로 자동 생성.</div>
+                  </td>
+                </tr>
+                <tr>
+                  <td><label for="programStatus"><b>상태</b></label></td>
+                  <td>
+                    <select id="programStatus" name="status">
+                      <option value="prototype">PROTOTYPE</option>
+                      <option value="unreleased">UNRELEASED</option>
+                      <option value="beta">BETA</option>
+                      <option value="released">RELEASED</option>
+                      <option value="archived">ARCHIVED</option>
+                    </select>
+                    <label class="program-inline-check">
+                      <input type="checkbox" id="programIsPublic" name="is_public" checked>
+                      공개
+                    </label>
+                  </td>
+                </tr>
+                <tr>
+                  <td><label for="programPlatform"><b>플랫폼</b></label></td>
+                  <td><input type="text" id="programPlatform" name="platform" placeholder="macOS · .dmg / iOS · TestFlight / Web"></td>
+                </tr>
+                <tr>
+                  <td><label for="programVersion"><b>버전</b></label></td>
+                  <td><input type="text" id="programVersion" name="version" placeholder="v0.1, build 13 등"></td>
+                </tr>
+                <tr>
+                  <td><label for="programStatusNote"><b>상태 메모</b></label></td>
+                  <td><input type="text" id="programStatusNote" name="status_note" placeholder="실험중, 파일 준비, 예고편 등"></td>
+                </tr>
+                <tr>
+                  <td><label for="programSortOrder"><b>목록 순서</b></label></td>
+                  <td>
+                    <input type="number" id="programSortOrder" name="sort_order" value="100" min="0" step="1">
+                    <div class="note">숫자가 낮을수록 프로그램실 table 위쪽에 보임. 애매하면 그냥 100.</div>
+                  </td>
+                </tr>
+                <tr>
+                  <td><label for="programPublishedAt"><b>게시일</b></label></td>
+                  <td><input type="date" id="programPublishedAt" name="published_at"></td>
+                </tr>
+
+                <tr bgcolor="#f0f0f0">
+                  <th align="left" colspan="2">받기 / 표지</th>
+                </tr>
+                <tr>
+                  <td><label for="programCoverImage"><b>표지</b></label></td>
+                  <td>
+                    <input type="file" id="programCoverImage" name="cover_image" accept="image/*">
+                    <div class="note">앱 대표 이미지가 있으면 여기 넣기. 없으면 자동 레트로 표지가 보임.</div>
+                  </td>
+                </tr>
+                <tr>
+                  <td><label for="programDownloadFiles"><b>파일</b></label></td>
+                  <td>
+                    <input type="file" id="programDownloadFiles" name="download_files" multiple>
+                    <div class="note">.dmg, .zip, PDF, 기타 배포 파일 첨부 가능.</div>
+                  </td>
+                </tr>
+                <tr>
+                  <td><label for="programScreenshots"><b>스크린샷</b></label></td>
+                  <td>
+                    <input type="file" id="programScreenshots" name="screenshots" accept="image/*" multiple>
+                    <div class="note">상세페이지 갤러리에 보일 이미지들. 앱 화면, 대표 장면, before/after 등.</div>
+                  </td>
+                </tr>
+                <tr>
+                  <td><label for="programPrimaryLinkLabel"><b>대표 링크</b></label></td>
+                  <td>
+                    <input type="text" id="programPrimaryLinkLabel" name="primary_link_label" placeholder="TestFlight, GitHub, Web Demo">
+                    <input type="url" id="programPrimaryLinkUrl" name="primary_link_url" placeholder="https://..." class="program-url-input">
+                  </td>
+                </tr>
+                <tr>
+                  <td><label for="programExternalLinks"><b>추가 링크</b></label></td>
+                  <td>
+                    <textarea id="programExternalLinks" name="external_links" rows="3" placeholder="GitHub | https://github.com/...
+Web Demo | https://..."></textarea>
+                    <div class="note">한 줄에 하나씩: 라벨 | URL</div>
+                  </td>
+                </tr>
+
+                <tr bgcolor="#f0f0f0">
+                  <th align="left" colspan="2">이야기</th>
+                </tr>
+                <tr>
+                  <td><label for="programStoryIntro"><b>한 줄 소개</b></label></td>
+                  <td><textarea id="programStoryIntro" name="story_intro" rows="2" placeholder="이 프로그램이 어떤 느낌인지 짧게"></textarea></td>
+                </tr>
+                <tr>
+                  <td><label for="programWhy"><b>왜 만들었냐 *</b></label></td>
+                  <td><textarea id="programWhy" name="why" rows="3" required></textarea></td>
+                </tr>
+                <tr>
+                  <td><label for="programPainPoint"><b>해결하는 빡침 *</b></label></td>
+                  <td><textarea id="programPainPoint" name="pain_point" rows="3" required></textarea></td>
+                </tr>
+                <tr>
+                  <td><label for="programStoryDetail"><b>상세 스토리</b></label></td>
+                  <td>
+                    <textarea id="programStoryDetail" name="story_detail" rows="5" placeholder="상세페이지에서 길게 보여줄 제작 배경, 에피소드, 맥락"></textarea>
+                    <div class="note">목록 table에는 요약만 보이고, 이 내용은 상세페이지에서 작품 소개처럼 보임.</div>
+                  </td>
+                </tr>
+                <tr>
+                  <td><label for="programSolution"><b>어떻게 풀었냐</b></label></td>
+                  <td><textarea id="programSolution" name="solution" rows="4" placeholder="핵심 기능, 접근 방식, 사용자가 실제로 얻게 되는 변화"></textarea></td>
+                </tr>
+                <tr>
+                  <td><label for="programBuildNotes"><b>제작 노트</b></label></td>
+                  <td><textarea id="programBuildNotes" name="build_notes" rows="4" placeholder="버전 메모, 앞으로 만들 것, 아직 덜 된 것"></textarea></td>
+                </tr>
+              </table>
+
+              <p class="program-form-actions">
+                <button type="submit" class="owner-btn">저장</button>
+                <button type="button" id="cancelProgramEdit" class="owner-btn">취소</button>
+              </p>
+            </form>
+          </div>
+
+          <table border="1" cellspacing="0" cellpadding="6" width="100%" class="programs-table">
+            <thead>
+              <tr bgcolor="#f0f0f0">
+                <th align="left" class="program-cover-head">표지</th>
+                <th align="left">프로그램 / 이야기</th>
+                <th class="program-action-head">상태 / 받기</th>
+              </tr>
+            </thead>
+            <tbody id="programsList">
+              <tr>
+                <td colspan="3" class="loading">프로그램 목록 불러오는 중...</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h2 id="files" class="visitor-heading">DOWNLOAD INDEX</h2>
+          <table border="1" cellspacing="0" cellpadding="6" width="100%" class="download-index-table">
+            <thead>
+              <tr bgcolor="#f0f0f0">
+                <th align="left">이름</th>
+                <th>플랫폼</th>
+                <th>상태</th>
+                <th align="left">파일 / 링크</th>
+              </tr>
+            </thead>
+            <tbody id="downloadIndexBody">
+              <tr>
+                <td colspan="4" class="loading">다운로드 목록 불러오는 중...</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="program-note-box">
+            <b>운영 메모:</b> 표지는 업로드한 앱 대표 이미지가 있으면 그걸 먼저 씁니다.
+            없으면 프로그램 이름과 상태로 자동 표지를 만듭니다. 파일은 프로그램 레코드에 직접 붙습니다.
+          </div>
+
+          <hr>
+          <center>
+            <small>© coldwaterkim — powered by me</small>
+          </center>
+        </td>
+      </tr>
+    </table>
+  </center>
+</body>
+
+</html>
