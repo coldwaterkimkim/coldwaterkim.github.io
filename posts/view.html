@@ -47,8 +47,7 @@
                                 <span data-editable="true" data-key="profile_today">온 몸 비틀기</span>
                             </div>
                             <center class="mini-player">
-                                <audio controls autoplay loop data-bgm>
-                                    <source src="../assets/bgm/bgm.mp3" type="audio/mpeg">
+                                <audio controls autoplay loop preload="none" data-bgm>
                                     Your browser does not support the audio element.
                                 </audio>
                             </center>
@@ -101,7 +100,7 @@
     </center>
 
     <script type="module">
-        import { getPostBySlug, getPublishedPostTimeline, getAllPostTimeline, deletePost, isLoggedIn, logout, postDisplayDate, formatDate, escapeHtml, cmsErrorMessage, resolvePostFeaturedImageUrl, extractImageUrlsFromHtml, sortPostsForDisplay } from '../js/pb.js';
+        import { getPostBySlug, getPublishedPostTimeline, getAllPostTimeline, deletePost, isLoggedIn, logout, postDisplayDate, formatDate, escapeHtml, cmsErrorMessage, sortPostsForDisplay } from '../js/pb.js';
 
         const params = new URLSearchParams(window.location.search);
         const slug = params.get('slug');
@@ -210,25 +209,10 @@
                             ${ownerActions}
                         </div>
                     </div>
-                    ${renderFeaturedImage(post)}
                     <div class="post-content timeline-post-content ql-editor">
                         ${post.content || '<p>내용이 없습니다.</p>'}
                     </div>
                 </article>
-            `;
-        }
-
-        function renderFeaturedImage(post) {
-            const featuredImageUrl = resolvePostFeaturedImageUrl(post);
-            if (!featuredImageUrl) return '';
-
-            const contentImages = extractImageUrlsFromHtml(post.content);
-            if (contentImages.includes(featuredImageUrl)) return '';
-
-            return `
-                <div class="timeline-featured-image">
-                    <img src="${escapeAttribute(featuredImageUrl)}" alt="${escapeAttribute(post.title || '')}">
-                </div>
             `;
         }
 
@@ -274,12 +258,6 @@
 
         function postElementId(id) {
             return `post-${id}`;
-        }
-
-        function escapeAttribute(value) {
-            return escapeHtml(value)
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#39;');
         }
 
         function updateSecretLoginNext(slug) {

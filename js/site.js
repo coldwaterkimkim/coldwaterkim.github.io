@@ -98,19 +98,71 @@ function ensureTrackTitle(player, audio) {
 function initBgmAutoplay(audio) {
   audio.autoplay = true;
   audio.loop = true;
+  const player = audio.closest('.mini-player');
+  const prompt = ensureBgmPrompt(player, audio);
 
-  const tryPlay = () => {
-    audio.play().catch(() => {
-      // 브라우저가 소리 있는 autoplay를 막으면 첫 사용자 입력 때 다시 시도한다.
-    });
+  const tryPlay = async () => {
+    if (!audio.currentSrc && !audio.src) return;
+
+    try {
+      await audio.play();
+      setBgmPromptVisible(prompt, false);
+    } catch (e) {
+      // 브라우저가 소리 있는 autoplay를 막으면 버튼과 첫 사용자 입력으로 다시 시도한다.
+      setBgmPromptVisible(prompt, true);
+    }
   };
 
   tryPlay();
   if (audio.dataset.bgmAutoplayBound === 'true') return;
 
   audio.dataset.bgmAutoplayBound = 'true';
-  document.addEventListener('click', tryPlay, { once: true });
+  document.addEventListener('pointerdown', tryPlay, { once: true });
   document.addEventListener('keydown', tryPlay, { once: true });
+}
+
+function ensureBgmPrompt(player, audio) {
+  if (!player || !audio) return null;
+
+  let prompt = player.querySelector('[data-bgm-prompt]');
+  if (!prompt) {
+    prompt = document.createElement('div');
+    prompt.className = 'bgm-start-row';
+    prompt.hidden = true;
+    prompt.setAttribute('data-bgm-prompt', '');
+
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'bgm-start-btn';
+    button.textContent = 'BGM ON';
+
+    const note = document.createElement('span');
+    note.className = 'bgm-start-note';
+    note.textContent = ' 브라우저가 자동재생을 막았음';
+
+    prompt.append(button, note);
+    player.appendChild(prompt);
+  }
+
+  const button = prompt.querySelector('button');
+  if (button && button.dataset.bgmPromptReady !== 'true') {
+    button.dataset.bgmPromptReady = 'true';
+    button.addEventListener('click', async () => {
+      try {
+        await audio.play();
+        setBgmPromptVisible(prompt, false);
+      } catch (e) {
+        setBgmPromptVisible(prompt, true);
+      }
+    });
+  }
+
+  return prompt;
+}
+
+function setBgmPromptVisible(prompt, isVisible) {
+  if (!prompt) return;
+  prompt.hidden = !isVisible;
 }
 
 function initProfilePhotoUpload(photo) {

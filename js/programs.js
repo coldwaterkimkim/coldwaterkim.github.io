@@ -11,15 +11,23 @@ import {
     programStatusLabel,
     normalizeProgramStatus,
     programDetailUrl,
-    formatDate,
     slugify,
     escapeHtml,
-    cmsErrorMessage
+    cmsErrorMessage,
+    uploadMedia,
+    getMediaUrl
 } from './pb.js';
 
 const ownerMode = isLoggedIn();
 let programs = [];
 let editingProgramId = '';
+let programBodyQuill = null;
+let programBodyQuillReady = null;
+let pendingProgramBodyImageIndex = null;
+
+const QUILL_CSS_URL = 'https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css';
+const QUILL_JS_URL = 'https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js';
+const PROGRAM_IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
 
 const fallbackPrograms = [
     {
@@ -28,12 +36,10 @@ const fallbackPrograms = [
         slug: 'onecut',
         status: 'beta',
         platform: 'iOS · TestFlight · 하루 기록',
-        status_note: '공개 준비',
         tagline: 'a day in one frame',
         story_intro: '하루를 한 컷으로 붙잡는 앱.',
         why: '하루가 너무 쉽게 흘러가서, 최소한 한 컷만큼은 붙잡아두려고.',
         pain_point: '사진은 많은데 하루의 감정과 맥락은 흩어지는 문제.',
-        sort_order: 10,
         is_public: true
     },
     {
@@ -42,12 +48,10 @@ const fallbackPrograms = [
         slug: 'doodle-dolmeng',
         status: 'beta',
         platform: 'iOS · 위치 기반 지도 · 캠퍼스',
-        status_note: '실험중',
         tagline: 'campus map scribbles',
         story_intro: '캠퍼스 생활권을 낙서처럼 남기는 지도.',
         why: '장소에는 말로 설명하기 어려운 분위기와 낙서 같은 기억이 있어서.',
         pain_point: '지도는 정확하지만, 사람들이 실제로 느끼는 생활권은 너무 납작하게 보이는 문제.',
-        sort_order: 20,
         is_public: true
     },
     {
@@ -56,12 +60,10 @@ const fallbackPrograms = [
         slug: 'wisdom-dolmeng',
         status: 'released',
         platform: 'macOS · 메뉴바 앱 · .dmg 예정',
-        status_note: '파일 준비',
         tagline: 'floating wisdom panel',
         story_intro: '메뉴바에서 잠깐씩 정신을 붙잡아주는 작은 앱.',
         why: '하루 중 잠깐씩 정신을 붙잡아주는 이상한 문장이 필요해서.',
         pain_point: '집중이 풀릴 때마다 거창한 앱을 여는 건 너무 큰 행동이라는 문제.',
-        sort_order: 30,
         is_public: true
     },
     {
@@ -70,12 +72,10 @@ const fallbackPrograms = [
         slug: 'quick-dump-dolmeng',
         status: 'prototype',
         platform: 'macOS · 빠른 메모 · GitHub 예정',
-        status_note: '손보는중',
         tagline: 'throw thoughts fast',
         story_intro: '생각이 지나가기 전에 아무 데나 던져놓는 메모 도구.',
         why: '생각이 지나가기 전에 어디든 빠르게 던져놓고 싶어서.',
         pain_point: '메모 앱을 고르는 순간 이미 쓰려던 말이 사라지는 문제.',
-        sort_order: 40,
         is_public: true
     },
     {
@@ -84,12 +84,10 @@ const fallbackPrograms = [
         slug: 'coming-soon-program',
         status: 'unreleased',
         platform: 'Web · 예고편 · 아직 비밀',
-        status_note: '예고편',
         tagline: 'unreleased trailer',
         story_intro: '아직 이름을 붙이지 않은 예고편 row.',
         why: '아직 말하면 김이 빠지는 종류의 빡침에서 시작됨.',
         pain_point: '공개 전이라 자세한 설명은 봉인. 대신 예고편 row로 먼저 입장.',
-        sort_order: 50,
         is_public: true
     }
 ];
@@ -106,28 +104,23 @@ const formFields = {
     slug: document.getElementById('programSlug'),
     status: document.getElementById('programStatus'),
     platform: document.getElementById('programPlatform'),
-    version: document.getElementById('programVersion'),
-    statusNote: document.getElementById('programStatusNote'),
-    sortOrder: document.getElementById('programSortOrder'),
-    publishedAt: document.getElementById('programPublishedAt'),
     primaryLinkLabel: document.getElementById('programPrimaryLinkLabel'),
     primaryLinkUrl: document.getElementById('programPrimaryLinkUrl'),
-    externalLinks: document.getElementById('programExternalLinks'),
     storyIntro: document.getElementById('programStoryIntro'),
-    why: document.getElementById('programWhy'),
-    painPoint: document.getElementById('programPainPoint'),
-    storyDetail: document.getElementById('programStoryDetail'),
-    solution: document.getElementById('programSolution'),
-    buildNotes: document.getElementById('programBuildNotes'),
-    screenshots: document.getElementById('programScreenshots'),
+    bodyEditor: document.getElementById('programBodyEditor'),
+    bodyEditorWrap: document.getElementById('programBodyEditorWrap'),
+    bodyImageInput: document.getElementById('programBodyImageInput'),
+    bodyImageStatus: document.getElementById('programBodyImageStatus'),
     coverImage: document.getElementById('programCoverImage'),
-    downloadFiles: document.getElementById('programDownloadFiles'),
-    isPublic: document.getElementById('programIsPublic')
+    downloadFiles: document.getElementById('programDownloadFiles')
 };
 
 if (ownerMode) {
     ownerPanel.hidden = false;
     setOwnerStatus('OWNER MODE: 이 페이지에서 바로 프로그램을 추가/수정할 수 있음.');
+    programBodyQuillReady = initProgramBodyEditor().catch(error => {
+        setOwnerStatus(`본문 에디터 로드 실패: ${cmsErrorMessage(error)}`, 'error');
+    });
 }
 
 newButton?.addEventListener('click', () => {
@@ -228,14 +221,12 @@ function renderProgramRow(program) {
             <td class="program-story-cell">
                 <h2><span class="program-label">[${escapeHtml(label)}]</span> <a href="${escapeAttribute(detailUrl)}">${escapeHtml(title)}</a></h2>
                 <p class="program-meta">${programMeta(program)}</p>
-                ${program.story_intro ? `<p>${escapeMultiline(program.story_intro)}</p>` : ''}
-                <p><b>왜 만들었냐:</b> ${previewText(program.why || '아직 작성중.')}</p>
-                <p><b>해결하는 빡침:</b> ${previewText(program.pain_point || '아직 작성중.')}</p>
+                <p>${previewText(program.story_intro || program.tagline || '아직 한 줄 소개를 쓰는 중.')}</p>
                 <p><a href="${escapeAttribute(detailUrl)}">상세 이야기 보기</a></p>
             </td>
             <td class="program-action-cell">
                 <b>${escapeHtml(label)}</b><br>
-                <small>${escapeHtml(program.status_note || defaultStatusNote(status))}</small>
+                <small>${escapeHtml(defaultStatusNote(status))}</small>
                 <hr>
                 ${actionLinks}
                 ${ownerActions}
@@ -282,9 +273,7 @@ function fallbackCoverTitle(title = '') {
 
 function programMeta(program) {
     const parts = [
-        program.platform,
-        program.version,
-        program.published_at ? formatDate(program.published_at) : ''
+        program.platform
     ].filter(Boolean);
     return escapeHtml(parts.join(' · ') || 'platform TBD');
 }
@@ -301,26 +290,33 @@ function defaultStatusNote(status) {
 
 async function saveProgram() {
     if (!ownerMode) return;
+    await ensureProgramBodyEditor();
 
     const title = formFields.title.value.trim();
-    const why = formFields.why.value.trim();
-    const painPoint = formFields.painPoint.value.trim();
 
-    if (!title || !why || !painPoint) {
-        setOwnerStatus('제목, 왜 만들었는지, 해결하는 빡침은 필수임.', 'error');
+    if (!title) {
+        setOwnerStatus('이름은 꼭 있어야 함.', 'error');
         return;
     }
 
     const formData = new FormData(programForm);
+    const storyIntro = formFields.storyIntro.value.trim();
+    const legacyRequiredText = storyIntro || title;
+
     formData.set('slug', safeSlug(formFields.slug.value || title));
     formData.set('status', normalizeProgramStatus(formFields.status.value));
-    formData.set('is_public', formFields.isPublic.checked ? 'true' : 'false');
-    formData.set('sort_order', String(Number.parseInt(formFields.sortOrder.value || '100', 10) || 100));
+    formData.set('is_public', 'true');
+    formData.set('story_intro', storyIntro);
+    formData.set('story_detail', programBodyHtml());
+    formData.set('why', legacyRequiredText);
+    formData.set('pain_point', legacyRequiredText);
 
-    if (!formFields.publishedAt.value) formData.delete('published_at');
     if (!formFields.coverImage.files.length) formData.delete('cover_image');
-    if (!formFields.screenshots.files.length) formData.delete('screenshots');
     if (!formFields.downloadFiles.files.length) formData.delete('download_files');
+    normalizeOptionalTextField(formData, 'platform');
+    normalizeOptionalTextField(formData, 'story_intro');
+    normalizeOptionalTextField(formData, 'primary_link_label');
+    normalizeOptionalTextField(formData, 'primary_link_url');
 
     setOwnerStatus(editingProgramId ? '프로그램 수정 중...' : '프로그램 저장 중...');
 
@@ -338,6 +334,7 @@ async function saveProgram() {
 
 async function editProgram(id) {
     if (!ownerMode || !id) return;
+    await ensureProgramBodyEditor();
 
     try {
         const cached = programs.find(program => program.id === id);
@@ -349,24 +346,13 @@ async function editProgram(id) {
         formFields.slug.value = program.slug || '';
         formFields.status.value = normalizeProgramStatus(program.status);
         formFields.platform.value = program.platform || '';
-        formFields.version.value = program.version || '';
-        formFields.statusNote.value = program.status_note || '';
-        formFields.sortOrder.value = Number.isFinite(Number(program.sort_order)) ? String(program.sort_order) : '100';
-        formFields.publishedAt.value = program.published_at ? program.published_at.split(' ')[0].split('T')[0] : '';
         formFields.primaryLinkLabel.value = program.primary_link_label || '';
         formFields.primaryLinkUrl.value = program.primary_link_url || '';
-        formFields.externalLinks.value = program.external_links || '';
         formFields.storyIntro.value = program.story_intro || '';
-        formFields.why.value = program.why || '';
-        formFields.painPoint.value = program.pain_point || '';
-        formFields.storyDetail.value = program.story_detail || '';
-        formFields.solution.value = program.solution || '';
-        formFields.buildNotes.value = program.build_notes || '';
+        setProgramBodyHtml(program.story_detail || legacyProgramBody(program));
         formFields.coverImage.value = '';
-        formFields.screenshots.value = '';
         formFields.downloadFiles.value = '';
-        formFields.isPublic.checked = Boolean(program.is_public);
-        setOwnerStatus('수정 모드. 새 표지/스크린샷/파일을 고르면 CMS에 추가됨.');
+        setOwnerStatus('수정 모드. 긴 설명과 스크린샷은 본문에서 자유롭게 고치면 됨.');
         programForm.scrollIntoView({ block: 'start' });
         formFields.title.focus();
     } catch (error) {
@@ -396,9 +382,7 @@ function resetProgramForm(options = {}) {
     programForm.reset();
     formTitle.textContent = '✚ 새 프로그램 올리기';
     formFields.status.value = 'prototype';
-    formFields.sortOrder.value = '100';
-    formFields.publishedAt.value = new Date().toISOString().split('T')[0];
-    formFields.isPublic.checked = true;
+    setProgramBodyHtml('');
     programForm.hidden = options.hidden ?? true;
 }
 
@@ -410,6 +394,288 @@ function setOwnerStatus(message, type = 'info') {
     if (!ownerStatus) return;
     ownerStatus.textContent = message;
     ownerStatus.className = `program-owner-status program-owner-status--${type}`;
+}
+
+function normalizeOptionalTextField(formData, name) {
+    const value = String(formData.get(name) || '').trim();
+    if (value) {
+        formData.set(name, value);
+    } else {
+        formData.delete(name);
+    }
+}
+
+function programBodyHtml() {
+    if (!programBodyQuill) return '';
+    const html = programBodyQuill.root.innerHTML.trim();
+    return html === '<p><br></p>' ? '' : html;
+}
+
+function setProgramBodyHtml(html = '') {
+    if (programBodyQuill) {
+        programBodyQuill.root.innerHTML = html || '';
+    }
+}
+
+function legacyProgramBody(program) {
+    return [
+        ['왜 만들었냐', program.why],
+        ['해결하는 빡침', program.pain_point],
+        ['어떻게 풀었냐', program.solution],
+        ['제작 노트', program.build_notes]
+    ]
+        .filter(([, value]) => String(value || '').trim())
+        .map(([title, value]) => `<h2>${escapeHtml(title)}</h2><p>${escapeMultiline(value)}</p>`)
+        .join('');
+}
+
+async function ensureProgramBodyEditor() {
+    if (programBodyQuillReady) {
+        await programBodyQuillReady;
+    }
+}
+
+async function initProgramBodyEditor() {
+    if (!formFields.bodyEditor) return;
+
+    await loadQuillAssets();
+    programBodyQuill = new window.Quill('#programBodyEditor', {
+        theme: 'snow',
+        placeholder: '제작 배경, 사용법, 스크린샷, 긴 이야기를 자유롭게 쓰기...',
+        modules: {
+            toolbar: [
+                [{ header: [1, 2, 3, false] }],
+                ['bold', 'italic', 'underline', 'strike'],
+                [{ color: [] }, { background: [] }],
+                [{ list: 'ordered' }, { list: 'bullet' }],
+                ['blockquote', 'code-block'],
+                ['link', 'image'],
+                ['clean']
+            ]
+        }
+    });
+
+    const toolbar = programBodyQuill.getModule('toolbar');
+    toolbar.addHandler('image', () => {
+        pendingProgramBodyImageIndex = currentProgramBodyIndex();
+        formFields.bodyImageInput.click();
+    });
+
+    formFields.bodyImageInput?.addEventListener('change', async () => {
+        await insertProgramBodyImages(formFields.bodyImageInput.files, {
+            index: pendingProgramBodyImageIndex
+        });
+        pendingProgramBodyImageIndex = null;
+        formFields.bodyImageInput.value = '';
+    });
+
+    formFields.bodyEditorWrap?.addEventListener('dragenter', (event) => {
+        if (!hasImageTransfer(event.dataTransfer)) return;
+        event.preventDefault();
+        formFields.bodyEditorWrap.classList.add('is-image-dragover');
+    });
+
+    formFields.bodyEditorWrap?.addEventListener('dragover', (event) => {
+        if (!hasImageTransfer(event.dataTransfer)) return;
+        event.preventDefault();
+        formFields.bodyEditorWrap.classList.add('is-image-dragover');
+    });
+
+    formFields.bodyEditorWrap?.addEventListener('dragleave', (event) => {
+        if (event.relatedTarget instanceof Node && formFields.bodyEditorWrap.contains(event.relatedTarget)) return;
+        formFields.bodyEditorWrap.classList.remove('is-image-dragover');
+    });
+
+    formFields.bodyEditorWrap?.addEventListener('drop', async (event) => {
+        if (!hasImageTransfer(event.dataTransfer)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        formFields.bodyEditorWrap.classList.remove('is-image-dragover');
+        await insertProgramBodyImages(imageFilesFromTransfer(event.dataTransfer), {
+            index: editorIndexFromPoint(event.clientX, event.clientY)
+        });
+    }, true);
+
+    programBodyQuill.root.addEventListener('paste', async (event) => {
+        if (!hasImageTransfer(event.clipboardData)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        await insertProgramBodyImages(imageFilesFromTransfer(event.clipboardData), {
+            index: currentProgramBodyIndex()
+        });
+    }, true);
+}
+
+function loadQuillAssets() {
+    return Promise.all([
+        loadStylesheetOnce(QUILL_CSS_URL),
+        loadScriptOnce(QUILL_JS_URL, () => Boolean(window.Quill))
+    ]);
+}
+
+function loadStylesheetOnce(href) {
+    if (document.querySelector(`link[href="${href}"]`)) return Promise.resolve();
+
+    return new Promise((resolve, reject) => {
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = href;
+        link.addEventListener('load', resolve, { once: true });
+        link.addEventListener('error', reject, { once: true });
+        document.head.appendChild(link);
+    });
+}
+
+function loadScriptOnce(src, isReady) {
+    if (isReady()) return Promise.resolve();
+
+    const existing = document.querySelector(`script[src="${src}"]`);
+    if (existing) {
+        return new Promise((resolve, reject) => {
+            existing.addEventListener('load', resolve, { once: true });
+            existing.addEventListener('error', reject, { once: true });
+        });
+    }
+
+    return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = src;
+        script.addEventListener('load', resolve, { once: true });
+        script.addEventListener('error', reject, { once: true });
+        document.head.appendChild(script);
+    });
+}
+
+function setProgramBodyImageStatus(message = '', type = 'info') {
+    if (!formFields.bodyImageStatus) return;
+    formFields.bodyImageStatus.textContent = message;
+    formFields.bodyImageStatus.className = `program-editor-status program-editor-status--${type}`;
+    formFields.bodyImageStatus.classList.toggle('is-visible', Boolean(message));
+}
+
+function isSupportedProgramImage(file) {
+    return file && PROGRAM_IMAGE_MIME_TYPES.has(file.type);
+}
+
+function hasImageTransfer(dataTransfer) {
+    if (!dataTransfer) return false;
+    return Array.from(dataTransfer.items || []).some(item => item.type?.startsWith('image/'))
+        || Array.from(dataTransfer.files || []).some(file => file.type?.startsWith('image/'));
+}
+
+function imageFilesFromTransfer(dataTransfer) {
+    if (!dataTransfer) return [];
+
+    const files = Array.from(dataTransfer.files || []);
+    const itemFiles = Array.from(dataTransfer.items || [])
+        .filter(item => item.kind === 'file' && item.type?.startsWith('image/'))
+        .map(item => item.getAsFile())
+        .filter(Boolean);
+
+    return [...files, ...itemFiles]
+        .filter((file, index, allFiles) => {
+            if (!isSupportedProgramImage(file)) return false;
+            return allFiles.findIndex(candidate =>
+                candidate.name === file.name
+                && candidate.size === file.size
+                && candidate.lastModified === file.lastModified
+            ) === index;
+        })
+        .map((file, index) => namedProgramImageFile(file, index));
+}
+
+function namedProgramImageFile(file, index) {
+    if (file.name) return file;
+
+    const extensionByType = {
+        'image/jpeg': 'jpg',
+        'image/png': 'png',
+        'image/gif': 'gif',
+        'image/webp': 'webp'
+    };
+    const extension = extensionByType[file.type] || 'png';
+
+    return new File([file], `program-body-image-${Date.now()}-${index + 1}.${extension}`, {
+        type: file.type
+    });
+}
+
+function clampProgramBodyIndex(index) {
+    const maxIndex = Math.max(0, programBodyQuill.getLength() - 1);
+    if (!Number.isFinite(index)) return maxIndex;
+    return Math.min(Math.max(0, index), maxIndex);
+}
+
+function currentProgramBodyIndex() {
+    const range = programBodyQuill.getSelection(true);
+    return clampProgramBodyIndex(range?.index);
+}
+
+function editorIndexFromPoint(x, y) {
+    const range = document.caretRangeFromPoint
+        ? document.caretRangeFromPoint(x, y)
+        : null;
+    const position = !range && document.caretPositionFromPoint
+        ? document.caretPositionFromPoint(x, y)
+        : null;
+
+    const node = range?.startContainer || position?.offsetNode;
+    const offset = range?.startOffset ?? position?.offset;
+    if (!node) return currentProgramBodyIndex();
+
+    const blot = window.Quill.find(node, true);
+    if (!blot) return currentProgramBodyIndex();
+
+    let index = programBodyQuill.getIndex(blot);
+    if (typeof blot.index === 'function') {
+        index += blot.index(node, offset);
+    } else {
+        index += offset || 0;
+    }
+
+    return clampProgramBodyIndex(index);
+}
+
+async function insertProgramBodyImages(files, options = {}) {
+    const imageFiles = Array.from(files || [])
+        .filter(isSupportedProgramImage)
+        .map((file, index) => namedProgramImageFile(file, index));
+
+    if (!imageFiles.length) {
+        setOwnerStatus('JPG, PNG, GIF, WebP 이미지만 본문에 넣을 수 있음.', 'error');
+        return;
+    }
+
+    let insertIndex = clampProgramBodyIndex(options.index);
+    let uploadedCount = 0;
+    formFields.bodyEditorWrap?.classList.add('is-image-uploading');
+
+    for (let i = 0; i < imageFiles.length; i += 1) {
+        const file = imageFiles[i];
+        setProgramBodyImageStatus(`이미지 업로드 중... (${i + 1}/${imageFiles.length}) ${file.name}`);
+
+        try {
+            const media = await uploadMedia(file);
+            const url = getMediaUrl(media, media.file);
+            programBodyQuill.insertEmbed(insertIndex, 'image', url, 'user');
+            insertIndex += 1;
+            programBodyQuill.insertText(insertIndex, '\n', 'user');
+            insertIndex += 1;
+            uploadedCount += 1;
+        } catch (error) {
+            setOwnerStatus(`본문 이미지 업로드 실패: ${cmsErrorMessage(error)}`, 'error');
+        }
+    }
+
+    formFields.bodyEditorWrap?.classList.remove('is-image-uploading');
+
+    if (uploadedCount > 0) {
+        programBodyQuill.setSelection(insertIndex, 0, 'silent');
+        setProgramBodyImageStatus(`${uploadedCount}개 이미지가 본문에 들어갔습니다.`, 'success');
+        setTimeout(() => setProgramBodyImageStatus(), 2500);
+    } else {
+        setProgramBodyImageStatus();
+    }
 }
 
 function escapeMultiline(value) {

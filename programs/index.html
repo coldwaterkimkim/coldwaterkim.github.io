@@ -47,8 +47,7 @@
                 <span data-editable="true" data-key="profile_today">온 몸 비틀기</span>
               </div>
               <center class="mini-player">
-                <audio controls autoplay loop data-bgm>
-                  <source src="../assets/bgm/bgm.mp3" type="audio/mpeg">
+                <audio controls autoplay loop preload="none" data-bgm>
                   Your browser does not support the audio element.
                 </audio>
               </center>
@@ -115,10 +114,6 @@
                       <option value="released">RELEASED</option>
                       <option value="archived">ARCHIVED</option>
                     </select>
-                    <label class="program-inline-check">
-                      <input type="checkbox" id="programIsPublic" name="is_public" checked>
-                      공개
-                    </label>
                   </td>
                 </tr>
                 <tr>
@@ -126,23 +121,8 @@
                   <td><input type="text" id="programPlatform" name="platform" placeholder="macOS · .dmg / iOS · TestFlight / Web"></td>
                 </tr>
                 <tr>
-                  <td><label for="programVersion"><b>버전</b></label></td>
-                  <td><input type="text" id="programVersion" name="version" placeholder="v0.1, build 13 등"></td>
-                </tr>
-                <tr>
-                  <td><label for="programStatusNote"><b>상태 메모</b></label></td>
-                  <td><input type="text" id="programStatusNote" name="status_note" placeholder="실험중, 파일 준비, 예고편 등"></td>
-                </tr>
-                <tr>
-                  <td><label for="programSortOrder"><b>목록 순서</b></label></td>
-                  <td>
-                    <input type="number" id="programSortOrder" name="sort_order" value="100" min="0" step="1">
-                    <div class="note">숫자가 낮을수록 프로그램실 table 위쪽에 보임. 애매하면 그냥 100.</div>
-                  </td>
-                </tr>
-                <tr>
-                  <td><label for="programPublishedAt"><b>게시일</b></label></td>
-                  <td><input type="date" id="programPublishedAt" name="published_at"></td>
+                  <td><label for="programStoryIntro"><b>한 줄 소개</b></label></td>
+                  <td><textarea id="programStoryIntro" name="story_intro" rows="2" placeholder="목록에서 보일 짧은 설명"></textarea></td>
                 </tr>
 
                 <tr bgcolor="#f0f0f0">
@@ -163,57 +143,26 @@
                   </td>
                 </tr>
                 <tr>
-                  <td><label for="programScreenshots"><b>스크린샷</b></label></td>
-                  <td>
-                    <input type="file" id="programScreenshots" name="screenshots" accept="image/*" multiple>
-                    <div class="note">상세페이지 갤러리에 보일 이미지들. 앱 화면, 대표 장면, before/after 등.</div>
-                  </td>
-                </tr>
-                <tr>
                   <td><label for="programPrimaryLinkLabel"><b>대표 링크</b></label></td>
                   <td>
                     <input type="text" id="programPrimaryLinkLabel" name="primary_link_label" placeholder="TestFlight, GitHub, Web Demo">
                     <input type="url" id="programPrimaryLinkUrl" name="primary_link_url" placeholder="https://..." class="program-url-input">
                   </td>
                 </tr>
-                <tr>
-                  <td><label for="programExternalLinks"><b>추가 링크</b></label></td>
-                  <td>
-                    <textarea id="programExternalLinks" name="external_links" rows="3" placeholder="GitHub | https://github.com/...
-Web Demo | https://..."></textarea>
-                    <div class="note">한 줄에 하나씩: 라벨 | URL</div>
-                  </td>
-                </tr>
 
                 <tr bgcolor="#f0f0f0">
-                  <th align="left" colspan="2">이야기</th>
+                  <th align="left" colspan="2">본문</th>
                 </tr>
                 <tr>
-                  <td><label for="programStoryIntro"><b>한 줄 소개</b></label></td>
-                  <td><textarea id="programStoryIntro" name="story_intro" rows="2" placeholder="이 프로그램이 어떤 느낌인지 짧게"></textarea></td>
-                </tr>
-                <tr>
-                  <td><label for="programWhy"><b>왜 만들었냐 *</b></label></td>
-                  <td><textarea id="programWhy" name="why" rows="3" required></textarea></td>
-                </tr>
-                <tr>
-                  <td><label for="programPainPoint"><b>해결하는 빡침 *</b></label></td>
-                  <td><textarea id="programPainPoint" name="pain_point" rows="3" required></textarea></td>
-                </tr>
-                <tr>
-                  <td><label for="programStoryDetail"><b>상세 스토리</b></label></td>
+                  <td><label for="programBodyEditor"><b>자유 본문</b></label></td>
                   <td>
-                    <textarea id="programStoryDetail" name="story_detail" rows="5" placeholder="상세페이지에서 길게 보여줄 제작 배경, 에피소드, 맥락"></textarea>
-                    <div class="note">목록 table에는 요약만 보이고, 이 내용은 상세페이지에서 작품 소개처럼 보임.</div>
+                    <div class="program-editor-container" id="programBodyEditorWrap">
+                      <div id="programBodyEditor"></div>
+                    </div>
+                    <input type="file" id="programBodyImageInput" accept="image/*" multiple hidden>
+                    <div id="programBodyImageStatus" class="program-editor-status" aria-live="polite"></div>
+                    <div class="note">스크린샷, 제작 배경, 사용법, 긴 이야기는 전부 여기 자유롭게 쓰면 됨.</div>
                   </td>
-                </tr>
-                <tr>
-                  <td><label for="programSolution"><b>어떻게 풀었냐</b></label></td>
-                  <td><textarea id="programSolution" name="solution" rows="4" placeholder="핵심 기능, 접근 방식, 사용자가 실제로 얻게 되는 변화"></textarea></td>
-                </tr>
-                <tr>
-                  <td><label for="programBuildNotes"><b>제작 노트</b></label></td>
-                  <td><textarea id="programBuildNotes" name="build_notes" rows="4" placeholder="버전 메모, 앞으로 만들 것, 아직 덜 된 것"></textarea></td>
                 </tr>
               </table>
 
@@ -241,7 +190,7 @@ Web Demo | https://..."></textarea>
 
           <div class="program-note-box">
             <b>운영 메모:</b> 표지는 업로드한 앱 대표 이미지가 있으면 그걸 먼저 씁니다.
-            없으면 프로그램 이름과 상태로 자동 표지를 만듭니다. 파일은 프로그램 레코드에 직접 붙습니다.
+            없으면 프로그램 이름과 상태로 자동 표지를 만듭니다. 긴 설명과 스크린샷은 본문에 자유롭게 넣습니다.
           </div>
 
           <hr>

@@ -92,14 +92,6 @@ featuredEl?.addEventListener('click', async (event) => {
         if (action === 'delete') await removeItem(id);
         return;
     }
-
-    const latestLink = event.target.closest('[data-nasajab-latest]');
-    if (!latestLink) return;
-
-    event.preventDefault();
-    selectedId = '';
-    history.replaceState(null, '', window.location.pathname + window.location.search);
-    render();
 });
 
 paginationEl?.addEventListener('click', (event) => {
@@ -161,13 +153,10 @@ function renderFeatured(item, isArchivePick = false) {
     const source = item.source_url
         ? `<p class="nasajab-source">source: <a href="${escapeAttribute(item.source_url)}" target="_blank" rel="noopener">${escapeHtml(shortUrl(item.source_url))}</a></p>`
         : '';
-    const backToLatest = isArchivePick
-        ? `<p class="note"><a href="#" data-nasajab-latest="true">최신 나사잡으로 돌아가기</a></p>`
-        : '';
     const ownerActions = ownerMode ? ownerActionsHtml(item) : '';
 
     featuredEl.innerHTML = `
-        <table border="1" cellspacing="0" cellpadding="6" width="100%" class="nasajab-today-table ${isArchivePick ? 'nasajab-today-table--stacked' : ''}">
+        <table border="1" cellspacing="0" cellpadding="6" width="100%" class="nasajab-today-table nasajab-today-table--stacked">
             <tr bgcolor="#f0f0f0">
                 <th colspan="2" align="center">${label}</th>
             </tr>
@@ -181,7 +170,6 @@ function renderFeatured(item, isArchivePick = false) {
                     <div class="nasajab-featured-memo">${escapeMultiline(memo)}</div>
                     ${source}
                     <p class="nasajab-featured-date">${escapeHtml(date)}</p>
-                    ${backToLatest}
                     ${ownerActions}
                 </td>
             </tr>
@@ -190,7 +178,7 @@ function renderFeatured(item, isArchivePick = false) {
 }
 
 function renderArchive() {
-    const archiveItems = items.slice(1);
+    const archiveItems = items;
     const ownerColspan = ownerMode ? 5 : 4;
 
     if (!archiveItems.length) {

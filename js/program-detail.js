@@ -2,12 +2,9 @@ import {
     isLoggedIn,
     getProgramBySlug,
     resolveProgramCoverUrl,
-    programScreenshotUrls,
     programDownloadTargets,
     programStatusLabel,
     normalizeProgramStatus,
-    programDetailUrl,
-    formatDate,
     escapeHtml,
     cmsErrorMessage
 } from './pb.js';
@@ -20,7 +17,6 @@ const titleEl = document.getElementById('programDetailTitle');
 const metaEl = document.getElementById('programDetailMeta');
 const bodyEl = document.getElementById('programDetailBody');
 const downloadEl = document.getElementById('programDetailDownloads');
-const screenshotEl = document.getElementById('programDetailScreenshots');
 
 const fallbackBySlug = new Map([
     ['onecut', {
@@ -28,7 +24,6 @@ const fallbackBySlug = new Map([
         slug: 'onecut',
         status: 'beta',
         platform: 'iOS · TestFlight · 하루 기록',
-        status_note: '공개 준비',
         tagline: 'a day in one frame',
         story_intro: '하루를 한 컷으로 붙잡는 앱.',
         why: '하루가 너무 쉽게 흘러가서, 최소한 한 컷만큼은 붙잡아두려고.',
@@ -43,7 +38,6 @@ const fallbackBySlug = new Map([
         slug: 'doodle-dolmeng',
         status: 'beta',
         platform: 'iOS · 위치 기반 지도 · 캠퍼스',
-        status_note: '실험중',
         tagline: 'campus map scribbles',
         story_intro: '캠퍼스 생활권을 낙서처럼 남기는 지도.',
         why: '장소에는 말로 설명하기 어려운 분위기와 낙서 같은 기억이 있어서.',
@@ -58,7 +52,6 @@ const fallbackBySlug = new Map([
         slug: 'wisdom-dolmeng',
         status: 'released',
         platform: 'macOS · 메뉴바 앱 · .dmg 예정',
-        status_note: '파일 준비',
         tagline: 'floating wisdom panel',
         story_intro: '메뉴바에서 잠깐씩 정신을 붙잡아주는 작은 앱.',
         why: '하루 중 잠깐씩 정신을 붙잡아주는 이상한 문장이 필요해서.',
@@ -73,7 +66,6 @@ const fallbackBySlug = new Map([
         slug: 'quick-dump-dolmeng',
         status: 'prototype',
         platform: 'macOS · 빠른 메모 · GitHub 예정',
-        status_note: '손보는중',
         tagline: 'throw thoughts fast',
         story_intro: '생각이 지나가기 전에 아무 데나 던져놓는 메모 도구.',
         why: '생각이 지나가기 전에 어디든 빠르게 던져놓고 싶어서.',
@@ -88,7 +80,6 @@ const fallbackBySlug = new Map([
         slug: 'coming-soon-program',
         status: 'unreleased',
         platform: 'Web · 예고편 · 아직 비밀',
-        status_note: '예고편',
         tagline: 'unreleased trailer',
         story_intro: '아직 이름을 붙이지 않은 예고편 row.',
         why: '아직 말하면 김이 빠지는 종류의 빡침에서 시작됨.',
@@ -130,10 +121,7 @@ function renderProgram(program) {
     document.title = `${title} — 프로그램실 — coldwaterkim`;
     titleEl.innerHTML = `<span class="program-label">[${escapeHtml(label)}]</span> ${escapeHtml(title)}`;
     metaEl.textContent = [
-        program.platform,
-        program.version,
-        program.status_note,
-        program.published_at ? formatDate(program.published_at) : ''
+        program.platform
     ].filter(Boolean).join(' · ');
 
     bodyEl.innerHTML = `
@@ -146,39 +134,15 @@ function renderProgram(program) {
                 <table border="1" cellspacing="0" cellpadding="5" width="100%" class="program-detail-meta-table">
                     <tr><th align="left">상태</th><td>${escapeHtml(label)}</td></tr>
                     <tr><th align="left">플랫폼</th><td>${escapeHtml(program.platform || '-')}</td></tr>
-                    <tr><th align="left">버전</th><td>${escapeHtml(program.version || '-')}</td></tr>
                 </table>
             </div>
         </div>
-        ${storySection('왜 만들었냐', program.why)}
-        ${storySection('해결하는 빡침', program.pain_point)}
-        ${storySection('상세 스토리', program.story_detail)}
-        ${storySection('어떻게 풀었냐', program.solution)}
-        ${storySection('제작 노트', program.build_notes)}
+        <div class="program-story-block program-body-content ql-editor">
+            ${programBodyHtml(program)}
+        </div>
     `;
 
-    renderScreenshots(program);
     renderDownloads(program);
-}
-
-function renderScreenshots(program) {
-    const screenshots = programScreenshotUrls(program);
-
-    if (!screenshots.length) {
-        screenshotEl.innerHTML = '<p class="note">아직 스크린샷이 없습니다. OWNER MODE에서 이미지들을 붙이면 여기에 갤러리처럼 보임.</p>';
-        return;
-    }
-
-    screenshotEl.innerHTML = `
-        <table border="1" cellspacing="0" cellpadding="6" width="100%" class="program-screenshot-table">
-            ${screenshots.map((shot, index) => `
-                <tr>
-                    <td width="70" align="center">#${index + 1}</td>
-                    <td><img src="${escapeAttribute(shot.url)}" alt="screenshot ${index + 1}"></td>
-                </tr>
-            `).join('')}
-        </table>
-    `;
 }
 
 function renderDownloads(program) {
@@ -197,14 +161,25 @@ function renderDownloads(program) {
     `).join('');
 }
 
-function storySection(title, value) {
-    if (!String(value || '').trim()) return '';
-    return `
-        <div class="program-story-block">
-            <h2>${escapeHtml(title)}</h2>
-            <p>${escapeMultiline(value)}</p>
-        </div>
-    `;
+function programBodyHtml(program) {
+    const html = String(program.story_detail || '').trim();
+    if (html) return looksLikeHtml(html) ? html : escapeMultiline(html);
+
+    const legacySections = [
+        ['왜 만들었냐', program.why],
+        ['해결하는 빡침', program.pain_point],
+        ['어떻게 풀었냐', program.solution],
+        ['제작 노트', program.build_notes]
+    ]
+        .filter(([, value]) => String(value || '').trim())
+        .map(([title, value]) => `<h2>${escapeHtml(title)}</h2><p>${escapeMultiline(value)}</p>`)
+        .join('');
+
+    return legacySections || '<p>아직 본문을 쓰는 중.</p>';
+}
+
+function looksLikeHtml(value) {
+    return /<\/?[a-z][\s\S]*>/i.test(value);
 }
 
 function renderFallbackPoster(program) {
@@ -221,7 +196,6 @@ function renderError(message) {
     titleEl.textContent = '프로그램을 찾을 수 없음';
     metaEl.textContent = '';
     bodyEl.innerHTML = `<p>불러오기 실패: ${escapeHtml(message)}</p><p><a href="/programs/index.html">프로그램실로 돌아가기</a></p>`;
-    screenshotEl.innerHTML = '';
     downloadEl.innerHTML = '<tr><td colspan="2">-</td></tr>';
 }
 

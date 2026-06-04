@@ -7,17 +7,7 @@
         { "name": "title", "type": "text", "required": true, "min": 1, "max": 200 },
         { "name": "slug", "type": "text", "required": true, "min": 1, "max": 200, "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
         { "name": "content", "type": "editor", "required": false },
-        { "name": "featured_image_mode", "type": "select", "required": false, "values": ["auto", "selected", "none"], "maxSelect": 1 },
-        { "name": "featured_image_url", "type": "text", "required": false, "max": 1000 },
         { "name": "excerpt", "type": "text", "required": false, "max": 500 },
-        {
-          "name": "featured_image",
-          "type": "file",
-          "required": false,
-          "maxSelect": 1,
-          "maxSize": 10485760,
-          "mimeTypes": ["image/jpeg", "image/png", "image/gif", "image/webp"]
-        },
         { "name": "status", "type": "select", "required": true, "values": ["draft", "published"], "maxSelect": 1 },
         { "name": "published_at", "type": "date", "required": false },
         { "name": "created", "type": "autodate", "onCreate": true, "onUpdate": false },
@@ -93,28 +83,16 @@
         { "name": "slug", "type": "text", "required": true, "min": 1, "max": 120, "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
         { "name": "status", "type": "select", "required": true, "values": ["released", "beta", "prototype", "unreleased", "archived"], "maxSelect": 1 },
         { "name": "platform", "type": "text", "required": false, "max": 160 },
-        { "name": "version", "type": "text", "required": false, "max": 80 },
-        { "name": "status_note", "type": "text", "required": false, "max": 160 },
         { "name": "tagline", "type": "text", "required": false, "max": 200 },
         { "name": "story_intro", "type": "text", "required": false, "max": 500 },
         { "name": "why", "type": "text", "required": true, "min": 1, "max": 1200 },
         { "name": "pain_point", "type": "text", "required": true, "min": 1, "max": 1200 },
         { "name": "story_detail", "type": "text", "required": false, "max": 5000 },
-        { "name": "solution", "type": "text", "required": false, "max": 3000 },
-        { "name": "build_notes", "type": "text", "required": false, "max": 3000 },
         {
           "name": "cover_image",
           "type": "file",
           "required": false,
           "maxSelect": 1,
-          "maxSize": 20971520,
-          "mimeTypes": ["image/jpeg", "image/png", "image/gif", "image/webp"]
-        },
-        {
-          "name": "screenshots",
-          "type": "file",
-          "required": false,
-          "maxSelect": 12,
           "maxSize": 20971520,
           "mimeTypes": ["image/jpeg", "image/png", "image/gif", "image/webp"]
         },
@@ -128,9 +106,6 @@
         },
         { "name": "primary_link_label", "type": "text", "required": false, "max": 80 },
         { "name": "primary_link_url", "type": "url", "required": false, "max": 1000 },
-        { "name": "external_links", "type": "text", "required": false, "max": 2000 },
-        { "name": "sort_order", "type": "number", "required": false, "min": 0, "max": 9999, "onlyInt": true },
-        { "name": "published_at", "type": "date", "required": false },
         { "name": "is_public", "type": "bool", "required": true },
         { "name": "created", "type": "autodate", "onCreate": true, "onUpdate": false },
         { "name": "updated", "type": "autodate", "onCreate": true, "onUpdate": true }
@@ -138,9 +113,7 @@
       "indexes": [
         "CREATE UNIQUE INDEX `idx_programs_slug` ON `programs` (`slug`)",
         "CREATE INDEX `idx_programs_public` ON `programs` (`is_public`)",
-        "CREATE INDEX `idx_programs_status` ON `programs` (`status`)",
-        "CREATE INDEX `idx_programs_sort_order` ON `programs` (`sort_order`)",
-        "CREATE INDEX `idx_programs_published_at` ON `programs` (`published_at`)"
+        "CREATE INDEX `idx_programs_status` ON `programs` (`status`)"
       ],
       "listRule": "is_public = true || @request.auth.id != ''",
       "viewRule": "is_public = true || @request.auth.id != ''",

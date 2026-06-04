@@ -193,6 +193,27 @@ a:hover { background: var(--cwk-link-hover-bg); }
   margin-top: 4px;
   line-height: 1.2;
 }
+.bgm-start-row {
+  margin-top: 4px;
+  line-height: 1.2;
+  text-align: center;
+}
+.bgm-start-btn {
+  padding: 1px 6px;
+  border: 2px outset var(--cwk-surface-page);
+  background: var(--cwk-counter-bg);
+  color: var(--cwk-counter-fg);
+  font-family: var(--cwk-font-mono);
+  font-size: 11px;
+  cursor: pointer;
+}
+.bgm-start-btn:active {
+  border-style: inset;
+}
+.bgm-start-note {
+  color: var(--cwk-meta);
+  font-size: 11px;
+}
 .bgm-owner-btn {
   font-size: 11px;
   padding: 1px 5px;
@@ -516,14 +537,69 @@ a:hover { background: var(--cwk-link-hover-bg); }
   font-size: 12px;
 }
 
-.program-url-input {
-  margin-top: 4px;
+.program-editor-container {
+  border: 2px inset var(--cwk-surface-page);
+  background: var(--cwk-surface-page);
+  min-height: 260px;
 }
 
-.program-inline-check {
-  display: inline-block;
-  margin-left: 8px;
-  white-space: nowrap;
+.program-editor-container .ql-toolbar {
+  background: var(--cwk-surface-table-head);
+  border: none;
+  border-bottom: 1px solid var(--cwk-border-dashed);
+}
+
+.program-editor-container .ql-container {
+  border: none;
+  font-family: Georgia, serif;
+  font-size: 15px;
+}
+
+.program-editor-container .ql-editor {
+  min-height: 220px;
+}
+
+.program-editor-container .ql-editor img {
+  max-width: 100%;
+  height: auto;
+}
+
+.program-editor-container.is-image-dragover {
+  background: var(--cwk-link-hover-bg);
+  outline: 2px dashed var(--cwk-hot-red);
+  outline-offset: 3px;
+}
+
+.program-editor-container.is-image-uploading {
+  cursor: progress;
+}
+
+.program-editor-status {
+  display: none;
+  margin-top: 6px;
+  padding: 4px 6px;
+  border: 1px dashed var(--cwk-border-dashed);
+  background: var(--cwk-surface-preview);
+  color: var(--cwk-muted);
+  font-size: 12px;
+}
+
+.program-editor-status.is-visible {
+  display: block;
+}
+
+.program-editor-status--success {
+  border-color: green;
+  color: green;
+}
+
+.program-editor-status--error {
+  border-color: var(--cwk-hot-red);
+  color: var(--cwk-hot-red);
+}
+
+.program-url-input {
+  margin-top: 4px;
 }
 
 .program-form-actions {
@@ -555,8 +631,7 @@ a:hover { background: var(--cwk-link-hover-bg); }
   text-align: center;
 }
 
-.program-detail-cover img,
-.program-screenshot-table img {
+.program-detail-cover img {
   max-width: 100%;
   height: auto;
   border: 1px solid var(--cwk-ink);
@@ -598,6 +673,35 @@ a:hover { background: var(--cwk-link-hover-bg); }
   background: var(--cwk-surface-entry);
 }
 
+.program-body-content {
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+  font-family: Georgia, serif;
+  font-size: var(--cwk-post-size);
+  line-height: var(--cwk-post-line-height);
+}
+
+.program-body-content img {
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--cwk-ink);
+  background: var(--cwk-surface-page);
+}
+
+.program-body-content blockquote {
+  margin: 10px 0;
+  padding-left: 12px;
+  border-left: 3px solid var(--cwk-border-dashed);
+}
+
+.program-body-content pre {
+  overflow-x: auto;
+  padding: 8px;
+  background: var(--cwk-surface-page);
+  border: 1px inset var(--cwk-surface-table-head);
+}
+
 .program-story-block h2 {
   margin: 0 0 6px;
   font-size: 17px;
@@ -606,14 +710,6 @@ a:hover { background: var(--cwk-link-hover-bg); }
 .program-story-block p {
   margin: 0;
   line-height: 1.55;
-}
-
-.program-screenshot-table {
-  background: var(--cwk-surface-page);
-}
-
-.program-screenshot-table td {
-  vertical-align: top;
 }
 
 .program-detail-download-table {
@@ -906,17 +1002,6 @@ a:hover { background: var(--cwk-link-hover-bg); }
   margin-left: 8px;
 }
 
-.timeline-featured-image {
-  padding: 10px 12px 0;
-  background: var(--cwk-surface-page);
-}
-
-.timeline-featured-image img {
-  max-width: 100%;
-  height: auto;
-  border: 1px solid var(--cwk-ink);
-}
-
 .post-content {
   height: auto;
   min-height: 0;
@@ -1200,10 +1285,6 @@ a:hover { background: var(--cwk-link-hover-bg); }
     text-align: left;
   }
 
-  .program-inline-check {
-    margin: 4px 0 0;
-  }
-
   .program-detail-hero,
   .program-detail-cover,
   .program-detail-summary {
@@ -1215,15 +1296,6 @@ a:hover { background: var(--cwk-link-hover-bg); }
   .program-detail-poster {
     width: min(260px, 100%);
     margin: 0 auto;
-  }
-
-  .program-screenshot-table,
-  .program-screenshot-table tbody,
-  .program-screenshot-table tr,
-  .program-screenshot-table td {
-    display: block;
-    width: 100% !important;
-    box-sizing: border-box;
   }
 
   .nasajab-page-title {

@@ -1,5 +1,3 @@
-Put the home page background music file here as:
+The home page BGM is loaded from PocketBase `site_settings.bgm_audio_url`.
 
-bgm.mp3
-
-The home page already points to `assets/bgm/bgm.mp3`.
+This folder is only for an optional local fallback MP3 if we decide to add one later.

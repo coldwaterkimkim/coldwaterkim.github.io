@@ -107,12 +107,6 @@
                         <div id="editorImageStatus" class="editor-image-status" aria-live="polite"></div>
                     </div>
 
-                    <div class="admin-panel">
-                        <h2>🖼️ 대표 이미지</h2>
-                        <div id="featuredImagePreview" class="featured-image-preview"></div>
-                        <div id="featuredImageControls" class="featured-image-controls"></div>
-                    </div>
-
                     <div class="action-buttons">
                         <button type="submit" class="btn btn-primary">💾 저장</button>
                         <button type="button" class="btn btn-success" onclick="saveAndPublish()">🚀 저장 후 발행</button>
@@ -128,7 +122,7 @@
     <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
 
     <script type="module">
-        import { pb, isLoggedIn, logout, getAllPosts, deletePost, formatDate, slugify, cmsErrorMessage, uploadMedia, getMediaUrl, extractImageUrlsFromHtml, normalizeFeaturedImageMode } from '../js/pb.js';
+        import { pb, isLoggedIn, logout, getAllPosts, deletePost, formatDate, slugify, cmsErrorMessage, uploadMedia, getMediaUrl } from '../js/pb.js';
 
         // 인증 체크
         if (!isLoggedIn()) {
@@ -234,9 +228,6 @@
         // 상태 변수
         let currentPage = 1;
         let editingPostId = null;
-        let featuredImageMode = 'auto';
-        let selectedFeaturedImageUrl = '';
-        let featuredImageRenderTimer = null;
 
         // 페이지 함수들을 전역으로 노출
         window.showEditor = showEditor;
@@ -381,101 +372,12 @@
 
             if (uploadedCount > 0) {
                 quill.setSelection(insertIndex, 0, 'silent');
-                renderFeaturedImageControls();
                 setEditorImageStatus(`${uploadedCount}개 이미지가 본문에 들어갔습니다.`, 'success');
                 setTimeout(() => setEditorImageStatus(), 2500);
             } else {
                 setEditorImageStatus();
             }
         }
-
-        function scheduleFeaturedImageRender() {
-            window.clearTimeout(featuredImageRenderTimer);
-            featuredImageRenderTimer = window.setTimeout(renderFeaturedImageControls, 120);
-        }
-
-        function editorImageUrls() {
-            return extractImageUrlsFromHtml(quill.root.innerHTML);
-        }
-
-        function escapeAttribute(value) {
-            return String(value || '')
-                .replace(/&/g, '&amp;')
-                .replace(/"/g, '&quot;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;');
-        }
-
-        function normalizeFeaturedSelection(urls) {
-            if (featuredImageMode === 'selected' && !urls.includes(selectedFeaturedImageUrl)) {
-                featuredImageMode = 'auto';
-                selectedFeaturedImageUrl = '';
-            }
-
-            if (featuredImageMode !== 'selected') {
-                selectedFeaturedImageUrl = '';
-            }
-        }
-
-        function featuredImageUrlForPreview(urls) {
-            if (featuredImageMode === 'none') return '';
-            if (featuredImageMode === 'selected') return selectedFeaturedImageUrl || '';
-            return urls[0] || '';
-        }
-
-        function renderFeaturedImageControls() {
-            const urls = editorImageUrls();
-            normalizeFeaturedSelection(urls);
-
-            const previewUrl = featuredImageUrlForPreview(urls);
-            const previewEl = document.getElementById('featuredImagePreview');
-            const controlsEl = document.getElementById('featuredImageControls');
-
-            previewEl.innerHTML = previewUrl
-                ? `<img src="${escapeAttribute(previewUrl)}" alt="">`
-                : '<p class="featured-image-empty">대표 이미지 없음</p>';
-
-            const thumbnails = urls.length > 0
-                ? `<div class="featured-image-grid">
-                    ${urls.map((url, index) => `
-                        <button type="button" class="featured-image-choice ${featuredImageMode === 'selected' && selectedFeaturedImageUrl === url ? 'is-selected' : ''}" data-featured-url="${escapeAttribute(url)}">
-                            <img src="${escapeAttribute(url)}" alt="">
-                            <span>#${index + 1}</span>
-                        </button>
-                    `).join('')}
-                </div>`
-                : '<p class="featured-image-empty">본문 이미지 없음</p>';
-
-            controlsEl.innerHTML = `
-                <label class="featured-image-mode">
-                    <input type="radio" name="featuredImageMode" value="auto" ${featuredImageMode === 'auto' ? 'checked' : ''}>
-                    자동
-                </label>
-                <label class="featured-image-mode">
-                    <input type="radio" name="featuredImageMode" value="none" ${featuredImageMode === 'none' ? 'checked' : ''}>
-                    없음
-                </label>
-                ${thumbnails}
-            `;
-
-            controlsEl.querySelectorAll('input[name="featuredImageMode"]').forEach(input => {
-                input.addEventListener('change', () => {
-                    featuredImageMode = input.value;
-                    selectedFeaturedImageUrl = '';
-                    renderFeaturedImageControls();
-                });
-            });
-
-            controlsEl.querySelectorAll('[data-featured-url]').forEach(button => {
-                button.addEventListener('click', () => {
-                    featuredImageMode = 'selected';
-                    selectedFeaturedImageUrl = button.getAttribute('data-featured-url') || '';
-                    renderFeaturedImageControls();
-                });
-            });
-        }
-
-        quill.on('text-change', scheduleFeaturedImageRender);
 
         // 목록 뷰
         function showList() {
@@ -501,9 +403,6 @@
                 quill.root.innerHTML = post.content || '';
                 document.getElementById('deleteBtn').style.display = 'inline-block';
                 editingPostId = post.id;
-                featuredImageMode = normalizeFeaturedImageMode(post.featured_image_mode);
-                selectedFeaturedImageUrl = post.featured_image_url || '';
-                renderFeaturedImageControls();
             } else {
                 // 새 글 모드
                 document.getElementById('editorTitle').textContent = '✍️ 새 글 쓰기';
@@ -514,9 +413,6 @@
                 quill.root.innerHTML = '';
                 document.getElementById('deleteBtn').style.display = 'none';
                 editingPostId = null;
-                featuredImageMode = 'auto';
-                selectedFeaturedImageUrl = '';
-                renderFeaturedImageControls();
 
                 // 오늘 날짜 기본값
                 document.getElementById('published_at').value = new Date().toISOString().split('T')[0];
@@ -639,16 +535,12 @@
                 document.getElementById('slug').value = slug;
             }
 
-            normalizeFeaturedSelection(editorImageUrls());
-
             // FormData 생성
             const formData = new FormData();
             formData.append('title', title);
             formData.append('slug', slug);
             formData.append('status', status);
             formData.append('content', content);
-            formData.append('featured_image_mode', normalizeFeaturedImageMode(featuredImageMode));
-            formData.append('featured_image_url', featuredImageMode === 'selected' ? selectedFeaturedImageUrl : '');
             if (published_at) formData.append('published_at', published_at);
 
             try {

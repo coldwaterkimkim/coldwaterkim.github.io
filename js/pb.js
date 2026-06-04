@@ -246,24 +246,16 @@ export function programStatusLabel(status) {
  * @returns {string}
  */
 export function programDisplayDate(program) {
-    return program?.published_at || program?.created || '';
+    return program?.created || program?.published_at || '';
 }
 
 function sortProgramsForDisplay(programs = []) {
     return Array.from(programs).sort((a, b) => {
-        const bySortOrder = normalizedSortOrder(a) - normalizedSortOrder(b);
-        if (bySortOrder !== 0) return bySortOrder;
-
         const byDisplayDate = dateTimestamp(programDisplayDate(b)) - dateTimestamp(programDisplayDate(a));
         if (byDisplayDate !== 0) return byDisplayDate;
 
         return String(b?.id || '').localeCompare(String(a?.id || ''));
     });
-}
-
-function normalizedSortOrder(program) {
-    const n = Number(program?.sort_order);
-    return Number.isFinite(n) ? n : 100;
 }
 
 async function collectProgramPages(loader, perPage = 100) {
@@ -290,7 +282,7 @@ async function collectProgramPages(loader, perPage = 100) {
 export async function getPublishedPrograms(page = 1, perPage = 50) {
     return await pb.collection('programs').getList(page, perPage, {
         filter: pb.filter('is_public = {:isPublic}', { isPublic: true }),
-        sort: 'sort_order,-published_at,-created'
+        sort: '-created'
     });
 }
 
@@ -302,7 +294,7 @@ export async function getPublishedPrograms(page = 1, perPage = 50) {
  */
 export async function getAllPrograms(page = 1, perPage = 50) {
     return await pb.collection('programs').getList(page, perPage, {
-        sort: 'sort_order,-published_at,-created'
+        sort: '-created'
     });
 }
 
@@ -403,58 +395,27 @@ export function programDownloadFiles(program) {
 }
 
 /**
- * 프로그램 외부 링크 목록. 첫 줄은 "라벨 | URL" 또는 URL만 허용한다.
+ * 프로그램 대표 링크 목록.
  * @param {object} program
  * @returns {Array<{label: string, url: string, type: string}>}
  */
-export function programExternalLinks(program) {
-    const links = [];
-
+export function programPrimaryLinks(program) {
     if (program?.primary_link_url) {
-        links.push({
+        return [{
             label: program.primary_link_label || '바로가기',
             url: program.primary_link_url,
             type: 'external'
-        });
+        }];
     }
 
-    const extraLinks = String(program?.external_links || '')
-        .split(/\r?\n/)
-        .map(line => line.trim())
-        .filter(Boolean)
-        .map(line => {
-            const [labelPart, ...urlParts] = line.split('|');
-            const maybeUrl = urlParts.join('|').trim();
-            const label = maybeUrl ? labelPart.trim() : '';
-            const url = maybeUrl || labelPart.trim();
-            return {
-                label: label || '링크',
-                url,
-                type: 'external'
-            };
-        })
-        .filter(link => /^https?:\/\//i.test(link.url));
-
-    return [...links, ...extraLinks];
+    return [];
 }
 
 export function programDownloadTargets(program) {
     return [
         ...programDownloadFiles(program),
-        ...programExternalLinks(program)
+        ...programPrimaryLinks(program)
     ];
-}
-
-/**
- * 프로그램 상세 스크린샷 URL 목록
- * @param {object} program
- * @returns {Array<{url: string, filename: string}>}
- */
-export function programScreenshotUrls(program) {
-    return fileList(program?.screenshots).map(filename => ({
-        filename,
-        url: getProgramFileUrl(program, filename)
-    }));
 }
 
 export function programDetailUrl(program) {
@@ -847,38 +808,6 @@ export function getMediaUrl(record, filename) {
         ? pb.files.getURL
         : pb.files.getUrl;
     return normalizeFileUrl(getUrl.call(pb.files, record, filename));
-}
-
-export function extractImageUrlsFromHtml(html) {
-    const doc = new DOMParser().parseFromString(String(html || ''), 'text/html');
-    return Array.from(doc.querySelectorAll('img[src]'))
-        .map(img => img.getAttribute('src'))
-        .filter(Boolean)
-        .filter((url, index, urls) => urls.indexOf(url) === index);
-}
-
-export function normalizeFeaturedImageMode(mode) {
-    return ['auto', 'selected', 'none'].includes(mode) ? mode : 'auto';
-}
-
-export function resolvePostFeaturedImageUrl(post) {
-    const mode = normalizeFeaturedImageMode(post?.featured_image_mode);
-    if (mode === 'none') return '';
-
-    const contentImages = extractImageUrlsFromHtml(post?.content);
-    if (mode === 'selected' && post?.featured_image_url && contentImages.includes(post.featured_image_url)) {
-        return post.featured_image_url;
-    }
-
-    if (contentImages.length > 0) {
-        return contentImages[0];
-    }
-
-    if (post?.featured_image) {
-        return getMediaUrl(post, post.featured_image);
-    }
-
-    return '';
 }
 
 /**
