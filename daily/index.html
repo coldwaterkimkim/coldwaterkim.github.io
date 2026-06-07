@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>나으 하루 — coldwaterkim</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="stylesheet" href="../css/styles.css">
+  <script type="module" src="../js/site.js"></script>
+</head>
+
+<body class="page-subpage" background="" bgcolor="#e0e0e0">
+  <center>
+    <marquee behavior="alternate" scrollamount="4" width="760">
+      <span class="marquee-text">★ WELCOME TO <a href="/admin/login.html?next=/daily/index.html" class="secret-login"><b>coldwaterkim</b></a>'s HOME PAGE ★</span>
+    </marquee>
+
+    <table width="760" border="1" cellspacing="0" cellpadding="8" bgcolor="#ffffff">
+      <tr>
+        <td colspan="2" align="center" class="banner">
+          <span class="blink">UNDER CONSTRUCTION</span> · <span class="hit">VISITORS:</span>
+          TOTAL <span id="hitCounter" class="counter-digits">0000000</span>
+          TODAY <span id="todayCounter" class="counter-digits counter-digits--today">0000</span>
+        </td>
+      </tr>
+      <tr>
+        <td width="180" valign="top" class="sidebar">
+          <div class="profile-card">
+            <div class="profile-person">
+              <center>
+                <img class="profile-photo" src="../assets/profile-crop.jpg" alt="coldwaterkim profile"><br>
+                <b>김찬수</b><br>
+                <span class="note">밀레니엄 베이비</span>
+              </center>
+            </div>
+            <div class="profile-info">
+              <p class="profile-email">
+                <a href="mailto:ckstn1112@gmail.com?subject=Hello%20from%20your%20site">ckstn1112@gmail.com</a>
+              </p>
+              <div class="today-box">
+                <b>TODAY IS...</b><br>
+                <span data-editable="true" data-key="profile_today">온 몸 비틀기</span>
+              </div>
+              <center class="mini-player">
+                <audio controls autoplay loop preload="none" data-bgm>
+                  Your browser does not support the audio element.
+                </audio>
+              </center>
+            </div>
+          </div>
+
+          <hr>
+          <b>Cool Links</b>
+          <ul>
+            <li><a href="https://www.archive.org/" target="_blank">Internet Archive</a></li>
+            <li><a href="https://www.cameronsworld.net/" target="_blank">GeoCities Garden</a></li>
+          </ul>
+          <hr>
+          <div class="webring">
+            <b>My WebRing</b><br>
+            [ <a href="#">Prev</a> | <a href="#">Random</a> | <a href="#">Next</a> ]
+          </div>
+        </td>
+        <td valign="top" class="content">
+          <center>
+            <div class="top-nav">
+              [ <a href="../index.html">Home</a> |
+              <a href="../posts/index.html">글방</a> |
+              <a href="index.html">나으 하루</a> |
+              <a href="../programs/index.html">프로그램실</a> |
+              <a href="../nasajab/index.html">나사잡</a> |
+              <a href="../guestbook.html">Guestbook</a> |
+              <a href="../about.html">About / Contact</a> ]
+            </div>
+          </center>
+
+          <h1>나으 하루</h1>
+          <div id="owner-tools"></div>
+          <p class="note" id="daily-note">하루 단위로 모아둔 짧은 기록입니다.</p>
+
+          <table border="1" cellspacing="0" cellpadding="6" width="100%" class="daily-calendar-table" id="daily-calendar">
+            <caption class="daily-calendar-caption">
+              <button type="button" class="owner-btn" id="prevMonthButton">←</button>
+              <b id="calendarMonthLabel">calendar loading...</b>
+              <button type="button" class="owner-btn" id="nextMonthButton">→</button>
+            </caption>
+            <thead>
+              <tr bgcolor="#f0f0f0">
+                <th>Sun</th>
+                <th>Mon</th>
+                <th>Tue</th>
+                <th>Wed</th>
+                <th>Thu</th>
+                <th>Fri</th>
+                <th>Sat</th>
+              </tr>
+            </thead>
+            <tbody id="daily-calendar-body">
+              <tr>
+                <td colspan="7">캘린더 불러오는 중...</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <table border="1" cellspacing="0" cellpadding="6" width="100%" class="daily-list-table" id="daily-table">
+            <tr bgcolor="#f0f0f0">
+              <th align="left">하루</th>
+              <th style="width: 120px;">날짜</th>
+              <th id="owner-col-head" style="width: 160px; display: none;">OWNER</th>
+            </tr>
+            <tbody id="daily-list">
+              <tr>
+                <td colspan="3">불러오는 중...</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div id="pagination" style="margin-top: 16px; text-align: center;"></div>
+
+          <hr>
+          <center>
+            <small>© coldwaterkim — powered by me</small>
+          </center>
+        </td>
+      </tr>
+    </table>
+  </center>
+
+  <script type="module">
+    import {
+      getPublishedDailyEntries,
+      getAllDailyEntries,
+      getPublishedDailyTimeline,
+      getAllDailyTimeline,
+      deleteDailyEntry,
+      isLoggedIn,
+      logout,
+      dailyEntryDayKey,
+      dailyEntryDisplayDate,
+      normalizeDailyDayKey,
+      formatDate,
+      escapeHtml,
+      cmsErrorMessage
+    } from '../js/pb.js';
+
+    let currentPage = 1;
+    let calendarMonth = null;
+    let calendarEntries = [];
+    const perPage = 10;
+    const ownerMode = isLoggedIn();
+
+    window.goToDailyPage = goToDailyPage;
+    window.deleteOwnerDailyEntry = deleteOwnerDailyEntry;
+
+    if (ownerMode) {
+      document.getElementById('owner-col-head').style.display = '';
+      document.getElementById('daily-note').textContent = 'OWNER MODE: 초안까지 같이 보입니다.';
+      document.getElementById('owner-tools').innerHTML = `
+        <div class="owner-bar">
+          <b>OWNER MODE</b> ·
+          <a href="../admin/daily.html?new=1">새 나으 하루 쓰기</a> ·
+          <a href="../admin/media.html">미디어</a> ·
+          <a href="#" id="logoutLink">로그아웃</a>
+        </div>
+      `;
+      document.getElementById('logoutLink').addEventListener('click', (event) => {
+        event.preventDefault();
+        logout();
+        window.location.reload();
+      });
+    }
+
+    document.getElementById('prevMonthButton').addEventListener('click', () => {
+      calendarMonth = addMonths(calendarMonth, -1);
+      renderCalendar();
+    });
+
+    document.getElementById('nextMonthButton').addEventListener('click', () => {
+      calendarMonth = addMonths(calendarMonth, 1);
+      renderCalendar();
+    });
+
+    async function loadDailyEntries(page = 1) {
+      const tbody = document.getElementById('daily-list');
+      tbody.innerHTML = '<tr><td colspan="3">불러오는 중...</td></tr>';
+
+      try {
+        const [result, timeline] = await Promise.all([
+          ownerMode
+            ? getAllDailyEntries(page, perPage)
+            : getPublishedDailyEntries(page, perPage),
+          ownerMode
+            ? getAllDailyTimeline()
+            : getPublishedDailyTimeline()
+        ]);
+        currentPage = page;
+        calendarEntries = timeline;
+        calendarMonth = calendarMonth || monthFromDayKey(dailyEntryDayKey(timeline[0]) || normalizeDailyDayKey(new Date()));
+        renderCalendar();
+
+        if (result.items.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="3">아직 나으 하루가 없습니다.</td></tr>';
+          renderPagination(0, page);
+          return;
+        }
+
+        tbody.innerHTML = result.items.map(entry => {
+          const dayKey = dailyEntryDayKey(entry);
+          const status = entry.status === 'published' ? '' : ' <small class="note">[초안]</small>';
+          const ownerActions = ownerMode
+            ? `<td class="owner-actions">
+                <a class="owner-btn" href="../admin/daily.html?id=${entry.id}">수정</a>
+                <button class="owner-btn owner-btn-danger" type="button" onclick="deleteOwnerDailyEntry('${entry.id}')">삭제</button>
+              </td>`
+            : '';
+
+          return `
+            <tr>
+              <td>
+                <a href="view.html?slug=${encodeURIComponent(entry.slug || dayKey)}">${escapeHtml(entry.title || `${dayKey} 나으 하루`)}</a>${status}
+                <div class="daily-list-meta">updated ${formatDate(entry.updated || dailyEntryDisplayDate(entry))}</div>
+              </td>
+              <td align="center">${formatDate(dailyEntryDisplayDate(entry))}</td>
+              ${ownerActions}
+            </tr>
+          `;
+        }).join('');
+
+        renderPagination(result.totalPages, page);
+      } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="3">${escapeHtml(cmsErrorMessage(e))}</td></tr>`;
+        document.getElementById('daily-calendar-body').innerHTML = `<tr><td colspan="7">${escapeHtml(cmsErrorMessage(e))}</td></tr>`;
+      }
+    }
+
+    function renderCalendar() {
+      const body = document.getElementById('daily-calendar-body');
+      const label = document.getElementById('calendarMonthLabel');
+      if (!calendarMonth) return;
+
+      const entriesByDay = new Map();
+      calendarEntries.forEach(entry => {
+        const dayKey = dailyEntryDayKey(entry);
+        if (!entriesByDay.has(dayKey)) entriesByDay.set(dayKey, []);
+        entriesByDay.get(dayKey).push(entry);
+      });
+
+      const { year, monthIndex } = calendarMonth;
+      const todayKey = normalizeDailyDayKey(new Date());
+      const firstWeekday = new Date(year, monthIndex, 1).getDay();
+      const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+      const cells = [];
+
+      for (let i = 0; i < firstWeekday; i += 1) {
+        cells.push('<td class="daily-calendar-empty">&nbsp;</td>');
+      }
+
+      for (let day = 1; day <= daysInMonth; day += 1) {
+        const dayKey = dayKeyFromParts(year, monthIndex, day);
+        const entries = entriesByDay.get(dayKey) || [];
+        const entry = entries[0];
+        const classes = [
+          'daily-calendar-day',
+          entries.length ? 'daily-calendar-day--has-entry' : '',
+          dayKey === todayKey ? 'daily-calendar-day--today' : ''
+        ].filter(Boolean).join(' ');
+
+        cells.push(`
+          <td class="${classes}">
+            ${entry
+              ? `<a href="view.html?slug=${encodeURIComponent(entry.slug || dayKey)}"><b>${day}</b></a><br><span class="daily-calendar-mark">기록 있음</span>`
+              : `<span>${day}</span>`}
+          </td>
+        `);
+      }
+
+      while (cells.length % 7 !== 0) {
+        cells.push('<td class="daily-calendar-empty">&nbsp;</td>');
+      }
+
+      label.textContent = `${year}.${String(monthIndex + 1).padStart(2, '0')}`;
+      body.innerHTML = chunk(cells, 7)
+        .map(row => `<tr>${row.join('')}</tr>`)
+        .join('');
+    }
+
+    async function deleteOwnerDailyEntry(id) {
+      if (!confirm('이 하루 기록을 삭제할까요? 이 작업은 되돌릴 수 없습니다.')) return;
+      try {
+        await deleteDailyEntry(id);
+        loadDailyEntries(currentPage);
+      } catch (e) {
+        alert('삭제 실패: ' + cmsErrorMessage(e));
+      }
+    }
+
+    function renderPagination(totalPages, currentPage) {
+      const paginationEl = document.getElementById('pagination');
+      if (totalPages <= 1) {
+        paginationEl.innerHTML = '';
+        return;
+      }
+
+      let html = '[ ';
+      for (let i = 1; i <= totalPages; i += 1) {
+        html += i === currentPage
+          ? `<b>${i}</b> `
+          : `<a href="javascript:void(0)" onclick="goToDailyPage(${i})">${i}</a> `;
+      }
+      html += ']';
+      paginationEl.innerHTML = html;
+    }
+
+    function goToDailyPage(page) {
+      loadDailyEntries(page);
+    }
+
+    function monthFromDayKey(dayKey) {
+      const [year, month] = normalizeDailyDayKey(dayKey).split('-').map(Number);
+      return { year, monthIndex: month - 1 };
+    }
+
+    function addMonths(month, amount) {
+      const date = new Date(month.year, month.monthIndex + amount, 1);
+      return { year: date.getFullYear(), monthIndex: date.getMonth() };
+    }
+
+    function dayKeyFromParts(year, monthIndex, day) {
+      return `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+
+    function chunk(items, size) {
+      const rows = [];
+      for (let i = 0; i < items.length; i += size) {
+        rows.push(items.slice(i, i + size));
+      }
+      return rows;
+    }
+
+    loadDailyEntries();
+  </script>
+</body>
+
+</html>

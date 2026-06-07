@@ -209,6 +209,204 @@ export async function deletePost(id) {
 }
 
 // ─────────────────────────────────────────────────────────
+// Daily Entries: 나으 하루 헬퍼 함수들
+// ─────────────────────────────────────────────────────────
+
+export const DAILY_COLLECTION = 'daily_entries';
+
+/**
+ * 날짜 입력값을 하루 키(YYYY-MM-DD)로 정규화한다.
+ * @param {string|Date} value
+ * @returns {string}
+ */
+export function normalizeDailyDayKey(value = new Date()) {
+    if (value instanceof Date) return getKstDateKey(value);
+
+    const raw = String(value || '').trim();
+    const directMatch = raw.match(/^\d{4}-\d{2}-\d{2}/);
+    if (directMatch) return directMatch[0];
+
+    const parsed = new Date(raw);
+    return Number.isNaN(parsed.getTime()) ? getKstDateKey() : getKstDateKey(parsed);
+}
+
+export function dailySlugFromDayKey(dayKey) {
+    return normalizeDailyDayKey(dayKey);
+}
+
+export function dailyTitleFromDayKey(dayKey) {
+    return `${normalizeDailyDayKey(dayKey)} 나으 하루`;
+}
+
+export function dailyEntryDayKey(entry) {
+    return entry?.day_key || normalizeDailyDayKey(entry?.published_at || entry?.created);
+}
+
+export function dailyEntryDisplayDate(entry) {
+    return entry?.published_at || `${dailyEntryDayKey(entry)}T00:00:00+09:00`;
+}
+
+function sortDailyEntriesForDisplay(entries = []) {
+    return Array.from(entries).sort((a, b) => {
+        const byDay = String(dailyEntryDayKey(b)).localeCompare(String(dailyEntryDayKey(a)));
+        if (byDay !== 0) return byDay;
+
+        const byDisplayDate = dateTimestamp(dailyEntryDisplayDate(b)) - dateTimestamp(dailyEntryDisplayDate(a));
+        if (byDisplayDate !== 0) return byDisplayDate;
+
+        const byUpdated = dateTimestamp(b?.updated) - dateTimestamp(a?.updated);
+        if (byUpdated !== 0) return byUpdated;
+
+        return String(b?.id || '').localeCompare(String(a?.id || ''));
+    });
+}
+
+async function collectDailyPages(loader, perPage = 100) {
+    const items = [];
+    let page = 1;
+
+    while (true) {
+        const result = await loader(page, perPage);
+        items.push(...(result.items || []));
+
+        if (!result.totalPages || page >= result.totalPages) break;
+        page += 1;
+    }
+
+    return sortDailyEntriesForDisplay(items);
+}
+
+/**
+ * 공개된 나으 하루 목록 가져오기
+ * @param {number} page
+ * @param {number} perPage
+ * @returns {Promise<object>}
+ */
+export async function getPublishedDailyEntries(page = 1, perPage = 10) {
+    return await pb.collection(DAILY_COLLECTION).getList(page, perPage, {
+        filter: pb.filter('status = {:status}', { status: 'published' }),
+        sort: '-day_key,-published_at,-created'
+    });
+}
+
+/**
+ * 모든 나으 하루 목록 (관리자용)
+ * @param {number} page
+ * @param {number} perPage
+ * @returns {Promise<object>}
+ */
+export async function getAllDailyEntries(page = 1, perPage = 20) {
+    return await pb.collection(DAILY_COLLECTION).getList(page, perPage, {
+        sort: '-day_key,-created'
+    });
+}
+
+export async function getPublishedDailyTimeline(perPage = 100) {
+    return await collectDailyPages(getPublishedDailyEntries, perPage);
+}
+
+export async function getAllDailyTimeline(perPage = 100) {
+    return await collectDailyPages(getAllDailyEntries, perPage);
+}
+
+/**
+ * 슬러그로 나으 하루 가져오기
+ * @param {string} slug
+ * @param {boolean} includeDrafts
+ * @returns {Promise<object>}
+ */
+export async function getDailyEntryBySlug(slug, includeDrafts = false) {
+    if (includeDrafts && isLoggedIn()) {
+        return await pb.collection(DAILY_COLLECTION).getFirstListItem(
+            pb.filter('slug = {:slug}', { slug })
+        );
+    }
+
+    return await pb.collection(DAILY_COLLECTION).getFirstListItem(
+        pb.filter('slug = {:slug} && status = {:status}', {
+            slug,
+            status: 'published'
+        })
+    );
+}
+
+/**
+ * 날짜로 나으 하루 가져오기
+ * @param {string} dayKey
+ * @param {boolean} includeDrafts
+ * @returns {Promise<object|null>}
+ */
+export async function getDailyEntryByDay(dayKey, includeDrafts = false) {
+    try {
+        if (includeDrafts && isLoggedIn()) {
+            return await pb.collection(DAILY_COLLECTION).getFirstListItem(
+                pb.filter('day_key = {:dayKey}', { dayKey: normalizeDailyDayKey(dayKey) })
+            );
+        }
+
+        return await pb.collection(DAILY_COLLECTION).getFirstListItem(
+            pb.filter('day_key = {:dayKey} && status = {:status}', {
+                dayKey: normalizeDailyDayKey(dayKey),
+                status: 'published'
+            })
+        );
+    } catch (e) {
+        if (e?.status === 404) return null;
+        throw e;
+    }
+}
+
+/**
+ * 나으 하루 생성
+ * @param {object|FormData} data
+ * @returns {Promise<object>}
+ */
+export async function createDailyEntry(data) {
+    return await pb.collection(DAILY_COLLECTION).create(data);
+}
+
+/**
+ * 나으 하루 수정
+ * @param {string} id
+ * @param {object|FormData} data
+ * @returns {Promise<object>}
+ */
+export async function updateDailyEntry(id, data) {
+    return await pb.collection(DAILY_COLLECTION).update(id, data);
+}
+
+/**
+ * 나으 하루 삭제
+ * @param {string} id
+ * @returns {Promise<boolean>}
+ */
+export async function deleteDailyEntry(id) {
+    return await pb.collection(DAILY_COLLECTION).delete(id);
+}
+
+/**
+ * 같은 날짜에 새로 저장한 본문은 하루 글 아래에 이어 붙인다.
+ * @param {string} existingContent
+ * @param {string} nextContent
+ * @param {Date} appendedAt
+ * @returns {string}
+ */
+export function appendDailyContent(existingContent, nextContent, appendedAt = new Date()) {
+    const before = String(existingContent || '').trim();
+    const after = String(nextContent || '').trim();
+    if (!before) return after;
+    if (!after || after === '<p><br></p>') return before;
+
+    const timeLabel = new Intl.DateTimeFormat('ko-KR', {
+        timeZone: 'Asia/Seoul',
+        hour: '2-digit',
+        minute: '2-digit'
+    }).format(appendedAt);
+
+    return `${before}\n<hr>\n<p><small>[${timeLabel}에 덧붙임]</small></p>\n${after}`;
+}
+
+// ─────────────────────────────────────────────────────────
 // Programs 헬퍼 함수들
 // ─────────────────────────────────────────────────────────
 
@@ -602,7 +800,7 @@ const VISITOR_TOTAL_DISPLAY_START = 237;
 const VISITOR_TOTAL_BASELINE_REAL_TOTAL = 23;
 const VISITOR_TODAY_MIN_KEY_PREFIX = 'visitor_today_min_';
 
-function getKstDateKey(date = new Date()) {
+export function getKstDateKey(date = new Date()) {
     const parts = new Intl.DateTimeFormat('en-CA', {
         timeZone: 'Asia/Seoul',
         year: 'numeric',

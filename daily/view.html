@@ -17,7 +17,7 @@
 <body class="page-subpage" background="" bgcolor="#e0e0e0">
     <center>
         <marquee behavior="alternate" scrollamount="4" width="760">
-            <span class="marquee-text">★ WELCOME TO <a href="/admin/login.html?next=/posts/view.html" class="secret-login"><b>coldwaterkim</b></a>'s HOME PAGE ★</span>
+            <span class="marquee-text">★ WELCOME TO <a href="/admin/login.html?next=/daily/view.html" class="secret-login"><b>coldwaterkim</b></a>'s HOME PAGE ★</span>
         </marquee>
 
         <table width="760" border="1" cellspacing="0" cellpadding="8" bgcolor="#ffffff">
@@ -70,8 +70,8 @@
                     <center>
                         <div class="top-nav">
                             [ <a href="../index.html">Home</a> |
-                            <a href="index.html">글방</a> |
-                            <a href="../daily/index.html">나으 하루</a> |
+                            <a href="../posts/index.html">글방</a> |
+                            <a href="index.html">나으 하루</a> |
                             <a href="../programs/index.html">프로그램실</a> |
                             <a href="../nasajab/index.html">나사잡</a> |
                             <a href="../guestbook.html">Guestbook</a> |
@@ -79,18 +79,18 @@
                         </div>
                     </center>
 
-                    <h1 id="timeline-title">글방</h1>
+                    <h1 id="timeline-title">나으 하루</h1>
                     <div id="owner-tools"></div>
-                    <p class="note" id="timeline-note">글 흐름을 불러오고 있습니다...</p>
+                    <p class="note" id="timeline-note">하루 흐름을 불러오고 있습니다...</p>
 
-                    <div id="post-timeline" class="post-timeline">
-                        <div class="timeline-loading">글을 불러오고 있습니다...</div>
+                    <div id="daily-timeline" class="post-timeline">
+                        <div class="timeline-loading">나으 하루를 불러오고 있습니다...</div>
                     </div>
 
                     <hr>
 
                     <p>
-                        <a href="index.html">← 글방 첫 페이지로</a>
+                        <a href="index.html">← 나으 하루 첫 페이지로</a>
                     </p>
                     <center>
                         <small>© coldwaterkim — powered by me</small>
@@ -101,14 +101,26 @@
     </center>
 
     <script type="module">
-        import { getPostBySlug, getPublishedPostTimeline, getAllPostTimeline, deletePost, isLoggedIn, logout, postDisplayDate, formatDate, escapeHtml, cmsErrorMessage, sortPostsForDisplay } from '../js/pb.js';
+        import {
+            getDailyEntryBySlug,
+            getPublishedDailyTimeline,
+            getAllDailyTimeline,
+            deleteDailyEntry,
+            isLoggedIn,
+            logout,
+            dailyEntryDayKey,
+            dailyEntryDisplayDate,
+            formatDate,
+            escapeHtml,
+            cmsErrorMessage
+        } from '../js/pb.js';
 
         const params = new URLSearchParams(window.location.search);
         const slug = params.get('slug');
         const ownerMode = isLoggedIn();
 
         if (!slug) {
-            showError('글을 찾을 수 없습니다.', 'Post not found');
+            showError('나으 하루를 찾을 수 없습니다.', 'Daily not found');
         } else {
             loadTimeline(slug);
         }
@@ -117,37 +129,37 @@
             try {
                 updateSecretLoginNext(slug);
 
-                const targetPost = await getPostBySlug(slug, ownerMode);
+                const targetEntry = await getDailyEntryBySlug(slug, ownerMode);
 
-                if (targetPost.status !== 'published' && !ownerMode) {
-                    showError('이 글은 아직 발행되지 않았습니다.', 'Not published');
+                if (targetEntry.status !== 'published' && !ownerMode) {
+                    showError('이 하루는 아직 발행되지 않았습니다.', 'Not published');
                     return;
                 }
 
-                document.title = `${targetPost.title} — coldwaterkim`;
-                document.getElementById('timeline-title').textContent = '글방';
-                document.getElementById('timeline-note').innerHTML = `<b>${escapeHtml(targetPost.title)}</b>`;
+                document.title = `${targetEntry.title} — coldwaterkim`;
+                document.getElementById('timeline-title').textContent = '나으 하루';
+                document.getElementById('timeline-note').innerHTML = `<b>${escapeHtml(targetEntry.title)}</b>`;
 
-                const timelinePosts = ownerMode
-                    ? await getAllPostTimeline()
-                    : await getPublishedPostTimeline();
-                const posts = ensureTargetPost(timelinePosts, targetPost);
+                const timelineEntries = ownerMode
+                    ? await getAllDailyTimeline()
+                    : await getPublishedDailyTimeline();
+                const entries = ensureTargetEntry(timelineEntries, targetEntry);
 
                 if (ownerMode) {
                     document.getElementById('owner-tools').innerHTML = `
                         <div class="owner-bar">
                             <b>OWNER MODE</b> ·
-                            <a href="../admin/posts.html?id=${targetPost.id}">현재 글 수정</a> ·
-                            <a href="../admin/posts.html?new=1">새 글</a> ·
-                            <a href="#" id="deletePostLink">현재 글 삭제</a> ·
+                            <a href="../admin/daily.html?id=${targetEntry.id}">현재 하루 수정</a> ·
+                            <a href="../admin/daily.html?new=1">새 나으 하루</a> ·
+                            <a href="#" id="deleteEntryLink">현재 하루 삭제</a> ·
                             <a href="#" id="logoutLink">로그아웃</a>
                         </div>
                     `;
-                    document.getElementById('deletePostLink').addEventListener('click', async (event) => {
+                    document.getElementById('deleteEntryLink').addEventListener('click', async (event) => {
                         event.preventDefault();
-                        if (!confirm('이 글을 삭제할까요? 이 작업은 되돌릴 수 없습니다.')) return;
+                        if (!confirm('이 하루 기록을 삭제할까요? 이 작업은 되돌릴 수 없습니다.')) return;
                         try {
-                            await deletePost(targetPost.id);
+                            await deleteDailyEntry(targetEntry.id);
                             window.location.href = 'index.html';
                         } catch (e) {
                             alert('삭제 실패: ' + cmsErrorMessage(e));
@@ -160,79 +172,79 @@
                     });
                 }
 
-                renderTimeline(posts, targetPost.id);
-                wireTimelineOwnerActions(targetPost.id);
-                focusTargetPost(targetPost.id);
+                renderTimeline(entries, targetEntry.id);
+                wireTimelineOwnerActions(targetEntry.id);
+                focusTargetEntry(targetEntry.id);
 
             } catch (e) {
-                showError(cmsErrorMessage(e), 'Post not found');
+                showError(cmsErrorMessage(e), 'Daily not found');
             }
         }
 
-        function ensureTargetPost(posts, targetPost) {
-            const merged = posts.some(post => post.id === targetPost.id)
-                ? posts
-                : [...posts, targetPost];
+        function ensureTargetEntry(entries, targetEntry) {
+            const merged = entries.some(entry => entry.id === targetEntry.id)
+                ? entries
+                : [...entries, targetEntry];
 
-            return sortPostsForDisplay(merged);
+            return merged.sort((a, b) => String(dailyEntryDayKey(b)).localeCompare(String(dailyEntryDayKey(a))));
         }
 
-        function renderTimeline(posts, targetPostId) {
-            const timelineEl = document.getElementById('post-timeline');
-            if (posts.length === 0) {
-                timelineEl.innerHTML = '<p>아직 글이 없습니다.</p>';
+        function renderTimeline(entries, targetEntryId) {
+            const timelineEl = document.getElementById('daily-timeline');
+            if (entries.length === 0) {
+                timelineEl.innerHTML = '<p>아직 나으 하루가 없습니다.</p>';
                 return;
             }
 
-            timelineEl.innerHTML = posts.map(post => renderTimelinePost(post, post.id === targetPostId)).join('');
+            timelineEl.innerHTML = entries.map(entry => renderTimelineEntry(entry, entry.id === targetEntryId)).join('');
         }
 
-        function renderTimelinePost(post, isFocused) {
-            const date = postDisplayDate(post);
-            const status = post.status === 'published' ? '' : ' <small class="note">[초안]</small>';
+        function renderTimelineEntry(entry, isFocused) {
+            const dayKey = dailyEntryDayKey(entry);
+            const status = entry.status === 'published' ? '' : ' <small class="note">[초안]</small>';
             const focusedBadge = isFocused ? '<div class="timeline-focus-badge">★ NOW READING ★</div>' : '';
             const ownerActions = ownerMode ? `
                 <span class="timeline-owner-actions">
-                    <a href="../admin/posts.html?id=${encodeURIComponent(post.id)}">수정</a>
-                    <button type="button" class="owner-btn owner-btn-danger" data-delete-post-id="${post.id}">삭제</button>
+                    <a href="../admin/daily.html?id=${encodeURIComponent(entry.id)}">수정</a>
+                    <button type="button" class="owner-btn owner-btn-danger" data-delete-daily-id="${entry.id}">삭제</button>
                 </span>
             ` : '';
 
             return `
-                <article id="${postElementId(post.id)}" class="timeline-post${isFocused ? ' timeline-post--focused' : ''}" data-post-id="${post.id}">
+                <article id="${entryElementId(entry.id)}" class="timeline-post${isFocused ? ' timeline-post--focused' : ''}" data-daily-id="${entry.id}">
                     ${focusedBadge}
                     <div class="timeline-post-header">
                         <h2 class="timeline-post-title">
-                            <a href="view.html?slug=${encodeURIComponent(post.slug || '')}">${escapeHtml(post.title || 'Untitled')}</a>${status}
+                            <a href="view.html?slug=${encodeURIComponent(entry.slug || dayKey)}">${escapeHtml(entry.title || `${dayKey} 나으 하루`)}</a>${status}
                         </h2>
                         <div class="timeline-post-meta">
-                            Published: ${formatDate(date)}
+                            Day: ${formatDate(dailyEntryDisplayDate(entry))}
                             ${ownerActions}
                         </div>
                     </div>
                     <div class="post-content timeline-post-content ql-editor">
-                        ${post.content || '<p>내용이 없습니다.</p>'}
+                        ${entry.content || '<p>내용이 없습니다.</p>'}
                     </div>
                 </article>
             `;
         }
 
-        function wireTimelineOwnerActions(targetPostId) {
+        function wireTimelineOwnerActions(targetEntryId) {
             if (!ownerMode) return;
 
-            document.querySelectorAll('[data-delete-post-id]').forEach(button => {
+            document.querySelectorAll('[data-delete-daily-id]').forEach(button => {
                 button.addEventListener('click', async () => {
-                    const id = button.getAttribute('data-delete-post-id');
-                    if (!id || !confirm('이 글을 삭제할까요? 이 작업은 되돌릴 수 없습니다.')) return;
+                    const id = button.getAttribute('data-delete-daily-id');
+                    if (!id || !confirm('이 하루 기록을 삭제할까요? 이 작업은 되돌릴 수 없습니다.')) return;
 
                     try {
-                        await deletePost(id);
-                        if (id === targetPostId) {
+                        await deleteDailyEntry(id);
+                        if (id === targetEntryId) {
                             window.location.href = 'index.html';
                             return;
                         }
 
-                        document.getElementById(postElementId(id))?.remove();
+                        document.getElementById(entryElementId(id))?.remove();
                     } catch (e) {
                         alert('삭제 실패: ' + cmsErrorMessage(e));
                     }
@@ -240,8 +252,8 @@
             });
         }
 
-        function focusTargetPost(id) {
-            const targetEl = document.getElementById(postElementId(id));
+        function focusTargetEntry(id) {
+            const targetEl = document.getElementById(entryElementId(id));
             if (!targetEl) return;
 
             targetEl.setAttribute('tabindex', '-1');
@@ -257,15 +269,15 @@
             setTimeout(scrollToTarget, 1000);
         }
 
-        function postElementId(id) {
-            return `post-${id}`;
+        function entryElementId(id) {
+            return `daily-${id}`;
         }
 
         function updateSecretLoginNext(slug) {
             const loginLink = document.querySelector('.secret-login');
             if (!loginLink) return;
 
-            const next = `/posts/view.html?slug=${encodeURIComponent(slug)}`;
+            const next = `/daily/view.html?slug=${encodeURIComponent(slug)}`;
             loginLink.href = `/admin/login.html?next=${encodeURIComponent(next)}`;
         }
 
@@ -273,7 +285,7 @@
             document.title = `${title} — coldwaterkim`;
             document.getElementById('timeline-title').textContent = title;
             document.getElementById('timeline-note').textContent = '';
-            document.getElementById('post-timeline').innerHTML = `<p>${escapeHtml(message)}</p>`;
+            document.getElementById('daily-timeline').innerHTML = `<p>${escapeHtml(message)}</p>`;
         }
     </script>
 </body>

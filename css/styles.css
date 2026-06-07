@@ -993,6 +993,70 @@ a:hover { background: var(--cwk-link-hover-bg); }
   padding: 1px 3px;
 }
 
+/* Daily room: one record per day, shown through old-web calendar + table. */
+.daily-calendar-table {
+  margin: 12px 0;
+  background: var(--cwk-surface-page);
+  table-layout: fixed;
+}
+
+.daily-calendar-caption {
+  padding: 4px 0 6px;
+  font-family: var(--cwk-font-mono);
+  caption-side: top;
+}
+
+.daily-calendar-table th,
+.daily-calendar-table td {
+  text-align: center;
+  vertical-align: top;
+}
+
+.daily-calendar-table th {
+  font-family: var(--cwk-font-mono);
+  font-size: 12px;
+}
+
+.daily-calendar-day,
+.daily-calendar-empty {
+  height: 48px;
+  font-size: 13px;
+}
+
+.daily-calendar-empty {
+  background: var(--cwk-surface-table-head);
+}
+
+.daily-calendar-day--has-entry {
+  background: #ffffcc;
+}
+
+.daily-calendar-day--today {
+  outline: 2px dotted var(--cwk-hot-red);
+  outline-offset: -3px;
+}
+
+.daily-calendar-mark {
+  display: inline-block;
+  margin-top: 3px;
+  color: var(--cwk-hot-red);
+  font-family: var(--cwk-font-mono);
+  font-size: 10px;
+  line-height: 1.1;
+}
+
+.daily-list-table {
+  margin-top: 12px;
+  table-layout: fixed;
+}
+
+.daily-list-meta {
+  margin-top: 3px;
+  color: var(--cwk-meta);
+  font-family: var(--cwk-font-mono);
+  font-size: 11px;
+}
+
 /* Post timeline: old-web entry blocks, not modern cards. */
 .post-timeline {
   margin: 12px 0;
@@ -1250,7 +1314,9 @@ a:hover { background: var(--cwk-link-hover-bg); }
 
   .date-cell,
   #posts-table th:nth-child(2),
-  #posts-table td:nth-child(2) {
+  #posts-table td:nth-child(2),
+  .daily-list-table th:nth-child(2),
+  .daily-list-table td:nth-child(2) {
     width: 96px !important;
     font-size: 12px;
     line-height: 1.25;
@@ -1428,5 +1494,19 @@ a:hover { background: var(--cwk-link-hover-bg); }
   .nasajab-thumb-cell img {
     width: 54px;
     height: 36px;
+  }
+
+  .daily-calendar-table {
+    font-size: 12px;
+  }
+
+  .daily-calendar-day,
+  .daily-calendar-empty {
+    height: 42px;
+    padding: 3px 1px;
+  }
+
+  .daily-calendar-mark {
+    font-size: 9px;
   }
 }
