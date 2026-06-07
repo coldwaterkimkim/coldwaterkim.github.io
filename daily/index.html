@@ -2,23 +2,23 @@
 <html>
 
 <head>
-  <title>프로그램 상세 — coldwaterkim</title>
+  <title>나으 하루 — coldwaterkim</title>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" href="/favicon.ico" sizes="any">
   <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-  <script type="module" crossorigin src="/assets/programs/view-wjrFGV0u.js"></script>
+  <script type="module" crossorigin src="/assets/daily/index-Cu1Sngpa.js"></script>
   <link rel="modulepreload" crossorigin href="/assets/pb-EGplk_ig.js">
   <link rel="modulepreload" crossorigin href="/assets/site-7yX1ceV2.js">
   <link rel="stylesheet" crossorigin href="/assets/site-CTiT_UO5.css">
 </head>
 
-<body class="page-subpage page-programs page-program-detail" background="" bgcolor="#e0e0e0">
+<body class="page-subpage" background="" bgcolor="#e0e0e0">
   <center>
     <marquee behavior="alternate" scrollamount="4" width="760">
-      <span class="marquee-text">★ WELCOME TO <a href="/admin/login.html?next=/programs/view.html" class="secret-login"><b>coldwaterkim</b></a>'s HOME PAGE ★</span>
+      <span class="marquee-text">★ WELCOME TO <a href="/admin/login.html?next=/daily/index.html" class="secret-login"><b>coldwaterkim</b></a>'s HOME PAGE ★</span>
     </marquee>
 
     <table width="760" border="1" cellspacing="0" cellpadding="8" bgcolor="#ffffff">
@@ -72,41 +72,56 @@
             <div class="top-nav">
               [ <a href="../index.html">Home</a> |
               <a href="../posts/index.html">글방</a> |
-              <a href="../daily/index.html">나으 하루</a> |
-              <a href="index.html">프로그램실</a> |
+              <a href="index.html">나으 하루</a> |
+              <a href="../programs/index.html">프로그램실</a> |
               <a href="../nasajab/index.html">나사잡</a> |
               <a href="../guestbook.html">Guestbook</a> |
               <a href="../about.html">About / Contact</a> ]
             </div>
           </center>
 
-          <p><a href="index.html">← 프로그램실 목록으로</a></p>
+          <h1>나으 하루</h1>
+          <div id="owner-tools"></div>
+          <p class="note" id="daily-note">하루 단위로 모아둔 짧은 기록입니다.</p>
 
-          <h1 id="programDetailTitle">프로그램 불러오는 중...</h1>
-          <p id="programDetailMeta" class="program-meta"></p>
-
-          <div id="programDetailBody" class="program-detail-body">
-            <p class="loading">작품 상세를 불러오는 중...</p>
-          </div>
-
-          <h2 class="visitor-heading">DOWNLOAD / LINKS</h2>
-          <table border="1" cellspacing="0" cellpadding="6" width="100%" class="program-detail-download-table">
+          <table border="1" cellspacing="0" cellpadding="6" width="100%" class="daily-calendar-table" id="daily-calendar">
+            <caption class="daily-calendar-caption">
+              <button type="button" class="owner-btn" id="prevMonthButton">←</button>
+              <b id="calendarMonthLabel">calendar loading...</b>
+              <button type="button" class="owner-btn" id="nextMonthButton">→</button>
+            </caption>
             <thead>
               <tr bgcolor="#f0f0f0">
-                <th align="left">항목</th>
-                <th align="left">열기 / 받기</th>
+                <th>Sun</th>
+                <th>Mon</th>
+                <th>Tue</th>
+                <th>Wed</th>
+                <th>Thu</th>
+                <th>Fri</th>
+                <th>Sat</th>
               </tr>
             </thead>
-            <tbody id="programDetailDownloads">
+            <tbody id="daily-calendar-body">
               <tr>
-                <td colspan="2" class="loading">다운로드 정보 불러오는 중...</td>
+                <td colspan="7">캘린더 불러오는 중...</td>
               </tr>
             </tbody>
           </table>
 
-          <div class="program-note-box">
-            <b>작품 페이지:</b> 프로그램실 table은 preview, 여기는 더 긴 자유 본문과 다운로드를 보는 자리.
-          </div>
+          <table border="1" cellspacing="0" cellpadding="6" width="100%" class="daily-list-table" id="daily-table">
+            <tr bgcolor="#f0f0f0">
+              <th align="left">하루</th>
+              <th style="width: 120px;">날짜</th>
+              <th id="owner-col-head" style="width: 160px; display: none;">OWNER</th>
+            </tr>
+            <tbody id="daily-list">
+              <tr>
+                <td colspan="3">불러오는 중...</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div id="pagination" style="margin-top: 16px; text-align: center;"></div>
 
           <hr>
           <center>
@@ -116,6 +131,7 @@
       </tr>
     </table>
   </center>
+
 </body>
 
 </html>

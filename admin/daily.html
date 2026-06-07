@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="utf-8">
-    <title>글 관리 — coldwaterkim OWNER MODE</title>
+    <title>나으 하루 관리 — coldwaterkim OWNER MODE</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="icon" href="/favicon.ico" sizes="any">
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
@@ -18,7 +18,7 @@
             font-size: 16px;
         }
     </style>
-  <script type="module" crossorigin src="/assets/admin/posts-DBHu-P47.js"></script>
+  <script type="module" crossorigin src="/assets/admin/daily-_V0LRoGq.js"></script>
   <link rel="modulepreload" crossorigin href="/assets/pb-EGplk_ig.js">
   <link rel="stylesheet" crossorigin href="/assets/admin-D5FbBa4O.css">
 </head>
@@ -37,8 +37,8 @@
         <!-- Navigation -->
         <nav class="admin-nav">
             <a href="/">🏠 사이트 보기</a>
-            <a href="/admin/posts.html" class="active">📝 글 관리</a>
-            <a href="/admin/daily.html">📅 나으 하루</a>
+            <a href="/admin/posts.html">📝 글 관리</a>
+            <a href="/admin/daily.html" class="active">📅 나으 하루</a>
             <a href="/admin/media.html">🖼️ 미디어</a>
             <a href="/admin/guestbook.html">💬 방명록</a>
         </nav>
@@ -50,11 +50,11 @@
             <!-- 글 목록 뷰 -->
             <div id="listView">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                    <h2 style="margin: 0;">📝 글 목록</h2>
+                    <h2 style="margin: 0;">📅 나으 하루 목록</h2>
                     <button class="btn btn-primary" onclick="showEditor()">✚ 새 글 쓰기</button>
                 </div>
 
-                <table class="admin-table" id="postsTable">
+                <table class="admin-table" id="dailyTable">
                     <thead>
                         <tr>
                             <th>제목</th>
@@ -95,7 +95,7 @@
 
                         <div class="form-row">
                             <div class="form-group">
-                                <label for="published_at">발행일</label>
+                                <label for="published_at">기록 날짜</label>
                                 <input type="date" id="published_at">
                             </div>
                         </div>

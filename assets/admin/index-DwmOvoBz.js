@@ -1,0 +1,1 @@
+import{H as e}from"../pb-EGplk_ig.js";/* empty css               */e()||(window.location.replace(`/admin/login.html?next=/`),await new Promise(()=>{}));
