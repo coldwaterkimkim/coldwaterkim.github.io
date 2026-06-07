@@ -11,6 +11,7 @@ import { getPublishedPosts, getGuestbookEntries, addGuestbookEntry, getSetting, 
 const PROFILE_PHOTO_SETTING_KEY = 'profile_photo_url';
 const BGM_URL_SETTING_KEY = 'bgm_audio_url';
 const BGM_TITLE_SETTING_KEY = 'bgm_audio_title';
+const BGM_PLAYLIST_SETTING_KEY = 'bgm_playlist';
 let spaNavigationToken = 0;
 
 (async function initProfileMedia() {
@@ -48,19 +49,8 @@ async function loadProfileMediaSettings(photo, audio, trackTitle) {
 
   if (audio) {
     tasks.push((async () => {
-      const [savedBgmUrl, savedBgmTitle] = await Promise.all([
-        getSetting(BGM_URL_SETTING_KEY),
-        getSetting(BGM_TITLE_SETTING_KEY),
-      ]);
-
-      if (savedBgmUrl) {
-        audio.src = savedBgmUrl;
-        audio.load();
-      }
-
-      if (trackTitle) {
-        trackTitle.textContent = savedBgmTitle || defaultBgmTitle(audio);
-      }
+      const playlist = await getSavedBgmPlaylist(audio);
+      setBgmPlaylist(audio, trackTitle, playlist, 0);
     })());
   }
 
@@ -97,7 +87,7 @@ function ensureTrackTitle(player, audio) {
 
 function initBgmAutoplay(audio) {
   audio.autoplay = true;
-  audio.loop = true;
+  audio.loop = getBgmPlaylist(audio).length <= 1;
   const player = audio.closest('.mini-player');
   const prompt = ensureBgmPrompt(player, audio);
 
@@ -165,6 +155,173 @@ function setBgmPromptVisible(prompt, isVisible) {
   prompt.hidden = !isVisible;
 }
 
+async function getSavedBgmPlaylist(audio) {
+  const [savedBgmPlaylist, savedBgmUrl, savedBgmTitle] = await Promise.all([
+    getSetting(BGM_PLAYLIST_SETTING_KEY),
+    getSetting(BGM_URL_SETTING_KEY),
+    getSetting(BGM_TITLE_SETTING_KEY),
+  ]);
+
+  return normalizeBgmPlaylist(savedBgmPlaylist, savedBgmUrl, savedBgmTitle, audio);
+}
+
+function normalizeBgmPlaylist(rawPlaylist, legacyUrl, legacyTitle, audio) {
+  const playlist = parseBgmPlaylist(rawPlaylist);
+  const legacyTrack = normalizeBgmTrack({
+    url: legacyUrl,
+    title: legacyTitle || fileNameFromUrl(legacyUrl || ''),
+  });
+
+  if (playlist.length > 0) {
+    return legacyTrack && !playlist.some(track => bgmTrackKey(track) === bgmTrackKey(legacyTrack))
+      ? dedupeBgmTracks([legacyTrack, ...playlist])
+      : playlist;
+  }
+
+  if (legacyTrack) {
+    return [legacyTrack];
+  }
+
+  const fallbackSrc = audio?.currentSrc || audio?.getAttribute('src') || audio?.querySelector('source')?.getAttribute('src') || '';
+  return normalizeBgmTracks([{
+    url: fallbackSrc,
+    title: fileNameFromUrl(fallbackSrc),
+  }]);
+}
+
+function parseBgmPlaylist(rawPlaylist) {
+  if (!rawPlaylist) return [];
+
+  try {
+    const parsed = JSON.parse(rawPlaylist);
+    return normalizeBgmTracks(Array.isArray(parsed) ? parsed : []);
+  } catch (e) {
+    console.warn('BGM playlist parse failed:', e);
+    return [];
+  }
+}
+
+function normalizeBgmTracks(values = []) {
+  return dedupeBgmTracks(values.map(normalizeBgmTrack).filter(Boolean));
+}
+
+function normalizeBgmTrack(value) {
+  if (!value) return null;
+
+  if (typeof value === 'string') {
+    const url = value.trim();
+    return url ? {
+      url,
+      title: fileNameFromUrl(url) || 'bgm.mp3',
+      uploadedAt: '',
+    } : null;
+  }
+
+  const url = String(value.url || value.src || '').trim();
+  if (!url) return null;
+
+  return {
+    url,
+    title: String(value.title || fileNameFromUrl(url) || 'bgm.mp3').trim(),
+    uploadedAt: String(value.uploadedAt || value.created || '').trim(),
+  };
+}
+
+function dedupeBgmTracks(tracks = []) {
+  const seen = new Set();
+  const result = [];
+
+  tracks.forEach((track) => {
+    const key = bgmTrackKey(track);
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    result.push(track);
+  });
+
+  return result;
+}
+
+function bgmTrackKey(track) {
+  try {
+    return new URL(track?.url || '', window.location.href).href;
+  } catch (e) {
+    return String(track?.url || '');
+  }
+}
+
+function getBgmPlaylist(audio) {
+  return Array.isArray(audio?._bgmPlaylist) ? audio._bgmPlaylist : [];
+}
+
+function setBgmPlaylist(audio, trackTitle, playlist, startIndex = 0) {
+  if (!audio) return;
+
+  const tracks = normalizeBgmTracks(playlist);
+  const index = Math.max(0, Math.min(startIndex, tracks.length - 1));
+  audio._bgmPlaylist = tracks;
+  audio._bgmTrackTitle = trackTitle || null;
+  audio.loop = tracks.length <= 1;
+
+  bindBgmPlaylist(audio);
+
+  if (tracks.length > 0) {
+    loadBgmTrack(audio, index);
+    return;
+  }
+
+  if (trackTitle) {
+    trackTitle.textContent = defaultBgmTitle(audio);
+  }
+}
+
+function bindBgmPlaylist(audio) {
+  if (!audio || audio.dataset.bgmPlaylistBound === 'true') return;
+
+  audio.dataset.bgmPlaylistBound = 'true';
+  audio.addEventListener('ended', () => {
+    advanceBgmTrack(audio);
+  });
+}
+
+function loadBgmTrack(audio, index) {
+  const playlist = getBgmPlaylist(audio);
+  const track = playlist[index];
+  if (!track) return;
+
+  audio._bgmTrackIndex = index;
+  const nextUrl = track.url;
+  const currentUrl = audio.currentSrc || audio.src || '';
+
+  if (bgmTrackKey({ url: currentUrl }) !== bgmTrackKey(track)) {
+    audio.src = nextUrl;
+    audio.load();
+  }
+
+  if (audio._bgmTrackTitle) {
+    audio._bgmTrackTitle.textContent = track.title || defaultBgmTitle(audio);
+  }
+}
+
+async function advanceBgmTrack(audio) {
+  const playlist = getBgmPlaylist(audio);
+  if (playlist.length <= 1) return;
+
+  const nextIndex = ((audio._bgmTrackIndex || 0) + 1) % playlist.length;
+  loadBgmTrack(audio, nextIndex);
+
+  const prompt = ensureBgmPrompt(audio.closest('.mini-player'), audio);
+  try {
+    await audio.play();
+    setBgmPromptVisible(prompt, false);
+  } catch (e) {
+    setBgmPromptVisible(prompt, true);
+  }
+}
+
+function prependBgmTrack(track, playlist) {
+  return dedupeBgmTracks([track, ...normalizeBgmTracks(playlist)]);
+}
+
 function initProfilePhotoUpload(photo) {
   if (!photo) return;
 
@@ -226,7 +383,7 @@ function initBgmUpload(player, audio, trackTitle) {
   const button = document.createElement('button');
   button.type = 'button';
   button.className = 'owner-btn bgm-owner-btn';
-  button.textContent = 'MP3 바꾸기';
+  button.textContent = 'MP3 추가';
 
   const status = document.createElement('span');
   status.className = 'bgm-upload-status';
@@ -253,20 +410,23 @@ function initBgmUpload(player, audio, trackTitle) {
     try {
       const media = await uploadMedia(file, file.name, 'Home BGM');
       const url = getMediaUrl(media, media.file);
-      const title = file.name;
+      const newTrack = {
+        url,
+        title: file.name,
+        uploadedAt: new Date().toISOString(),
+      };
+      const savedPlaylist = await getSavedBgmPlaylist(audio);
+      const nextPlaylist = prependBgmTrack(newTrack, savedPlaylist.length > 0 ? savedPlaylist : getBgmPlaylist(audio));
 
       await Promise.all([
+        setSetting(BGM_PLAYLIST_SETTING_KEY, JSON.stringify(nextPlaylist)),
         setSetting(BGM_URL_SETTING_KEY, url),
-        setSetting(BGM_TITLE_SETTING_KEY, title),
+        setSetting(BGM_TITLE_SETTING_KEY, newTrack.title),
       ]);
 
-      audio.src = url;
-      audio.load();
-      if (trackTitle) {
-        trackTitle.textContent = title;
-      }
+      setBgmPlaylist(audio, trackTitle, nextPlaylist, 0);
       initBgmAutoplay(audio);
-      status.textContent = '저장됨';
+      status.textContent = `추가됨 (${nextPlaylist.length}곡)`;
       setTimeout(() => status.textContent = '', 1600);
     } catch (e) {
       status.textContent = '실패';
