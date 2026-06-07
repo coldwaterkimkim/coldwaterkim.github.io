@@ -782,6 +782,59 @@ a:hover { background: var(--cwk-link-hover-bg); }
   font-size: 12px;
 }
 
+.nasajab-paste-control {
+  margin-top: 8px;
+  padding: 6px;
+  border: 1px dotted var(--cwk-border-dashed);
+  background: var(--cwk-surface-preview);
+}
+
+.nasajab-paste-control label {
+  display: block;
+  margin-bottom: 4px;
+  font-family: var(--cwk-font-mono);
+  font-size: 12px;
+}
+
+.nasajab-paste-control textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 44px;
+  max-width: 100%;
+  font-family: var(--cwk-font-main);
+  font-size: 13px;
+  resize: vertical;
+}
+
+.nasajab-paste-control textarea:focus {
+  outline: 2px solid var(--cwk-link);
+  outline-offset: 1px;
+}
+
+.nasajab-paste-actions {
+  margin: 5px 0 0;
+}
+
+.nasajab-image-preview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 5px;
+  border: 1px solid var(--cwk-border);
+  background: var(--cwk-surface-page);
+  font-size: 12px;
+}
+
+.nasajab-image-preview img {
+  display: block;
+  width: 78px;
+  height: 54px;
+  object-fit: contain;
+  border: 1px solid var(--cwk-ink);
+  background: white;
+}
+
 .nasajab-form-actions {
   margin: 8px 0 0;
   text-align: right;
@@ -1320,6 +1373,15 @@ a:hover { background: var(--cwk-link-hover-bg); }
 
   .nasajab-featured-image-cell img {
     max-height: 240px;
+  }
+
+  .nasajab-image-preview {
+    align-items: flex-start;
+  }
+
+  .nasajab-image-preview img {
+    width: 64px;
+    height: 48px;
   }
 
   .nasajab-featured-text-cell {

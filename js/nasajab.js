@@ -13,6 +13,7 @@ import {
 } from './pb.js';
 
 const ARCHIVE_PER_PAGE = 5;
+const NASAJAB_IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
 const ownerMode = isLoggedIn();
 const demoMode = new URLSearchParams(window.location.search).has('demo');
 
@@ -20,6 +21,8 @@ let items = [];
 let currentPage = 1;
 let selectedId = cleanHashId();
 let editingItemId = '';
+let clipboardImageFile = null;
+let imagePreviewObjectUrl = '';
 
 const featuredEl = document.getElementById('nasajabFeatured');
 const archiveEl = document.getElementById('nasajabArchive');
@@ -34,6 +37,10 @@ const cancelButton = document.getElementById('cancelNasajabEdit');
 
 const formFields = {
     image: document.getElementById('nasajabImage'),
+    pasteBox: document.getElementById('nasajabPasteBox'),
+    clipboardButton: document.getElementById('nasajabClipboardButton'),
+    clearImage: document.getElementById('nasajabClearImage'),
+    imagePreview: document.getElementById('nasajabImagePreview'),
     memo: document.getElementById('nasajabMemo'),
     sourceUrl: document.getElementById('nasajabSourceUrl'),
     displayAt: document.getElementById('nasajabDisplayAt'),
@@ -49,7 +56,7 @@ if (ownerMode) {
 newButton?.addEventListener('click', () => {
     resetForm({ hidden: false });
     form.scrollIntoView({ block: 'start' });
-    formFields.image.focus();
+    formFields.pasteBox?.focus();
 });
 
 cancelButton?.addEventListener('click', () => resetForm({ hidden: true }));
@@ -57,6 +64,58 @@ cancelButton?.addEventListener('click', () => resetForm({ hidden: true }));
 form?.addEventListener('submit', async (event) => {
     event.preventDefault();
     await saveItem();
+});
+
+formFields.image?.addEventListener('change', () => {
+    clipboardImageFile = null;
+
+    const file = formFields.image.files?.[0];
+    if (file) {
+        if (!isSupportedNasajabImage(file)) {
+            clearImageSelection({ silent: true });
+            setOwnerStatus('JPG, PNG, GIF, WebP 이미지만 올릴 수 있음.', 'error');
+            return;
+        }
+
+        showSelectedImage(file, '파일 선택됨');
+        setOwnerStatus(`${file.name || '이미지'} 선택 완료. 저장하면 이 이미지로 올라감.`);
+        return;
+    }
+
+    clearImageSelection({ silent: true });
+});
+
+formFields.pasteBox?.addEventListener('paste', async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const imageFiles = imageFilesFromTransfer(event.clipboardData);
+    const pastedUrl = urlFromTransfer(event.clipboardData);
+    formFields.pasteBox.value = '';
+
+    if (imageFiles.length) {
+        useClipboardImage(imageFiles[0], imageFiles.length > 1 ? '붙여넣기: 첫 번째 이미지만 사용' : '붙여넣기 이미지');
+        return;
+    }
+
+    if (pastedUrl) {
+        fillSourceUrlFromClipboard(pastedUrl);
+        return;
+    }
+
+    setOwnerStatus('클립보드에서 이미지 파일을 못 찾았음. 이미지에서 "이미지 복사"를 한 뒤 다시 붙여넣어봐.', 'error');
+});
+
+formFields.pasteBox?.addEventListener('input', () => {
+    formFields.pasteBox.value = '';
+});
+
+formFields.clipboardButton?.addEventListener('click', async () => {
+    await readClipboardImage();
+});
+
+formFields.clearImage?.addEventListener('click', () => {
+    clearImageSelection();
 });
 
 archiveEl?.addEventListener('click', async (event) => {
@@ -288,16 +347,23 @@ function renderLoadError(error) {
 async function saveItem() {
     if (!ownerMode) return;
 
-    const hasNewImage = formFields.image.files.length > 0;
+    const hasFileInputImage = formFields.image.files.length > 0;
+    const hasClipboardImage = Boolean(clipboardImageFile);
+    const hasNewImage = hasFileInputImage || hasClipboardImage;
     if (!editingItemId && !hasNewImage) {
-        setOwnerStatus('이미지 하나는 꼭 있어야 함. 사진 하나만 띵똥 올리면 됨.', 'error');
+        setOwnerStatus('이미지 하나는 꼭 있어야 함. 파일을 고르거나 복사한 이미지를 붙여넣으면 됨.', 'error');
         return;
     }
 
     const formData = new FormData(form);
     formData.set('is_public', formFields.isPublic.checked ? 'true' : 'false');
 
-    if (!hasNewImage) formData.delete('image');
+    if (hasClipboardImage) {
+        formData.set('image', clipboardImageFile);
+    } else if (!hasFileInputImage) {
+        formData.delete('image');
+    }
+
     normalizeOptionalTextField(formData, 'memo');
     normalizeOptionalTextField(formData, 'source_url');
 
@@ -331,11 +397,14 @@ async function editItem(id) {
     editingItemId = item.id;
     form.hidden = false;
     formTitle.textContent = `✎ 나사잡 수정: ${displayMemo(item)}`;
+    clipboardImageFile = null;
     formFields.image.value = '';
+    formFields.pasteBox.value = '';
     formFields.memo.value = item.memo || '';
     formFields.sourceUrl.value = item.source_url || '';
     formFields.displayAt.value = toDateTimeLocal(nasajabDisplayDate(item));
     formFields.isPublic.checked = item.is_public !== false;
+    showExistingImage(item);
     setOwnerStatus('수정 모드. 새 이미지를 고르면 기존 이미지가 바뀜.');
     form.scrollIntoView({ block: 'start' });
     formFields.memo.focus();
@@ -365,6 +434,7 @@ function resetForm(options = {}) {
     if (!form) return;
     editingItemId = '';
     form.reset();
+    clearImageSelection({ silent: true, hidePreview: true });
     formTitle.textContent = '✚ 새 나사잡 올리기';
     formFields.displayAt.value = toDateTimeLocal(new Date().toISOString());
     formFields.isPublic.checked = true;
@@ -389,6 +459,213 @@ function displayMemo(item) {
 
 function imageUrlFor(item) {
     return item?.demo_image_url || getNasajabImageUrl(item);
+}
+
+function isSupportedNasajabImage(file) {
+    return file && NASAJAB_IMAGE_MIME_TYPES.has(file.type);
+}
+
+function hasImageTransfer(dataTransfer) {
+    if (!dataTransfer) return false;
+    return Array.from(dataTransfer.items || []).some(item => item.type?.startsWith('image/'))
+        || Array.from(dataTransfer.files || []).some(file => file.type?.startsWith('image/'));
+}
+
+function imageFilesFromTransfer(dataTransfer) {
+    if (!hasImageTransfer(dataTransfer)) return [];
+
+    const files = Array.from(dataTransfer.files || []);
+    const itemFiles = Array.from(dataTransfer.items || [])
+        .filter(item => item.kind === 'file' && item.type?.startsWith('image/'))
+        .map(item => item.getAsFile())
+        .filter(Boolean);
+
+    return [...files, ...itemFiles]
+        .filter((file, index, allFiles) => {
+            if (!isSupportedNasajabImage(file)) return false;
+            return allFiles.findIndex(candidate =>
+                candidate.name === file.name
+                && candidate.size === file.size
+                && candidate.lastModified === file.lastModified
+            ) === index;
+        })
+        .map((file, index) => namedNasajabImageFile(file, index));
+}
+
+function namedNasajabImageFile(file, index) {
+    if (file.name && /\.[a-z0-9]+$/i.test(file.name)) return file;
+
+    const extensionByType = {
+        'image/jpeg': 'jpg',
+        'image/png': 'png',
+        'image/gif': 'gif',
+        'image/webp': 'webp'
+    };
+    const extension = extensionByType[file.type] || 'png';
+
+    return new File([file], `nasajab-image-${Date.now()}-${index + 1}.${extension}`, {
+        type: file.type
+    });
+}
+
+function urlFromTransfer(dataTransfer) {
+    if (!dataTransfer) return '';
+
+    const candidates = [
+        dataTransfer.getData('text/uri-list'),
+        dataTransfer.getData('text/plain')
+    ];
+
+    return candidates
+        .map(value => String(value || '').split(/\r?\n/).find(line => /^https?:\/\//i.test(line.trim())) || '')
+        .map(value => value.trim())
+        .find(Boolean) || '';
+}
+
+function fillSourceUrlFromClipboard(url) {
+    if (!formFields.sourceUrl.value.trim()) {
+        formFields.sourceUrl.value = url;
+        setOwnerStatus('클립보드에는 이미지 파일 대신 URL만 있어서 출처 링크에 넣었음. 이미지는 파일 선택이나 이미지 복사로 다시 넣어줘.', 'error');
+        return;
+    }
+
+    setOwnerStatus('클립보드에는 이미지 파일 대신 URL만 있었음. 기존 출처 링크는 그대로 뒀어.', 'error');
+}
+
+function useClipboardImage(file, label = '붙여넣기 이미지') {
+    clipboardImageFile = namedNasajabImageFile(file, 0);
+    formFields.image.value = '';
+    formFields.pasteBox.value = '';
+    showSelectedImage(clipboardImageFile, label);
+    setOwnerStatus(`${clipboardImageFile.name} 붙여넣기 완료. 저장하면 이 이미지로 올라감.`, 'success');
+}
+
+async function readClipboardImage() {
+    if (!navigator.clipboard?.read) {
+        setOwnerStatus('이 브라우저는 클립보드 직접 읽기를 지원하지 않음. 붙여넣기 박스에 직접 붙여넣어줘.', 'error');
+        return;
+    }
+
+    try {
+        const clipboardItems = await navigator.clipboard.read();
+        const imageFiles = [];
+        let textUrl = '';
+
+        for (const item of clipboardItems) {
+            const imageType = item.types.find(type => NASAJAB_IMAGE_MIME_TYPES.has(type));
+            if (imageType) {
+                const blob = await item.getType(imageType);
+                imageFiles.push(namedNasajabImageFile(new File([blob], '', { type: blob.type || imageType }), imageFiles.length));
+                continue;
+            }
+
+            const textType = item.types.find(type => type === 'text/uri-list' || type === 'text/plain');
+            if (textType && !textUrl) {
+                const textBlob = await item.getType(textType);
+                const text = await textBlob.text();
+                textUrl = text.split(/\r?\n/).find(line => /^https?:\/\//i.test(line.trim()))?.trim() || '';
+            }
+        }
+
+        if (imageFiles.length) {
+            useClipboardImage(imageFiles[0], imageFiles.length > 1 ? '클립보드: 첫 번째 이미지만 사용' : '클립보드 이미지');
+            return;
+        }
+
+        if (textUrl) {
+            fillSourceUrlFromClipboard(textUrl);
+            return;
+        }
+
+        setOwnerStatus('클립보드에 읽을 수 있는 이미지가 없음.', 'error');
+    } catch (error) {
+        setOwnerStatus(`클립보드 읽기 실패: ${cmsErrorMessage(error)}`, 'error');
+    }
+}
+
+function showSelectedImage(file, label) {
+    revokeImagePreviewObjectUrl();
+    imagePreviewObjectUrl = URL.createObjectURL(file);
+    renderImagePreview({
+        url: imagePreviewObjectUrl,
+        label,
+        detail: `${file.name || 'image'} · ${formatBytes(file.size)}`,
+        canClear: true
+    });
+}
+
+function showExistingImage(item) {
+    revokeImagePreviewObjectUrl();
+    const url = imageUrlFor(item);
+    if (!url) {
+        hideImagePreview();
+        return;
+    }
+
+    renderImagePreview({
+        url,
+        label: '현재 저장된 이미지',
+        detail: '새 파일을 고르거나 붙여넣으면 교체됨.',
+        canClear: false
+    });
+}
+
+function renderImagePreview({ url, label, detail, canClear }) {
+    if (!formFields.imagePreview) return;
+
+    formFields.imagePreview.innerHTML = `
+        <img src="${escapeAttribute(url)}" alt="${escapeAttribute(label)} preview">
+        <span>
+            <b>${escapeHtml(label)}</b><br>
+            <small>${escapeHtml(detail)}</small>
+        </span>
+    `;
+    formFields.imagePreview.hidden = false;
+    formFields.clearImage.hidden = !canClear;
+}
+
+function clearImageSelection(options = {}) {
+    clipboardImageFile = null;
+    formFields.image.value = '';
+    formFields.pasteBox.value = '';
+    revokeImagePreviewObjectUrl();
+
+    if (options.hidePreview) {
+        hideImagePreview();
+    } else if (editingItemId) {
+        const item = items.find(entry => entry.id === editingItemId);
+        if (item) showExistingImage(item);
+    } else {
+        hideImagePreview();
+    }
+
+    if (!options.silent) {
+        setOwnerStatus(editingItemId ? '새 이미지 선택 취소. 저장하면 기존 이미지 유지.' : '이미지 선택이 비워졌음.');
+    }
+}
+
+function hideImagePreview() {
+    if (formFields.imagePreview) {
+        formFields.imagePreview.innerHTML = '';
+        formFields.imagePreview.hidden = true;
+    }
+    if (formFields.clearImage) {
+        formFields.clearImage.hidden = true;
+    }
+}
+
+function revokeImagePreviewObjectUrl() {
+    if (!imagePreviewObjectUrl) return;
+    URL.revokeObjectURL(imagePreviewObjectUrl);
+    imagePreviewObjectUrl = '';
+}
+
+function formatBytes(value) {
+    const bytes = Number(value || 0);
+    if (!Number.isFinite(bytes) || bytes <= 0) return '크기 알 수 없음';
+    if (bytes < 1024) return `${bytes}B`;
+    if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)}KB`;
+    return `${(bytes / 1024 / 1024).toFixed(1)}MB`;
 }
 
 function normalizeOptionalTextField(formData, name) {
