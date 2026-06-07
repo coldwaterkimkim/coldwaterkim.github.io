@@ -9,10 +9,10 @@
   <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-  <script type="module" crossorigin src="/assets/nasajab/index-BinpFufm.js"></script>
+  <script type="module" crossorigin src="/assets/nasajab/index-DJ-qAxOV.js"></script>
   <link rel="modulepreload" crossorigin href="/assets/pb-BpG7gW_X.js">
-  <link rel="modulepreload" crossorigin href="/assets/site-BFWkUesn.js">
-  <link rel="stylesheet" crossorigin href="/assets/site-KvPPjwVb.css">
+  <link rel="modulepreload" crossorigin href="/assets/site-DyBjUV-V.js">
+  <link rel="stylesheet" crossorigin href="/assets/site-DwgqIEnk.css">
 </head>
 
 <body class="page-subpage page-nasajab" background="" bgcolor="#e0e0e0">
@@ -101,7 +101,17 @@
                   <td width="120"><label for="nasajabImage"><b>이미지 *</b></label></td>
                   <td>
                     <input type="file" id="nasajabImage" name="image" accept="image/*">
-                    <div class="note">사진, 캡처, GIF 가능. 수정할 때 비워두면 기존 이미지 유지.</div>
+                    <div class="nasajab-paste-control">
+                      <label for="nasajabPasteBox"><b>복사 이미지 붙여넣기</b></label>
+                      <textarea id="nasajabPasteBox" rows="2" spellcheck="false" aria-describedby="nasajabPasteHint" placeholder="웹에서 이미지 복사 → 여기 클릭 → 붙여넣기"></textarea>
+                      <p id="nasajabPasteHint" class="note">JPG, PNG, GIF, WebP 가능. 여러 장이면 첫 장만 씀.</p>
+                      <p class="nasajab-paste-actions">
+                        <button type="button" id="nasajabClipboardButton" class="owner-btn">클립보드에서 읽기</button>
+                        <button type="button" id="nasajabClearImage" class="owner-btn" hidden>선택 취소</button>
+                      </p>
+                      <div id="nasajabImagePreview" class="nasajab-image-preview" hidden></div>
+                    </div>
+                    <div class="note">파일 선택도 그대로 가능. 수정할 때 새 이미지를 고르거나 붙여넣지 않으면 기존 이미지 유지.</div>
                   </td>
                 </tr>
                 <tr>
