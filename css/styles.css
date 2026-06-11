@@ -543,23 +543,105 @@ a:hover { background: var(--cwk-link-hover-bg); }
   min-height: 260px;
 }
 
-.program-editor-container .ql-toolbar {
+.program-editor-container .markdown-editor-toolbar {
   background: var(--cwk-surface-table-head);
   border: none;
   border-bottom: 1px solid var(--cwk-border-dashed);
+  padding: 4px;
 }
 
-.program-editor-container .ql-container {
+.program-editor-container .markdown-editor-inline-toolbar {
+  padding: 4px;
+  background: var(--cwk-surface-table-head);
+  border-bottom: 1px solid var(--cwk-border-dashed);
+}
+
+.program-editor-container .markdown-editor-toolbar button {
+  margin: 0 2px 3px 0;
+  padding: 3px 6px;
+  border: 2px outset var(--cwk-surface-page);
+  background: var(--cwk-surface-page);
+  color: var(--cwk-ink);
+  font-family: var(--cwk-font-mono);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.program-editor-container .markdown-editor-inline-toolbar button,
+.program-editor-container .markdown-editor-toolbar button:active {
+  margin: 0 2px 0 0;
+  padding: 3px 6px;
+  border: 2px outset var(--cwk-surface-page);
+  background: var(--cwk-surface-page);
+  color: var(--cwk-ink);
+  font-family: var(--cwk-font-mono);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.program-editor-container .markdown-editor-inline-toolbar button:active,
+.program-editor-container .markdown-editor-toolbar button:active {
+  border-style: inset;
+}
+
+.program-editor-container .toastui-editor-defaultUI {
   border: none;
   font-family: Georgia, serif;
+}
+
+.program-editor-container .toastui-editor-defaultUI-toolbar {
+  border-bottom: 1px solid var(--cwk-border-dashed);
+  background: var(--cwk-surface-table-head);
+}
+
+.program-editor-container .toastui-editor-mode-switch,
+.program-editor-container .toastui-editor-md-tab-container {
+  display: none;
+}
+
+.program-editor-container .toastui-editor-main,
+.program-editor-container .toastui-editor-ww-container,
+.program-editor-container .toastui-editor-ww-container .ProseMirror,
+.program-editor-container .toastui-editor-contents {
+  background: var(--cwk-surface-page);
+  color: var(--cwk-ink);
+  font-family: Georgia, serif;
   font-size: 15px;
+  line-height: var(--cwk-post-line-height);
+  letter-spacing: 0;
 }
 
-.program-editor-container .ql-editor {
+.program-editor-container .toastui-editor-ww-container .ProseMirror,
+.program-editor-container .toastui-editor-contents {
+  padding: 10px 12px;
+}
+
+.program-editor-container .markdown-editor-textarea,
+.program-editor-container .markdown-editor-preview {
+  box-sizing: border-box;
+  width: 100%;
   min-height: 220px;
+  border: none;
+  padding: 10px 12px;
+  background: var(--cwk-surface-page);
+  color: var(--cwk-ink);
+  font-family: Georgia, serif;
+  font-size: 15px;
+  line-height: var(--cwk-post-line-height);
+  letter-spacing: 0;
 }
 
-.program-editor-container .ql-editor img {
+.program-editor-container .markdown-editor-textarea {
+  display: block;
+  resize: vertical;
+  outline: none;
+}
+
+.program-editor-container .markdown-editor-preview {
+  overflow: auto;
+}
+
+.program-editor-container .markdown-editor-preview img {
   max-width: 100%;
   height: auto;
 }

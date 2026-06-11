@@ -11,6 +11,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@toast-ui/editor": "^3.2.2",
     "vite": "^8.0.14"
+  },
+  "overrides": {
+    "dompurify": "^3.4.9"
   }
 }

@@ -17,16 +17,19 @@ import {
     uploadMedia,
     getMediaUrl
 } from './pb.js';
+import {
+    createMarkdownEditor,
+    hasImageTransfer,
+    imageFilesFromTransfer
+} from './markdown-editor.js';
 
 const ownerMode = isLoggedIn();
 let programs = [];
 let editingProgramId = '';
-let programBodyQuill = null;
-let programBodyQuillReady = null;
+let programBodyEditor = null;
+let programBodyEditorReady = null;
 let pendingProgramBodyImageIndex = null;
 
-const QUILL_CSS_URL = 'https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css';
-const QUILL_JS_URL = 'https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js';
 const PROGRAM_IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
 
 const fallbackPrograms = [
@@ -118,7 +121,7 @@ const formFields = {
 if (ownerMode) {
     ownerPanel.hidden = false;
     setOwnerStatus('OWNER MODE: 이 페이지에서 바로 프로그램을 추가/수정할 수 있음.');
-    programBodyQuillReady = initProgramBodyEditor().catch(error => {
+    programBodyEditorReady = initProgramBodyEditor().catch(error => {
         setOwnerStatus(`본문 에디터 로드 실패: ${cmsErrorMessage(error)}`, 'error');
     });
 }
@@ -406,14 +409,14 @@ function normalizeOptionalTextField(formData, name) {
 }
 
 function programBodyHtml() {
-    if (!programBodyQuill) return '';
-    const html = programBodyQuill.root.innerHTML.trim();
+    if (!programBodyEditor) return '';
+    const html = programBodyEditor.root.innerHTML.trim();
     return html === '<p><br></p>' ? '' : html;
 }
 
 function setProgramBodyHtml(html = '') {
-    if (programBodyQuill) {
-        programBodyQuill.root.innerHTML = html || '';
+    if (programBodyEditor) {
+        programBodyEditor.root.innerHTML = html || '';
     }
 }
 
@@ -430,35 +433,20 @@ function legacyProgramBody(program) {
 }
 
 async function ensureProgramBodyEditor() {
-    if (programBodyQuillReady) {
-        await programBodyQuillReady;
+    if (programBodyEditorReady) {
+        await programBodyEditorReady;
     }
 }
 
 async function initProgramBodyEditor() {
     if (!formFields.bodyEditor) return;
 
-    await loadQuillAssets();
-    programBodyQuill = new window.Quill('#programBodyEditor', {
-        theme: 'snow',
-        placeholder: '제작 배경, 사용법, 스크린샷, 긴 이야기를 자유롭게 쓰기...',
-        modules: {
-            toolbar: [
-                [{ header: [1, 2, 3, false] }],
-                ['bold', 'italic', 'underline', 'strike'],
-                [{ color: [] }, { background: [] }],
-                [{ list: 'ordered' }, { list: 'bullet' }],
-                ['blockquote', 'code-block'],
-                ['link', 'image'],
-                ['clean']
-            ]
+    programBodyEditor = await createMarkdownEditor('#programBodyEditor', {
+        placeholder: 'Markdown으로 제작 배경, 사용법, 스크린샷, 긴 이야기 쓰기...',
+        onImageButton: () => {
+            pendingProgramBodyImageIndex = currentProgramBodyIndex();
+            formFields.bodyImageInput.click();
         }
-    });
-
-    const toolbar = programBodyQuill.getModule('toolbar');
-    toolbar.addHandler('image', () => {
-        pendingProgramBodyImageIndex = currentProgramBodyIndex();
-        formFields.bodyImageInput.click();
     });
 
     formFields.bodyImageInput?.addEventListener('change', async () => {
@@ -491,59 +479,19 @@ async function initProgramBodyEditor() {
         event.preventDefault();
         event.stopPropagation();
         formFields.bodyEditorWrap.classList.remove('is-image-dragover');
-        await insertProgramBodyImages(imageFilesFromTransfer(event.dataTransfer), {
-            index: editorIndexFromPoint(event.clientX, event.clientY)
-        });
-    }, true);
-
-    programBodyQuill.root.addEventListener('paste', async (event) => {
-        if (!hasImageTransfer(event.clipboardData)) return;
-        event.preventDefault();
-        event.stopPropagation();
-        await insertProgramBodyImages(imageFilesFromTransfer(event.clipboardData), {
+        await insertProgramBodyImages(programImageFilesFromTransfer(event.dataTransfer), {
             index: currentProgramBodyIndex()
         });
     }, true);
-}
 
-function loadQuillAssets() {
-    return Promise.all([
-        loadStylesheetOnce(QUILL_CSS_URL),
-        loadScriptOnce(QUILL_JS_URL, () => Boolean(window.Quill))
-    ]);
-}
-
-function loadStylesheetOnce(href) {
-    if (document.querySelector(`link[href="${href}"]`)) return Promise.resolve();
-
-    return new Promise((resolve, reject) => {
-        const link = document.createElement('link');
-        link.rel = 'stylesheet';
-        link.href = href;
-        link.addEventListener('load', resolve, { once: true });
-        link.addEventListener('error', reject, { once: true });
-        document.head.appendChild(link);
-    });
-}
-
-function loadScriptOnce(src, isReady) {
-    if (isReady()) return Promise.resolve();
-
-    const existing = document.querySelector(`script[src="${src}"]`);
-    if (existing) {
-        return new Promise((resolve, reject) => {
-            existing.addEventListener('load', resolve, { once: true });
-            existing.addEventListener('error', reject, { once: true });
+    programBodyEditor.root.addEventListener('paste', async (event) => {
+        if (!hasImageTransfer(event.clipboardData)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        await insertProgramBodyImages(programImageFilesFromTransfer(event.clipboardData), {
+            index: currentProgramBodyIndex()
         });
-    }
-
-    return new Promise((resolve, reject) => {
-        const script = document.createElement('script');
-        script.src = src;
-        script.addEventListener('load', resolve, { once: true });
-        script.addEventListener('error', reject, { once: true });
-        document.head.appendChild(script);
-    });
+    }, true);
 }
 
 function setProgramBodyImageStatus(message = '', type = 'info') {
@@ -557,89 +505,25 @@ function isSupportedProgramImage(file) {
     return file && PROGRAM_IMAGE_MIME_TYPES.has(file.type);
 }
 
-function hasImageTransfer(dataTransfer) {
-    if (!dataTransfer) return false;
-    return Array.from(dataTransfer.items || []).some(item => item.type?.startsWith('image/'))
-        || Array.from(dataTransfer.files || []).some(file => file.type?.startsWith('image/'));
-}
-
-function imageFilesFromTransfer(dataTransfer) {
-    if (!dataTransfer) return [];
-
-    const files = Array.from(dataTransfer.files || []);
-    const itemFiles = Array.from(dataTransfer.items || [])
-        .filter(item => item.kind === 'file' && item.type?.startsWith('image/'))
-        .map(item => item.getAsFile())
-        .filter(Boolean);
-
-    return [...files, ...itemFiles]
-        .filter((file, index, allFiles) => {
-            if (!isSupportedProgramImage(file)) return false;
-            return allFiles.findIndex(candidate =>
-                candidate.name === file.name
-                && candidate.size === file.size
-                && candidate.lastModified === file.lastModified
-            ) === index;
-        })
-        .map((file, index) => namedProgramImageFile(file, index));
-}
-
-function namedProgramImageFile(file, index) {
-    if (file.name) return file;
-
-    const extensionByType = {
-        'image/jpeg': 'jpg',
-        'image/png': 'png',
-        'image/gif': 'gif',
-        'image/webp': 'webp'
-    };
-    const extension = extensionByType[file.type] || 'png';
-
-    return new File([file], `program-body-image-${Date.now()}-${index + 1}.${extension}`, {
-        type: file.type
+function programImageFilesFromTransfer(dataTransfer) {
+    return imageFilesFromTransfer(dataTransfer, {
+        mimeTypes: PROGRAM_IMAGE_MIME_TYPES,
+        fallbackNamePrefix: 'program-body-image'
     });
 }
 
 function clampProgramBodyIndex(index) {
-    const maxIndex = Math.max(0, programBodyQuill.getLength() - 1);
-    if (!Number.isFinite(index)) return maxIndex;
-    return Math.min(Math.max(0, index), maxIndex);
+    return programBodyEditor.clampIndex(index);
 }
 
 function currentProgramBodyIndex() {
-    const range = programBodyQuill.getSelection(true);
+    const range = programBodyEditor.getSelection(true);
     return clampProgramBodyIndex(range?.index);
-}
-
-function editorIndexFromPoint(x, y) {
-    const range = document.caretRangeFromPoint
-        ? document.caretRangeFromPoint(x, y)
-        : null;
-    const position = !range && document.caretPositionFromPoint
-        ? document.caretPositionFromPoint(x, y)
-        : null;
-
-    const node = range?.startContainer || position?.offsetNode;
-    const offset = range?.startOffset ?? position?.offset;
-    if (!node) return currentProgramBodyIndex();
-
-    const blot = window.Quill.find(node, true);
-    if (!blot) return currentProgramBodyIndex();
-
-    let index = programBodyQuill.getIndex(blot);
-    if (typeof blot.index === 'function') {
-        index += blot.index(node, offset);
-    } else {
-        index += offset || 0;
-    }
-
-    return clampProgramBodyIndex(index);
 }
 
 async function insertProgramBodyImages(files, options = {}) {
     const imageFiles = Array.from(files || [])
-        .filter(isSupportedProgramImage)
-        .map((file, index) => namedProgramImageFile(file, index));
+        .filter(isSupportedProgramImage);
 
     if (!imageFiles.length) {
         setOwnerStatus('JPG, PNG, GIF, WebP 이미지만 본문에 넣을 수 있음.', 'error');
@@ -657,10 +541,7 @@ async function insertProgramBodyImages(files, options = {}) {
         try {
             const media = await uploadMedia(file);
             const url = getMediaUrl(media, media.file);
-            programBodyQuill.insertEmbed(insertIndex, 'image', url, 'user');
-            insertIndex += 1;
-            programBodyQuill.insertText(insertIndex, '\n', 'user');
-            insertIndex += 1;
+            insertIndex = programBodyEditor.insertImage(insertIndex, url, file.name);
             uploadedCount += 1;
         } catch (error) {
             setOwnerStatus(`본문 이미지 업로드 실패: ${cmsErrorMessage(error)}`, 'error');
@@ -670,7 +551,7 @@ async function insertProgramBodyImages(files, options = {}) {
     formFields.bodyEditorWrap?.classList.remove('is-image-uploading');
 
     if (uploadedCount > 0) {
-        programBodyQuill.setSelection(insertIndex, 0, 'silent');
+        programBodyEditor.setSelection(insertIndex, 0, 'silent');
         setProgramBodyImageStatus(`${uploadedCount}개 이미지가 본문에 들어갔습니다.`, 'success');
         setTimeout(() => setProgramBodyImageStatus(), 2500);
     } else {

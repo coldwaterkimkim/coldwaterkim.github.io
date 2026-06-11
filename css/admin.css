@@ -250,19 +250,105 @@ body.admin-body {
   min-height: 300px;
 }
 
-.editor-container .ql-toolbar {
+.editor-container .markdown-editor-toolbar {
   background: var(--cwk-surface-table-head);
   border: none;
   border-bottom: 1px solid var(--cwk-border-dashed);
+  padding: 4px;
 }
 
-.editor-container .ql-container {
-  border: none;
+.editor-container .markdown-editor-inline-toolbar {
+  padding: 4px;
+  background: var(--cwk-surface-table-head);
+  border-bottom: 1px solid var(--cwk-border-dashed);
+}
+
+.editor-container .markdown-editor-toolbar button {
+  margin: 0 2px 3px 0;
+  padding: 3px 6px;
+  border: 2px outset var(--cwk-surface-page);
+  background: var(--cwk-surface-page);
+  color: var(--cwk-ink);
   font-family: var(--cwk-font-mono);
-  font-size: 14px;
+  font-size: 12px;
+  cursor: pointer;
 }
 
-.editor-container .ql-editor img {
+.editor-container .markdown-editor-inline-toolbar button,
+.editor-container .markdown-editor-toolbar button:active {
+  margin: 0 2px 0 0;
+  padding: 3px 6px;
+  border: 2px outset var(--cwk-surface-page);
+  background: var(--cwk-surface-page);
+  color: var(--cwk-ink);
+  font-family: var(--cwk-font-mono);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.editor-container .markdown-editor-inline-toolbar button:active,
+.editor-container .markdown-editor-toolbar button:active {
+  border-style: inset;
+}
+
+.editor-container .toastui-editor-defaultUI {
+  border: none;
+  font-family: "Georgia", serif;
+}
+
+.editor-container .toastui-editor-defaultUI-toolbar {
+  border-bottom: 1px solid var(--cwk-border-dashed);
+  background: var(--cwk-surface-table-head);
+}
+
+.editor-container .toastui-editor-mode-switch,
+.editor-container .toastui-editor-md-tab-container {
+  display: none;
+}
+
+.editor-container .toastui-editor-main,
+.editor-container .toastui-editor-ww-container,
+.editor-container .toastui-editor-ww-container .ProseMirror,
+.editor-container .toastui-editor-contents {
+  background: var(--cwk-surface-page);
+  color: var(--cwk-ink);
+  font-family: "Georgia", serif;
+  font-size: 16px;
+  line-height: 1.42;
+  letter-spacing: 0;
+}
+
+.editor-container .toastui-editor-ww-container .ProseMirror,
+.editor-container .toastui-editor-contents {
+  padding: 12px 15px;
+}
+
+.editor-container .markdown-editor-textarea,
+.editor-container .markdown-editor-preview {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 300px;
+  border: none;
+  padding: 12px 15px;
+  background: var(--cwk-surface-page);
+  color: var(--cwk-ink);
+  font-family: "Georgia", serif;
+  font-size: 16px;
+  line-height: 1.42;
+  letter-spacing: 0;
+}
+
+.editor-container .markdown-editor-textarea {
+  display: block;
+  resize: vertical;
+  outline: none;
+}
+
+.editor-container .markdown-editor-preview {
+  overflow: auto;
+}
+
+.editor-container .markdown-editor-preview img {
   max-width: 100%;
   height: auto;
 }

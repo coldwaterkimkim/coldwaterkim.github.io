@@ -10,15 +10,6 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="stylesheet" href="../css/admin.css">
-    <!-- Quill Editor -->
-    <link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet">
-    <style>
-        .ql-editor {
-            min-height: 300px;
-            font-family: "Georgia", serif;
-            font-size: 16px;
-        }
-    </style>
 </head>
 
 <body class="admin-body">
@@ -119,9 +110,6 @@
         </div>
     </div>
 
-    <!-- Quill JS -->
-    <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
-
     <script type="module">
         import {
             pb,
@@ -144,6 +132,7 @@
             uploadMedia,
             getMediaUrl
         } from '../js/pb.js';
+        import { createMarkdownEditor, hasImageTransfer, imageFilesFromTransfer } from '../js/markdown-editor.js';
 
         // 인증 체크
         if (!isLoggedIn()) {
@@ -158,20 +147,13 @@
             window.location.href = '/admin/login.html';
         });
 
-        // Quill 에디터 초기화
-        const quill = new Quill('#editor', {
-            theme: 'snow',
-            placeholder: '여기에 글을 작성하세요...',
-            modules: {
-                toolbar: [
-                    [{ 'header': [1, 2, 3, false] }],
-                    ['bold', 'italic', 'underline', 'strike'],
-                    [{ 'color': [] }, { 'background': [] }],
-                    [{ 'list': 'ordered' }, { 'list': 'bullet' }],
-                    ['blockquote', 'code-block'],
-                    ['link', 'image'],
-                    ['clean']
-                ]
+        // Markdown 에디터 초기화
+        let pendingEditorImageIndex = null;
+        const markdownEditor = await createMarkdownEditor('#editor', {
+            placeholder: 'Markdown으로 하루를 작성하세요...',
+            onImageButton: () => {
+                pendingEditorImageIndex = currentEditorIndex();
+                editorImageInput.click();
             }
         });
 
@@ -179,14 +161,6 @@
         const editorImageInput = document.getElementById('editorImageInput');
         const editorImageStatus = document.getElementById('editorImageStatus');
         const editorImageMimeTypes = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
-        let pendingEditorImageIndex = null;
-
-        // 이미지 핸들러 커스터마이즈 - 파일 업로드 후 본문에 자동 삽입
-        const toolbar = quill.getModule('toolbar');
-        toolbar.addHandler('image', () => {
-            pendingEditorImageIndex = currentEditorIndex();
-            editorImageInput.click();
-        });
 
         editorImageInput.addEventListener('change', async () => {
             await insertEditorImages(editorImageInput.files, {
@@ -219,23 +193,23 @@
             event.stopPropagation();
             editorContainer.classList.remove('is-image-dragover');
 
-            const imageFiles = imageFilesFromTransfer(event.dataTransfer);
+            const imageFiles = editorImageFilesFromTransfer(event.dataTransfer);
             if (!imageFiles.length) {
                 showAlert('JPG, PNG, GIF, WebP 이미지만 본문에 넣을 수 있습니다.', 'error');
                 return;
             }
 
             await insertEditorImages(imageFiles, {
-                index: editorIndexFromPoint(event.clientX, event.clientY)
+                index: currentEditorIndex()
             });
         }, true);
 
-        quill.root.addEventListener('paste', async (event) => {
+        markdownEditor.root.addEventListener('paste', async (event) => {
             if (!hasImageTransfer(event.clipboardData)) return;
             event.preventDefault();
             event.stopPropagation();
 
-            const imageFiles = imageFilesFromTransfer(event.clipboardData);
+            const imageFiles = editorImageFilesFromTransfer(event.clipboardData);
             if (!imageFiles.length) {
                 showAlert('JPG, PNG, GIF, WebP 이미지만 본문에 넣을 수 있습니다.', 'error');
                 return;
@@ -279,90 +253,25 @@
             return file && editorImageMimeTypes.has(file.type);
         }
 
-        function hasImageTransfer(dataTransfer) {
-            if (!dataTransfer) return false;
-
-            return Array.from(dataTransfer.items || []).some(item => item.type?.startsWith('image/'))
-                || Array.from(dataTransfer.files || []).some(file => file.type?.startsWith('image/'));
-        }
-
-        function imageFilesFromTransfer(dataTransfer) {
-            if (!dataTransfer) return [];
-
-            const files = Array.from(dataTransfer.files || []);
-            const itemFiles = Array.from(dataTransfer.items || [])
-                .filter(item => item.kind === 'file' && item.type?.startsWith('image/'))
-                .map(item => item.getAsFile())
-                .filter(Boolean);
-
-            return [...files, ...itemFiles]
-                .filter((file, index, allFiles) => {
-                    if (!isSupportedEditorImage(file)) return false;
-                    return allFiles.findIndex(candidate =>
-                        candidate.name === file.name
-                        && candidate.size === file.size
-                        && candidate.lastModified === file.lastModified
-                    ) === index;
-                })
-                .map((file, index) => namedImageFile(file, index));
-        }
-
-        function namedImageFile(file, index) {
-            if (file.name) return file;
-
-            const extensionByType = {
-                'image/jpeg': 'jpg',
-                'image/png': 'png',
-                'image/gif': 'gif',
-                'image/webp': 'webp'
-            };
-            const extension = extensionByType[file.type] || 'png';
-
-            return new File([file], `editor-image-${Date.now()}-${index + 1}.${extension}`, {
-                type: file.type
+        function editorImageFilesFromTransfer(dataTransfer) {
+            return imageFilesFromTransfer(dataTransfer, {
+                mimeTypes: editorImageMimeTypes,
+                fallbackNamePrefix: 'editor-image'
             });
         }
 
         function clampEditorIndex(index) {
-            const maxIndex = Math.max(0, quill.getLength() - 1);
-            if (!Number.isFinite(index)) return maxIndex;
-            return Math.min(Math.max(0, index), maxIndex);
+            return markdownEditor.clampIndex(index);
         }
 
         function currentEditorIndex() {
-            const range = quill.getSelection(true);
+            const range = markdownEditor.getSelection(true);
             return clampEditorIndex(range?.index);
-        }
-
-        function editorIndexFromPoint(x, y) {
-            const range = document.caretRangeFromPoint
-                ? document.caretRangeFromPoint(x, y)
-                : null;
-            const position = !range && document.caretPositionFromPoint
-                ? document.caretPositionFromPoint(x, y)
-                : null;
-
-            const node = range?.startContainer || position?.offsetNode;
-            const offset = range?.startOffset ?? position?.offset;
-            if (!node) return currentEditorIndex();
-
-            const blot = Quill.find(node, true);
-            if (!blot) return currentEditorIndex();
-
-            let index = quill.getIndex(blot);
-            if (typeof blot.index === 'function') {
-                index += blot.index(node, offset);
-            } else {
-                index += offset || 0;
-            }
-
-            return clampEditorIndex(index);
         }
 
         async function insertEditorImages(files, options = {}) {
             const imageFiles = Array.from(files || [])
-                .filter(isSupportedEditorImage)
-                .map((file, index) => namedImageFile(file, index));
+                .filter(isSupportedEditorImage);
 
             if (!imageFiles.length) {
                 showAlert('JPG, PNG, GIF, WebP 이미지만 본문에 넣을 수 있습니다.', 'error');
@@ -380,10 +289,7 @@
                 try {
                     const media = await uploadMedia(file);
                     const url = getMediaUrl(media, media.file);
-                    quill.insertEmbed(insertIndex, 'image', url, 'user');
-                    insertIndex += 1;
-                    quill.insertText(insertIndex, '\n', 'user');
-                    insertIndex += 1;
+                    insertIndex = markdownEditor.insertImage(insertIndex, url, file.name);
                     uploadedCount += 1;
                 } catch (e) {
                     showAlert(`본문 이미지 업로드 실패 (${file.name}): ${cmsErrorMessage(e)}`, 'error');
@@ -393,7 +299,7 @@
             editorContainer.classList.remove('is-image-uploading');
 
             if (uploadedCount > 0) {
-                quill.setSelection(insertIndex, 0, 'silent');
+                markdownEditor.setSelection(insertIndex, 0, 'silent');
                 setEditorImageStatus(`${uploadedCount}개 이미지가 본문에 들어갔습니다.`, 'success');
                 setTimeout(() => setEditorImageStatus(), 2500);
             } else {
@@ -422,7 +328,7 @@
                 document.getElementById('slug').value = post.slug || dailySlugFromDayKey(dailyEntryDayKey(post));
                 document.getElementById('status').value = post.status || 'draft';
                 document.getElementById('published_at').value = dailyEntryDayKey(post);
-                quill.root.innerHTML = post.content || '';
+                markdownEditor.root.innerHTML = post.content || '';
                 document.getElementById('deleteBtn').style.display = 'inline-block';
                 editingPostId = post.id;
                 lastAutoTitle = '';
@@ -432,7 +338,7 @@
                 document.getElementById('postForm').reset();
                 document.getElementById('postId').value = '';
                 document.getElementById('status').value = 'draft';
-                quill.root.innerHTML = '';
+                markdownEditor.root.innerHTML = '';
                 document.getElementById('deleteBtn').style.display = 'none';
                 editingPostId = null;
 
@@ -563,7 +469,7 @@
             const status = document.getElementById('status').value;
             const dayKey = normalizeDailyDayKey(document.getElementById('published_at').value || new Date());
             const slug = dailySlugFromDayKey(dayKey);
-            const content = quill.root.innerHTML;
+            const content = markdownEditor.root.innerHTML;
 
             document.getElementById('slug').value = slug;
             document.getElementById('published_at').value = dayKey;
@@ -601,7 +507,7 @@
                         document.getElementById('postId').value = result.id;
                         document.getElementById('title').value = result.title || title;
                         document.getElementById('status').value = result.status || mergedStatus;
-                        quill.root.innerHTML = result.content || mergedContent;
+                        markdownEditor.root.innerHTML = result.content || mergedContent;
                         editingPostId = result.id;
                         document.getElementById('deleteBtn').style.display = 'inline-block';
                         showAlert('이미 있던 오늘의 나으 하루 아래에 이어 붙였습니다!', 'success');
