@@ -767,7 +767,8 @@ a:hover { background: var(--cwk-link-hover-bg); }
 .program-body-content {
   height: auto;
   min-height: 0;
-  overflow: visible;
+  overflow-x: auto;
+  overflow-y: visible;
   font-family: Georgia, serif;
   font-size: var(--cwk-post-size);
   line-height: var(--cwk-post-line-height);
@@ -778,19 +779,6 @@ a:hover { background: var(--cwk-link-hover-bg); }
   height: auto;
   border: 1px solid var(--cwk-ink);
   background: var(--cwk-surface-page);
-}
-
-.program-body-content blockquote {
-  margin: 10px 0;
-  padding-left: 12px;
-  border-left: 3px solid var(--cwk-border-dashed);
-}
-
-.program-body-content pre {
-  overflow-x: auto;
-  padding: 8px;
-  background: var(--cwk-surface-page);
-  border: 1px inset var(--cwk-surface-table-head);
 }
 
 .program-story-block h2 {
@@ -1213,7 +1201,8 @@ a:hover { background: var(--cwk-link-hover-bg); }
 .post-content {
   height: auto;
   min-height: 0;
-  overflow: visible;
+  overflow-x: auto;
+  overflow-y: visible;
   padding: 12px 15px;
   font-family: "Georgia", serif;
   font-size: var(--cwk-post-size);
@@ -1227,6 +1216,141 @@ a:hover { background: var(--cwk-link-hover-bg); }
 .post-content img {
   max-width: 100%;
   height: auto;
+}
+
+/* Markdown editor output: keep the old-web body, but render rich blocks clearly. */
+.post-content p,
+.program-body-content p {
+  margin: 0 0 0.85em;
+}
+
+.post-content :is(h1, h2, h3, h4, h5, h6),
+.program-body-content :is(h1, h2, h3, h4, h5, h6) {
+  margin: 1.1em 0 0.45em;
+  line-height: 1.25;
+}
+
+.post-content :is(h1, h2):first-child,
+.program-body-content :is(h1, h2):first-child,
+.post-content :is(h3, h4, h5, h6):first-child,
+.program-body-content :is(h3, h4, h5, h6):first-child,
+.post-content p:first-child,
+.program-body-content p:first-child {
+  margin-top: 0;
+}
+
+.post-content :is(ul, ol),
+.program-body-content :is(ul, ol) {
+  margin: 0.75em 0 1em;
+  padding-left: 1.55em;
+}
+
+.post-content li,
+.program-body-content li {
+  margin: 0.2em 0;
+}
+
+.post-content li > p,
+.program-body-content li > p {
+  margin: 0;
+}
+
+.post-content table,
+.program-body-content table {
+  width: 100%;
+  margin: 12px 0 14px;
+  border: 1px solid var(--cwk-ink);
+  border-collapse: collapse;
+  background: var(--cwk-surface-page);
+  font-family: inherit;
+  font-size: 0.95em;
+  line-height: 1.35;
+}
+
+.post-content th,
+.post-content td,
+.program-body-content th,
+.program-body-content td {
+  padding: 6px 8px;
+  border: 1px solid var(--cwk-ink);
+  vertical-align: top;
+  text-align: left;
+}
+
+.post-content th,
+.program-body-content th {
+  background: var(--cwk-surface-table-head);
+  font-weight: bold;
+}
+
+.post-content tr:nth-child(even) td,
+.program-body-content tr:nth-child(even) td {
+  background: var(--cwk-surface-preview);
+}
+
+.post-content :is(th, td) > :first-child,
+.program-body-content :is(th, td) > :first-child {
+  margin-top: 0;
+}
+
+.post-content :is(th, td) > :last-child,
+.program-body-content :is(th, td) > :last-child {
+  margin-bottom: 0;
+}
+
+.post-content blockquote,
+.program-body-content blockquote {
+  margin: 10px 0;
+  padding: 6px 10px 6px 12px;
+  border-left: 3px solid var(--cwk-border-dashed);
+  background: var(--cwk-surface-preview);
+  color: var(--cwk-meta);
+}
+
+.post-content pre,
+.program-body-content pre,
+.post-content .toastui-editor-ww-code-block,
+.program-body-content .toastui-editor-ww-code-block {
+  margin: 10px 0;
+}
+
+.post-content pre,
+.program-body-content pre {
+  overflow-x: auto;
+  padding: 8px;
+  background: var(--cwk-code-block-bg);
+  border: 1px inset var(--cwk-surface-table-head);
+  line-height: 1.45;
+}
+
+.post-content code,
+.program-body-content code {
+  padding: 1px 3px;
+  background: var(--cwk-code-block-bg);
+  border: 1px solid var(--cwk-border-soft);
+  font-family: var(--cwk-font-mono);
+  font-size: 0.92em;
+}
+
+.post-content pre code,
+.program-body-content pre code {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  white-space: pre;
+}
+
+.post-content hr,
+.program-body-content hr {
+  margin: 18px 0;
+  border: 0;
+  border-top: 1px dashed var(--cwk-border-dashed);
+}
+
+.post-content input[type="checkbox"],
+.program-body-content input[type="checkbox"] {
+  margin-right: 4px;
+  vertical-align: middle;
 }
 
 @media (max-width: 640px) {

@@ -41,6 +41,7 @@
 - 프로필 사진과 홈 BGM은 별도 컬렉션을 만들지 않고 기존 `media` 컬렉션과 `site_settings`를 쓴다. 프로필 사진은 `site_settings.profile_photo_url`에 저장한다. BGM은 `site_settings.bgm_playlist`를 최신 업로드순 플레이리스트로 쓰고, 기존 `site_settings.bgm_audio_url`, `site_settings.bgm_audio_title`은 최신곡 호환용으로 같이 갱신한다. 제목은 미니 플레이어 위에서 marquee처럼 흐르고, 오디오는 최신곡부터 차례로 재생한 뒤 마지막 곡 다음에 다시 최신곡으로 돌아간다. 자동재생이 막히면 `BGM ON` 버튼과 첫 사용자 입력 뒤 다시 시도한다.
 - `/admin/`은 별도 대시보드가 아니라 예전 북마크용 안내판이고, 실제 운영 시작점은 공개 Home이다. 글 편집기/미디어/방명록 관리 화면은 owner action에서 필요할 때만 열린다.
 - 글 편집기의 WYSIWYG Markdown 본문 이미지는 URL 입력이 아니라 이미지 버튼, 드래그 앤 드롭, 붙여넣기로 업로드할 수 있다. 업로드된 파일은 `media` 컬렉션에 저장되고, 저장된 본문 HTML에는 공개 파일 URL이 들어간다.
+- 공개 글/나으 하루/프로그램 상세 본문은 저장된 HTML을 그대로 렌더링하되, `css/styles.css`에서 Markdown 변환 요소를 보정한다. table은 border와 셀 padding을 가진 실제 표로 보이고, TOAST UI가 table/list 셀 안에 넣는 `<p>` margin은 줄여 에디터에서 본 구조와 공개 화면의 구조가 어긋나지 않게 한다. code block, blockquote, list, hr도 같은 본문 렌더링 규칙을 따른다.
 - 나으 하루 작성기의 WYSIWYG Markdown 본문 이미지 업로드 경험도 글 편집기와 같다. 차이는 저장 시 같은 날짜 `daily_entries`가 있으면 새 본문을 기존 하루 아래에 합치는 것뿐이다.
 - Home의 통합 글쓰기 허브도 같은 WYSIWYG Markdown 본문 작성기와 이미지 업로드 흐름을 쓴다. 카테고리 선택 후 글방은 `posts`, 나으 하루는 `daily_entries`, 프로그램실은 `programs`에 저장하며, 프로그램실 선택 시에만 상태/플랫폼/한 줄 소개/표지/파일/대표 링크 필드가 열린다. 나사잡은 이 허브에 포함하지 않는다.
 - 글방 대표 이미지는 쓰지 않는다. 본문 이미지는 저장된 본문 HTML 안에서만 보이고, 목록/타임라인이 별도 대표 이미지를 계산하지 않는다.
