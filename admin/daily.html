@@ -118,7 +118,6 @@
             isLoggedIn,
             logout,
             getAllDailyEntries,
-            getDailyEntryByDay,
             createDailyEntry,
             updateDailyEntry,
             deleteDailyEntry,
@@ -126,8 +125,9 @@
             dailyEntryDisplayDate,
             dailySlugFromDayKey,
             dailyTitleFromDayKey,
+            newDailyEntrySlug,
+            newDailyEntryTitle,
             normalizeDailyDayKey,
-            appendDailyContent,
             formatDate,
             cmsErrorMessage,
             uploadMedia,
@@ -350,11 +350,11 @@
 
         function setNewDailyDefaults(dayKey) {
             const normalizedDayKey = normalizeDailyDayKey(dayKey);
-            const nextAutoTitle = dailyTitleFromDayKey(normalizedDayKey);
+            const nextAutoTitle = newDailyEntryTitle(normalizedDayKey);
             const titleInput = document.getElementById('title');
 
             document.getElementById('published_at').value = normalizedDayKey;
-            document.getElementById('slug').value = dailySlugFromDayKey(normalizedDayKey);
+            document.getElementById('slug').value = newDailyEntrySlug(normalizedDayKey);
 
             if (!editingPostId && (!titleInput.value || titleInput.value === lastAutoTitle)) {
                 titleInput.value = nextAutoTitle;
@@ -469,7 +469,10 @@
             const title = document.getElementById('title').value.trim();
             const status = document.getElementById('status').value;
             const dayKey = normalizeDailyDayKey(document.getElementById('published_at').value || new Date());
-            const slug = dailySlugFromDayKey(dayKey);
+            const currentSlug = document.getElementById('slug').value.trim();
+            const slug = id
+                ? (currentSlug || dailySlugFromDayKey(dayKey))
+                : newDailyEntrySlug(dayKey);
             const content = markdownEditor.root.innerHTML;
 
             document.getElementById('slug').value = slug;
@@ -488,45 +491,20 @@
                     result = await updateDailyEntry(id, formData);
                     showAlert('글이 수정되었습니다!', 'success');
                 } else {
-                    const existingDaily = await getDailyEntryByDay(dayKey, true);
+                    const formData = dailyFormData({
+                        title: title || newDailyEntryTitle(dayKey),
+                        slug,
+                        dayKey,
+                        status,
+                        content
+                    });
 
-                    if (existingDaily) {
-                        const mergedContent = appendDailyContent(existingDaily.content, content);
-                        const mergedStatus = status === 'published' || existingDaily.status === 'published'
-                            ? 'published'
-                            : 'draft';
-                        const formData = dailyFormData({
-                            title: existingDaily.title || title || dailyTitleFromDayKey(dayKey),
-                            slug: existingDaily.slug || slug,
-                            dayKey,
-                            status: mergedStatus,
-                            content: mergedContent,
-                            publishedAt: existingDaily.published_at || dayKey
-                        });
-
-                        result = await updateDailyEntry(existingDaily.id, formData);
-                        document.getElementById('postId').value = result.id;
-                        document.getElementById('title').value = result.title || title;
-                        document.getElementById('status').value = result.status || mergedStatus;
-                        markdownEditor.root.innerHTML = result.content || mergedContent;
-                        editingPostId = result.id;
-                        document.getElementById('deleteBtn').style.display = 'inline-block';
-                        showAlert('이미 있던 오늘의 나으 하루 아래에 이어 붙였습니다!', 'success');
-                    } else {
-                        const formData = dailyFormData({
-                            title: title || dailyTitleFromDayKey(dayKey),
-                            slug,
-                            dayKey,
-                            status,
-                            content
-                        });
-
-                        result = await createDailyEntry(formData);
-                        document.getElementById('postId').value = result.id;
-                        editingPostId = result.id;
-                        document.getElementById('deleteBtn').style.display = 'inline-block';
-                        showAlert('글이 저장되었습니다!', 'success');
-                    }
+                    result = await createDailyEntry(formData);
+                    document.getElementById('postId').value = result.id;
+                    document.getElementById('slug').value = result.slug || slug;
+                    editingPostId = result.id;
+                    document.getElementById('deleteBtn').style.display = 'inline-block';
+                    showAlert('새 나으 하루 글이 저장되었습니다!', 'success');
                 }
             } catch (e) {
                 showAlert('저장 실패: ' + cmsErrorMessage(e), 'error');

@@ -234,8 +234,34 @@ export function dailySlugFromDayKey(dayKey) {
     return normalizeDailyDayKey(dayKey);
 }
 
+export function newDailyEntrySlug(dayKey, createdAt = new Date()) {
+    const base = dailySlugFromDayKey(dayKey);
+    const date = createdAt instanceof Date ? createdAt : new Date(createdAt);
+    const timePart = Number.isNaN(date.getTime())
+        ? Date.now().toString(36)
+        : date.getTime().toString(36);
+    const randomPart = Math.random().toString(36).slice(2, 8) || 'entry';
+    return `${base}-${timePart}-${randomPart}`;
+}
+
 export function dailyTitleFromDayKey(dayKey) {
     return `${normalizeDailyDayKey(dayKey)} 나으 하루`;
+}
+
+export function newDailyEntryTitle(dayKey, createdAt = new Date()) {
+    const date = createdAt instanceof Date ? createdAt : new Date(createdAt);
+    const timeLabel = Number.isNaN(date.getTime())
+        ? ''
+        : new Intl.DateTimeFormat('ko-KR', {
+            timeZone: 'Asia/Seoul',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+        }).format(date);
+
+    return timeLabel
+        ? `${dailyTitleFromDayKey(dayKey)} ${timeLabel}`
+        : dailyTitleFromDayKey(dayKey);
 }
 
 export function dailyEntryDayKey(entry) {
@@ -385,11 +411,8 @@ export async function deleteDailyEntry(id) {
 }
 
 /**
- * 같은 날짜에 새로 저장한 본문은 하루 글 아래에 이어 붙인다.
- * @param {string} existingContent
- * @param {string} nextContent
- * @param {Date} appendedAt
- * @returns {string}
+ * @deprecated 기존 하루 단위 append 저장 방식에서 쓰던 헬퍼다.
+ * 지금 나으 하루 새 작성은 같은 날짜라도 개별 레코드로 만든다.
  */
 export function appendDailyContent(existingContent, nextContent, appendedAt = new Date()) {
     const before = String(existingContent || '').trim();

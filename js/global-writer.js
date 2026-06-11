@@ -3,11 +3,10 @@ import {
     logout,
     createPost,
     createDailyEntry,
-    updateDailyEntry,
-    getDailyEntryByDay,
-    appendDailyContent,
     dailySlugFromDayKey,
     dailyTitleFromDayKey,
+    newDailyEntrySlug,
+    newDailyEntryTitle,
     normalizeDailyDayKey,
     createProgram,
     normalizeProgramStatus,
@@ -181,7 +180,7 @@ function applyCategory(category) {
 
 function setDailyDefaults(value) {
     const dayKey = normalizeDailyDayKey(value);
-    const nextAutoTitle = dailyTitleFromDayKey(dayKey);
+    const nextAutoTitle = newDailyEntryTitle(dayKey);
     dateInput.value = dayKey;
 
     if (!titleInput.value || titleInput.value === lastAutoTitle) {
@@ -248,27 +247,10 @@ async function savePostEntry({ title, content, mode }) {
 async function saveDailyEntry({ title, content, mode }) {
     const dayKey = normalizeDailyDayKey(dateInput.value || new Date());
     const status = mode === 'publish' ? 'published' : 'draft';
-    const slug = dailySlugFromDayKey(dayKey);
-    const existingDaily = await getDailyEntryByDay(dayKey, true);
-
-    if (existingDaily) {
-        const mergedStatus = status === 'published' || existingDaily.status === 'published'
-            ? 'published'
-            : 'draft';
-        const formData = dailyFormData({
-            title: existingDaily.title || title || dailyTitleFromDayKey(dayKey),
-            slug: existingDaily.slug || slug,
-            dayKey,
-            status: mergedStatus,
-            content: appendDailyContent(existingDaily.content, content),
-            publishedAt: existingDaily.published_at || dayKey
-        });
-
-        return await updateDailyEntry(existingDaily.id, formData);
-    }
+    const slug = newDailyEntrySlug(dayKey);
 
     return await createDailyEntry(dailyFormData({
-        title: title || dailyTitleFromDayKey(dayKey),
+        title: title || newDailyEntryTitle(dayKey),
         slug,
         dayKey,
         status,

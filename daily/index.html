@@ -20,6 +20,10 @@
     </marquee>
 
     <table width="760" border="1" cellspacing="0" cellpadding="8" bgcolor="#ffffff">
+      <colgroup>
+        <col class="shell-sidebar-col">
+        <col class="shell-content-col">
+      </colgroup>
       <tr>
         <td colspan="2" align="center" class="banner">
           <span class="blink">UNDER CONSTRUCTION</span> · <span class="hit">VISITORS:</span>
@@ -272,7 +276,7 @@
         cells.push(`
           <td class="${classes}">
             ${entry
-              ? `<a href="view.html?slug=${encodeURIComponent(entry.slug || dayKey)}"><b>${day}</b></a><br><span class="daily-calendar-mark">기록 있음</span>`
+              ? `<a href="view.html?slug=${encodeURIComponent(entry.slug || dayKey)}"><b>${day}</b></a><br><span class="daily-calendar-mark">기록 ${entries.length > 1 ? `${entries.length}개` : '있음'}</span>`
               : `<span>${day}</span>`}
           </td>
         `);
