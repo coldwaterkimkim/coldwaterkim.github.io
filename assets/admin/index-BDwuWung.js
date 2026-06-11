@@ -1,1 +1,0 @@
-import{U as e}from"../pb-BIchPP5n.js";/* empty css               */e()||(window.location.replace(`/admin/login.html?next=/`),await new Promise(()=>{}));
