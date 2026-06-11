@@ -120,6 +120,7 @@ body.admin-body {
 .form-group input[type="email"],
 .form-group input[type="password"],
 .form-group input[type="date"],
+.form-group input[type="url"],
 .form-group select,
 .form-group textarea {
   width: 100%;
@@ -164,6 +165,14 @@ body.admin-body {
 
 .btn:active {
   border-style: inset;
+}
+
+.btn:disabled,
+.form-group input:disabled,
+.form-group select:disabled,
+.form-group textarea:disabled {
+  cursor: progress;
+  opacity: 0.65;
 }
 
 .btn-primary {
@@ -385,6 +394,17 @@ body.admin-body {
 .editor-image-status-error {
   border-color: #dc3545;
   color: #721c24;
+}
+
+.global-writer-note {
+  margin: 8px 0 0;
+  color: var(--cwk-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+[hidden] {
+  display: none !important;
 }
 
 /* 미디어 그리드 */

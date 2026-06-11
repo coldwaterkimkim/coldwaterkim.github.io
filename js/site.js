@@ -617,7 +617,27 @@ async function initDynamicContent(scope = document) {
     initRecentPosts(scope),
     initGuestbookPreview(scope),
   ]);
+  initHomeOwnerTools(scope);
   initGuestbookPage(scope);
+}
+
+function initHomeOwnerTools(scope = document) {
+  const tools = scope.querySelector('#homeOwnerTools');
+  if (!tools || tools.dataset.ownerToolsReady === 'true') return;
+  tools.dataset.ownerToolsReady = 'true';
+
+  if (!isLoggedIn()) {
+    tools.replaceChildren();
+    return;
+  }
+
+  tools.innerHTML = `
+    <div class="owner-bar home-owner-bar">
+      <b>OWNER MODE</b> ·
+      <a class="owner-btn home-write-btn" href="/admin/write.html">통합 글쓰기</a>
+      <span class="note">글방 / 나으 하루 / 프로그램실 중 골라서 발행</span>
+    </div>
+  `;
 }
 
 // ─────────────────────────────────────────────────────────
