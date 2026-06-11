@@ -1,9 +1,9 @@
 /* Homepage-locked design tokens. See design.md before changing public UI. */
 :root {
-  --cwk-viewport-width: 800px;
-  --cwk-page-width: 760px;
-  --cwk-home-sidebar-width: 180px;
-  --cwk-guestbook-sidebar-width: 200px;
+  --cwk-viewport-width: 1200px;
+  --cwk-page-width: 1140px;
+  --cwk-home-sidebar-width: 270px;
+  --cwk-guestbook-sidebar-width: 300px;
   --cwk-cell-padding: 8px;
   --cwk-list-cell-padding: 6px;
   --cwk-bg-stripe-step: 8px;
@@ -132,8 +132,8 @@ a:hover { background: var(--cwk-link-hover-bg); }
 .sidebar { background: var(--cwk-surface-sidebar); }
 .content { background: var(--cwk-surface-page); }
 
-body > center > table[width="760"] {
-  width: var(--cwk-page-width);
+body > center > table[width="1140"] {
+  width: min(var(--cwk-page-width), calc(100vw - 16px));
   max-width: var(--cwk-page-width);
   table-layout: fixed;
 }
@@ -142,7 +142,7 @@ body > center > table[width="760"] {
   width: calc(var(--cwk-home-sidebar-width) + (var(--cwk-cell-padding) * 2) + 2px);
 }
 
-body > center > table[width="760"] > tbody > tr > td {
+body > center > table[width="1140"] > tbody > tr > td {
   box-sizing: border-box;
 }
 
@@ -1381,26 +1381,26 @@ body > center > table[width="760"] > tbody > tr > td {
     padding: 6px 8px 10px 6px;
   }
 
-  body > center > table[width="760"] {
+  body > center > table[width="1140"] {
     box-sizing: border-box;
     width: calc(100% - 2px) !important;
     max-width: 100%;
   }
 
-  body > center > marquee[width="760"] {
+  body > center > marquee[width="1140"] {
     box-sizing: border-box;
     width: calc(100% - 2px) !important;
     max-width: 100%;
   }
 
-  body > center > table[width="760"],
-  body > center > table[width="760"] > tbody,
-  body > center > table[width="760"] > tbody > tr,
-  body > center > table[width="760"] > tbody > tr > td {
+  body > center > table[width="1140"],
+  body > center > table[width="1140"] > tbody,
+  body > center > table[width="1140"] > tbody > tr,
+  body > center > table[width="1140"] > tbody > tr > td {
     display: block;
   }
 
-  body > center > table[width="760"] > tbody > tr > td {
+  body > center > table[width="1140"] > tbody > tr > td {
     box-sizing: border-box;
     width: 100% !important;
   }
@@ -1425,12 +1425,12 @@ body > center > table[width="760"] > tbody > tr > td {
     font-size: 14px;
   }
 
-  body.page-home > center > table[width="760"] > tbody > tr:nth-child(2) {
+  body.page-home > center > table[width="1140"] > tbody > tr:nth-child(2) {
     display: flex;
     flex-direction: column;
   }
 
-  body.page-home > center > table[width="760"] > tbody > tr:nth-child(2) > .sidebar {
+  body.page-home > center > table[width="1140"] > tbody > tr:nth-child(2) > .sidebar {
     display: contents !important;
   }
 
