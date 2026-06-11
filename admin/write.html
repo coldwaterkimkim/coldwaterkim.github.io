@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>통합 글쓰기 — coldwaterkim OWNER MODE</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="/favicon.ico" sizes="any">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <script type="module" crossorigin src="/assets/admin/write-CtnWwB5x.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/pb-BIchPP5n.js">
+  <link rel="modulepreload" crossorigin href="/assets/markdown-editor-BhB3gYq0.js">
+  <link rel="stylesheet" crossorigin href="/assets/markdown-editor-QX1IWxP3.css">
+  <link rel="stylesheet" crossorigin href="/assets/admin-DlGRqwGT.css">
+</head>
+
+<body class="admin-body">
+    <div class="admin-container">
+        <div class="admin-header">
+            <h1>★ coldwaterkim OWNER MODE ★</h1>
+            <div>
+                <a href="../index.html">🏠 홈으로</a> |
+                <a href="#" id="logoutBtn">🚪 로그아웃</a>
+            </div>
+        </div>
+
+        <nav class="admin-nav">
+            <a href="/">🏠 사이트 보기</a>
+            <a href="/admin/write.html" class="active">✍️ 통합 글쓰기</a>
+            <a href="/admin/posts.html">📝 글 관리</a>
+            <a href="/admin/daily.html">📅 나으 하루</a>
+            <a href="/admin/media.html">🖼️ 미디어</a>
+            <a href="/admin/guestbook.html">💬 방명록</a>
+        </nav>
+
+        <div class="admin-content">
+            <div id="alert" class="alert" style="display: none;"></div>
+
+            <div class="admin-panel">
+                <h2>어디에 올릴까?</h2>
+                <div class="form-group">
+                    <label for="category">카테고리 먼저 선택</label>
+                    <select id="category" required>
+                        <option value="">선택하기</option>
+                        <option value="posts">글방</option>
+                        <option value="daily">나으 하루</option>
+                        <option value="programs">프로그램실</option>
+                    </select>
+                </div>
+                <p class="global-writer-note">
+                    나사잡은 이미지 아카이브 성격이 달라서 이번 통합 글쓰기 대상에서는 뺐음.
+                    기존 각 페이지의 작성/수정 플로우는 그대로 남아있음.
+                </p>
+            </div>
+
+            <form id="globalWriteForm" hidden>
+                <div class="admin-panel">
+                    <h2 id="writerHeading">본문 정보</h2>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="title">제목 *</label>
+                            <input type="text" id="title" required placeholder="제목을 입력하세요">
+                        </div>
+                        <div class="form-group" id="dateGroup">
+                            <label for="published_at" id="dateLabel">발행일</label>
+                            <input type="date" id="published_at">
+                        </div>
+                    </div>
+                </div>
+
+                <div id="programFields" class="admin-panel" hidden>
+                    <h2>프로그램실 추가 정보</h2>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="programStatus">상태</label>
+                            <select id="programStatus">
+                                <option value="prototype">PROTOTYPE</option>
+                                <option value="unreleased">UNRELEASED</option>
+                                <option value="beta">BETA</option>
+                                <option value="released">RELEASED</option>
+                                <option value="archived">ARCHIVED</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="programPlatform">플랫폼</label>
+                            <input type="text" id="programPlatform" placeholder="macOS · iOS · Web">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="programStoryIntro">한 줄 소개</label>
+                        <textarea id="programStoryIntro" rows="2" placeholder="프로그램실 목록에 보일 짧은 설명"></textarea>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="programCoverImage">표지</label>
+                            <input type="file" id="programCoverImage" accept="image/*">
+                        </div>
+                        <div class="form-group">
+                            <label for="programDownloadFiles">파일</label>
+                            <input type="file" id="programDownloadFiles" multiple>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="programPrimaryLinkLabel">대표 링크 이름</label>
+                            <input type="text" id="programPrimaryLinkLabel" placeholder="GitHub, TestFlight, Web Demo">
+                        </div>
+                        <div class="form-group">
+                            <label for="programPrimaryLinkUrl">대표 링크 URL</label>
+                            <input type="url" id="programPrimaryLinkUrl" placeholder="https://...">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="admin-panel">
+                    <h2>본문</h2>
+                    <div class="editor-container">
+                        <div id="editor"></div>
+                    </div>
+                    <input type="file" id="editorImageInput" accept="image/*" multiple hidden>
+                    <div id="editorImageStatus" class="editor-image-status" aria-live="polite"></div>
+                </div>
+
+                <div class="action-buttons">
+                    <button type="submit" class="btn btn-primary" value="draft">💾 임시 저장</button>
+                    <button type="submit" class="btn btn-success" value="publish">🚀 발행하기</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+</body>
+
+</html>
