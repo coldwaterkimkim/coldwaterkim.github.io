@@ -822,6 +822,7 @@ export async function deleteGuestbookEntry(id) {
 const VISITOR_ID_KEY = 'cwk_visitor_id';
 const VISITOR_SESSION_KEY = 'cwk_visitor_session';
 const VISITOR_SESSION_TIMEOUT_MS = 30 * 60 * 1000;
+const POST_VIEW_SESSION_KEY = 'cwk_post_view_sessions';
 // 2026-05-30 운영 visitor_sessions 누적 23개를 공개 표시값 237의 기준점으로 삼는다.
 const VISITOR_TOTAL_DISPLAY_START = 237;
 const VISITOR_TOTAL_BASELINE_REAL_TOTAL = 23;
@@ -1000,6 +1001,100 @@ export async function setVisitorTodayMinimum(dayKey, value) {
     const n = Math.max(0, Number.parseInt(value || 0, 10) || 0);
     await setSetting(`${VISITOR_TODAY_MIN_KEY_PREFIX}${dayKey}`, String(n));
     return await getVisitorDisplayStats(dayKey);
+}
+
+function readPostViewSessions(now) {
+    try {
+        const sessions = JSON.parse(storageGet(POST_VIEW_SESSION_KEY) || '{}');
+        if (!sessions || typeof sessions !== 'object') return {};
+
+        const active = {};
+        Object.entries(sessions).forEach(([postId, session]) => {
+            const expiresAt = Number(session?.expiresAt);
+            if (!postId || !Number.isFinite(expiresAt) || expiresAt <= now) return;
+            active[postId] = { expiresAt };
+        });
+        return active;
+    } catch (e) {
+        return {};
+    }
+}
+
+function savePostViewSessions(sessions) {
+    storageSet(POST_VIEW_SESSION_KEY, JSON.stringify(sessions || {}));
+}
+
+function postViewCountKey(postId) {
+    return `post-view-count-${postId}`;
+}
+
+/**
+ * 글 상세 조회를 30분 단위 익명 세션으로 기록한다.
+ * 로그인한 관리자의 조회는 제품 의도상 집계하지 않는다.
+ * @param {object} post
+ * @returns {Promise<boolean>} 새 조회로 기록됐으면 true
+ */
+export async function recordPostView(post) {
+    if (isLoggedIn() || !post?.id || post.status !== 'published') return false;
+
+    const now = Date.now();
+    const sessions = readPostViewSessions(now);
+    if (sessions[post.id]) return false;
+
+    const visitorId = getVisitorId();
+    const sessionBucket = Math.floor(now / VISITOR_SESSION_TIMEOUT_MS);
+    const viewKey = await sha256(`cwk-post-view-v1:${visitorId}:${post.id}:${sessionBucket}`);
+
+    try {
+        await pb.collection('post_views').create({
+            view_key: viewKey,
+            post_id: post.id,
+            post_slug: post.slug || '',
+            day_key: getKstDateKey(new Date(now))
+        }, {
+            requestKey: `post-view-${viewKey}`
+        });
+    } catch (e) {
+        if (e?.status !== 400) {
+            console.warn('Post view count failed:', cmsErrorMessage(e));
+            return false;
+        }
+    }
+
+    sessions[post.id] = {
+        expiresAt: now + VISITOR_SESSION_TIMEOUT_MS
+    };
+    savePostViewSessions(sessions);
+    return true;
+}
+
+/**
+ * 관리자 화면에서 여러 글의 조회수를 가져온다.
+ * post_views 컬렉션이 아직 운영 DB에 없으면 UI를 깨지 않고 빈 값으로 둔다.
+ * @param {string[]} postIds
+ * @returns {Promise<Record<string, number>>}
+ */
+export async function getPostViewCounts(postIds = []) {
+    if (!isLoggedIn()) return {};
+
+    const uniquePostIds = Array.from(new Set((postIds || []).filter(Boolean)));
+    if (!uniquePostIds.length) return {};
+
+    try {
+        const pairs = await Promise.all(uniquePostIds.map(async (postId) => {
+            const result = await pb.collection('post_views').getList(1, 1, {
+                filter: pb.filter('post_id = {:postId}', { postId }),
+                fields: 'id',
+                requestKey: postViewCountKey(postId)
+            });
+            return [postId, result.totalItems || 0];
+        }));
+
+        return Object.fromEntries(pairs);
+    } catch (e) {
+        console.warn('Post view counts failed:', cmsErrorMessage(e));
+        return {};
+    }
 }
 
 // ─────────────────────────────────────────────────────────

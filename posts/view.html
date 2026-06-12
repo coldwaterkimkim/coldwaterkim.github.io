@@ -159,7 +159,7 @@
     </center>
 
     <script type="module">
-        import { getPostBySlug, getPublishedPostTimeline, getAllPostTimeline, deletePost, isLoggedIn, logout, postDisplayDate, formatDate, escapeHtml, cmsErrorMessage, sortPostsForDisplay } from '../js/pb.js';
+        import { getPostBySlug, getPublishedPostTimeline, getAllPostTimeline, deletePost, isLoggedIn, logout, postDisplayDate, formatDate, escapeHtml, cmsErrorMessage, sortPostsForDisplay, recordPostView, getPostViewCounts } from '../js/pb.js';
 
         const params = new URLSearchParams(window.location.search);
         const slug = params.get('slug');
@@ -190,11 +190,15 @@
                     ? await getAllPostTimeline()
                     : await getPublishedPostTimeline();
                 const posts = ensureTargetPost(timelinePosts, targetPost);
+                const viewCounts = ownerMode
+                    ? await getPostViewCounts(posts.map(post => post.id))
+                    : {};
 
                 if (ownerMode) {
                     document.getElementById('owner-tools').innerHTML = `
                         <div class="owner-bar">
                             <b>OWNER MODE</b> ·
+                            현재 글 조회수 <span class="post-view-count">${formatOwnerViewCount(viewCounts[targetPost.id])}</span> ·
                             <a href="../admin/posts.html?id=${targetPost.id}">현재 글 수정</a> ·
                             <a href="../admin/posts.html?new=1">새 글</a> ·
                             <a href="#" id="deletePostLink">현재 글 삭제</a> ·
@@ -218,9 +222,14 @@
                     });
                 }
 
-                renderTimeline(posts, targetPost.id);
+                renderTimeline(posts, targetPost.id, viewCounts);
                 wireTimelineOwnerActions(targetPost.id);
                 focusTargetPost(targetPost.id);
+                if (!ownerMode) {
+                    recordPostView(targetPost).catch((e) => {
+                        console.warn('Post view count failed:', cmsErrorMessage(e));
+                    });
+                }
 
             } catch (e) {
                 showError(cmsErrorMessage(e), 'Post not found');
@@ -235,20 +244,23 @@
             return sortPostsForDisplay(merged);
         }
 
-        function renderTimeline(posts, targetPostId) {
+        function renderTimeline(posts, targetPostId, viewCounts = {}) {
             const timelineEl = document.getElementById('post-timeline');
             if (posts.length === 0) {
                 timelineEl.innerHTML = '<p>아직 글이 없습니다.</p>';
                 return;
             }
 
-            timelineEl.innerHTML = posts.map(post => renderTimelinePost(post, post.id === targetPostId)).join('');
+            timelineEl.innerHTML = posts.map(post => renderTimelinePost(post, post.id === targetPostId, viewCounts)).join('');
         }
 
-        function renderTimelinePost(post, isFocused) {
+        function renderTimelinePost(post, isFocused, viewCounts = {}) {
             const date = postDisplayDate(post);
             const status = post.status === 'published' ? '' : ' <small class="note">[초안]</small>';
             const focusedBadge = isFocused ? '<div class="timeline-focus-badge">★ NOW READING ★</div>' : '';
+            const ownerViewMeta = ownerMode
+                ? ` · 조회수 <span class="post-view-count">${formatOwnerViewCount(viewCounts[post.id])}</span>`
+                : '';
             const ownerActions = ownerMode ? `
                 <span class="timeline-owner-actions">
                     <a href="../admin/posts.html?id=${encodeURIComponent(post.id)}">수정</a>
@@ -265,6 +277,7 @@
                         </h2>
                         <div class="timeline-post-meta">
                             Published: ${formatDate(date)}
+                            ${ownerViewMeta}
                             ${ownerActions}
                         </div>
                     </div>
@@ -317,6 +330,11 @@
 
         function postElementId(id) {
             return `post-${id}`;
+        }
+
+        function formatOwnerViewCount(count) {
+            if (!Number.isFinite(count)) return '-';
+            return Number(count).toLocaleString('ko-KR');
         }
 
         function updateSecretLoginNext(slug) {

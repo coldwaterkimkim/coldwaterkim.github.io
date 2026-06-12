@@ -40,6 +40,7 @@
 - About 프로필 표와 왼쪽 sidebar의 PROFILE DATA 표는 `js/profile-data.js`의 기본 row와 `site_settings.about_wiki_document.profileRows`를 공유한다. sidebar는 좁은 표라 Social Media를 favicon 아이콘으로 계속 보여주고, About은 링크 텍스트가 들어간 문서형 표로 보여준다.
 - 방명록은 홈과 같은 shell 안에서 PocketBase `guestbook` 컬렉션을 읽고 쓴다. 방문자는 닉네임을 직접 입력할 수 있고, 비워두면 `익명의 누군가N` 이름이 붙는다. 초기 방명록처럼 보이는 글은 `display_date`를 표시/정렬용 날짜로 쓰고, 일반 작성 글은 실제 `created` 날짜를 쓴다.
 - 방문자 카운터는 PocketBase `visitor_sessions` 컬렉션을 사용한다. 같은 브라우저의 30분 내 새로고침/페이지 이동은 중복 집계하지 않고, `TOTAL`은 운영 누적 방문 세션 23개를 표시 기준값 231로 환산한 뒤 이후 새 세션마다 1씩 더해 보여준다. `TODAY`는 KST 날짜 기준 실제값과 관리자 보정 최소값 중 큰 값을 보여주며, 로그인한 관리자만 공개 화면에서 위/아래 버튼으로 보정할 수 있다.
+- 글별 조회수는 PocketBase `post_views` 컬렉션을 사용한다. 일반 방문자가 글 상세 URL에 들어오면 30분 단위 익명 조회 기록을 1개 만들고, 로그인한 관리자의 조회는 집계하지 않는다. 조회수는 공개 방문자에게 숨기고, owner mode의 글방 목록/글 상세 및 `admin/posts.html`에서만 보여준다. 기존 `visitor_sessions`에는 글 URL 정보가 없어 과거 전체 방문자 수를 글별 조회수로 정확히 배분할 수 없으며, 별도 서버 로그 import가 없으면 `post_views` 적용 이후 값부터 기준으로 삼는다.
 - 공개 메뉴에는 관리자 링크를 두지 않는다. 상단 marquee의 `coldwaterkim` 텍스트가 숨은 로그인 진입점이다.
 - 로그인한 관리자는 공개 사이트를 그대로 보면서 홈 문구 편집, 프로필 사진 클릭 업로드, 홈 BGM MP3 추가, Home의 통합 글쓰기 허브, 글방의 새 글/수정/삭제, 나으 하루의 새 하루/수정/삭제, 글 상세의 수정/삭제, 프로그램실의 새 프로그램/수정/삭제, 나사잡의 이미지 업로드/수정/삭제, 방명록 삭제 같은 `OWNER MODE` 권한을 추가로 본다. 통합 글쓰기 허브는 글방/나으 하루/프로그램실 새 레코드 생성을 빠르게 시작하는 추가 진입점이며 기존 각 페이지 작성/수정 플로우를 대체하지 않는다. 프로그램실 새 레코드는 공개 자료실 항목으로 저장된다.
 - 프로필 사진과 홈 BGM은 별도 컬렉션을 만들지 않고 기존 `media` 컬렉션과 `site_settings`를 쓴다. 프로필 사진은 `site_settings.profile_photo_url`에 저장한다. BGM은 `site_settings.bgm_playlist`를 최신 업로드순 플레이리스트로 쓰고, 기존 `site_settings.bgm_audio_url`, `site_settings.bgm_audio_title`은 최신곡 호환용으로 같이 갱신한다. 제목은 미니 플레이어 위에서 marquee처럼 흐르고, 오디오는 최신곡부터 차례로 재생한 뒤 마지막 곡 다음에 다시 최신곡으로 돌아간다. 자동재생이 막히면 `BGM ON` 버튼과 첫 사용자 입력 뒤 다시 시도한다.
@@ -103,3 +104,4 @@ PocketBase 서버가 꺼져 있으면 공개 사이트는 렌더링되지만 글
 - 로컬 프론트엔드에서 운영 CMS를 읽는 `dev:live-cms` 모드를 추가했다. 글을 도메인 관리자에서 작성하고 로컬 UI에서 레이아웃을 볼 때는 이 모드를 기본으로 쓴다.
 - 운영 PocketBase에 `visitor_sessions` 컬렉션을 반영했다. 공개 create/list/view는 열고, update/delete는 관리자만 가능하게 유지한다.
 - 운영 PocketBase `guestbook` 컬렉션에 `display_date` 필드를 추가했고, 2025년 11월부터 2026년 5월까지 지인형 초기 방명록 23개를 반영했다.
+- 운영 PocketBase에 `post_views` 컬렉션을 반영했다. 공개 create는 가능하지만 list/view는 로그인한 관리자에게만 실데이터가 보이며, 임시 smoke record 생성/관리자 조회/삭제까지 확인했다.

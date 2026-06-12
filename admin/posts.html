@@ -50,12 +50,13 @@
                             <th>제목</th>
                             <th style="width: 80px;">상태</th>
                             <th style="width: 120px;">날짜</th>
+                            <th style="width: 90px;">조회수</th>
                             <th style="width: 140px;">액션</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr>
-                            <td colspan="4" class="loading">불러오는 중</td>
+                            <td colspan="5" class="loading">불러오는 중</td>
                         </tr>
                     </tbody>
                 </table>
@@ -112,7 +113,7 @@
     </div>
 
     <script type="module">
-        import { pb, isLoggedIn, logout, getAllPosts, deletePost, formatDate, slugify, cmsErrorMessage, uploadMedia, getMediaUrl } from '../js/pb.js';
+        import { pb, isLoggedIn, logout, getAllPosts, deletePost, formatDate, slugify, cmsErrorMessage, uploadMedia, getMediaUrl, getPostViewCounts } from '../js/pb.js';
         import { createMarkdownEditor, hasImageTransfer, imageFilesFromTransfer } from '../js/markdown-editor.js';
 
         // 인증 체크
@@ -330,16 +331,18 @@
         // 글 목록 로드
         async function loadPosts(page = 1) {
             const tbody = document.querySelector('#postsTable tbody');
-            tbody.innerHTML = '<tr><td colspan="4" class="loading">불러오는 중</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5" class="loading">불러오는 중</td></tr>';
 
             try {
                 const result = await getAllPosts(page, 10);
                 currentPage = page;
 
                 if (result.items.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="4">아직 글이 없습니다. 첫 번째 글을 작성해보세요!</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="5">아직 글이 없습니다. 첫 번째 글을 작성해보세요!</td></tr>';
                     return;
                 }
+
+                const viewCounts = await getPostViewCounts(result.items.map(post => post.id));
 
                 tbody.innerHTML = result.items.map(post => `
           <tr>
@@ -348,6 +351,7 @@
             </td>
             <td><span class="badge badge-${post.status}">${post.status === 'published' ? '발행' : '초안'}</span></td>
             <td>${formatDate(post.published_at || post.created)}</td>
+            <td class="post-view-count">${formatOwnerViewCount(viewCounts[post.id])}</td>
             <td>
               <button class="btn" onclick="editPost('${post.id}')" style="padding: 4px 8px;">✏️</button>
               <button class="btn btn-danger" onclick="confirmDelete('${post.id}')" style="padding: 4px 8px;">🗑️</button>
@@ -359,8 +363,13 @@
                 // 페이지네이션
                 renderPagination(result.totalPages, page);
             } catch (e) {
-                tbody.innerHTML = '<tr><td colspan="4">불러오기 실패: ' + cmsErrorMessage(e) + '</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5">불러오기 실패: ' + cmsErrorMessage(e) + '</td></tr>';
             }
+        }
+
+        function formatOwnerViewCount(count) {
+            if (!Number.isFinite(count)) return '-';
+            return Number(count).toLocaleString('ko-KR');
         }
 
         // 페이지네이션 렌더링

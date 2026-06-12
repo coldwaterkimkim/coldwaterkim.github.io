@@ -1642,6 +1642,11 @@ body > center > table[width="1140"] > tbody > tr > td {
   color: var(--cwk-meta);
 }
 
+.post-view-count {
+  font-family: var(--cwk-font-mono);
+  white-space: nowrap;
+}
+
 .timeline-owner-actions {
   display: inline-block;
   margin-left: 8px;

@@ -144,11 +144,12 @@
             <tr bgcolor="#f0f0f0">
               <th align="left">제목</th>
               <th style="width: 120px;">날짜</th>
+              <th id="views-col-head" style="width: 90px; display: none;">조회수</th>
               <th id="owner-col-head" style="width: 160px; display: none;">OWNER</th>
             </tr>
             <tbody id="posts-list">
               <tr>
-                <td colspan="3">불러오는 중...</td>
+                <td colspan="2">불러오는 중...</td>
               </tr>
             </tbody>
           </table>
@@ -165,7 +166,7 @@
   </center>
 
   <script type="module">
-    import { getPublishedPosts, getAllPosts, deletePost, isLoggedIn, logout, postDisplayDate, formatDate, escapeHtml, cmsErrorMessage } from '../js/pb.js';
+    import { getPublishedPosts, getAllPosts, deletePost, isLoggedIn, logout, postDisplayDate, formatDate, escapeHtml, cmsErrorMessage, getPostViewCounts } from '../js/pb.js';
 
     let currentPage = 1;
     const perPage = 10;
@@ -175,6 +176,7 @@
     window.deleteOwnerPost = deleteOwnerPost;
 
     if (ownerMode) {
+      document.getElementById('views-col-head').style.display = '';
       document.getElementById('owner-col-head').style.display = '';
       document.getElementById('posts-note').textContent = 'OWNER MODE: 초안까지 같이 보입니다.';
       document.getElementById('owner-tools').innerHTML = `
@@ -194,7 +196,7 @@
 
     async function loadPosts(page = 1) {
       const tbody = document.getElementById('posts-list');
-      tbody.innerHTML = '<tr><td colspan="3">불러오는 중...</td></tr>';
+      tbody.innerHTML = `<tr><td colspan="${postsTableColspan()}">불러오는 중...</td></tr>`;
 
       try {
         const result = ownerMode
@@ -203,13 +205,20 @@
         currentPage = page;
 
         if (result.items.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="3">아직 글이 없습니다.</td></tr>';
+          tbody.innerHTML = `<tr><td colspan="${postsTableColspan()}">아직 글이 없습니다.</td></tr>`;
           return;
         }
+
+        const viewCounts = ownerMode
+          ? await getPostViewCounts(result.items.map(post => post.id))
+          : {};
 
         tbody.innerHTML = result.items.map(post => {
           const date = postDisplayDate(post);
           const status = post.status === 'published' ? '' : ' <small class="note">[초안]</small>';
+          const ownerViewCell = ownerMode
+            ? `<td align="center" class="post-view-count">${formatOwnerViewCount(viewCounts[post.id])}</td>`
+            : '';
           const ownerActions = ownerMode
             ? `<td class="owner-actions">
                 <a class="owner-btn" href="../admin/posts.html?id=${post.id}">수정</a>
@@ -218,8 +227,9 @@
             : '';
           return `
             <tr>
-              <td><a href="view.html?slug=${post.slug}">${escapeHtml(post.title)}</a>${status}</td>
+              <td><a href="view.html?slug=${encodeURIComponent(post.slug || '')}">${escapeHtml(post.title)}</a>${status}</td>
               <td align="center">${formatDate(date)}</td>
+              ${ownerViewCell}
               ${ownerActions}
             </tr>
           `;
@@ -227,8 +237,17 @@
 
         renderPagination(result.totalPages, page);
       } catch (e) {
-        tbody.innerHTML = `<tr><td colspan="3">${escapeHtml(cmsErrorMessage(e))}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="${postsTableColspan()}">${escapeHtml(cmsErrorMessage(e))}</td></tr>`;
       }
+    }
+
+    function postsTableColspan() {
+      return ownerMode ? 4 : 2;
+    }
+
+    function formatOwnerViewCount(count) {
+      if (!Number.isFinite(count)) return '-';
+      return Number(count).toLocaleString('ko-KR');
     }
 
     async function deleteOwnerPost(id) {

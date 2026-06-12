@@ -10,3 +10,4 @@ pb_public
 pb_migrations/*
 !pb_migrations/
 !pb_migrations/1780412204_created_nasajab.js
+!pb_migrations/1781280000_created_post_views.js
