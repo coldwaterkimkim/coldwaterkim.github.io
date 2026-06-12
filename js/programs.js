@@ -17,11 +17,6 @@ import {
     uploadMedia,
     getMediaUrl
 } from './pb.js';
-import {
-    createMarkdownEditor,
-    hasImageTransfer,
-    imageFilesFromTransfer
-} from './markdown-editor.js';
 import { findAutomaticProgramCoverFile } from './program-cover.js';
 
 const ownerMode = isLoggedIn();
@@ -30,6 +25,10 @@ let editingProgramId = '';
 let programBodyEditor = null;
 let programBodyEditorReady = null;
 let pendingProgramBodyImageIndex = null;
+let markdownEditorModulePromise = null;
+let createMarkdownEditor = null;
+let hasImageTransfer = null;
+let imageFilesFromTransfer = null;
 
 const PROGRAM_IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
 
@@ -431,6 +430,7 @@ async function ensureProgramBodyEditor() {
 
 async function initProgramBodyEditor() {
     if (!formFields.bodyEditor) return;
+    await loadMarkdownEditorModule();
 
     programBodyEditor = await createMarkdownEditor('#programBodyEditor', {
         placeholder: 'Markdown으로 제작 배경, 사용법, 스크린샷, 긴 이야기 쓰기...',
@@ -483,6 +483,17 @@ async function initProgramBodyEditor() {
             index: currentProgramBodyIndex()
         });
     }, true);
+}
+
+async function loadMarkdownEditorModule() {
+    if (!markdownEditorModulePromise) {
+        markdownEditorModulePromise = import('./markdown-editor.js');
+    }
+
+    const module = await markdownEditorModulePromise;
+    createMarkdownEditor = module.createMarkdownEditor;
+    hasImageTransfer = module.hasImageTransfer;
+    imageFilesFromTransfer = module.imageFilesFromTransfer;
 }
 
 function setProgramBodyImageStatus(message = '', type = 'info') {

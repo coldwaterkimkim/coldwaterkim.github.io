@@ -8,28 +8,25 @@ import {
   getMediaUrl
 } from './pb.js';
 import {
-  createMarkdownEditor,
-  hasImageTransfer,
-  imageFilesFromTransfer
-} from './markdown-editor.js';
+  ABOUT_PROFILE_DOCUMENT_VERSION,
+  defaultAboutProfileRows,
+  normalizeAboutProfileRows
+} from './profile-data.js';
 
 const SETTING_KEY = 'about_wiki_document';
 const IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
+let markdownEditorModulePromise = null;
+let createMarkdownEditor = null;
+let hasImageTransfer = null;
+let imageFilesFromTransfer = null;
 
 const DEFAULT_DOCUMENT = {
   title: '김찬수',
-  subtitle: 'coldwaterkim.com의 About / Contact 문서. 객관적인 척하지만 주인장이 직접 편집한다.',
+  subtitle: '',
   profileTitle: 'coldwaterkim',
   profileImage: 'assets/profile-crop.jpg',
-  profileRows: [
-    { label: '본명', value: '김찬수' },
-    { label: '출생', value: '2000년 11월 12일 08:51' },
-    { label: '국적', value: '대한민국' },
-    { label: '학력', value: '성균관대학교 재학' },
-    { label: '병역', value: '육군 만기전역' },
-    { label: '링크', value: '<a href="https://www.instagram.com/coldwater.kim/" target="_blank" rel="noopener noreferrer">Instagram</a> · <a href="https://x.com/coldwater_kimi" target="_blank" rel="noopener noreferrer">X</a> · <a href="https://open.spotify.com/user/31trg7txlc52iyxoypybf4bljdeu" target="_blank" rel="noopener noreferrer">Spotify</a>' },
-    { label: 'Email', value: '<a href="mailto:ckstn1112@gmail.com?subject=Hello%20from%20your%20site">ckstn1112@gmail.com</a>' },
-  ],
+  profileSchemaVersion: ABOUT_PROFILE_DOCUMENT_VERSION,
+  profileRows: defaultAboutProfileRows(),
   sections: [
     {
       id: 'overview',
@@ -126,14 +123,12 @@ function normalizeDocument(value) {
   next.subtitle = cleanText(value.subtitle) || next.subtitle;
   next.profileTitle = cleanText(value.profileTitle) || next.profileTitle;
   next.profileImage = cleanText(value.profileImage) || next.profileImage;
+  next.profileSchemaVersion = ABOUT_PROFILE_DOCUMENT_VERSION;
 
   if (Array.isArray(value.profileRows)) {
-    next.profileRows = value.profileRows
-      .map(row => ({
-        label: cleanText(row?.label),
-        value: cleanHtml(row?.value),
-      }))
-      .filter(row => row.label || row.value);
+    next.profileRows = normalizeAboutProfileRows(value.profileRows, {
+      mergeDefaults: Number(value.profileSchemaVersion || 0) < ABOUT_PROFILE_DOCUMENT_VERSION,
+    });
   }
 
   if (Array.isArray(value.sections)) {
@@ -162,15 +157,15 @@ function render(state) {
     ${isOwner ? ownerBarHtml(state) : ''}
     <div class="about-wiki-head">
       <h1>${escapeHtml(doc.title)}</h1>
-      <p class="about-wiki-note">${escapeHtml(doc.subtitle)}</p>
     </div>
     <div class="about-wiki-status" data-about-status hidden></div>
-    ${infoboxHtml(doc, isOwner)}
-    ${tocHtml(doc.sections, isOwner)}
+    <div class="about-profile-block">
+      ${infoboxHtml(doc, isOwner)}
+      ${tocHtml(doc.sections, isOwner)}
+    </div>
     <div class="about-wiki-body">
       ${sectionsHtml(doc.sections, isOwner)}
     </div>
-    <div style="clear: both;"></div>
     ${isOwner ? editorHtml(state) : ''}
   `;
 
@@ -323,6 +318,7 @@ function editorHtml(state) {
 
 async function initSectionEditor(state) {
   if (!state.isOwner) return;
+  await loadMarkdownEditorModule();
 
   const selected = findSelectedSection(state);
   const mount = state.root.querySelector('[data-about-markdown-editor]');
@@ -350,6 +346,17 @@ async function initSectionEditor(state) {
   } catch (error) {
     renderStatus(state, `편집기 로드 실패: ${cmsErrorMessage(error)}`, 'error');
   }
+}
+
+async function loadMarkdownEditorModule() {
+  if (!markdownEditorModulePromise) {
+    markdownEditorModulePromise = import('./markdown-editor.js');
+  }
+
+  const module = await markdownEditorModulePromise;
+  createMarkdownEditor = module.createMarkdownEditor;
+  hasImageTransfer = module.hasImageTransfer;
+  imageFilesFromTransfer = module.imageFilesFromTransfer;
 }
 
 function bindSectionEditorImages(state, form, input, editor) {
@@ -565,7 +572,11 @@ async function persistAndRender(state, message) {
   renderStatus(state, '저장 중...', 'pending');
 
   try {
+    state.doc.profileSchemaVersion = ABOUT_PROFILE_DOCUMENT_VERSION;
     await setSetting(SETTING_KEY, JSON.stringify(state.doc));
+    window.dispatchEvent(new CustomEvent('coldwaterkim:profile-data-updated', {
+      detail: { document: state.doc }
+    }));
     renderStatus(state, message || '저장됨', 'success');
   } catch (error) {
     renderStatus(state, `저장 실패: ${cmsErrorMessage(error)}`, 'error');

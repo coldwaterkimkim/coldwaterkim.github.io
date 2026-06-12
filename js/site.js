@@ -28,6 +28,11 @@ import {
   uploadMedia,
   getMediaUrl
 } from './pb.js';
+import {
+  defaultSidebarProfileRows,
+  renderProfileDetailTables,
+  sidebarProfileRowsFromDocument
+} from './profile-data.js';
 
 const SITE_VERSION = typeof __SITE_VERSION__ !== 'undefined' ? __SITE_VERSION__ : 'dev';
 const VERSION_MANIFEST_PATH = '/site-version.json';
@@ -42,7 +47,9 @@ const PROFILE_PHOTO_SETTING_KEY = 'profile_photo_url';
 const BGM_URL_SETTING_KEY = 'bgm_audio_url';
 const BGM_TITLE_SETTING_KEY = 'bgm_audio_title';
 const BGM_PLAYLIST_SETTING_KEY = 'bgm_playlist';
+const ABOUT_DOCUMENT_SETTING_KEY = 'about_wiki_document';
 let spaNavigationToken = 0;
+let activeSidebarProfileRows = defaultSidebarProfileRows();
 
 (async function initProfileMedia() {
   const photo = document.querySelector('.profile-photo');
@@ -64,7 +71,18 @@ let spaNavigationToken = 0;
 
 initSpaRouter();
 initSiteVersionRefresh();
+initSharedProfileDetails();
 initDynamicContent();
+
+window.addEventListener('coldwaterkim:profile-data-updated', (event) => {
+  const doc = event.detail?.document;
+  if (!doc) return;
+  renderSidebarProfileRows(sidebarProfileRowsFromDocument(doc));
+});
+
+window.addEventListener('coldwaterkim:content-ready', () => {
+  renderProfileDetailTables(document, activeSidebarProfileRows);
+});
 
 function initSiteVersionRefresh() {
   if (window.__coldwaterkimVersionRefreshReady) return;
@@ -160,6 +178,37 @@ async function loadProfileMediaSettings(photo, audio, trackTitle) {
   } catch (e) {
     console.warn('Profile media settings failed:', cmsErrorMessage(e));
   }
+}
+
+async function initSharedProfileDetails() {
+  renderSidebarProfileRows(defaultSidebarProfileRows());
+
+  try {
+    const saved = await getSetting(ABOUT_DOCUMENT_SETTING_KEY);
+    const doc = parseProfileDocument(saved);
+    if (doc) {
+      renderSidebarProfileRows(sidebarProfileRowsFromDocument(doc));
+    }
+  } catch (e) {
+    console.warn('Shared profile data failed:', cmsErrorMessage(e));
+  }
+}
+
+function parseProfileDocument(value) {
+  if (!value) return null;
+
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch (e) {
+    console.warn('Profile document parse failed:', e);
+    return null;
+  }
+}
+
+function renderSidebarProfileRows(rows) {
+  activeSidebarProfileRows = rows;
+  renderProfileDetailTables(document, rows);
 }
 
 function ensureTrackTitle(player, audio) {

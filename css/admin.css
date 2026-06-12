@@ -372,6 +372,47 @@ body.admin-body {
   cursor: progress;
 }
 
+.blocknote-editor-shell {
+  --blocknote-placeholder: "Markdown으로 쓰기 시작...";
+  background: var(--cwk-surface-page);
+}
+
+.blocknote-editor-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.blocknote-editor-badge {
+  color: var(--cwk-muted);
+  font-family: var(--cwk-font-mono);
+  font-size: 11px;
+}
+
+.blocknote-editor-mount {
+  min-height: 300px;
+}
+
+.blocknote-editor-shell .bn-container,
+.blocknote-editor-shell .bn-editor {
+  background: var(--cwk-surface-page);
+  color: var(--cwk-ink);
+}
+
+.blocknote-editor-shell .bn-editor {
+  min-height: 300px;
+  padding: 12px 15px;
+  font-family: Georgia, serif;
+  font-size: 16px;
+  line-height: 1.42;
+  letter-spacing: 0;
+}
+
+.blocknote-editor-shell .bn-editor [data-placeholder]::before {
+  color: var(--cwk-muted);
+  content: var(--blocknote-placeholder);
+}
+
 .editor-image-status {
   display: none;
   margin-top: 8px;
