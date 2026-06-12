@@ -33,7 +33,7 @@
         </td>
       </tr>
       <tr>
-        <td width="270" valign="top" class="sidebar">
+        <td width="180" valign="top" class="sidebar">
           <div class="profile-card">
             <div class="profile-person">
               <center>
@@ -137,14 +137,14 @@
                   <td><label for="programCoverImage"><b>표지</b></label></td>
                   <td>
                     <input type="file" id="programCoverImage" name="cover_image" accept="image/*">
-                    <div class="note">앱 대표 이미지가 있으면 여기 넣기. 없으면 자동 레트로 표지가 보임.</div>
+                    <div class="note">직접 넣으면 이 이미지가 표지. 비워두면 첨부 이미지나 .app.zip 안의 앱 아이콘을 자동 표지로 찾음.</div>
                   </td>
                 </tr>
                 <tr>
                   <td><label for="programDownloadFiles"><b>파일</b></label></td>
                   <td>
                     <input type="file" id="programDownloadFiles" name="download_files" multiple>
-                    <div class="note">.dmg, .zip, PDF, 기타 배포 파일 첨부 가능.</div>
+                    <div class="note">.dmg, .zip, PDF, 이미지, 기타 배포 파일 첨부 가능. 이미지나 .app.zip 아이콘이 있으면 표지 후보가 됨.</div>
                   </td>
                 </tr>
                 <tr>
@@ -194,8 +194,9 @@
           </table>
 
           <div class="program-note-box">
-            <b>운영 메모:</b> 표지는 업로드한 앱 대표 이미지가 있으면 그걸 먼저 씁니다.
-            없으면 프로그램 이름과 상태로 자동 표지를 만듭니다. 긴 설명과 스크린샷은 본문에 자유롭게 넣습니다.
+            <b>운영 메모:</b> 표지는 직접 업로드한 이미지가 있으면 그걸 먼저 씁니다.
+            표지를 비워두고 파일에 이미지가 섞여 있거나 .app.zip 안에 앱 아이콘이 있으면 자동 표지로 씁니다.
+            이미지가 없으면 표지는 없음으로 둡니다. 긴 설명과 스크린샷은 본문에 자유롭게 넣습니다.
           </div>
 
           <hr>

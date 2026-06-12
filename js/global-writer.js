@@ -20,6 +20,7 @@ import {
     hasImageTransfer,
     imageFilesFromTransfer
 } from './markdown-editor.js';
+import { findAutomaticProgramCoverFile } from './program-cover.js';
 
 const IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
 
@@ -287,10 +288,18 @@ async function saveProgramEntry({ title, content, mode }) {
     appendOptionalText(formData, 'primary_link_label', programPrimaryLinkLabel.value);
     appendOptionalText(formData, 'primary_link_url', programPrimaryLinkUrl.value);
 
-    Array.from(programCoverImage.files || []).forEach(file => {
+    const coverFiles = Array.from(programCoverImage.files || []);
+    const downloadFiles = Array.from(programDownloadFiles.files || []);
+
+    coverFiles.forEach(file => {
         formData.append('cover_image', file);
     });
-    Array.from(programDownloadFiles.files || []).forEach(file => {
+    if (!coverFiles.length) {
+        const automaticCoverFile = await findAutomaticProgramCoverFile(downloadFiles);
+        if (automaticCoverFile) formData.append('cover_image', automaticCoverFile);
+    }
+
+    downloadFiles.forEach(file => {
         formData.append('download_files', file);
     });
 

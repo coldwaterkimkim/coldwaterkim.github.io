@@ -22,6 +22,7 @@ import {
     hasImageTransfer,
     imageFilesFromTransfer
 } from './markdown-editor.js';
+import { findAutomaticProgramCoverFile } from './program-cover.js';
 
 const ownerMode = isLoggedIn();
 let programs = [];
@@ -218,7 +219,7 @@ function renderProgramRow(program) {
         <tr>
             <td class="program-cover-cell">
                 <a href="${escapeAttribute(detailUrl)}" class="program-cover-link" aria-label="${escapeAttribute(title)} 상세 보기">
-                    ${coverUrl ? renderImageCover(program, coverUrl) : renderFallbackCover(program)}
+                    ${coverUrl ? renderImageCover(program, coverUrl) : renderMissingCover(program)}
                 </a>
             </td>
             <td class="program-story-cell">
@@ -247,31 +248,14 @@ function renderImageCover(program, coverUrl) {
     `;
 }
 
-function renderFallbackCover(program) {
+function renderMissingCover(program) {
     return `
-        <div class="program-cover ${coverClass(program)}">
+        <div class="program-cover program-cover--missing">
             <div class="program-window-bar">${escapeHtml(program.slug || 'program')}</div>
-            <div class="program-cover-title">${fallbackCoverTitle(program.title)}</div>
-            <div class="program-cover-caption">${escapeHtml(program.tagline || program.platform || 'made by me')}</div>
+            <div class="program-cover-title">없음</div>
+            <div class="program-cover-caption">대표 이미지 없음</div>
         </div>
     `;
-}
-
-function coverClass(program) {
-    const haystack = `${program.slug || ''} ${program.title || ''}`.toLowerCase();
-    if (haystack.includes('onecut') || haystack.includes('one-cut')) return 'program-cover--onecut';
-    if (haystack.includes('doodle') || haystack.includes('두들')) return 'program-cover--doodle';
-    if (haystack.includes('중생') || haystack.includes('wisdom')) return 'program-cover--wisdom';
-    if (haystack.includes('브덤') || haystack.includes('dump')) return 'program-cover--dump';
-    if (normalizeProgramStatus(program.status) === 'unreleased') return 'program-cover--secret';
-    return `program-cover--${normalizeProgramStatus(program.status)}`;
-}
-
-function fallbackCoverTitle(title = '') {
-    const clean = String(title || '???').trim() || '???';
-    const words = clean.split(/\s+/).filter(Boolean);
-    const display = words.length > 1 ? words.slice(0, 2).join('<br>') : clean;
-    return escapeHtml(display.toUpperCase()).replace(/&lt;BR&gt;/g, '<br>');
 }
 
 function programMeta(program) {
@@ -314,7 +298,14 @@ async function saveProgram() {
     formData.set('why', legacyRequiredText);
     formData.set('pain_point', legacyRequiredText);
 
-    if (!formFields.coverImage.files.length) formData.delete('cover_image');
+    if (!formFields.coverImage.files.length) {
+        formData.delete('cover_image');
+        if (formFields.downloadFiles.files.length) {
+            setOwnerStatus('첨부 파일에서 대표 이미지 찾는 중...');
+        }
+        const automaticCoverFile = await findAutomaticProgramCoverFile(formFields.downloadFiles.files);
+        if (automaticCoverFile) formData.append('cover_image', automaticCoverFile);
+    }
     if (!formFields.downloadFiles.files.length) formData.delete('download_files');
     normalizeOptionalTextField(formData, 'platform');
     normalizeOptionalTextField(formData, 'story_intro');

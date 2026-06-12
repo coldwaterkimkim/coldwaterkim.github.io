@@ -32,7 +32,7 @@
         </td>
       </tr>
       <tr>
-        <td width="270" valign="top" class="sidebar">
+        <td width="180" valign="top" class="sidebar">
           <div class="profile-card">
             <div class="profile-person">
               <center>
@@ -89,9 +89,30 @@
           <p data-editable="true" data-key="home_intro">
             여기는 <font color="red"><b>아날로그</b></font> 감성의 실험실. 테이블로 줄맞춤하고, 마퀴로 반짝이고, 커다란 GIF로 부담스럽게 반겨요.
           </p>
-          <table border="1" cellspacing="0" cellpadding="6" width="100%" id="recent-posts-table">
+          <table border="1" cellspacing="0" cellpadding="6" width="100%" id="recent-posts-table" class="home-recent-table">
             <tr bgcolor="#f0f0f0">
-              <th align="left">최근 글(Last Updates)</th>
+              <th align="left">글방 최근 3개</th>
+              <th class="date-cell">Date</th>
+            </tr>
+            <!-- Loaded dynamically -->
+          </table>
+          <table border="1" cellspacing="0" cellpadding="6" width="100%" id="recent-daily-table" class="home-recent-table">
+            <tr bgcolor="#f0f0f0">
+              <th align="left">나으 하루 최근 3개</th>
+              <th class="date-cell">Date</th>
+            </tr>
+            <!-- Loaded dynamically -->
+          </table>
+          <table border="1" cellspacing="0" cellpadding="6" width="100%" id="recent-programs-table" class="home-recent-table">
+            <tr bgcolor="#f0f0f0">
+              <th align="left">프로그램실 최근 3개</th>
+              <th class="date-cell">Date</th>
+            </tr>
+            <!-- Loaded dynamically -->
+          </table>
+          <table border="1" cellspacing="0" cellpadding="6" width="100%" id="recent-nasajab-table" class="home-recent-table">
+            <tr bgcolor="#f0f0f0">
+              <th align="left">나사잡 최근 3개</th>
               <th class="date-cell">Date</th>
             </tr>
             <!-- Loaded dynamically -->

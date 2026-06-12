@@ -3,7 +3,31 @@
  * PocketBase 연동 버전
  */
 
-import { getPublishedPosts, getGuestbookEntries, addGuestbookEntry, getSetting, setSetting, isLoggedIn, deleteGuestbookEntry, guestbookDisplayDate, sortGuestbookEntriesForDisplay, postDisplayDate, recordVisitAndGetStats, setVisitorTodayMinimum, formatDate, escapeHtml, cmsErrorMessage, uploadMedia, getMediaUrl } from './pb.js';
+import {
+  getPublishedPosts,
+  getPublishedDailyEntries,
+  getPublishedPrograms,
+  getPublishedNasajab,
+  getGuestbookEntries,
+  addGuestbookEntry,
+  getSetting,
+  setSetting,
+  isLoggedIn,
+  deleteGuestbookEntry,
+  guestbookDisplayDate,
+  sortGuestbookEntriesForDisplay,
+  postDisplayDate,
+  dailyEntryDisplayDate,
+  programDisplayDate,
+  nasajabDisplayDate,
+  recordVisitAndGetStats,
+  setVisitorTodayMinimum,
+  formatDate,
+  escapeHtml,
+  cmsErrorMessage,
+  uploadMedia,
+  getMediaUrl
+} from './pb.js';
 
 // ─────────────────────────────────────────────────────────
 // 프로필 사진 + BGM 설정
@@ -758,38 +782,85 @@ async function initSettings(scope = document) {
 // 최근 글 목록 (index.html)
 // ─────────────────────────────────────────────────────────
 async function initRecentPosts(scope = document) {
-  const table = scope.querySelector('#recent-posts-table');
+  const tables = [
+    {
+      selector: '#recent-posts-table',
+      readyKey: 'recentPostsReady',
+      empty: '아직 글방 글이 없습니다.',
+      load: () => getPublishedPosts(1, 3),
+      toRow: post => ({
+        title: post.title || '(제목 없음)',
+        url: `posts/view.html?slug=${encodeURIComponent(post.slug || '')}`,
+        date: postDisplayDate(post)
+      })
+    },
+    {
+      selector: '#recent-daily-table',
+      readyKey: 'recentDailyReady',
+      empty: '아직 나으 하루 글이 없습니다.',
+      load: () => getPublishedDailyEntries(1, 3),
+      toRow: entry => ({
+        title: entry.title || '(제목 없음)',
+        url: `daily/view.html?slug=${encodeURIComponent(entry.slug || '')}`,
+        date: dailyEntryDisplayDate(entry)
+      })
+    },
+    {
+      selector: '#recent-programs-table',
+      readyKey: 'recentProgramsReady',
+      empty: '아직 프로그램이 없습니다.',
+      load: () => getPublishedPrograms(1, 3),
+      toRow: program => ({
+        title: program.title || '(이름 없음)',
+        url: `programs/view.html?slug=${encodeURIComponent(program.slug || '')}`,
+        date: programDisplayDate(program)
+      })
+    },
+    {
+      selector: '#recent-nasajab-table',
+      readyKey: 'recentNasajabReady',
+      empty: '아직 나사잡 항목이 없습니다.',
+      load: () => getPublishedNasajab(1, 3),
+      toRow: item => ({
+        title: item.title || item.caption || item.memo || '(제목 없음)',
+        url: item.id ? `nasajab/index.html#${encodeURIComponent(item.id)}` : 'nasajab/index.html',
+        date: nasajabDisplayDate(item)
+      })
+    }
+  ];
+
+  await Promise.all(tables.map(config => initRecentTable(scope, config)));
+}
+
+async function initRecentTable(scope, config) {
+  const table = scope.querySelector(config.selector);
   if (!table) return;
-  if (table.dataset.recentPostsReady === 'true') return;
-  table.dataset.recentPostsReady = 'true';
+  if (table.dataset[config.readyKey] === 'true') return;
+  table.dataset[config.readyKey] = 'true';
 
   const rows = Array.from(table.querySelectorAll('tr')).slice(1);
   rows.forEach(row => row.remove());
 
   try {
-    const result = await getPublishedPosts(1, 3);
+    const result = await config.load();
+    const items = result.items || [];
 
-    if (result.items.length === 0) {
+    if (items.length === 0) {
       const tr = document.createElement('tr');
-      tr.innerHTML = '<td colspan="2">아직 글이 없습니다.</td>';
+      tr.innerHTML = `<td colspan="2">${escapeHtml(config.empty)}</td>`;
       table.appendChild(tr);
       return;
     }
 
-    result.items.forEach(post => {
+    items.slice(0, 3).forEach(item => {
+      const row = config.toRow(item);
       const tr = document.createElement('tr');
-      const date = postDisplayDate(post);
       tr.innerHTML = `
-        <td><a href="posts/view.html?slug=${post.slug}">${escapeHtml(post.title)}</a></td>
-        <td class="date-cell" align="right">${formatDate(date)}</td>
+        <td><a href="${escapeAttribute(row.url)}">${escapeHtml(row.title)}</a></td>
+        <td class="date-cell" align="right">${formatDate(row.date)}</td>
       `;
       table.appendChild(tr);
     });
-
-    // 모든 글 보기 링크
-    const trAll = document.createElement('tr');
-    trAll.innerHTML = '<td><a href="posts/index.html">모든 글 보기</a></td><td class="date-cell" align="right">→</td>';
-    table.appendChild(trAll);
   } catch (e) {
     const tr = document.createElement('tr');
     tr.innerHTML = `<td colspan="2">${escapeHtml(cmsErrorMessage(e))}</td>`;
@@ -931,6 +1002,14 @@ async function nextGuestbookName() {
     return match ? Math.max(max, Number(match[1])) : max;
   }, 0);
   return `익명의 누군가${maxNumber + 1}`;
+}
+
+function escapeAttribute(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
 // URL 링크 변환

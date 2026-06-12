@@ -403,6 +403,14 @@ body.admin-body {
   line-height: 1.5;
 }
 
+.field-note {
+  display: block;
+  margin-top: 5px;
+  color: var(--cwk-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 [hidden] {
   display: none !important;
 }

@@ -2,7 +2,7 @@
 :root {
   --cwk-viewport-width: 1200px;
   --cwk-page-width: 1140px;
-  --cwk-home-sidebar-width: 270px;
+  --cwk-home-sidebar-width: 180px;
   --cwk-guestbook-sidebar-width: 300px;
   --cwk-cell-padding: 8px;
   --cwk-list-cell-padding: 6px;
@@ -76,6 +76,10 @@ a:hover { background: var(--cwk-link-hover-bg); }
   padding: 4px;
   background: var(--cwk-surface-table-head);
   border: 1px solid var(--cwk-border-dashed);
+}
+
+.home-recent-table {
+  margin: 0 0 8px;
 }
 
 .owner-bar {
@@ -444,6 +448,11 @@ body > center > table[width="1140"] > tbody > tr > td {
   background: var(--cwk-surface-page);
 }
 
+.program-cover--missing {
+  background: #eeeeee;
+  color: var(--cwk-meta);
+}
+
 .program-cover--onecut {
   background: #fff8dc;
 }
@@ -751,6 +760,11 @@ body > center > table[width="1140"] > tbody > tr > td {
   background: var(--cwk-surface-preview);
   overflow: hidden;
   text-align: center;
+}
+
+.program-detail-poster--missing {
+  background: #eeeeee;
+  color: var(--cwk-meta);
 }
 
 .program-detail-poster-title {

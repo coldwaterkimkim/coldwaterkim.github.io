@@ -127,7 +127,7 @@ function renderProgram(program) {
     bodyEl.innerHTML = `
         <div class="program-detail-hero">
             <div class="program-detail-cover">
-                ${coverUrl ? `<img src="${escapeAttribute(coverUrl)}" alt="${escapeAttribute(title)} 표지">` : renderFallbackPoster(program)}
+                ${coverUrl ? `<img src="${escapeAttribute(coverUrl)}" alt="${escapeAttribute(title)} 표지">` : renderMissingPoster(program)}
             </div>
             <div class="program-detail-summary">
                 <p>${escapeMultiline(program.story_intro || program.tagline || '아직 한 줄 소개를 쓰는 중.')}</p>
@@ -182,12 +182,12 @@ function looksLikeHtml(value) {
     return /<\/?[a-z][\s\S]*>/i.test(value);
 }
 
-function renderFallbackPoster(program) {
+function renderMissingPoster(program) {
     return `
-        <div class="program-detail-poster">
+        <div class="program-detail-poster program-detail-poster--missing">
             <div class="program-window-bar">${escapeHtml(program.slug || 'program')}</div>
-            <div class="program-detail-poster-title">${escapeHtml(program.title || '???')}</div>
-            <div class="program-cover-caption">${escapeHtml(program.tagline || program.platform || 'made by me')}</div>
+            <div class="program-detail-poster-title">없음</div>
+            <div class="program-cover-caption">대표 이미지 없음</div>
         </div>
     `;
 }

@@ -581,6 +581,12 @@ function fileList(value) {
     return value ? [value] : [];
 }
 
+const PROGRAM_IMAGE_FILENAME_RE = /\.(avif|gif|jpe?g|png|svg|webp)$/i;
+
+export function isProgramImageFilename(filename) {
+    return PROGRAM_IMAGE_FILENAME_RE.test(String(filename || '').split('?')[0]);
+}
+
 /**
  * 프로그램 파일 URL 가져오기
  * @param {object} record
@@ -591,14 +597,12 @@ export function getProgramFileUrl(record, filename) {
     return getMediaUrl(record, filename);
 }
 
-/**
- * 프로그램 대표 이미지 URL. 업로드된 cover_image가 없으면 빈 문자열을 반환한다.
- * @param {object} program
- * @returns {string}
- */
 export function resolveProgramCoverUrl(program) {
-    const filename = fileList(program?.cover_image)[0];
-    return filename ? getProgramFileUrl(program, filename) : '';
+    const explicitCover = fileList(program?.cover_image)[0];
+    if (explicitCover) return getProgramFileUrl(program, explicitCover);
+
+    const attachedImage = fileList(program?.download_files).find(isProgramImageFilename);
+    return attachedImage ? getProgramFileUrl(program, attachedImage) : '';
 }
 
 /**
