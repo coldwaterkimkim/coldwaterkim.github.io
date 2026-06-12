@@ -395,6 +395,311 @@ body > center > table[width="1140"] > tbody > tr > td {
 .preview-box h1, .preview-box h2, .preview-box h3 { margin: 8px 0 4px; }
 .preview-box pre, .preview-box code { font-family: var(--cwk-font-mono); }
 
+/* About / Contact: wiki-ish fixed page inside the same old personal homepage shell. */
+.about-wiki {
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.about-wiki-head {
+  margin: 6px 0 8px;
+  border-bottom: 1px solid var(--cwk-border-dashed);
+}
+
+.about-wiki-head h1 {
+  margin: 0 0 4px;
+  font-size: 30px;
+  line-height: 1.15;
+}
+
+.about-wiki-note {
+  margin: 0 0 8px;
+  color: var(--cwk-meta);
+  font-family: var(--cwk-font-mono);
+  font-size: 12px;
+}
+
+.about-owner-bar {
+  margin-bottom: 10px;
+}
+
+.about-wiki-status {
+  margin: 7px 0;
+  padding: 5px 7px;
+  border: 1px dashed var(--cwk-border-dashed);
+  background: var(--cwk-surface-preview);
+  font-family: var(--cwk-font-mono);
+  font-size: 12px;
+}
+
+.about-wiki-status--success {
+  color: green;
+}
+
+.about-wiki-status--pending {
+  color: var(--cwk-meta);
+}
+
+.about-wiki-status--error {
+  color: var(--cwk-hot-red);
+  font-weight: bold;
+}
+
+.about-infobox {
+  width: 260px;
+  margin: 0 0 12px 14px;
+  border-collapse: collapse;
+  background: var(--cwk-surface-page);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.about-infobox th,
+.about-infobox td {
+  border: 1px solid var(--cwk-ink);
+  padding: 5px 6px;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.about-infobox th {
+  width: 68px;
+  background: var(--cwk-surface-table-head);
+  text-align: center;
+}
+
+.about-infobox-title {
+  background: navy !important;
+  color: white;
+  font-family: var(--cwk-font-mono);
+  font-size: 15px;
+  letter-spacing: 0;
+}
+
+.about-infobox-photo {
+  padding: 8px !important;
+  text-align: center;
+  background: var(--cwk-surface-preview);
+}
+
+.about-infobox-photo img {
+  display: block;
+  box-sizing: border-box;
+  width: 190px;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+  border: 2px solid var(--cwk-ink);
+  background: var(--cwk-surface-page);
+  padding: 3px;
+}
+
+.about-toc {
+  width: 245px;
+  margin: 12px 0 16px;
+  border-collapse: collapse;
+  background: var(--cwk-surface-page);
+  font-size: 13px;
+}
+
+.about-toc th,
+.about-toc td {
+  border: 1px solid var(--cwk-ink);
+  padding: 6px;
+  vertical-align: top;
+}
+
+.about-toc ol {
+  margin: 0;
+  padding-left: 23px;
+}
+
+.about-toc li {
+  margin: 2px 0;
+}
+
+.about-section {
+  margin: 14px 0 18px;
+  overflow-x: auto;
+}
+
+.about-section h2 {
+  margin: 0 0 8px;
+  padding: 0 0 3px;
+  border-bottom: 1px solid var(--cwk-ink);
+  font-size: 20px;
+  line-height: 1.25;
+}
+
+.about-edit-link {
+  display: inline;
+  margin-left: 5px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--cwk-link);
+  font-family: var(--cwk-font-main);
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.about-edit-link:hover {
+  background: var(--cwk-link-hover-bg);
+}
+
+.about-section-body.post-content {
+  padding: 0;
+  font-family: var(--cwk-font-main);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.about-section-body.post-content table {
+  font-size: 13px;
+}
+
+.about-editor {
+  clear: both;
+  margin: 16px 0 12px;
+  padding: 8px;
+  border: 2px dashed var(--cwk-hot-red);
+  background: #ffffcc;
+  font-size: 13px;
+}
+
+.about-editor-empty {
+  border-color: var(--cwk-border-dashed);
+  background: var(--cwk-surface-preview);
+}
+
+.about-editor table {
+  margin-top: 8px;
+  border-collapse: collapse;
+  background: var(--cwk-surface-page);
+}
+
+.about-editor th,
+.about-editor td {
+  border: 1px solid var(--cwk-ink);
+  padding: 5px;
+  vertical-align: top;
+}
+
+.about-editor input[type="text"],
+.about-editor textarea {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  font-family: var(--cwk-font-main);
+  font-size: 13px;
+}
+
+.about-editor textarea {
+  min-height: 96px;
+  resize: vertical;
+  font-family: var(--cwk-font-mono);
+  line-height: 1.45;
+}
+
+.about-editor-container {
+  border: 2px inset var(--cwk-surface-page);
+  background: var(--cwk-surface-page);
+  min-height: 240px;
+}
+
+.about-editor-container .markdown-editor-inline-toolbar {
+  padding: 4px;
+  background: var(--cwk-surface-table-head);
+  border-bottom: 1px solid var(--cwk-border-dashed);
+}
+
+.about-editor-container .markdown-editor-inline-toolbar button {
+  margin: 0 2px 0 0;
+  padding: 3px 6px;
+  border: 2px outset var(--cwk-surface-page);
+  background: var(--cwk-surface-page);
+  color: var(--cwk-ink);
+  font-family: var(--cwk-font-mono);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.about-editor-container .markdown-editor-inline-toolbar button:active {
+  border-style: inset;
+}
+
+.about-editor-container .toastui-editor-defaultUI {
+  border: none;
+  font-family: Georgia, serif;
+}
+
+.about-editor-container .toastui-editor-defaultUI-toolbar {
+  border-bottom: 1px solid var(--cwk-border-dashed);
+  background: var(--cwk-surface-table-head);
+}
+
+.about-editor-container .toastui-editor-mode-switch,
+.about-editor-container .toastui-editor-md-tab-container {
+  display: none;
+}
+
+.about-editor-container .toastui-editor-main,
+.about-editor-container .toastui-editor-ww-container,
+.about-editor-container .toastui-editor-ww-container .ProseMirror,
+.about-editor-container .toastui-editor-contents {
+  background: var(--cwk-surface-page);
+  color: var(--cwk-ink);
+  font-family: Georgia, serif;
+  font-size: 15px;
+  line-height: var(--cwk-post-line-height);
+  letter-spacing: 0;
+}
+
+.about-editor-container .toastui-editor-ww-container .ProseMirror,
+.about-editor-container .toastui-editor-contents {
+  padding: 10px 12px;
+}
+
+.about-editor-container.is-image-dragover {
+  background: var(--cwk-link-hover-bg);
+  outline: 2px dashed var(--cwk-hot-red);
+  outline-offset: 3px;
+}
+
+.about-editor-container.is-image-uploading {
+  cursor: progress;
+}
+
+.about-editor-image-status {
+  display: none;
+  margin-top: 6px;
+  padding: 4px 6px;
+  border: 1px dashed var(--cwk-border-dashed);
+  background: var(--cwk-surface-preview);
+  color: var(--cwk-muted);
+  font-size: 12px;
+}
+
+.about-editor-image-status.is-visible {
+  display: block;
+}
+
+.about-editor-image-status--success {
+  border-color: green;
+  color: green;
+}
+
+.about-editor-image-status--error {
+  border-color: var(--cwk-hot-red);
+  color: var(--cwk-hot-red);
+  font-weight: bold;
+}
+
+.about-editor-actions {
+  margin-top: 7px;
+}
+
 /* Programs room */
 .programs-table {
   table-layout: fixed;
@@ -1660,6 +1965,44 @@ body > center > table[width="1140"] > tbody > tr > td {
 
   .post-content {
     padding: 10px 8px;
+  }
+
+  .about-wiki {
+    font-size: 14px;
+  }
+
+  .about-wiki-head h1 {
+    font-size: 24px;
+  }
+
+  .about-infobox {
+    float: none !important;
+    width: 100% !important;
+    margin: 8px 0 12px;
+  }
+
+  .about-infobox-photo img {
+    width: min(210px, 100%);
+  }
+
+  .about-toc {
+    width: 100%;
+  }
+
+  .about-section h2 {
+    font-size: 18px;
+  }
+
+  .about-section-body.post-content {
+    padding: 0;
+    font-size: 14px;
+  }
+
+  .about-editor th,
+  .about-editor td {
+    display: block;
+    width: 100% !important;
+    box-sizing: border-box;
   }
 
   .programs-table,
