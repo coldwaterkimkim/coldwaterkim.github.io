@@ -12,6 +12,8 @@
 
 공개 사이트 내부 이동은 `js/site.js`의 SPA-like router가 처리한다. 같은 origin의 공개 HTML 링크를 클릭하면 전체 문서를 새로고침하지 않고 새 페이지의 `.content`만 fetch해서 교체하며, profile/sidebar/BGM은 유지한다. 따라서 BGM은 메뉴 이동 중 끊기지 않는다. 직접 URL 접근과 새로고침은 기존 정적 HTML 진입을 그대로 지원한다.
 
+배포 캐시 완화를 위해 Vite 빌드는 `site-version.json`을 함께 생성한다. 공개 사이트 JS는 로드 후, 탭 재활성화 시, 그리고 1분 간격으로 이 버전 파일을 캐시 우회 쿼리와 함께 확인한다. 현재 JS에 박힌 빌드 버전보다 최신 버전이 보이면 현재 URL에 `?v=<version>`을 붙여 한 번만 새로고침한다. GitHub Pages의 HTML 캐시가 짧게 남아도 방문자가 강제 새로고침 없이 새 배포를 받게 하기 위한 장치다.
+
 모바일에서는 같은 shell을 유지하되, 640px 이하 화면에서만 메인 2-column table이 세로로 접힌다. Home은 프로필을 가로형 미니 명함으로 압축하고 Cool Links/My WebRing은 본문 하단으로 보내 정체성을 남긴다. 글방/글 상세/나으 하루/프로그램실/나사잡/Guestbook/About는 sidebar를 숨겨 navigation 다음에 본문이 바로 오게 한다. 데스크톱의 1140px PC 레이아웃은 기본값으로 보존한다.
 
 이 결정의 이유:

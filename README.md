@@ -16,6 +16,8 @@ GitHub Pages는 정적 파일만 서빙하므로 PocketBase 서버를 직접 같
 
 이렇게 하면 코드/UI 수정은 `main` 브랜치에 push되는 순간 GitHub Actions가 빌드해서 `coldwaterkim.com`에 반영하고, 글/방명록/미디어 수정은 로그인한 공개 화면의 owner action에서 저장하는 즉시 PocketBase를 통해 공개 사이트에 반영된다.
 
+GitHub Pages는 HTML을 짧게 캐시할 수 있으므로, 방문자가 이미 열어둔 탭에서는 배포 직후 예전 화면이 잠깐 남을 수 있다. 이를 줄이기 위해 Vite 빌드 때 `site-version.json`을 만들고, 공개 사이트 JS가 주기적으로 최신 배포 버전을 확인한다. 새 버전이 감지되면 현재 URL에 `?v=<version>`을 붙여 한 번 새로고침해서 브라우저/CDN 캐시를 우회한다.
+
 ## 로컬 실행
 
 로컬 PocketBase 샌드박스로 확인:
@@ -151,6 +153,8 @@ GitHub Pages 배포에서는 이 `dist/` 폴더를 GitHub Actions가 `gh-pages` 
 - `npm run build`
 - `dist/`를 `gh-pages` 브랜치에 배포
 - `coldwaterkim.com` CNAME 유지
+
+빌드 결과에는 `site-version.json`도 포함된다. 공개 사이트는 이 파일을 캐시 우회 쿼리로 확인해서, 이미 열린 탭이 낡은 배포를 계속 들고 있으면 한 번 자동 갱신한다. GitHub Pages 자체 HTML 캐시는 최대 몇 분 남을 수 있지만, 새 버전 감지 이후에는 사용자가 강제 새로고침을 누르지 않아도 최신 URL로 다시 들어가게 된다.
 
 ### CMS/API
 
