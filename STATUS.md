@@ -8,7 +8,7 @@
 
 공개 사이트의 디자인 기준은 현재 `index.html` 홈페이지, `design.md`, `css/styles.css`의 `:root` 디자인 토큰에 고정한다. 새 공개 페이지나 UI 수정은 현재 홈의 90s 개인 홈페이지 감성을 먼저 보존하고, 의도적으로 방향을 바꿀 때만 `design.md`, CSS 토큰, `STATUS.md`를 함께 갱신한다.
 
-공개 메인 IA 페이지(`Home`, `글방`, `글 상세`, `나으 하루`, `프로그램실`, `나사잡`, `Guestbook`, `About / Contact`)는 모두 홈의 2-column shell을 기본 레이아웃으로 쓴다. 즉 상단 marquee, 노란 visitor banner, 왼쪽 프로필/sidebar, 오른쪽 content 상단 navigation은 유지하고, 페이지별 내용만 오른쪽 content 영역에서 바뀌게 한다.
+공개 메인 IA 페이지(`Home`, `글방`, `글 상세`, `나으 하루`, `프로그램실`, `나사잡`, `Guestbook`, `About / Contact`)는 모두 홈의 2-column shell을 기본 레이아웃으로 쓴다. 즉 상단 marquee, 노란 visitor banner, 왼쪽 프로필/sidebar, 나무위키식 PROFILE DATA 표, 오른쪽 content 상단 navigation은 유지하고, 페이지별 내용만 오른쪽 content 영역에서 바뀌게 한다.
 
 공개 사이트 내부 이동은 `js/site.js`의 SPA-like router가 처리한다. 같은 origin의 공개 HTML 링크를 클릭하면 전체 문서를 새로고침하지 않고 새 페이지의 `.content`만 fetch해서 교체하며, profile/sidebar/BGM은 유지한다. 따라서 BGM은 메뉴 이동 중 끊기지 않는다. 직접 URL 접근과 새로고침은 기존 정적 HTML 진입을 그대로 지원한다.
 

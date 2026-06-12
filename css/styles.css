@@ -190,6 +190,61 @@ body > center > table[width="1140"] > tbody > tr > td {
   text-align: center;
 }
 
+.profile-details {
+  border: 1px dashed var(--cwk-border-dashed);
+  background: var(--cwk-surface-preview);
+  padding: 4px;
+  margin: 0 0 8px;
+  font-size: 12px;
+}
+
+.profile-detail-table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  background: var(--cwk-surface-page);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.profile-detail-table th {
+  width: 50px;
+  background: var(--cwk-surface-table-head);
+  font-weight: bold;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.profile-detail-table td {
+  background: var(--cwk-surface-page);
+  text-align: left;
+  vertical-align: middle;
+  overflow-wrap: anywhere;
+}
+
+.profile-school-link,
+.profile-service-link {
+  display: inline-block;
+  margin: 0 0 2px;
+}
+
+.profile-social-link {
+  display: inline-block;
+  margin: 0 4px 2px 0;
+  padding: 1px;
+  vertical-align: middle;
+}
+
+.profile-social-link:hover {
+  background: var(--cwk-link-hover-bg);
+}
+
+.profile-social-icon {
+  display: block;
+  width: 20px;
+  height: 20px;
+  image-rendering: auto;
+}
+
 .today-box {
   border: 1px dotted var(--cwk-border-dashed);
   background: var(--cwk-surface-page);
@@ -1458,11 +1513,27 @@ body > center > table[width="1140"] > tbody > tr > td {
   }
 
   .page-home .content {
+    order: 3;
+  }
+
+  .page-home .profile-details {
     order: 2;
+    box-sizing: border-box;
+    width: 100%;
+    margin: 0;
+    padding: 8px;
+    background: var(--cwk-surface-sidebar);
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+  }
+
+  .page-home .profile-detail-table {
+    font-size: 12px;
   }
 
   .page-home .home-side-links {
-    order: 3;
+    order: 4;
     box-sizing: border-box;
     width: 100%;
     padding: 0 8px 8px;
