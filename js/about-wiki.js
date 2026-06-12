@@ -169,6 +169,7 @@ function render(state) {
     ${isOwner ? editorHtml(state) : ''}
   `;
 
+  hydrateSavedHtml(state);
   bindEvents(state);
   initSectionEditor(state);
 }
@@ -192,7 +193,7 @@ function infoboxHtml(doc, isOwner) {
     <tr>
       <th>${escapeHtml(row.label || '')}</th>
       <td>
-        ${row.value || ''}
+        <span data-about-profile-value-index="${index}"></span>
         ${isOwner ? `<button type="button" class="about-edit-link" data-about-action="edit-profile-row" data-profile-index="${index}">[편집]</button>` : ''}
       </td>
     </tr>
@@ -242,9 +243,21 @@ function sectionsHtml(sections, isOwner) {
         <span>${index + 1}. ${escapeHtml(section.title)}</span>
         ${isOwner ? `<button type="button" class="about-edit-link" data-about-action="edit-section" data-section-id="${escapeAttribute(section.id)}">[편집]</button>` : ''}
       </h2>
-      <div class="about-section-body post-content">${section.body || '<p></p>'}</div>
+      <div class="about-section-body post-content" data-about-section-body-index="${index}"></div>
     </div>
   `).join('');
+}
+
+function hydrateSavedHtml(state) {
+  state.root.querySelectorAll('[data-about-profile-value-index]').forEach((slot) => {
+    const index = Number(slot.getAttribute('data-about-profile-value-index'));
+    slot.innerHTML = state.doc.profileRows[index]?.value || '';
+  });
+
+  state.root.querySelectorAll('[data-about-section-body-index]').forEach((slot) => {
+    const index = Number(slot.getAttribute('data-about-section-body-index'));
+    slot.innerHTML = state.doc.sections[index]?.body || '<p></p>';
+  });
 }
 
 function editorHtml(state) {
