@@ -5,7 +5,7 @@
 
 import {
   getPublishedPosts,
-  getPublishedDailyEntries,
+  getPublishedDailyTimeline,
   getPublishedPrograms,
   getPublishedNasajab,
   getGuestbookEntries,
@@ -17,6 +17,7 @@ import {
   guestbookDisplayDate,
   sortGuestbookEntriesForDisplay,
   postDisplayDate,
+  dailyEntryDayKey,
   dailyEntryDisplayDate,
   programDisplayDate,
   nasajabDisplayDate,
@@ -929,12 +930,14 @@ async function initRecentPosts(scope = document) {
     {
       selector: '#recent-daily-table',
       readyKey: 'recentDailyReady',
-      empty: '아직 나으 하루 글이 없습니다.',
-      load: () => getPublishedDailyEntries(1, 3),
-      toRow: entry => ({
-        title: entry.title || '(제목 없음)',
-        url: `daily/view.html?slug=${encodeURIComponent(entry.slug || '')}`,
-        date: dailyEntryDisplayDate(entry)
+      empty: '아직 나으 하루가 없습니다.',
+      load: async () => ({
+        items: groupDailyEntriesByDay(await getPublishedDailyTimeline()).slice(0, 3)
+      }),
+      toRow: day => ({
+        title: dailyPreviewTitle(day),
+        url: `daily/view.html?day=${encodeURIComponent(day.dayKey)}`,
+        date: day.dayKey
       })
     },
     {
@@ -962,6 +965,43 @@ async function initRecentPosts(scope = document) {
   ];
 
   await Promise.all(tables.map(config => initRecentTable(scope, config)));
+}
+
+function groupDailyEntriesByDay(entries = []) {
+  const groups = new Map();
+
+  entries.forEach(entry => {
+    const dayKey = dailyEntryDayKey(entry);
+    if (!groups.has(dayKey)) {
+      groups.set(dayKey, {
+        dayKey,
+        entries: [],
+        latestDate: dailyEntryDisplayDate(entry)
+      });
+    }
+
+    const group = groups.get(dayKey);
+    group.entries.push(entry);
+    if (dateTimestamp(dailyEntryDisplayDate(entry)) > dateTimestamp(group.latestDate)) {
+      group.latestDate = dailyEntryDisplayDate(entry);
+    }
+  });
+
+  return Array.from(groups.values()).sort((a, b) => {
+    const byDay = String(b.dayKey).localeCompare(String(a.dayKey));
+    if (byDay !== 0) return byDay;
+    return dateTimestamp(b.latestDate) - dateTimestamp(a.latestDate);
+  });
+}
+
+function dailyPreviewTitle(day) {
+  const count = day.entries.length;
+  return `${formatDate(day.dayKey)}의 하루${count > 1 ? ` (${count}개)` : ''}`;
+}
+
+function dateTimestamp(value) {
+  const n = Date.parse(value || '');
+  return Number.isFinite(n) ? n : 0;
 }
 
 async function initRecentTable(scope, config) {

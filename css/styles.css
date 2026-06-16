@@ -1521,7 +1521,7 @@ body > center > table[width="1140"] > tbody > tr > td {
   padding: 1px 3px;
 }
 
-/* Daily room: one record per day, shown through old-web calendar + table. */
+/* Daily room: records grouped by day, shown through old-web calendar + table. */
 .daily-calendar-table {
   margin: 12px 0;
   background: var(--cwk-surface-page);

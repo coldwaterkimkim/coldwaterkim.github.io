@@ -190,11 +190,8 @@
 
   <script type="module">
     import {
-      getPublishedDailyEntries,
-      getAllDailyEntries,
       getPublishedDailyTimeline,
       getAllDailyTimeline,
-      deleteDailyEntry,
       isLoggedIn,
       logout,
       dailyEntryDayKey,
@@ -212,7 +209,6 @@
     const ownerMode = isLoggedIn();
 
     window.goToDailyPage = goToDailyPage;
-    window.deleteOwnerDailyEntry = deleteOwnerDailyEntry;
 
     if (ownerMode) {
       document.getElementById('owner-col-head').style.display = '';
@@ -244,55 +240,78 @@
 
     async function loadDailyEntries(page = 1) {
       const tbody = document.getElementById('daily-list');
-      tbody.innerHTML = '<tr><td colspan="3">불러오는 중...</td></tr>';
+      tbody.innerHTML = `<tr><td colspan="${dailyTableColspan()}">불러오는 중...</td></tr>`;
 
       try {
-        const [result, timeline] = await Promise.all([
-          ownerMode
-            ? getAllDailyEntries(page, perPage)
-            : getPublishedDailyEntries(page, perPage),
-          ownerMode
-            ? getAllDailyTimeline()
-            : getPublishedDailyTimeline()
-        ]);
+        const timeline = ownerMode
+          ? await getAllDailyTimeline()
+          : await getPublishedDailyTimeline();
+        const dayGroups = groupDailyEntriesByDay(timeline);
+        const totalPages = Math.ceil(dayGroups.length / perPage);
+        const pageItems = dayGroups.slice((page - 1) * perPage, page * perPage);
         currentPage = page;
         calendarEntries = timeline;
         calendarMonth = calendarMonth || monthFromDayKey(dailyEntryDayKey(timeline[0]) || normalizeDailyDayKey(new Date()));
         renderCalendar();
 
-        if (result.items.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="3">아직 나으 하루가 없습니다.</td></tr>';
+        if (pageItems.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="${dailyTableColspan()}">아직 나으 하루가 없습니다.</td></tr>`;
           renderPagination(0, page);
           return;
         }
 
-        tbody.innerHTML = result.items.map(entry => {
-          const dayKey = dailyEntryDayKey(entry);
-          const status = entry.status === 'published' ? '' : ' <small class="note">[초안]</small>';
+        tbody.innerHTML = pageItems.map(day => {
           const ownerActions = ownerMode
             ? `<td class="owner-actions">
-                <a class="owner-btn" href="../admin/daily.html?id=${entry.id}">수정</a>
-                <button class="owner-btn owner-btn-danger" type="button" onclick="deleteOwnerDailyEntry('${entry.id}')">삭제</button>
+                <a class="owner-btn" href="view.html?day=${encodeURIComponent(day.dayKey)}">보기</a>
+                <a class="owner-btn" href="../admin/daily.html?new=1">추가</a>
               </td>`
             : '';
 
           return `
             <tr>
               <td>
-                <a href="view.html?slug=${encodeURIComponent(entry.slug || dayKey)}">${escapeHtml(entry.title || `${dayKey} 나으 하루`)}</a>${status}
-                <div class="daily-list-meta">updated ${formatDate(entry.updated || dailyEntryDisplayDate(entry))}</div>
+                <a href="view.html?day=${encodeURIComponent(day.dayKey)}">${formatDate(day.dayKey)}의 하루</a>
+                <div class="daily-list-meta">기록 ${day.entries.length}개 · updated ${formatDate(day.latestDate)}</div>
               </td>
-              <td align="center">${formatDate(dailyEntryDisplayDate(entry))}</td>
+              <td align="center">${formatDate(day.dayKey)}</td>
               ${ownerActions}
             </tr>
           `;
         }).join('');
 
-        renderPagination(result.totalPages, page);
+        renderPagination(totalPages, page);
       } catch (e) {
-        tbody.innerHTML = `<tr><td colspan="3">${escapeHtml(cmsErrorMessage(e))}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="${dailyTableColspan()}">${escapeHtml(cmsErrorMessage(e))}</td></tr>`;
         document.getElementById('daily-calendar-body').innerHTML = `<tr><td colspan="7">${escapeHtml(cmsErrorMessage(e))}</td></tr>`;
       }
+    }
+
+    function groupDailyEntriesByDay(entries = []) {
+      const groups = new Map();
+
+      entries.forEach(entry => {
+        const dayKey = dailyEntryDayKey(entry);
+        if (!groups.has(dayKey)) {
+          groups.set(dayKey, {
+            dayKey,
+            entries: [],
+            latestDate: dailyEntryDisplayDate(entry)
+          });
+        }
+
+        const group = groups.get(dayKey);
+        group.entries.push(entry);
+        if (dateTimestamp(dailyEntryDisplayDate(entry)) > dateTimestamp(group.latestDate)) {
+          group.latestDate = dailyEntryDisplayDate(entry);
+        }
+      });
+
+      return Array.from(groups.values()).sort((a, b) => {
+        const byDay = String(b.dayKey).localeCompare(String(a.dayKey));
+        if (byDay !== 0) return byDay;
+        return dateTimestamp(b.latestDate) - dateTimestamp(a.latestDate);
+      });
     }
 
     function renderCalendar() {
@@ -330,7 +349,7 @@
         cells.push(`
           <td class="${classes}">
             ${entry
-              ? `<a href="view.html?slug=${encodeURIComponent(entry.slug || dayKey)}"><b>${day}</b></a><br><span class="daily-calendar-mark">기록 ${entries.length > 1 ? `${entries.length}개` : '있음'}</span>`
+              ? `<a href="view.html?day=${encodeURIComponent(dayKey)}"><b>${day}</b></a><br><span class="daily-calendar-mark">기록 ${entries.length}개</span>`
               : `<span>${day}</span>`}
           </td>
         `);
@@ -346,14 +365,8 @@
         .join('');
     }
 
-    async function deleteOwnerDailyEntry(id) {
-      if (!confirm('이 하루 기록을 삭제할까요? 이 작업은 되돌릴 수 없습니다.')) return;
-      try {
-        await deleteDailyEntry(id);
-        loadDailyEntries(currentPage);
-      } catch (e) {
-        alert('삭제 실패: ' + cmsErrorMessage(e));
-      }
+    function dailyTableColspan() {
+      return ownerMode ? 3 : 2;
     }
 
     function renderPagination(totalPages, currentPage) {
@@ -397,6 +410,11 @@
         rows.push(items.slice(i, i + size));
       }
       return rows;
+    }
+
+    function dateTimestamp(value) {
+      const n = Date.parse(value || '');
+      return Number.isFinite(n) ? n : 0;
     }
 
     loadDailyEntries();

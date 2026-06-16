@@ -159,7 +159,7 @@
     </center>
 
     <script type="module">
-        import { getPostBySlug, getPublishedPostTimeline, getAllPostTimeline, deletePost, isLoggedIn, logout, postDisplayDate, formatDate, escapeHtml, cmsErrorMessage, sortPostsForDisplay, recordPostView, getPostViewCounts } from '../js/pb.js';
+        import { getPostBySlug, deletePost, isLoggedIn, logout, postDisplayDate, formatDate, escapeHtml, cmsErrorMessage, recordPostView, getPostViewCounts } from '../js/pb.js';
 
         const params = new URLSearchParams(window.location.search);
         const slug = params.get('slug');
@@ -168,10 +168,10 @@
         if (!slug) {
             showError('글을 찾을 수 없습니다.', 'Post not found');
         } else {
-            loadTimeline(slug);
+            loadPost(slug);
         }
 
-        async function loadTimeline(slug) {
+        async function loadPost(slug) {
             try {
                 updateSecretLoginNext(slug);
 
@@ -184,14 +184,10 @@
 
                 document.title = `${targetPost.title} — coldwaterkim`;
                 document.getElementById('timeline-title').textContent = '글방';
-                document.getElementById('timeline-note').innerHTML = `<b>${escapeHtml(targetPost.title)}</b>`;
+                document.getElementById('timeline-note').innerHTML = `<b>${escapeHtml(targetPost.title)}</b> · 단일 글 페이지`;
 
-                const timelinePosts = ownerMode
-                    ? await getAllPostTimeline()
-                    : await getPublishedPostTimeline();
-                const posts = ensureTargetPost(timelinePosts, targetPost);
                 const viewCounts = ownerMode
-                    ? await getPostViewCounts(posts.map(post => post.id))
+                    ? await getPostViewCounts([targetPost.id])
                     : {};
 
                 if (ownerMode) {
@@ -222,9 +218,7 @@
                     });
                 }
 
-                renderTimeline(posts, targetPost.id, viewCounts);
-                wireTimelineOwnerActions(targetPost.id);
-                focusTargetPost(targetPost.id);
+                renderPost(targetPost, viewCounts[targetPost.id]);
                 if (!ownerMode) {
                     recordPostView(targetPost).catch((e) => {
                         console.warn('Post view count failed:', cmsErrorMessage(e));
@@ -236,41 +230,20 @@
             }
         }
 
-        function ensureTargetPost(posts, targetPost) {
-            const merged = posts.some(post => post.id === targetPost.id)
-                ? posts
-                : [...posts, targetPost];
-
-            return sortPostsForDisplay(merged);
-        }
-
-        function renderTimeline(posts, targetPostId, viewCounts = {}) {
+        function renderPost(post, viewCount = null) {
             const timelineEl = document.getElementById('post-timeline');
-            if (posts.length === 0) {
-                timelineEl.innerHTML = '<p>아직 글이 없습니다.</p>';
-                return;
-            }
-
-            timelineEl.innerHTML = posts.map(post => renderTimelinePost(post, post.id === targetPostId, viewCounts)).join('');
+            timelineEl.innerHTML = renderSinglePost(post, viewCount);
         }
 
-        function renderTimelinePost(post, isFocused, viewCounts = {}) {
+        function renderSinglePost(post, viewCount = null) {
             const date = postDisplayDate(post);
             const status = post.status === 'published' ? '' : ' <small class="note">[초안]</small>';
-            const focusedBadge = isFocused ? '<div class="timeline-focus-badge">★ NOW READING ★</div>' : '';
             const ownerViewMeta = ownerMode
-                ? ` · 조회수 <span class="post-view-count">${formatOwnerViewCount(viewCounts[post.id])}</span>`
+                ? ` · 조회수 <span class="post-view-count">${formatOwnerViewCount(viewCount)}</span>`
                 : '';
-            const ownerActions = ownerMode ? `
-                <span class="timeline-owner-actions">
-                    <a href="../admin/posts.html?id=${encodeURIComponent(post.id)}">수정</a>
-                    <button type="button" class="owner-btn owner-btn-danger" data-delete-post-id="${post.id}">삭제</button>
-                </span>
-            ` : '';
 
             return `
-                <article id="${postElementId(post.id)}" class="timeline-post${isFocused ? ' timeline-post--focused' : ''}" data-post-id="${post.id}">
-                    ${focusedBadge}
+                <article class="timeline-post" data-post-id="${post.id}">
                     <div class="timeline-post-header">
                         <h2 class="timeline-post-title">
                             <a href="view.html?slug=${encodeURIComponent(post.slug || '')}">${escapeHtml(post.title || 'Untitled')}</a>${status}
@@ -278,7 +251,6 @@
                         <div class="timeline-post-meta">
                             Published: ${formatDate(date)}
                             ${ownerViewMeta}
-                            ${ownerActions}
                         </div>
                     </div>
                     <div class="post-content timeline-post-content ql-editor">
@@ -286,50 +258,6 @@
                     </div>
                 </article>
             `;
-        }
-
-        function wireTimelineOwnerActions(targetPostId) {
-            if (!ownerMode) return;
-
-            document.querySelectorAll('[data-delete-post-id]').forEach(button => {
-                button.addEventListener('click', async () => {
-                    const id = button.getAttribute('data-delete-post-id');
-                    if (!id || !confirm('이 글을 삭제할까요? 이 작업은 되돌릴 수 없습니다.')) return;
-
-                    try {
-                        await deletePost(id);
-                        if (id === targetPostId) {
-                            window.location.href = 'index.html';
-                            return;
-                        }
-
-                        document.getElementById(postElementId(id))?.remove();
-                    } catch (e) {
-                        alert('삭제 실패: ' + cmsErrorMessage(e));
-                    }
-                });
-            });
-        }
-
-        function focusTargetPost(id) {
-            const targetEl = document.getElementById(postElementId(id));
-            if (!targetEl) return;
-
-            targetEl.setAttribute('tabindex', '-1');
-            targetEl.focus({ preventScroll: true });
-
-            const scrollToTarget = () => targetEl.scrollIntoView({
-                block: 'start',
-                inline: 'nearest'
-            });
-
-            requestAnimationFrame(scrollToTarget);
-            setTimeout(scrollToTarget, 250);
-            setTimeout(scrollToTarget, 1000);
-        }
-
-        function postElementId(id) {
-            return `post-${id}`;
         }
 
         function formatOwnerViewCount(count) {
