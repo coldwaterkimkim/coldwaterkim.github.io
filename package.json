@@ -10,6 +10,7 @@
     "build": "vite build",
     "build:imac": "VITE_CMS_TARGET=same-origin vite build",
     "pb:backup:production": "node scripts/pocketbase-remote-backup.mjs",
+    "pb:verify:data": "node scripts/verify-pocketbase-data.mjs",
     "qa:home-server": "npm run build:imac && node scripts/verify-home-server-build.mjs",
     "preview": "vite preview"
   },
