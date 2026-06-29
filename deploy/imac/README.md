@@ -149,6 +149,12 @@ npm run pb:rehearse:backup -- migration_backups/pocketbase/<backup-name>.zip --s
 3. `coldwaterkim.com`과 `www.coldwaterkim.com` A record를 집 공인 IP로 바꾼다.
 4. TTL을 짧게 둔 뒤 외부 네트워크에서 확인한다.
 
+공유기/DNS 변경 직전 사전점검:
+
+```bash
+HOME_SERVER_LAN_IP=192.168.0.11 HOME_SERVER_PUBLIC_IP=<집-공인-IP> npm run qa:network-preflight
+```
+
 전환 전 로컬 컷오버 검증:
 
 ```bash
@@ -170,6 +176,10 @@ HOME_SERVER_PUBLIC_IP=<집-공인-IP> npm run qa:cutover:network
 
 QA:
 
+- `HOME_SERVER_LAN_IP`가 아이맥의 실제 LAN IP와 일치
+- `HOME_SERVER_PUBLIC_IP`가 DNS에 넣을 공인 IPv4
+- `/usr/local/bin/caddy` 운영 바이너리 설치
+- `npm run qa:network-preflight` 통과
 - 외부에서 HTTPS 인증서 정상
 - `/api/health` 200
 - 글/방명록/미디어가 운영 데이터와 일치

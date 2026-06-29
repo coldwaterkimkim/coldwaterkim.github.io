@@ -18,6 +18,8 @@
     "qa:cutover:network": "node scripts/verify-imac-cutover.mjs --profile production --network",
     "qa:hardening": "node scripts/verify-imac-hardening.mjs",
     "qa:home-server": "npm run build:imac && node scripts/verify-home-server-build.mjs",
+    "qa:network-preflight": "node scripts/verify-network-readiness.mjs",
+    "qa:network-readiness": "node scripts/verify-network-readiness.mjs --allow-missing-live",
     "qa:production-readiness": "node scripts/verify-production-readiness.mjs --allow-missing-env",
     "preview": "vite preview"
   },
