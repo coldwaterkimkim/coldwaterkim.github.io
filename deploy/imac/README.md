@@ -95,11 +95,18 @@ PB_ADMIN_PASSWORD=your-password
 npm run pb:backup:production
 ```
 
+운영 백업부터 복원 리허설까지 한 번에 실행:
+
+```bash
+npm run pb:rehearse:production
+```
+
 백업 검증:
 
 ```bash
 unzip -t migration_backups/pocketbase/<backup-name>.zip
 cat migration_backups/pocketbase/<backup-name>.zip.manifest.json
+npm run pb:verify:data -- migration_backups/pocketbase/<backup-name>.zip --schema pb_schema.json
 ```
 
 복원 리허설:
@@ -109,11 +116,18 @@ deploy/imac/restore-pocketbase-backup.sh migration_backups/pocketbase/<backup-na
 .local-bin/pocketbase serve --http=127.0.0.1:8090 --dir migration_backups/restore-rehearsal-pb_data
 ```
 
+이미 받은 백업 ZIP만 다시 리허설할 때:
+
+```bash
+npm run pb:rehearse:backup -- migration_backups/pocketbase/<backup-name>.zip --schema pb_schema.json
+```
+
 완료 기준:
 
 - 백업 ZIP 다운로드 성공
 - manifest에 `sizeBytes`, `sha256`, `backupName` 기록
 - `unzip -t` 통과
+- `npm run pb:verify:data -- <backup.zip> --schema pb_schema.json` 통과
 - 리허설 `pb_data`로 PocketBase가 기동
 - `/api/health` 200
 - 운영 글/방명록/미디어 샘플이 리허설 DB에서 일치
