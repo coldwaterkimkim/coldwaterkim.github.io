@@ -1,0 +1,38 @@
+name: Apply iMac migration patch
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Apply migration patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 -d .github/imac-migration.patch.gz.b64 | gunzip > /tmp/imac-migration.patch
+          git apply --check /tmp/imac-migration.patch
+          git apply --index /tmp/imac-migration.patch
+          rm -f .github/imac-migration.patch.gz.b64 .github/workflows/imac-migration-apply.yml
+          git add -A
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo "No staged changes after migration patch"
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore: prepare imac home server migration"
+          git push origin HEAD:main
