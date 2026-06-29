@@ -60,6 +60,7 @@
 - Fly.io를 쓰는 경우 `fly.toml`, `deploy/fly/`, `scripts/deploy-pocketbase-fly.sh` 기준으로 배포
 - 아이맥 홈서버 이주는 `deploy/imac/README.md` 기준으로 freeze -> rehearsal -> DNS cutover -> hardening 순서로 진행
 - 아이맥 운영 빌드는 `npm run build:imac`과 `npm run qa:home-server`를 통과해야 진행
+- 2026-06-30 기준 Stage 1 repo readiness와 Stage 2 iMac local rehearsal은 통과했다. 다음 단계는 운영 PocketBase 데이터 freeze/백업/복원 리허설이다.
 
 ## 주의
 
@@ -110,3 +111,6 @@ PocketBase 서버가 꺼져 있으면 공개 사이트는 렌더링되지만 글
 - 운영 PocketBase에 `visitor_sessions` 컬렉션을 반영했다. 공개 create/list/view는 열고, update/delete는 관리자만 가능하게 유지한다.
 - 운영 PocketBase `guestbook` 컬렉션에 `display_date` 필드를 추가했고, 2025년 11월부터 2026년 5월까지 지인형 초기 방명록 23개를 반영했다.
 - 운영 PocketBase에 `post_views` 컬렉션을 반영했다. 공개 create는 가능하지만 list/view는 로그인한 관리자에게만 실데이터가 보이며, 임시 smoke record 생성/관리자 조회/삭제까지 확인했다.
+- 2026-06-30 아이맥 홈서버 Stage 1 커밋/푸쉬 완료. `archive/pre-imac-migration-20260630` 원격 백업 브랜치와 `pre-imac-migration-20260630` 로컬 태그를 유지한다.
+- 2026-06-30 아이맥 홈서버 Stage 2 로컬 리허설 완료. Intel용 PocketBase `v0.23.5`, Caddy `v2.11.4` 공식 바이너리를 확인했고, `http://127.0.0.1:18081`에서 홈/글방/나으 하루/프로그램실/나사잡/방명록/About 및 `/api/health`, `/_/` 모두 200 응답을 확인했다.
+- 2026-06-30 아이맥 로컬 `pb_data` 기준 `media.file`, `programs.download_files` maxSize가 `2147483648`임을 확인했고, PocketBase 종료 상태의 cold backup 생성/압축 목록 확인까지 완료했다.

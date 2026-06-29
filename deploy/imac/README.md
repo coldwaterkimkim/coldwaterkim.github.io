@@ -39,17 +39,32 @@ Rollback 기준:
 
 ## Stage 2. iMac service rehearsal
 
-1. `npm run build:imac`
-2. PocketBase migration 적용
-3. PocketBase를 launchd로 실행
-4. Caddy를 `deploy/imac/Caddyfile`로 실행
-5. 로컬에서 `https://coldwaterkim.com` 전환 전 테스트는 `/etc/hosts` 또는 내부 DNS로만 한다.
+1. `deploy/imac/install-runtime.sh`로 아이맥 CPU에 맞는 PocketBase/Caddy 바이너리를 `.local-bin/`에 둔다.
+   - Intel iMac은 `darwin_amd64`/`mac_amd64`가 필요하다.
+   - 현재 핀: PocketBase `v0.23.5`, Caddy `v2.11.4`.
+2. `npm run build:imac`
+3. PocketBase migration 적용
+4. PocketBase를 `deploy/imac/com.coldwaterkim.pocketbase.plist`로 launchd 실행
+5. Caddy는 운영 전 `/usr/local/bin/caddy`에 root-owned로 설치한 뒤 `deploy/imac/com.coldwaterkim.caddy.plist`로 LaunchDaemon 실행
+6. 로컬 리허설은 외부 포트 없이 `127.0.0.1`에서만 한다. 예: PocketBase `127.0.0.1:8090`, Caddy `http://127.0.0.1:18081`.
+7. `https://coldwaterkim.com` 전환 전 테스트는 `/etc/hosts` 또는 내부 DNS로만 한다.
+
+Caddy 운영 바이너리 설치 예:
+
+```bash
+sudo install -m 755 -o root -g wheel .local-bin/caddy /usr/local/bin/caddy
+sudo cp deploy/imac/com.coldwaterkim.caddy.plist /Library/LaunchDaemons/
+sudo chown root:wheel /Library/LaunchDaemons/com.coldwaterkim.caddy.plist
+sudo launchctl bootstrap system /Library/LaunchDaemons/com.coldwaterkim.caddy.plist
+```
 
 QA:
 
 - `/api/health`가 200
 - `/` 홈 렌더링
 - `/posts/`, `/daily/`, `/programs/`, `/nasajab/`, `/guestbook.html`, `/about.html` 직접 URL 200
+- 브라우저 콘솔 error 0개
+- `media.file`, `programs.download_files` maxSize가 `2147483648`
 - 관리자 로그인
 - 테스트 글 작성/수정/삭제
 - 테스트 미디어 업로드/삭제
