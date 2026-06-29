@@ -9,9 +9,14 @@ LABEL="${LABEL:-com.coldwaterkim.pocketbase}"
 PLIST="${PLIST:-$REPO_ROOT/deploy/imac/$LABEL.plist}"
 TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
 BACKUP_FILE="$BACKUP_DIR/pb_data_$TIMESTAMP.tar.gz"
+CHECKSUM_FILE="$BACKUP_FILE.sha256"
 LOG_FILE="$BACKUP_DIR/backup.log"
 SERVICE_WAS_RUNNING=0
 
+export LANG="${BACKUP_LANG:-en_US.UTF-8}"
+export LC_ALL="${BACKUP_LC_ALL:-en_US.UTF-8}"
+
+umask 077
 mkdir -p "$BACKUP_DIR"
 
 log() {
@@ -49,12 +54,19 @@ stop_service_if_needed
 
 log "Backup started: $PB_DATA_DIR"
 tar -czf "$BACKUP_FILE" -C "$(dirname "$PB_DATA_DIR")" "$(basename "$PB_DATA_DIR")"
+tar -tzf "$BACKUP_FILE" >/dev/null
+shasum -a 256 "$BACKUP_FILE" > "$CHECKSUM_FILE"
 
 SIZE="$(du -h "$BACKUP_FILE" | awk '{print $1}')"
 log "Backup created: $BACKUP_FILE ($SIZE)"
+log "Backup verified: $CHECKSUM_FILE"
 
 find "$BACKUP_DIR" -name 'pb_data_*.tar.gz' -mtime +"$RETENTION_DAYS" -print -delete | while read -r old_backup; do
     log "Deleted old backup: $old_backup"
+    if [ -f "$old_backup.sha256" ]; then
+        rm -f "$old_backup.sha256"
+        log "Deleted old checksum: $old_backup.sha256"
+    fi
 done
 
 log "Backup completed"

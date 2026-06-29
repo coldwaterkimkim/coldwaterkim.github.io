@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.coldwaterkim.pocketbase-backup</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/kimchansu/Documents/개인/6. codex/01.개인 웹사이트/deploy/imac/backup-pocketbase.sh</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/kimchansu/Documents/개인/6. codex/01.개인 웹사이트</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <string>/Users/kimchansu</string>
+        <key>LANG</key>
+        <string>en_US.UTF-8</string>
+        <key>LC_ALL</key>
+        <string>en_US.UTF-8</string>
+    </dict>
+
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>3</integer>
+        <key>Minute</key>
+        <integer>30</integer>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/Users/kimchansu/Library/Logs/coldwaterkim-pocketbase-backup.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/kimchansu/Library/Logs/coldwaterkim-pocketbase-backup.err.log</string>
+</dict>
+</plist>

@@ -174,3 +174,29 @@ QA:
 - 백업은 최소 30일 보관한다.
 - Time Machine 또는 외장 디스크에 `pb_data`와 백업 폴더를 포함한다.
 - Oracle API 서버와 GitHub Pages 배포는 7일 이상 롤백용으로 유지한 뒤 정리한다.
+
+자동 백업 설치:
+
+```bash
+mkdir -p ~/Library/LaunchAgents ~/Library/Logs
+cp deploy/imac/com.coldwaterkim.pocketbase-backup.plist ~/Library/LaunchAgents/
+launchctl bootstrap "gui/$(id -u)" ~/Library/LaunchAgents/com.coldwaterkim.pocketbase-backup.plist
+launchctl kickstart -k "gui/$(id -u)/com.coldwaterkim.pocketbase-backup"
+```
+
+백업 확인:
+
+```bash
+ls -lh ~/Backups/coldwaterkim-pocketbase/pb_data_*.tar.gz
+shasum -a 256 -c ~/Backups/coldwaterkim-pocketbase/pb_data_*.tar.gz.sha256
+tar -tzf "$(ls -t ~/Backups/coldwaterkim-pocketbase/pb_data_*.tar.gz | head -1)" >/dev/null
+npm run qa:hardening
+```
+
+완료 기준:
+
+- `com.coldwaterkim.pocketbase-backup` launchd job 등록
+- 수동 kickstart 후 `pb_data_*.tar.gz`와 `.sha256` 생성
+- `shasum -a 256 -c` 통과
+- `tar -tzf` 통과
+- `npm run qa:hardening` 통과
