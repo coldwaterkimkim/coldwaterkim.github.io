@@ -140,6 +140,25 @@ npm run pb:rehearse:backup -- migration_backups/pocketbase/<backup-name>.zip --s
 3. `coldwaterkim.com`과 `www.coldwaterkim.com` A record를 집 공인 IP로 바꾼다.
 4. TTL을 짧게 둔 뒤 외부 네트워크에서 확인한다.
 
+전환 전 로컬 컷오버 검증:
+
+```bash
+npm run build:imac
+npm run qa:cutover
+```
+
+실제 운영 데이터까지 포함해서 검증:
+
+```bash
+npm run qa:cutover -- --data pb_data --schema pb_schema.json
+```
+
+DNS 전환 후 외부 검증:
+
+```bash
+HOME_SERVER_PUBLIC_IP=<집-공인-IP> npm run qa:cutover:network
+```
+
 QA:
 
 - 외부에서 HTTPS 인증서 정상
@@ -147,6 +166,7 @@ QA:
 - 글/방명록/미디어가 운영 데이터와 일치
 - `api.coldwaterkim.com` 없이도 공개 사이트가 동작
 - 24시간 동안 PocketBase/Caddy 재시작 없음
+- `npm run qa:cutover:network` 통과
 
 ## Stage 5. Post-cutover hardening
 
