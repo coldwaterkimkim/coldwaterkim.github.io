@@ -8,6 +8,8 @@
     "dev:local-cms": "vite --host 127.0.0.1",
     "dev:live-cms": "VITE_CMS_TARGET=live vite --host 127.0.0.1",
     "build": "vite build",
+    "build:imac": "VITE_CMS_TARGET=same-origin vite build",
+    "qa:home-server": "npm run build:imac && node scripts/verify-home-server-build.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

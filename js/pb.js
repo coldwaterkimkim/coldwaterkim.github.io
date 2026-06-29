@@ -11,24 +11,27 @@
  * });
  */
 
-import PocketBase from 'https://cdn.jsdelivr.net/npm/pocketbase@0.21.1/dist/pocketbase.es.mjs';
+import PocketBase from '../vendor/pocketbase.es.mjs';
 
 // PocketBase API 경로
 // - 로컬 Vite: PocketBase 서버를 127.0.0.1:8090에서 따로 실행
 // - 로컬 Vite live CMS 모드: Vite 프록시를 통해 운영 API 서버 사용
 // - GitHub Pages: api.coldwaterkim.com의 PocketBase 서버 사용
-// - VPS 단일 배포: 같은 도메인의 PocketBase/Nginx 사용
+// - iMac/VPS 단일 배포: VITE_CMS_TARGET=same-origin 빌드에서 같은 도메인의 /api 사용
 // - 필요하면 HTML에서 window.POCKETBASE_URL로 외부 CMS 주소를 덮어쓸 수 있음
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1']);
 const IS_LOCAL_FRONTEND = LOCAL_HOSTS.has(window.location.hostname);
 const LOCAL_API_URL = 'http://127.0.0.1:8090';
-const LIVE_CMS_URL = 'https://api.coldwaterkim.com';
-const CMS_TARGET = String(import.meta.env?.VITE_CMS_TARGET || '').toLowerCase();
-const API_HOSTS = new Map([
-    ['coldwaterkim.com', LIVE_CMS_URL],
-    ['www.coldwaterkim.com', LIVE_CMS_URL],
-    ['coldwaterkimkim.github.io', LIVE_CMS_URL],
-]);
+const LIVE_CMS_URL = String(typeof __LIVE_CMS_URL__ !== 'undefined' ? __LIVE_CMS_URL__ : '').replace(/\/+$/, '');
+const CMS_TARGET = String(typeof __CMS_TARGET__ !== 'undefined' ? __CMS_TARGET__ : '').toLowerCase();
+const SAME_ORIGIN_CMS_TARGETS = new Set(['same-origin', 'self', 'imac', 'home']);
+const API_HOSTS = LIVE_CMS_URL
+    ? new Map([
+        ['coldwaterkim.com', LIVE_CMS_URL],
+        ['www.coldwaterkim.com', LIVE_CMS_URL],
+        ['coldwaterkimkim.github.io', LIVE_CMS_URL],
+    ])
+    : new Map();
 const CONFIGURED_API_URL = window.POCKETBASE_URL
     ? String(window.POCKETBASE_URL).replace(/\/+$/, '')
     : '';
@@ -38,7 +41,9 @@ const DEFAULT_LOCAL_API_URL = CMS_TARGET === 'live'
 const API_URL = CONFIGURED_API_URL
     || (IS_LOCAL_FRONTEND
         ? DEFAULT_LOCAL_API_URL
-        : API_HOSTS.get(window.location.hostname) || window.location.origin);
+        : SAME_ORIGIN_CMS_TARGETS.has(CMS_TARGET)
+            ? window.location.origin
+            : API_HOSTS.get(window.location.hostname) || window.location.origin);
 
 // PocketBase 인스턴스 생성
 export const pb = new PocketBase(API_URL);

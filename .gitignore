@@ -7,8 +7,11 @@ dist
 pocketbase
 pb_data
 pb_public
+logs
+migration_backups
 pb_migrations/*
 !pb_migrations/
 !pb_migrations/1780412204_created_nasajab.js
 !pb_migrations/1781280000_created_post_views.js
 !pb_migrations/1782750000_update_media_video_mime_types.js
+!pb_migrations/1782840000_raise_home_server_file_limits.js

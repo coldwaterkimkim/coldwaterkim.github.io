@@ -11,10 +11,13 @@
 - CMS/DB: PocketBase
 - 빌드 도구: Vite
 - 배포 기준: GitHub Pages 프론트 + PocketBase API 서버
+- 이주 준비: 아이맥 홈서버 단일 배포
 
 GitHub Pages는 정적 파일만 서빙하므로 PocketBase 서버를 직접 같이 띄울 수는 없다. 그래서 지금 기준은 `coldwaterkim.com`은 GitHub Pages가 맡고, CMS/API는 `api.coldwaterkim.com`의 PocketBase 서버가 맡는 구조다.
 
 이렇게 하면 코드/UI 수정은 `main` 브랜치에 push되는 순간 GitHub Actions가 빌드해서 `coldwaterkim.com`에 반영하고, 글/방명록/미디어 수정은 로그인한 공개 화면의 owner action에서 저장하는 즉시 PocketBase를 통해 공개 사이트에 반영된다.
+
+아이맥 홈서버로 완전히 옮길 때는 `npm run build:imac`으로 빌드한다. 이 빌드는 `coldwaterkim.com`과 같은 origin의 `/api`를 PocketBase API로 사용하므로, Caddy가 `/api/*`와 `/_/*`만 로컬 PocketBase(`127.0.0.1:8090`)로 넘기고 나머지는 `dist/` 정적 파일로 서빙한다. 단계별 체크리스트와 롤백 기준은 `deploy/imac/README.md`에 둔다.
 
 GitHub Pages는 HTML을 짧게 캐시할 수 있으므로, 방문자가 이미 열어둔 탭에서는 배포 직후 예전 화면이 잠깐 남을 수 있다. 이를 줄이기 위해 Vite 빌드 때 `site-version.json`을 만들고, 공개 사이트 JS가 주기적으로 최신 배포 버전을 확인한다. 새 버전이 감지되면 현재 URL에 `?v=<version>`을 붙여 한 번 새로고침해서 브라우저/CDN 캐시를 우회한다.
 
@@ -158,6 +161,15 @@ npm run build
 빌드 결과는 `dist/`에 생긴다. 배포 서버의 Nginx는 `dist/`를 정적 루트로 보고, `/api/` 요청만 PocketBase로 넘긴다.
 
 GitHub Pages 배포에서는 이 `dist/` 폴더를 GitHub Actions가 `gh-pages` 브랜치로 올린다. 전체 VPS 배포를 선택할 때만 서버의 Nginx가 `dist/`를 직접 서빙한다.
+
+아이맥 홈서버 배포본:
+
+```bash
+npm run build:imac
+npm run qa:home-server
+```
+
+`qa:home-server`는 빌드 결과에 `api.coldwaterkim.com` 또는 CDN 런타임 의존이 남아 있지 않은지 검사한다.
 
 ## 배포
 

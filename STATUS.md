@@ -4,7 +4,7 @@
 
 레트로 감성 개인 홈페이지를 유지하면서 CMS는 PocketBase로 간다.
 
-배포는 우선 하이브리드로 간다. `coldwaterkim.com` 프론트엔드는 GitHub Pages에 두고, PocketBase는 `api.coldwaterkim.com` API 서버로 붙인다.
+배포는 현재 하이브리드다. `coldwaterkim.com` 프론트엔드는 GitHub Pages에 두고, PocketBase는 `api.coldwaterkim.com` API 서버로 붙인다. 다음 목표는 아이맥 홈서버 단일 배포로, `coldwaterkim.com`의 정적 파일과 PocketBase DB/파일 저장소를 같은 아이맥에서 운영하는 것이다.
 
 공개 사이트의 디자인 기준은 현재 `index.html` 홈페이지, `design.md`, `css/styles.css`의 `:root` 디자인 토큰에 고정한다. 새 공개 페이지나 UI 수정은 현재 홈의 90s 개인 홈페이지 감성을 먼저 보존하고, 의도적으로 방향을 바꿀 때만 `design.md`, CSS 토큰, `STATUS.md`를 함께 갱신한다.
 
@@ -58,12 +58,16 @@
 - 실제 글 1개 작성 후 공개 화면 확인
 - API 서버 배포 시 `deploy/nginx-api-subdomain.conf`와 PocketBase systemd 서비스 확인
 - Fly.io를 쓰는 경우 `fly.toml`, `deploy/fly/`, `scripts/deploy-pocketbase-fly.sh` 기준으로 배포
+- 아이맥 홈서버 이주는 `deploy/imac/README.md` 기준으로 freeze -> rehearsal -> DNS cutover -> hardening 순서로 진행
+- 아이맥 운영 빌드는 `npm run build:imac`과 `npm run qa:home-server`를 통과해야 진행
 
 ## 주의
 
 PocketBase 서버가 꺼져 있으면 공개 사이트는 렌더링되지만 글/방명록 영역은 CMS 연결 실패 메시지를 보여준다.
 
 `api.coldwaterkim.com`은 Cloudflare DNS 전용 A record로 Oracle VM에 연결되어 있다.
+
+아이맥 단일 배포로 전환되면 공개 사이트는 `api.coldwaterkim.com`이 아니라 같은 origin의 `/api`를 사용한다. 이 전환 전까지는 기존 GitHub Pages/Oracle API를 롤백 경로로 유지한다.
 
 ## 로컬 검증 기록
 

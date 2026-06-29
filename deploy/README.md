@@ -20,6 +20,10 @@
 
 이 경우 `deploy/nginx.conf`를 사용한다. 지금 기본 추천은 GitHub Pages + API 서브도메인이라서, API 서버만 올릴 때는 `deploy/nginx-api-subdomain.conf`를 쓴다.
 
+## 대안: 아이맥 홈서버 배포
+
+아이맥 자체를 서버/DB/파일 저장소로 쓰는 이주 경로는 `deploy/imac/README.md`를 따른다. 이 경로는 GitHub Pages와 Oracle API 서버를 최종적으로 빼고, Caddy + 로컬 PocketBase + `pb_data` 백업으로 운영한다.
+
 ## API 서버 파일 배치
 
 ```bash

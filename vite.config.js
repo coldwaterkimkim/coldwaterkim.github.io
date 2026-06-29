@@ -5,7 +5,9 @@ import path from 'path'
 
 const htmlDirs = ['.', 'posts', 'daily', 'programs', 'nasajab', 'admin']
 const liveCmsUrl = 'https://api.coldwaterkim.com'
-const useLiveCmsProxy = process.env.VITE_CMS_TARGET === 'live'
+const cmsTarget = String(process.env.VITE_CMS_TARGET || '').toLowerCase()
+const useLiveCmsProxy = cmsTarget === 'live'
+const useSameOriginCms = ['same-origin', 'self', 'imac', 'home'].includes(cmsTarget)
 const siteVersion = resolveSiteVersion()
 
 // Helper to find all public HTML entry files
@@ -55,12 +57,34 @@ function versionManifestPlugin() {
     }
 }
 
+function localEmojiMartDataPlugin() {
+    const cdnBase = 'https://cdn.jsdelivr.net/npm/@emoji-mart/data@latest'
+    const localBase = '/emoji-mart-data'
+    const emojiDatasourceBase = 'https://cdn.jsdelivr.net/npm/emoji-datasource-${e.set}@15.0.1/img/${e.set}'
+    const localEmojiDatasourceBase = '/emoji-datasource/${e.set}'
+
+    return {
+        name: 'coldwaterkim-local-emoji-mart-data',
+        generateBundle(_options, bundle) {
+            Object.values(bundle).forEach(chunk => {
+                if (chunk.type !== 'chunk') return
+                chunk.code = chunk.code
+                    .replaceAll(cdnBase, localBase)
+                    .replaceAll(emojiDatasourceBase, localEmojiDatasourceBase)
+            })
+        },
+    }
+}
+
 export default defineConfig({
     define: {
         __SITE_VERSION__: JSON.stringify(siteVersion),
+        __CMS_TARGET__: JSON.stringify(cmsTarget),
+        __LIVE_CMS_URL__: JSON.stringify(useSameOriginCms ? '' : liveCmsUrl),
     },
     plugins: [
         versionManifestPlugin(),
+        localEmojiMartDataPlugin(),
     ],
     server: useLiveCmsProxy
         ? {

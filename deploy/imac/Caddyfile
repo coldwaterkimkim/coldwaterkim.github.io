@@ -1,0 +1,31 @@
+{
+    email ckstn1112@gmail.com
+}
+
+coldwaterkim.com, www.coldwaterkim.com {
+    encode zstd gzip
+
+    request_body {
+        max_size 2GB
+    }
+
+    handle /api/* {
+        reverse_proxy 127.0.0.1:8090
+    }
+
+    handle /_/* {
+        reverse_proxy 127.0.0.1:8090
+    }
+
+    handle {
+        root * "/Users/kimchansu/Documents/개인/6. codex/01.개인 웹사이트/dist"
+        try_files {path} {path}/ =404
+        file_server
+    }
+
+    header {
+        X-Frame-Options "SAMEORIGIN"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+}
