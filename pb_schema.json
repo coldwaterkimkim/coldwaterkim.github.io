@@ -208,8 +208,8 @@
           "type": "file",
           "required": true,
           "maxSelect": 1,
-          "maxSize": 104857600,
-          "mimeTypes": ["image/jpeg", "image/png", "image/gif", "image/webp", "video/mp4", "video/webm", "audio/mpeg", "audio/mp3", "application/pdf"]
+          "maxSize": 209715200,
+          "mimeTypes": ["image/jpeg", "image/png", "image/gif", "image/webp", "video/mp4", "video/webm", "video/quicktime", "video/x-m4v", "audio/mpeg", "audio/mp3", "application/pdf"]
         },
         { "name": "alt_text", "type": "text", "required": false, "max": 200 },
         { "name": "caption", "type": "text", "required": false, "max": 500 },

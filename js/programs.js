@@ -568,7 +568,7 @@ async function insertProgramBodyImages(files, options = {}) {
 
 async function uploadProgramBodyFile(file) {
     if (!isSupportedEditorUpload?.(file)) {
-        throw new Error('JPG, PNG, GIF, WebP, MP4, WebM, MP3, PDF만 올릴 수 있음.');
+        throw new Error('JPG, PNG, GIF, WebP, MP4, WebM, MOV, M4V, MP3, PDF만 올릴 수 있음.');
     }
 
     const label = editorUploadLabel?.(file) || '파일';

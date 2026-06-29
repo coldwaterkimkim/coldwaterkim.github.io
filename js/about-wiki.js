@@ -686,7 +686,7 @@ async function insertEditorImages(state, files, options = {}) {
 
 async function uploadSectionEditorFile(state, file) {
   if (!isSupportedEditorUpload?.(file)) {
-    throw new Error('JPG, PNG, GIF, WebP, MP4, WebM, MP3, PDF만 본문에 넣을 수 있어.');
+    throw new Error('JPG, PNG, GIF, WebP, MP4, WebM, MOV, M4V, MP3, PDF만 본문에 넣을 수 있어.');
   }
 
   const label = editorUploadLabel?.(file) || '파일';
