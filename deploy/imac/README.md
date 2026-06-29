@@ -71,7 +71,55 @@ QA:
 - 500MB 이상 테스트 파일 업로드
 - 모바일/데스크톱 화면 확인
 
-## Stage 3. DNS cutover
+## Stage 3. Production data rehearsal
+
+운영 데이터 이주는 공개 API를 긁는 방식이 아니라 PocketBase backup ZIP을 기준으로 한다. 그래야 DB, auth collection, settings, storage metadata가 같이 움직인다.
+
+로컬 보안 파일 예:
+
+```bash
+mkdir -p ~/.config/coldwaterkim
+chmod 700 ~/.config/coldwaterkim
+$EDITOR ~/.config/coldwaterkim/pocketbase-admin.env
+```
+
+```env
+PB_URL=https://api.coldwaterkim.com
+PB_ADMIN_EMAIL=you@example.com
+PB_ADMIN_PASSWORD=your-password
+```
+
+운영 백업 생성/다운로드:
+
+```bash
+npm run pb:backup:production
+```
+
+백업 검증:
+
+```bash
+unzip -t migration_backups/pocketbase/<backup-name>.zip
+cat migration_backups/pocketbase/<backup-name>.zip.manifest.json
+```
+
+복원 리허설:
+
+```bash
+deploy/imac/restore-pocketbase-backup.sh migration_backups/pocketbase/<backup-name>.zip
+.local-bin/pocketbase serve --http=127.0.0.1:8090 --dir migration_backups/restore-rehearsal-pb_data
+```
+
+완료 기준:
+
+- 백업 ZIP 다운로드 성공
+- manifest에 `sizeBytes`, `sha256`, `backupName` 기록
+- `unzip -t` 통과
+- 리허설 `pb_data`로 PocketBase가 기동
+- `/api/health` 200
+- 운영 글/방명록/미디어 샘플이 리허설 DB에서 일치
+- `media.file`, `programs.download_files` maxSize가 `2147483648`
+
+## Stage 4. DNS cutover
 
 1. 공유기에서 아이맥 `192.168.0.11`을 고정 할당한다.
 2. 80/443을 아이맥으로 포트포워딩한다.
@@ -86,7 +134,7 @@ QA:
 - `api.coldwaterkim.com` 없이도 공개 사이트가 동작
 - 24시간 동안 PocketBase/Caddy 재시작 없음
 
-## Stage 4. Post-cutover hardening
+## Stage 5. Post-cutover hardening
 
 - `deploy/imac/backup-pocketbase.sh`를 매일 실행한다.
 - 백업은 최소 30일 보관한다.
