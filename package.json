@@ -10,6 +10,7 @@
     "build": "vite build",
     "build:imac": "VITE_CMS_TARGET=same-origin vite build",
     "pb:backup:production": "node scripts/pocketbase-remote-backup.mjs",
+    "pb:preflight:production": "node scripts/verify-production-readiness.mjs",
     "pb:rehearse:backup": "node scripts/rehearse-pocketbase-backup.mjs",
     "pb:rehearse:production": "node scripts/rehearse-pocketbase-backup.mjs --download --schema pb_schema.json",
     "pb:verify:data": "node scripts/verify-pocketbase-data.mjs",
@@ -17,6 +18,7 @@
     "qa:cutover:network": "node scripts/verify-imac-cutover.mjs --profile production --network",
     "qa:hardening": "node scripts/verify-imac-hardening.mjs",
     "qa:home-server": "npm run build:imac && node scripts/verify-home-server-build.mjs",
+    "qa:production-readiness": "node scripts/verify-production-readiness.mjs --allow-missing-env",
     "preview": "vite preview"
   },
   "dependencies": {

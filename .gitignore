@@ -1,6 +1,7 @@
 node_modules
 .DS_Store
 .env
+pocketbase-admin.env
 dist
 .vscode
 .local-bin

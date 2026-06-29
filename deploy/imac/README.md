@@ -80,6 +80,8 @@ QA:
 ```bash
 mkdir -p ~/.config/coldwaterkim
 chmod 700 ~/.config/coldwaterkim
+cp deploy/imac/pocketbase-admin.env.example ~/.config/coldwaterkim/pocketbase-admin.env
+chmod 600 ~/.config/coldwaterkim/pocketbase-admin.env
 $EDITOR ~/.config/coldwaterkim/pocketbase-admin.env
 ```
 
@@ -87,6 +89,13 @@ $EDITOR ~/.config/coldwaterkim/pocketbase-admin.env
 PB_URL=https://api.coldwaterkim.com
 PB_ADMIN_EMAIL=you@example.com
 PB_ADMIN_PASSWORD=your-password
+```
+
+비밀값은 채팅이나 repo에 남기지 않는다. 운영 이주 직전에는 아래 사전점검이 먼저 통과해야 한다.
+
+```bash
+npm run qa:production-readiness
+npm run pb:preflight:production
 ```
 
 운영 백업 생성/다운로드:
