@@ -12,13 +12,16 @@ import {
   defaultAboutProfileRows,
   normalizeAboutProfileRows
 } from './profile-data.js';
+import { enhanceEmbeddedMedia } from './media-embeds.js';
 
 const SETTING_KEY = 'about_wiki_document';
 const IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
 let markdownEditorModulePromise = null;
 let createMarkdownEditor = null;
+let editorUploadLabel = null;
 let hasImageTransfer = null;
 let imageFilesFromTransfer = null;
+let isSupportedEditorUpload = null;
 
 const DEFAULT_DOCUMENT = {
   title: '김찬수',
@@ -258,6 +261,7 @@ function hydrateSavedHtml(state) {
     const index = Number(slot.getAttribute('data-about-section-body-index'));
     slot.innerHTML = state.doc.sections[index]?.body || '<p></p>';
   });
+  enhanceEmbeddedMedia(state.root);
 }
 
 function editorHtml(state) {
@@ -348,7 +352,8 @@ async function initSectionEditor(state) {
       onImageButton: () => {
         state.pendingEditorImageIndex = currentEditorIndex(state);
         input.click();
-      }
+      },
+      uploadFile: file => uploadSectionEditorFile(state, file)
     });
 
     if (!mount.isConnected || state.selectedSectionId !== selectedId) return;
@@ -368,8 +373,10 @@ async function loadMarkdownEditorModule() {
 
   const module = await markdownEditorModulePromise;
   createMarkdownEditor = module.createMarkdownEditor;
+  editorUploadLabel = module.editorUploadLabel;
   hasImageTransfer = module.hasImageTransfer;
   imageFilesFromTransfer = module.imageFilesFromTransfer;
+  isSupportedEditorUpload = module.isSupportedEditorUpload;
 }
 
 function bindSectionEditorImages(state, form, input, editor) {
@@ -674,6 +681,26 @@ async function insertEditorImages(state, files, options = {}) {
     editor.setSelection(insertIndex, 0, 'silent');
     renderEditorImageStatus(state, `${uploadedCount}개 이미지가 본문에 들어갔습니다.`, 'success');
     setTimeout(() => renderEditorImageStatus(state), 2500);
+  }
+}
+
+async function uploadSectionEditorFile(state, file) {
+  if (!isSupportedEditorUpload?.(file)) {
+    throw new Error('JPG, PNG, GIF, WebP, MP4, WebM, MP3, PDF만 본문에 넣을 수 있어.');
+  }
+
+  const label = editorUploadLabel?.(file) || '파일';
+  renderEditorImageStatus(state, `${label} 업로드 중... ${file.name || ''}`, 'info');
+
+  try {
+    const media = await uploadMedia(file, file.name, 'About wiki media');
+    const url = getMediaUrl(media, media.file);
+    renderEditorImageStatus(state, `${label} 업로드 완료.`, 'success');
+    setTimeout(() => renderEditorImageStatus(state), 1800);
+    return url;
+  } catch (error) {
+    renderEditorImageStatus(state, `${label} 업로드 실패: ${cmsErrorMessage(error)}`, 'error');
+    throw error;
   }
 }
 

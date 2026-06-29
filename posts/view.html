@@ -160,6 +160,7 @@
 
     <script type="module">
         import { getPostBySlug, deletePost, isLoggedIn, logout, postDisplayDate, formatDate, escapeHtml, cmsErrorMessage, recordPostView, getPostViewCounts } from '../js/pb.js';
+        import { enhanceEmbeddedMedia } from '../js/media-embeds.js';
 
         const params = new URLSearchParams(window.location.search);
         const slug = params.get('slug');
@@ -233,6 +234,7 @@
         function renderPost(post, viewCount = null) {
             const timelineEl = document.getElementById('post-timeline');
             timelineEl.innerHTML = renderSinglePost(post, viewCount);
+            enhanceEmbeddedMedia(timelineEl);
         }
 
         function renderSinglePost(post, viewCount = null) {

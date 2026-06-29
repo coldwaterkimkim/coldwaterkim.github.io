@@ -8,6 +8,7 @@ import {
     escapeHtml,
     cmsErrorMessage
 } from './pb.js';
+import { enhanceEmbeddedMedia } from './media-embeds.js';
 
 const params = new URLSearchParams(window.location.search);
 const slug = params.get('slug') || '';
@@ -141,6 +142,7 @@ function renderProgram(program) {
             ${programBodyHtml(program)}
         </div>
     `;
+    enhanceEmbeddedMedia(bodyEl);
 
     renderDownloads(program);
 }

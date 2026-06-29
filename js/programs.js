@@ -27,8 +27,10 @@ let programBodyEditorReady = null;
 let pendingProgramBodyImageIndex = null;
 let markdownEditorModulePromise = null;
 let createMarkdownEditor = null;
+let editorUploadLabel = null;
 let hasImageTransfer = null;
 let imageFilesFromTransfer = null;
+let isSupportedEditorUpload = null;
 
 const PROGRAM_IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
 
@@ -437,7 +439,8 @@ async function initProgramBodyEditor() {
         onImageButton: () => {
             pendingProgramBodyImageIndex = currentProgramBodyIndex();
             formFields.bodyImageInput.click();
-        }
+        },
+        uploadFile: uploadProgramBodyFile
     });
 
     formFields.bodyImageInput?.addEventListener('change', async () => {
@@ -492,8 +495,10 @@ async function loadMarkdownEditorModule() {
 
     const module = await markdownEditorModulePromise;
     createMarkdownEditor = module.createMarkdownEditor;
+    editorUploadLabel = module.editorUploadLabel;
     hasImageTransfer = module.hasImageTransfer;
     imageFilesFromTransfer = module.imageFilesFromTransfer;
+    isSupportedEditorUpload = module.isSupportedEditorUpload;
 }
 
 function setProgramBodyImageStatus(message = '', type = 'info') {
@@ -558,6 +563,26 @@ async function insertProgramBodyImages(files, options = {}) {
         setTimeout(() => setProgramBodyImageStatus(), 2500);
     } else {
         setProgramBodyImageStatus();
+    }
+}
+
+async function uploadProgramBodyFile(file) {
+    if (!isSupportedEditorUpload?.(file)) {
+        throw new Error('JPG, PNG, GIF, WebP, MP4, WebM, MP3, PDF만 올릴 수 있음.');
+    }
+
+    const label = editorUploadLabel?.(file) || '파일';
+    setProgramBodyImageStatus(`${label} 업로드 중... ${file.name || ''}`);
+
+    try {
+        const media = await uploadMedia(file, file.name, 'Program editor media');
+        const url = getMediaUrl(media, media.file);
+        setProgramBodyImageStatus(`${label} 업로드 완료.`, 'success');
+        setTimeout(() => setProgramBodyImageStatus(), 1800);
+        return url;
+    } catch (error) {
+        setProgramBodyImageStatus(`${label} 업로드 실패: ${cmsErrorMessage(error)}`, 'error');
+        throw error;
     }
 }
 

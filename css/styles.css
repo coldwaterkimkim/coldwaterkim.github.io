@@ -1672,6 +1672,42 @@ body > center > table[width="1140"] > tbody > tr > td {
   height: auto;
 }
 
+.post-content video,
+.program-body-content video {
+  display: block;
+  max-width: 100%;
+  width: min(100%, 680px);
+  height: auto;
+  margin: 10px 0 14px;
+  border: 1px solid var(--cwk-ink);
+  background: #000;
+}
+
+.post-content audio,
+.program-body-content audio {
+  display: block;
+  width: min(100%, 680px);
+  margin: 10px 0 14px;
+}
+
+.post-content .cwk-embed,
+.program-body-content .cwk-embed {
+  width: min(100%, 680px);
+  margin: 10px 0 14px;
+}
+
+.post-content .cwk-embed iframe,
+.program-body-content .cwk-embed iframe,
+.post-content iframe.cwk-rich-iframe,
+.program-body-content iframe.cwk-rich-iframe {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  height: auto;
+  border: 1px solid var(--cwk-ink);
+  background: #000;
+}
+
 /* Markdown editor output: keep the old-web body, but render rich blocks clearly. */
 .post-content p,
 .program-body-content p {

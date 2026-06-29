@@ -413,6 +413,11 @@ body.admin-body {
   content: var(--blocknote-placeholder);
 }
 
+.blocknote-editor-shell .bn-visual-media,
+.blocknote-editor-shell .bn-audio {
+  max-width: 100%;
+}
+
 .editor-image-status {
   display: none;
   margin-top: 8px;

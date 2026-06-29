@@ -173,6 +173,7 @@
             escapeHtml,
             cmsErrorMessage
         } from '../js/pb.js';
+        import { enhanceEmbeddedMedia } from '../js/media-embeds.js';
 
         const params = new URLSearchParams(window.location.search);
         const dayParam = params.get('day');
@@ -272,6 +273,7 @@
         function renderDayEntries(entries, targetEntryId = '') {
             const timelineEl = document.getElementById('daily-timeline');
             timelineEl.innerHTML = entries.map(entry => renderDayEntry(entry, entry.id === targetEntryId)).join('');
+            enhanceEmbeddedMedia(timelineEl);
         }
 
         function renderDayEntry(entry, isFocused) {

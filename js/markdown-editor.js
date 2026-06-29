@@ -5,8 +5,20 @@ import { BlockNoteView } from '@blocknote/mantine';
 import '@mantine/core/styles.css';
 import '@blocknote/core/fonts/inter.css';
 import '@blocknote/mantine/style.css';
+import { isYouTubeUrl, prepareRichContentHtml } from './media-embeds.js';
 
 const IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
+const EDITOR_UPLOAD_MIME_TYPES = new Set([
+    'image/jpeg',
+    'image/png',
+    'image/gif',
+    'image/webp',
+    'video/mp4',
+    'video/webm',
+    'audio/mpeg',
+    'audio/mp3',
+    'application/pdf'
+]);
 
 export async function createMarkdownEditor(target, options = {}) {
     const root = typeof target === 'string'
@@ -47,6 +59,26 @@ export function imageFilesFromTransfer(dataTransfer, options = {}) {
             ) === index;
         })
         .map((file, index) => namedImageFile(file, index, fallbackNamePrefix));
+}
+
+export function isSupportedEditorUpload(file) {
+    if (!file) return false;
+
+    const type = String(file.type || '').toLowerCase();
+    if (EDITOR_UPLOAD_MIME_TYPES.has(type)) return true;
+
+    return /\.(jpe?g|png|gif|webp|mp4|webm|mp3|pdf)$/i.test(file.name || '');
+}
+
+export function editorUploadLabel(file) {
+    const type = String(file?.type || '').toLowerCase();
+    const name = String(file?.name || '').toLowerCase();
+
+    if (type.startsWith('video/') || /\.(mp4|webm)$/i.test(name)) return '영상';
+    if (type.startsWith('audio/') || /\.mp3$/i.test(name)) return '오디오';
+    if (type === 'application/pdf' || /\.pdf$/i.test(name)) return 'PDF';
+    if (type.startsWith('image/') || /\.(jpe?g|png|gif|webp)$/i.test(name)) return '이미지';
+    return '파일';
 }
 
 class BlockNoteMarkdownEditor {
@@ -100,6 +132,15 @@ class BlockNoteMarkdownEditor {
                 options.onImageButton();
             }
         });
+
+        this.mount.addEventListener('paste', (event) => {
+            const text = event.clipboardData?.getData('text/plain')?.trim();
+            if (!text || !isYouTubeUrl(text)) return;
+
+            event.preventDefault();
+            event.stopPropagation();
+            this.insertVideo(this.clampIndex(this.getSelection()?.index), text, 'YouTube video');
+        }, true);
     }
 
     bindEditor(editor) {
@@ -197,7 +238,7 @@ class BlockNoteMarkdownEditor {
     }
 
     htmlFromEditor() {
-        return this.blockNote?.blocksToHTMLLossy(this.blockNote.document).trim() || '';
+        return prepareRichContentHtml(this.blockNote?.blocksToHTMLLossy(this.blockNote.document).trim() || '');
     }
 
     textLength() {
@@ -232,6 +273,36 @@ class BlockNoteMarkdownEditor {
             this.blockNote.insertBlocks([imageBlock], currentBlock, 'after');
         } else {
             this.blockNote.insertBlocks([imageBlock], this.blockNote.document.at(-1), 'after');
+        }
+
+        this.currentHtml = this.htmlFromEditor();
+        return this.textLength();
+    }
+
+    insertVideo(_index, url, name = 'video') {
+        if (!this.blockNote) return 0;
+
+        return this.insertFileBlock('video', {
+            url,
+            name: cleanImageName(name),
+            caption: '',
+            showPreview: true
+        });
+    }
+
+    insertFileBlock(type, props) {
+        const currentBlock = this.currentBlock();
+        const fileBlock = {
+            type,
+            props
+        };
+
+        if (currentBlock && isEmptyParagraph(currentBlock)) {
+            this.blockNote.updateBlock(currentBlock, fileBlock);
+        } else if (currentBlock) {
+            this.blockNote.insertBlocks([fileBlock], currentBlock, 'after');
+        } else {
+            this.blockNote.insertBlocks([fileBlock], this.blockNote.document.at(-1), 'after');
         }
 
         this.currentHtml = this.htmlFromEditor();

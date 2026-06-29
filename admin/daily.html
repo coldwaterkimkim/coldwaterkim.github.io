@@ -133,7 +133,13 @@
             uploadMedia,
             getMediaUrl
         } from '../js/pb.js';
-        import { createMarkdownEditor, hasImageTransfer, imageFilesFromTransfer } from '../js/markdown-editor.js';
+        import {
+            createMarkdownEditor,
+            editorUploadLabel,
+            hasImageTransfer,
+            imageFilesFromTransfer,
+            isSupportedEditorUpload
+        } from '../js/markdown-editor.js';
 
         // 인증 체크
         if (!isLoggedIn()) {
@@ -155,7 +161,8 @@
             onImageButton: () => {
                 pendingEditorImageIndex = currentEditorIndex();
                 editorImageInput.click();
-            }
+            },
+            uploadFile: uploadEditorFile
         });
 
         const editorContainer = document.querySelector('.editor-container');
@@ -305,6 +312,26 @@
                 setTimeout(() => setEditorImageStatus(), 2500);
             } else {
                 setEditorImageStatus();
+            }
+        }
+
+        async function uploadEditorFile(file) {
+            if (!isSupportedEditorUpload(file)) {
+                throw new Error('JPG, PNG, GIF, WebP, MP4, WebM, MP3, PDF만 올릴 수 있습니다.');
+            }
+
+            const label = editorUploadLabel(file);
+            setEditorImageStatus(`${label} 업로드 중... ${file.name || ''}`);
+
+            try {
+                const media = await uploadMedia(file, file.name, 'Daily editor media');
+                const url = getMediaUrl(media, media.file);
+                setEditorImageStatus(`${label} 업로드 완료.`, 'success');
+                setTimeout(() => setEditorImageStatus(), 1800);
+                return url;
+            } catch (error) {
+                setEditorImageStatus(`${label} 업로드 실패: ${cmsErrorMessage(error)}`, 'error');
+                throw error;
             }
         }
 
