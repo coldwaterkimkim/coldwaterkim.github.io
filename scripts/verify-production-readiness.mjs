@@ -153,9 +153,9 @@ function verifyAdminEnv() {
   const exists = fs.existsSync(envFile);
   if (!exists) {
     record(
-      'production admin env file present',
+      allowMissingEnv ? 'production admin env file missing allowed' : 'production admin env file present',
       allowMissingEnv,
-      `${envFile}${allowMissingEnv ? ' (allowed for tooling QA)' : ''}`,
+      envFile,
     );
     return;
   }

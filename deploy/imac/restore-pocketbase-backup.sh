@@ -78,4 +78,4 @@ mv "$TMP_DIR" "$TARGET_ABS"
 
 echo "PocketBase backup restored to: $TARGET_ABS"
 echo "Rehearsal run example:"
-echo "  .local-bin/pocketbase serve --http=127.0.0.1:8090 --dir \"$TARGET_ABS\""
+echo "  .local-bin/pocketbase serve --http=127.0.0.1:8090 --dir \"$TARGET_ABS\" --migrationsDir pb_migrations"

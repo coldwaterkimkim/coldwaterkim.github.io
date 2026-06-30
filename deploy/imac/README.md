@@ -123,7 +123,7 @@ npm run pb:verify:data -- migration_backups/pocketbase/<backup-name>.zip --schem
 
 ```bash
 deploy/imac/restore-pocketbase-backup.sh migration_backups/pocketbase/<backup-name>.zip
-.local-bin/pocketbase serve --http=127.0.0.1:8090 --dir migration_backups/restore-rehearsal-pb_data
+.local-bin/pocketbase serve --http=127.0.0.1:8090 --dir migration_backups/restore-rehearsal-pb_data --migrationsDir pb_migrations
 ```
 
 이미 받은 백업 ZIP만 다시 리허설할 때:

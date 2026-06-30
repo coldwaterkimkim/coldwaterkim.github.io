@@ -136,7 +136,12 @@ async function runPocketBaseHealthCheck(dataDir, port) {
 
   const child = spawn(
     pocketbase,
-    ['serve', `--http=127.0.0.1:${port}`, `--dir=${dataDir}`],
+    [
+      'serve',
+      `--http=127.0.0.1:${port}`,
+      `--dir=${dataDir}`,
+      `--migrationsDir=${path.join(root, 'pb_migrations')}`,
+    ],
     {
       cwd: root,
       stdio: ['ignore', 'pipe', 'pipe'],
