@@ -119,6 +119,7 @@ function verifyToolingFiles() {
     'scripts/verify-pocketbase-data.mjs',
     'deploy/imac/configure-pocketbase-admin-env.sh',
     'deploy/imac/run-interactive-production-gates.command',
+    'deploy/oracle/reset-pocketbase-superuser.sh',
     'deploy/imac/restore-pocketbase-backup.sh',
     'deploy/imac/pocketbase-admin.env.example',
     'pb_schema.json',
@@ -161,6 +162,23 @@ function verifyToolingFiles() {
       record('interactive production gates shell syntax', true);
     } catch (error) {
       record('interactive production gates shell syntax', false, error.message);
+    }
+  }
+
+  const resetSuperuser = path.join(root, 'deploy/oracle/reset-pocketbase-superuser.sh');
+  if (fs.existsSync(resetSuperuser)) {
+    try {
+      fs.accessSync(resetSuperuser, fs.constants.X_OK);
+      record('Oracle superuser reset executable', true);
+    } catch {
+      record('Oracle superuser reset executable', false, 'deploy/oracle/reset-pocketbase-superuser.sh');
+    }
+
+    try {
+      run('bash', ['-n', 'deploy/oracle/reset-pocketbase-superuser.sh']);
+      record('Oracle superuser reset shell syntax', true);
+    } catch (error) {
+      record('Oracle superuser reset shell syntax', false, error.message);
     }
   }
 }
@@ -247,6 +265,7 @@ function verifyReadme() {
   requireCondition('README documents migration go/no-go QA', readme.includes('npm run qa:migration-go'));
   requireCondition('README documents readiness QA', readme.includes('npm run qa:production-readiness'));
   requireCondition('README documents interactive production gates', readme.includes('run-interactive-production-gates.command'));
+  requireCondition('README documents superuser recovery', readme.includes('reset-pocketbase-superuser.sh'));
 }
 
 function printSummary() {

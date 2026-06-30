@@ -147,6 +147,14 @@ npm run pb:preflight:production
 open deploy/imac/run-interactive-production-gates.command
 ```
 
+운영 PocketBase superuser를 모르면 현재 운영 VM에서 먼저 재설정한다. Oracle VM에 접속할 수 있는 터미널에서 아래 스크립트를 실행하고, 같은 이메일/비밀번호를 아이맥의 로컬 보안 파일에도 저장한다.
+
+```bash
+deploy/oracle/reset-pocketbase-superuser.sh
+```
+
+현재 아이맥에 Oracle SSH 개인키가 없으면 Oracle Cloud Console의 Browser SSH 또는 원래 키가 있는 Mac에서 위 작업을 해야 한다.
+
 운영 백업 생성/다운로드:
 
 ```bash

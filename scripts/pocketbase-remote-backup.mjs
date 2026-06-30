@@ -139,7 +139,7 @@ async function authenticate(baseUrl, email, password) {
   const superuser = await requestJson(
     `${baseUrl}/api/collections/_superusers/auth-with-password`,
     common,
-    [404],
+    [400, 401, 403, 404],
   );
   if (superuser.response.ok) return superuser.data.token;
 
