@@ -12,6 +12,7 @@
     "cutover:snapshot": "node scripts/capture-cutover-snapshot.mjs",
     "cutover:snapshot:dry-run": "node scripts/capture-cutover-snapshot.mjs --dry-run --allow-network-failures",
     "imac:configure-network": "bash deploy/imac/configure-network-env.sh",
+    "imac:configure-network:auto": "bash deploy/imac/configure-network-env.sh --auto",
     "imac:install-services": "bash deploy/imac/install-launchd-services.sh",
     "imac:install-services:dry-run": "bash deploy/imac/install-launchd-services.sh --dry-run",
     "pb:backup:production": "node scripts/pocketbase-remote-backup.mjs",

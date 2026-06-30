@@ -2,16 +2,20 @@
 set -euo pipefail
 
 ENV_FILE="${HOME_SERVER_ENV_FILE:-$HOME/.config/coldwaterkim/home-server.env}"
-DEFAULT_LAN_IP="${HOME_SERVER_LAN_IP:-192.168.0.11}"
+AUTO=0
+DEFAULT_LAN_IP="${HOME_SERVER_LAN_IP:-}"
 DEFAULT_PUBLIC_IP="${HOME_SERVER_PUBLIC_IP:-}"
 
 usage() {
   cat <<'EOF'
 Usage:
-  deploy/imac/configure-network-env.sh
+  deploy/imac/configure-network-env.sh [--auto]
 
 Writes the local home-server network env file used by cutover QA.
 The file is local-only and should not be committed.
+
+Options:
+  --auto  Use detected/default LAN and public IP values without prompts.
 
 Environment:
   HOME_SERVER_ENV_FILE   default: ~/.config/coldwaterkim/home-server.env
@@ -20,15 +24,23 @@ Environment:
 EOF
 }
 
-if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
-  usage
-  exit 0
-fi
-
-if [[ ! -t 0 ]]; then
-  echo "This script prompts for network values and must run in an interactive terminal." >&2
-  exit 1
-fi
+while (($#)); do
+  case "$1" in
+    --auto)
+      AUTO=1
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+  shift
+done
 
 is_ipv4() {
   local value="$1"
@@ -72,22 +84,48 @@ detect_public_ip() {
   curl -4fsS --max-time 5 https://api.ipify.org 2>/dev/null || true
 }
 
+detect_lan_ip() {
+  command -v route >/dev/null 2>&1 || return 0
+  command -v ipconfig >/dev/null 2>&1 || return 0
+
+  local interface
+  interface="$(route get default 2>/dev/null | awk '/interface:/{print $2; exit}')"
+  [[ -n "$interface" ]] || return 0
+  ipconfig getifaddr "$interface" 2>/dev/null || true
+}
+
+detected_lan_ip="$(detect_lan_ip)"
+if [[ -z "$DEFAULT_LAN_IP" && -n "$detected_lan_ip" ]] && is_private_ipv4 "$detected_lan_ip"; then
+  DEFAULT_LAN_IP="$detected_lan_ip"
+fi
+DEFAULT_LAN_IP="${DEFAULT_LAN_IP:-192.168.0.11}"
+
 detected_public_ip="$(detect_public_ip)"
 if [[ -z "$DEFAULT_PUBLIC_IP" && -n "$detected_public_ip" ]] && is_public_ipv4 "$detected_public_ip"; then
   DEFAULT_PUBLIC_IP="$detected_public_ip"
 fi
 
-printf "iMac LAN IP [%s]: " "$DEFAULT_LAN_IP"
-read -r input_lan_ip
-lan_ip="${input_lan_ip:-$DEFAULT_LAN_IP}"
-
-if [[ -n "$DEFAULT_PUBLIC_IP" ]]; then
-  printf "Home public IPv4 [%s]: " "$DEFAULT_PUBLIC_IP"
+if [[ "$AUTO" -eq 1 ]]; then
+  lan_ip="$DEFAULT_LAN_IP"
+  public_ip="$DEFAULT_PUBLIC_IP"
 else
-  printf "Home public IPv4: "
+  if [[ ! -t 0 ]]; then
+    echo "This script prompts for network values and must run in an interactive terminal, or use --auto." >&2
+    exit 1
+  fi
+
+  printf "iMac LAN IP [%s]: " "$DEFAULT_LAN_IP"
+  read -r input_lan_ip
+  lan_ip="${input_lan_ip:-$DEFAULT_LAN_IP}"
+
+  if [[ -n "$DEFAULT_PUBLIC_IP" ]]; then
+    printf "Home public IPv4 [%s]: " "$DEFAULT_PUBLIC_IP"
+  else
+    printf "Home public IPv4: "
+  fi
+  read -r input_public_ip
+  public_ip="${input_public_ip:-$DEFAULT_PUBLIC_IP}"
 fi
-read -r input_public_ip
-public_ip="${input_public_ip:-$DEFAULT_PUBLIC_IP}"
 
 if ! is_private_ipv4 "$lan_ip"; then
   echo "HOME_SERVER_LAN_IP must be a private IPv4 address." >&2
@@ -95,7 +133,7 @@ if ! is_private_ipv4 "$lan_ip"; then
 fi
 
 if ! is_public_ipv4 "$public_ip"; then
-  echo "HOME_SERVER_PUBLIC_IP must be a public IPv4 address." >&2
+  echo "HOME_SERVER_PUBLIC_IP must be a public IPv4 address. Set HOME_SERVER_PUBLIC_IP or run without --auto to type it." >&2
   exit 1
 fi
 

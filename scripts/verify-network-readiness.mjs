@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
 const allowMissingLive = args.includes('--allow-missing-live');
-const valueOptions = new Set(['--env-file', '--lan-ip', '--public-ip']);
+const valueOptions = new Set(['--network-env-file', '--lan-ip', '--public-ip']);
 const options = new Map();
 
 for (let index = 0; index < args.length; index += 1) {
@@ -20,7 +20,7 @@ for (let index = 0; index < args.length; index += 1) {
 
 const checks = [];
 const networkEnvFile = expandHome(
-  optionValue('--env-file', process.env.HOME_SERVER_ENV_FILE || '~/.config/coldwaterkim/home-server.env'),
+  optionValue('--network-env-file', process.env.HOME_SERVER_ENV_FILE || '~/.config/coldwaterkim/home-server.env'),
 );
 const networkEnv = readEnvFileIfExists(networkEnvFile);
 const expectedLanIp = optionValue(
@@ -160,6 +160,7 @@ function verifyPackageScripts() {
     'cutover:snapshot',
     'cutover:snapshot:dry-run',
     'imac:configure-network',
+    'imac:configure-network:auto',
     'qa:migration-go',
     'qa:migration-go:tooling',
     'qa:rollback',
@@ -196,6 +197,7 @@ function verifyReadme() {
   const readme = readText('deploy/imac/README.md');
   requireCondition('README documents cutover snapshot', readme.includes('npm run cutover:snapshot'));
   requireCondition('README documents network env configuration', readme.includes('npm run imac:configure-network'));
+  requireCondition('README documents automatic network env configuration', readme.includes('npm run imac:configure-network:auto'));
   requireCondition('README documents rollback QA', readme.includes('npm run qa:rollback'));
   requireCondition('README documents migration go/no-go QA', readme.includes('npm run qa:migration-go'));
   requireCondition('README documents LAN IP env', readme.includes('HOME_SERVER_LAN_IP'));
