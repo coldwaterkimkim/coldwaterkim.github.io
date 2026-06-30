@@ -113,4 +113,5 @@ PocketBase 서버가 꺼져 있으면 공개 사이트는 렌더링되지만 글
 - 운영 PocketBase에 `post_views` 컬렉션을 반영했다. 공개 create는 가능하지만 list/view는 로그인한 관리자에게만 실데이터가 보이며, 임시 smoke record 생성/관리자 조회/삭제까지 확인했다.
 - 2026-06-30 아이맥 홈서버 Stage 1 커밋/푸쉬 완료. `archive/pre-imac-migration-20260630` 원격 백업 브랜치와 `pre-imac-migration-20260630` 로컬 태그를 유지한다.
 - 2026-06-30 아이맥 홈서버 Stage 2 로컬 리허설 완료. Intel용 PocketBase `v0.23.5`, Caddy `v2.11.4` 공식 바이너리를 확인했고, `http://127.0.0.1:18081`에서 홈/글방/나으 하루/프로그램실/나사잡/방명록/About 및 `/api/health`, `/_/` 모두 200 응답을 확인했다.
+- 2026-06-30 아이맥 로컬 Caddy 리허설 설정을 `deploy/imac/Caddyfile.local`로 고정했고, `npm run qa:service-smoke:local`로 실제 HTTP 스모크 테스트를 재현할 수 있게 했다.
 - 2026-06-30 아이맥 로컬 `pb_data` 기준 `media.file`, `programs.download_files` maxSize가 `2147483648`임을 확인했고, PocketBase 종료 상태의 cold backup 생성/압축 목록 확인까지 완료했다.

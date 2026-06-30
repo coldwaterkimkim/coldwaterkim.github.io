@@ -102,6 +102,8 @@ function verifyPackageScripts() {
     'pb:verify:data',
     'qa:cutover',
     'qa:cutover:network',
+    'qa:service-smoke',
+    'qa:service-smoke:local',
   ]) {
     requireCondition(`package script ${name}`, Boolean(scripts[name]), scripts[name] || 'missing');
   }
@@ -109,6 +111,7 @@ function verifyPackageScripts() {
 
 function verifyCaddyfile() {
   const caddyfile = readText('deploy/imac/Caddyfile');
+  const localCaddyfile = readText('deploy/imac/Caddyfile.local');
   const rootPath = path.join(root, 'dist');
   requireCondition('Caddyfile includes coldwaterkim.com', caddyfile.includes('coldwaterkim.com'));
   requireCondition('Caddyfile includes www.coldwaterkim.com', caddyfile.includes('www.coldwaterkim.com'));
@@ -116,6 +119,11 @@ function verifyCaddyfile() {
   requireCondition('Caddyfile proxies /_ to local PocketBase admin', caddyfile.includes('handle /_/*') && caddyfile.includes('reverse_proxy 127.0.0.1:8090'));
   requireCondition('Caddyfile allows 2GB request bodies', /request_body[\s\S]*max_size\s+2GB/.test(caddyfile));
   requireCondition('Caddyfile serves dist root', caddyfile.includes(rootPath));
+  requireCondition('local Caddyfile binds rehearsal port', localCaddyfile.includes('http://127.0.0.1:18081'));
+  requireCondition('local Caddyfile proxies /api to local PocketBase', localCaddyfile.includes('handle /api/*') && localCaddyfile.includes('reverse_proxy 127.0.0.1:8090'));
+  requireCondition('local Caddyfile proxies /_ to local PocketBase admin', localCaddyfile.includes('handle /_/*') && localCaddyfile.includes('reverse_proxy 127.0.0.1:8090'));
+  requireCondition('local Caddyfile allows 2GB request bodies', /request_body[\s\S]*max_size\s+2GB/.test(localCaddyfile));
+  requireCondition('local Caddyfile serves dist root', localCaddyfile.includes(rootPath));
 }
 
 function verifyPlists() {
@@ -142,6 +150,7 @@ function verifyPlists() {
 function verifyLocalArtifacts(profile) {
   const hasDist = fileExists('dist/index.html');
   requireCondition('dist/index.html exists', hasDist, hasDist ? '' : 'run build:imac first');
+  requireCondition('service smoke verifier exists', fileExists('scripts/verify-imac-service-smoke.mjs'));
   requireCondition('local PocketBase binary executable', isExecutable(path.join(root, '.local-bin', 'pocketbase')));
   requireCondition('local Caddy binary executable', isExecutable(path.join(root, '.local-bin', 'caddy')));
 

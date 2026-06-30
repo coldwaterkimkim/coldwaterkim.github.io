@@ -23,6 +23,8 @@
     "qa:network-preflight": "node scripts/verify-network-readiness.mjs",
     "qa:network-readiness": "node scripts/verify-network-readiness.mjs --allow-missing-live",
     "qa:production-readiness": "node scripts/verify-production-readiness.mjs --allow-missing-env",
+    "qa:service-smoke": "node scripts/verify-imac-service-smoke.mjs",
+    "qa:service-smoke:local": "node scripts/verify-imac-service-smoke.mjs --origin http://127.0.0.1:18081",
     "preview": "vite preview"
   },
   "dependencies": {

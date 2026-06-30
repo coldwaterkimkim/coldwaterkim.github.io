@@ -54,6 +54,13 @@ Rollback 기준:
 6. 로컬 리허설은 외부 포트 없이 `127.0.0.1`에서만 한다. 예: PocketBase `127.0.0.1:8090`, Caddy `http://127.0.0.1:18081`.
 7. `https://coldwaterkim.com` 전환 전 테스트는 `/etc/hosts` 또는 내부 DNS로만 한다.
 
+로컬 Caddy 리허설:
+
+```bash
+.local-bin/caddy run --config deploy/imac/Caddyfile.local --adapter caddyfile
+npm run qa:service-smoke:local
+```
+
 Caddy 운영 바이너리 설치 예:
 
 ```bash
@@ -65,6 +72,7 @@ sudo launchctl bootstrap system /Library/LaunchDaemons/com.coldwaterkim.caddy.pl
 
 QA:
 
+- `npm run qa:service-smoke:local` 통과
 - `/api/health`가 200
 - `/` 홈 렌더링
 - `/posts/`, `/daily/`, `/programs/`, `/nasajab/`, `/guestbook.html`, `/about.html` 직접 URL 200
@@ -179,6 +187,7 @@ DNS 전환 후 외부 검증:
 
 ```bash
 HOME_SERVER_PUBLIC_IP=<집-공인-IP> npm run qa:cutover:network
+npm run qa:service-smoke -- --origin https://coldwaterkim.com
 ```
 
 QA:
@@ -193,6 +202,7 @@ QA:
 - `api.coldwaterkim.com` 없이도 공개 사이트가 동작
 - 24시간 동안 PocketBase/Caddy 재시작 없음
 - `npm run qa:cutover:network` 통과
+- `npm run qa:service-smoke -- --origin https://coldwaterkim.com` 통과
 
 ## Stage 5. Post-cutover hardening
 
