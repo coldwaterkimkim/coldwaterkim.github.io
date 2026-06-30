@@ -99,6 +99,7 @@ function verifyPackageScripts() {
     'build:imac',
     'cutover:snapshot',
     'cutover:snapshot:dry-run',
+    'imac:configure-network',
     'qa:home-server',
     'qa:launchd',
     'qa:launchd:tooling',

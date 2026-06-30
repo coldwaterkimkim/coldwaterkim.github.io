@@ -185,12 +185,15 @@ npm run pb:rehearse:backup -- migration_backups/pocketbase/<backup-name>.zip --s
 공유기/DNS 변경 직전 사전점검:
 
 ```bash
+npm run imac:configure-network
 npm run qa:migration-go
 npm run cutover:snapshot:dry-run
 npm run cutover:snapshot
 npm run qa:rollback
-HOME_SERVER_LAN_IP=192.168.0.11 HOME_SERVER_PUBLIC_IP=<집-공인-IP> npm run qa:network-preflight
+npm run qa:network-preflight
 ```
+
+`npm run imac:configure-network`는 `~/.config/coldwaterkim/home-server.env`에 아이맥 LAN IP와 집 공인 IPv4를 저장한다. 다른 경로를 쓰려면 `HOME_SERVER_ENV_FILE`을 지정한다.
 
 전환 전 로컬 컷오버 검증:
 
@@ -210,7 +213,7 @@ npm run qa:cutover -- --data pb_data --schema pb_schema.json
 DNS 전환 후 외부 검증:
 
 ```bash
-HOME_SERVER_PUBLIC_IP=<집-공인-IP> npm run qa:cutover:network
+npm run qa:cutover:network
 npm run qa:service-smoke -- --origin https://coldwaterkim.com
 ```
 

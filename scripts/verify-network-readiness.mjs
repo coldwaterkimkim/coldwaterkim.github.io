@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
 const allowMissingLive = args.includes('--allow-missing-live');
-const valueOptions = new Set(['--lan-ip', '--public-ip']);
+const valueOptions = new Set(['--env-file', '--lan-ip', '--public-ip']);
 const options = new Map();
 
 for (let index = 0; index < args.length; index += 1) {
@@ -19,11 +19,28 @@ for (let index = 0; index < args.length; index += 1) {
 }
 
 const checks = [];
-const expectedLanIp = optionValue('--lan-ip', process.env.HOME_SERVER_LAN_IP || '192.168.0.11');
-const expectedPublicIp = optionValue('--public-ip', process.env.HOME_SERVER_PUBLIC_IP || '');
+const networkEnvFile = expandHome(
+  optionValue('--env-file', process.env.HOME_SERVER_ENV_FILE || '~/.config/coldwaterkim/home-server.env'),
+);
+const networkEnv = readEnvFileIfExists(networkEnvFile);
+const expectedLanIp = optionValue(
+  '--lan-ip',
+  process.env.HOME_SERVER_LAN_IP || networkEnv.HOME_SERVER_LAN_IP || '192.168.0.11',
+);
+const expectedPublicIp = optionValue(
+  '--public-ip',
+  process.env.HOME_SERVER_PUBLIC_IP || networkEnv.HOME_SERVER_PUBLIC_IP || '',
+);
 
 function optionValue(name, fallback = '') {
   return options.get(name) || fallback;
+}
+
+function expandHome(input) {
+  if (!input) return input;
+  if (input === '~') return os.homedir();
+  if (input.startsWith('~/')) return path.join(os.homedir(), input.slice(2));
+  return input;
 }
 
 function record(name, ok, detail = '') {
@@ -36,6 +53,49 @@ function requireCondition(name, condition, detail = '') {
 
 function readText(relativePath) {
   return fs.readFileSync(path.join(root, relativePath), 'utf8');
+}
+
+function mode(file) {
+  return fs.statSync(file).mode & 0o777;
+}
+
+function formatMode(value) {
+  return `0${value.toString(8)}`;
+}
+
+function modeAtMost(file, maxMode) {
+  const current = mode(file);
+  return {
+    ok: (current & ~maxMode) === 0,
+    current,
+  };
+}
+
+function parseEnvFile(file) {
+  const values = {};
+  const lines = fs.readFileSync(file, 'utf8').split(/\r?\n/);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+
+    const match = trimmed.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/);
+    if (!match) continue;
+
+    let value = match[2].trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    values[match[1]] = value;
+  }
+  return values;
+}
+
+function readEnvFileIfExists(file) {
+  if (!fs.existsSync(file)) return {};
+  return parseEnvFile(file);
 }
 
 function run(command, commandArgs) {
@@ -99,6 +159,7 @@ function verifyPackageScripts() {
   for (const name of [
     'cutover:snapshot',
     'cutover:snapshot:dry-run',
+    'imac:configure-network',
     'qa:migration-go',
     'qa:migration-go:tooling',
     'qa:rollback',
@@ -134,12 +195,39 @@ function verifyStaticConfig() {
 function verifyReadme() {
   const readme = readText('deploy/imac/README.md');
   requireCondition('README documents cutover snapshot', readme.includes('npm run cutover:snapshot'));
+  requireCondition('README documents network env configuration', readme.includes('npm run imac:configure-network'));
   requireCondition('README documents rollback QA', readme.includes('npm run qa:rollback'));
   requireCondition('README documents migration go/no-go QA', readme.includes('npm run qa:migration-go'));
   requireCondition('README documents LAN IP env', readme.includes('HOME_SERVER_LAN_IP'));
   requireCondition('README documents public IP env', readme.includes('HOME_SERVER_PUBLIC_IP'));
   requireCondition('README documents network preflight', readme.includes('npm run qa:network-preflight'));
   requireCondition('README documents post-DNS network QA', readme.includes('npm run qa:cutover:network'));
+}
+
+function verifyNetworkEnvFile() {
+  if (!fs.existsSync(networkEnvFile)) {
+    record('home-server network env file optional', true, networkEnvFile);
+    return;
+  }
+
+  record('home-server network env file present', true, networkEnvFile);
+
+  const dirCheck = modeAtMost(path.dirname(networkEnvFile), 0o700);
+  requireCondition(
+    'home-server network env directory is private',
+    dirCheck.ok,
+    `${path.dirname(networkEnvFile)} mode ${formatMode(dirCheck.current)}`,
+  );
+
+  const fileCheck = modeAtMost(networkEnvFile, 0o600);
+  requireCondition(
+    'home-server network env file is private',
+    fileCheck.ok,
+    `${networkEnvFile} mode ${formatMode(fileCheck.current)}`,
+  );
+
+  requireCondition('home-server env has HOME_SERVER_LAN_IP', Boolean(networkEnv.HOME_SERVER_LAN_IP));
+  requireCondition('home-server env has HOME_SERVER_PUBLIC_IP', Boolean(networkEnv.HOME_SERVER_PUBLIC_IP));
 }
 
 function verifyLiveInputs() {
@@ -149,7 +237,11 @@ function verifyLiveInputs() {
   }
 
   requireCondition('HOME_SERVER_LAN_IP is private IPv4', isPrivateIPv4(expectedLanIp), expectedLanIp);
-  requireCondition('HOME_SERVER_PUBLIC_IP is public IPv4', isPublicIPv4(expectedPublicIp), expectedPublicIp || 'missing');
+  requireCondition(
+    'HOME_SERVER_PUBLIC_IP is public IPv4',
+    isPublicIPv4(expectedPublicIp),
+    expectedPublicIp || `missing; run npm run imac:configure-network or pass --public-ip`,
+  );
 
   const addresses = localIPv4s();
   requireCondition(
@@ -181,6 +273,7 @@ function main() {
   verifyPackageScripts();
   verifyStaticConfig();
   verifyReadme();
+  verifyNetworkEnvFile();
   verifyLiveInputs();
   printSummary();
 }

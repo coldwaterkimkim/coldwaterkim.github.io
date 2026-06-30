@@ -2,6 +2,7 @@ node_modules
 .DS_Store
 .env
 pocketbase-admin.env
+home-server.env
 dist
 .vscode
 .local-bin
