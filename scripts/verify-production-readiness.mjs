@@ -103,6 +103,8 @@ function verifyPackageScripts() {
     'pb:rehearse:production',
     'pb:verify:data',
     'qa:migration-freeze',
+    'qa:migration-go',
+    'qa:migration-go:tooling',
     'qa:production-readiness',
   ]) {
     requireCondition(`package script ${name}`, Boolean(scripts[name]), scripts[name] || 'missing');
@@ -224,6 +226,7 @@ function verifyReadme() {
   const readme = readText('deploy/imac/README.md');
   requireCondition('README documents env template', readme.includes('pocketbase-admin.env.example'));
   requireCondition('README documents production preflight', readme.includes('npm run pb:preflight:production'));
+  requireCondition('README documents migration go/no-go QA', readme.includes('npm run qa:migration-go'));
   requireCondition('README documents readiness QA', readme.includes('npm run qa:production-readiness'));
 }
 

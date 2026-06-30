@@ -126,6 +126,7 @@ PB_ADMIN_PASSWORD=your-password
 
 ```bash
 npm run qa:migration-freeze
+npm run qa:migration-go:tooling
 npm run qa:production-readiness
 npm run pb:preflight:production
 ```
@@ -184,6 +185,7 @@ npm run pb:rehearse:backup -- migration_backups/pocketbase/<backup-name>.zip --s
 공유기/DNS 변경 직전 사전점검:
 
 ```bash
+npm run qa:migration-go
 npm run cutover:snapshot:dry-run
 npm run cutover:snapshot
 npm run qa:rollback
@@ -216,6 +218,7 @@ QA:
 
 - `HOME_SERVER_LAN_IP`가 아이맥의 실제 LAN IP와 일치
 - `HOME_SERVER_PUBLIC_IP`가 DNS에 넣을 공인 IPv4
+- `npm run qa:migration-go`가 모든 실제 운영 게이트를 통과
 - `migration_backups/cutover/cutover-snapshot-*.json`에 기존 DNS A record와 공개 route 응답이 남아 있음
 - `/usr/local/bin/caddy` 운영 바이너리 설치
 - `npm run qa:launchd` 통과

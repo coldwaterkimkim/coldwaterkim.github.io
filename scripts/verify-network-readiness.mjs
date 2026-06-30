@@ -99,6 +99,8 @@ function verifyPackageScripts() {
   for (const name of [
     'cutover:snapshot',
     'cutover:snapshot:dry-run',
+    'qa:migration-go',
+    'qa:migration-go:tooling',
     'qa:rollback',
     'qa:network-preflight',
     'qa:network-readiness',
@@ -133,6 +135,7 @@ function verifyReadme() {
   const readme = readText('deploy/imac/README.md');
   requireCondition('README documents cutover snapshot', readme.includes('npm run cutover:snapshot'));
   requireCondition('README documents rollback QA', readme.includes('npm run qa:rollback'));
+  requireCondition('README documents migration go/no-go QA', readme.includes('npm run qa:migration-go'));
   requireCondition('README documents LAN IP env', readme.includes('HOME_SERVER_LAN_IP'));
   requireCondition('README documents public IP env', readme.includes('HOME_SERVER_PUBLIC_IP'));
   requireCondition('README documents network preflight', readme.includes('npm run qa:network-preflight'));

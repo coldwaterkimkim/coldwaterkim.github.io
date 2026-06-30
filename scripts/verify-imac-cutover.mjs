@@ -102,6 +102,8 @@ function verifyPackageScripts() {
     'qa:home-server',
     'qa:launchd',
     'qa:launchd:tooling',
+    'qa:migration-go',
+    'qa:migration-go:tooling',
     'qa:rollback',
     'pb:rehearse:production',
     'pb:verify:data',
