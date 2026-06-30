@@ -43,7 +43,7 @@ Rollback 기준:
    - Intel iMac은 `darwin_amd64`/`mac_amd64`가 필요하다.
    - 현재 핀: PocketBase `v0.23.5`, Caddy `v2.11.4`.
 2. `npm run build:imac`
-3. PocketBase migration 적용
+3. 저장소의 `pb_migrations`로 PocketBase migration 적용
 4. PocketBase를 `deploy/imac/com.coldwaterkim.pocketbase.plist`로 launchd 실행
 5. Caddy는 운영 전 `/usr/local/bin/caddy`에 root-owned로 설치한 뒤 `deploy/imac/com.coldwaterkim.caddy.plist`로 LaunchDaemon 실행
 6. 로컬 리허설은 외부 포트 없이 `127.0.0.1`에서만 한다. 예: PocketBase `127.0.0.1:8090`, Caddy `http://127.0.0.1:18081`.
@@ -65,6 +65,7 @@ QA:
 - `/posts/`, `/daily/`, `/programs/`, `/nasajab/`, `/guestbook.html`, `/about.html` 직접 URL 200
 - 브라우저 콘솔 error 0개
 - `media.file`, `programs.download_files` maxSize가 `2147483648`
+- launchd PocketBase 설정이 `pb_data`와 저장소의 `pb_migrations`를 함께 사용
 - 관리자 로그인
 - 테스트 글 작성/수정/삭제
 - 테스트 미디어 업로드/삭제

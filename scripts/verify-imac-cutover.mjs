@@ -136,6 +136,7 @@ function verifyPlists() {
   requireCondition('Caddy launchd uses LaunchDaemon binary path', caddyPlist.includes('/usr/local/bin/caddy'));
   requireCondition('PocketBase launchd binds localhost', pocketbasePlist.includes('--http=127.0.0.1:8090'));
   requireCondition('PocketBase launchd points at pb_data', pocketbasePlist.includes(`${root}/pb_data`));
+  requireCondition('PocketBase launchd points at repo migrations', pocketbasePlist.includes(`--migrationsDir=${root}/pb_migrations`));
 }
 
 function verifyLocalArtifacts(profile) {
