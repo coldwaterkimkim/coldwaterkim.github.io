@@ -82,6 +82,24 @@ function requireValue(env, names) {
   throw new Error(`Missing required env value: ${names.join(' or ')}`);
 }
 
+function isPlaceholder(value) {
+  return [
+    /^you@example\.com$/i,
+    /your-/i,
+    /example/i,
+    /changeme/i,
+    /password$/i,
+  ].some(pattern => pattern.test(value));
+}
+
+function requireRealValue(env, names) {
+  const value = requireValue(env, names);
+  if (isPlaceholder(value)) {
+    throw new Error(`${names[0]} looks like a template placeholder. Run npm run pb:configure:production first.`);
+  }
+  return value;
+}
+
 function normalizeBaseUrl(input) {
   return input.replace(/\/+$/, '');
 }
@@ -209,8 +227,8 @@ async function deleteBackup(baseUrl, token, backupName) {
 async function main() {
   const env = mergeEnv();
   const baseUrl = normalizeBaseUrl(env.PB_URL || 'https://api.coldwaterkim.com');
-  const email = requireValue(env, ['PB_ADMIN_EMAIL', 'POCKETBASE_ADMIN_EMAIL']);
-  const password = requireValue(env, ['PB_ADMIN_PASSWORD', 'POCKETBASE_ADMIN_PASSWORD']);
+  const email = requireRealValue(env, ['PB_ADMIN_EMAIL', 'POCKETBASE_ADMIN_EMAIL']);
+  const password = requireRealValue(env, ['PB_ADMIN_PASSWORD', 'POCKETBASE_ADMIN_PASSWORD']);
   const outputDir = path.resolve(root, expandHome(env.PB_BACKUP_DIR || 'migration_backups/pocketbase'));
   const token = await authenticate(baseUrl, email, password);
 

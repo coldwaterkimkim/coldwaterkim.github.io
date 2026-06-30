@@ -21,6 +21,11 @@ PocketBase는 외부 서비스가 아니라 아이맥에서 직접 실행되는 
 2. 운영 PocketBase에서 새 글/업로드를 잠깐 멈춘다.
 3. 운영 서버의 `pb_data`를 cold backup으로 만든다.
 4. 백업 파일 크기와 압축 해제 가능 여부를 확인한다.
+5. 로컬 HEAD가 원격 `main`과 같은지, freeze tag가 현재 이주의 조상인지 확인한다.
+
+```bash
+npm run qa:migration-freeze
+```
 
 Rollback 기준:
 
@@ -95,6 +100,7 @@ PB_ADMIN_PASSWORD=your-password
 비밀값은 채팅이나 repo에 남기지 않는다. 운영 이주 직전에는 아래 사전점검이 먼저 통과해야 한다.
 
 ```bash
+npm run qa:migration-freeze
 npm run qa:production-readiness
 npm run pb:preflight:production
 ```

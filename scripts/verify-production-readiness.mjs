@@ -102,6 +102,7 @@ function verifyPackageScripts() {
     'pb:preflight:production',
     'pb:rehearse:production',
     'pb:verify:data',
+    'qa:migration-freeze',
     'qa:production-readiness',
   ]) {
     requireCondition(`package script ${name}`, Boolean(scripts[name]), scripts[name] || 'missing');
@@ -112,6 +113,7 @@ function verifyToolingFiles() {
   for (const file of [
     'scripts/pocketbase-remote-backup.mjs',
     'scripts/rehearse-pocketbase-backup.mjs',
+    'scripts/verify-migration-freeze.mjs',
     'scripts/verify-pocketbase-data.mjs',
     'deploy/imac/configure-pocketbase-admin-env.sh',
     'deploy/imac/restore-pocketbase-backup.sh',
@@ -140,6 +142,16 @@ function verifyToolingFiles() {
     } catch {
       record('local PocketBase binary executable', false, '.local-bin/pocketbase');
     }
+  }
+}
+
+function verifyMigrationFreeze() {
+  try {
+    const output = run(process.execPath, ['scripts/verify-migration-freeze.mjs']);
+    const lastLine = output.split(/\r?\n/).filter(Boolean).at(-1) || '';
+    record('migration freeze gate passes', true, lastLine);
+  } catch (error) {
+    record('migration freeze gate passes', false, error.message);
   }
 }
 
@@ -234,6 +246,7 @@ function printSummary() {
 function main() {
   verifyPackageScripts();
   verifyToolingFiles();
+  verifyMigrationFreeze();
   verifyEnvTemplate();
   verifyAdminEnv();
   verifyReadme();
