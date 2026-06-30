@@ -70,9 +70,16 @@ sudo chown root:wheel /Library/LaunchDaemons/com.coldwaterkim.caddy.plist
 sudo launchctl bootstrap system /Library/LaunchDaemons/com.coldwaterkim.caddy.plist
 ```
 
+launchd 설정 파일만 먼저 점검:
+
+```bash
+npm run qa:launchd:tooling
+```
+
 QA:
 
 - `npm run qa:service-smoke:local` 통과
+- `npm run qa:launchd:tooling` 통과
 - `/api/health`가 200
 - `/` 홈 렌더링
 - `/posts/`, `/daily/`, `/programs/`, `/nasajab/`, `/guestbook.html`, `/about.html` 직접 URL 200
@@ -175,6 +182,7 @@ HOME_SERVER_LAN_IP=192.168.0.11 HOME_SERVER_PUBLIC_IP=<집-공인-IP> npm run qa
 ```bash
 npm run build:imac
 npm run qa:cutover
+npm run qa:launchd
 ```
 
 실제 운영 데이터까지 포함해서 검증:
@@ -195,6 +203,7 @@ QA:
 - `HOME_SERVER_LAN_IP`가 아이맥의 실제 LAN IP와 일치
 - `HOME_SERVER_PUBLIC_IP`가 DNS에 넣을 공인 IPv4
 - `/usr/local/bin/caddy` 운영 바이너리 설치
+- `npm run qa:launchd` 통과
 - `npm run qa:network-preflight` 통과
 - 외부에서 HTTPS 인증서 정상
 - `/api/health` 200
@@ -227,6 +236,7 @@ ls -lh ~/Backups/coldwaterkim-pocketbase/pb_data_*.tar.gz
 shasum -a 256 -c ~/Backups/coldwaterkim-pocketbase/pb_data_*.tar.gz.sha256
 tar -tzf "$(ls -t ~/Backups/coldwaterkim-pocketbase/pb_data_*.tar.gz | head -1)" >/dev/null
 npm run qa:hardening
+npm run qa:launchd
 ```
 
 완료 기준:
@@ -236,3 +246,4 @@ npm run qa:hardening
 - `shasum -a 256 -c` 통과
 - `tar -tzf` 통과
 - `npm run qa:hardening` 통과
+- `npm run qa:launchd` 통과

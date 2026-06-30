@@ -44,12 +44,15 @@ function verifyPackageScripts() {
   const packageJson = JSON.parse(readText('package.json'));
   const scripts = packageJson.scripts || {};
   requireCondition('package script qa:hardening', Boolean(scripts['qa:hardening']), scripts['qa:hardening'] || 'missing');
+  requireCondition('package script qa:launchd', Boolean(scripts['qa:launchd']), scripts['qa:launchd'] || 'missing');
+  requireCondition('package script qa:launchd:tooling', Boolean(scripts['qa:launchd:tooling']), scripts['qa:launchd:tooling'] || 'missing');
 }
 
 function verifyBackupScript() {
   const scriptPath = path.join(root, 'deploy/imac/backup-pocketbase.sh');
   const script = readText('deploy/imac/backup-pocketbase.sh');
 
+  requireCondition('launchd verifier exists', fs.existsSync(path.join(root, 'scripts/verify-imac-launchd.mjs')));
   requireCondition('backup script executable', isExecutable(scriptPath));
   try {
     run('bash', ['-n', 'deploy/imac/backup-pocketbase.sh']);

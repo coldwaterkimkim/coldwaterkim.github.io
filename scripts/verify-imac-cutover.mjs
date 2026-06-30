@@ -98,6 +98,8 @@ function verifyPackageScripts() {
   for (const name of [
     'build:imac',
     'qa:home-server',
+    'qa:launchd',
+    'qa:launchd:tooling',
     'pb:rehearse:production',
     'pb:verify:data',
     'qa:cutover',
@@ -150,6 +152,7 @@ function verifyPlists() {
 function verifyLocalArtifacts(profile) {
   const hasDist = fileExists('dist/index.html');
   requireCondition('dist/index.html exists', hasDist, hasDist ? '' : 'run build:imac first');
+  requireCondition('launchd verifier exists', fileExists('scripts/verify-imac-launchd.mjs'));
   requireCondition('service smoke verifier exists', fileExists('scripts/verify-imac-service-smoke.mjs'));
   requireCondition('local PocketBase binary executable', isExecutable(path.join(root, '.local-bin', 'pocketbase')));
   requireCondition('local Caddy binary executable', isExecutable(path.join(root, '.local-bin', 'caddy')));
