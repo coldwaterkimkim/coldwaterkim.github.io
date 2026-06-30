@@ -20,6 +20,7 @@
     "imac:install-services:dry-run": "bash deploy/imac/install-launchd-services.sh --dry-run",
     "pb:backup:production": "node scripts/pocketbase-remote-backup.mjs",
     "pb:configure:production": "bash deploy/imac/configure-pocketbase-admin-env.sh",
+    "pb:export:public": "node scripts/pocketbase-public-export.mjs",
     "pb:preflight:production": "node scripts/verify-production-readiness.mjs",
     "pb:oracle-reset-command": "node scripts/print-oracle-superuser-reset-command.mjs",
     "pb:rehearse:backup": "node scripts/rehearse-pocketbase-backup.mjs",
