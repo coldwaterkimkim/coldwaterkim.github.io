@@ -129,6 +129,12 @@ PocketBase superuser도 모르고 SSH/Browser SSH도 막힌 상태에서는 운�
 npm run pb:oracle-boot-volume-backup-command
 ```
 
+Cloud Shell 붙여넣기가 길어서 불안정하면 짧은 `curl` 버전을 쓴다.
+
+```bash
+npm run pb:oracle-boot-volume-backup-curl-command
+```
+
 첫 실행은 inspect-only라서 인스턴스/부트볼륨 정보만 보여주고 OCI 리소스를 만들지 않는다. 출력된 `CREATE_BACKUP=1 ...` 명령을 Cloud Shell에서 다시 실행하면 FULL boot volume backup을 만든다.
 
 주의:
