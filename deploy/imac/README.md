@@ -29,6 +29,7 @@ npm run qa:migration-freeze
 
 Rollback 기준:
 
+- DNS 변경 직전 `npm run cutover:snapshot`으로 기존 DNS/HTTP 응답/현재 Git HEAD를 `migration_backups/cutover/`에 남긴다.
 - DNS를 기존 GitHub Pages/Oracle API 레코드로 되돌린다.
 - 기존 Oracle PocketBase를 끄지 않고 최소 7일 유지한다.
 - iMac `pb_data`에 문제가 있으면 마지막 운영 백업으로 교체한다.
@@ -183,6 +184,9 @@ npm run pb:rehearse:backup -- migration_backups/pocketbase/<backup-name>.zip --s
 공유기/DNS 변경 직전 사전점검:
 
 ```bash
+npm run cutover:snapshot:dry-run
+npm run cutover:snapshot
+npm run qa:rollback
 HOME_SERVER_LAN_IP=192.168.0.11 HOME_SERVER_PUBLIC_IP=<집-공인-IP> npm run qa:network-preflight
 ```
 
@@ -212,6 +216,7 @@ QA:
 
 - `HOME_SERVER_LAN_IP`가 아이맥의 실제 LAN IP와 일치
 - `HOME_SERVER_PUBLIC_IP`가 DNS에 넣을 공인 IPv4
+- `migration_backups/cutover/cutover-snapshot-*.json`에 기존 DNS A record와 공개 route 응답이 남아 있음
 - `/usr/local/bin/caddy` 운영 바이너리 설치
 - `npm run qa:launchd` 통과
 - `npm run qa:network-preflight` 통과

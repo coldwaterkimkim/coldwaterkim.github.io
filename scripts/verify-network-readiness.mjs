@@ -96,7 +96,14 @@ function localIPv4s() {
 function verifyPackageScripts() {
   const packageJson = JSON.parse(readText('package.json'));
   const scripts = packageJson.scripts || {};
-  for (const name of ['qa:network-preflight', 'qa:network-readiness', 'qa:cutover:network']) {
+  for (const name of [
+    'cutover:snapshot',
+    'cutover:snapshot:dry-run',
+    'qa:rollback',
+    'qa:network-preflight',
+    'qa:network-readiness',
+    'qa:cutover:network',
+  ]) {
     requireCondition(`package script ${name}`, Boolean(scripts[name]), scripts[name] || 'missing');
   }
 }
@@ -124,6 +131,8 @@ function verifyStaticConfig() {
 
 function verifyReadme() {
   const readme = readText('deploy/imac/README.md');
+  requireCondition('README documents cutover snapshot', readme.includes('npm run cutover:snapshot'));
+  requireCondition('README documents rollback QA', readme.includes('npm run qa:rollback'));
   requireCondition('README documents LAN IP env', readme.includes('HOME_SERVER_LAN_IP'));
   requireCondition('README documents public IP env', readme.includes('HOME_SERVER_PUBLIC_IP'));
   requireCondition('README documents network preflight', readme.includes('npm run qa:network-preflight'));

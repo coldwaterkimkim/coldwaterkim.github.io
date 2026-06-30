@@ -9,6 +9,8 @@
     "dev:live-cms": "VITE_CMS_TARGET=live vite --host 127.0.0.1",
     "build": "vite build",
     "build:imac": "VITE_CMS_TARGET=same-origin vite build",
+    "cutover:snapshot": "node scripts/capture-cutover-snapshot.mjs",
+    "cutover:snapshot:dry-run": "node scripts/capture-cutover-snapshot.mjs --dry-run --allow-network-failures",
     "imac:install-services": "bash deploy/imac/install-launchd-services.sh",
     "imac:install-services:dry-run": "bash deploy/imac/install-launchd-services.sh --dry-run",
     "pb:backup:production": "node scripts/pocketbase-remote-backup.mjs",
@@ -27,6 +29,7 @@
     "qa:network-preflight": "node scripts/verify-network-readiness.mjs",
     "qa:network-readiness": "node scripts/verify-network-readiness.mjs --allow-missing-live",
     "qa:production-readiness": "node scripts/verify-production-readiness.mjs --allow-missing-env",
+    "qa:rollback": "node scripts/verify-cutover-rollback.mjs",
     "qa:service-smoke": "node scripts/verify-imac-service-smoke.mjs",
     "qa:service-smoke:local": "node scripts/verify-imac-service-smoke.mjs --origin http://127.0.0.1:18081",
     "preview": "vite preview"

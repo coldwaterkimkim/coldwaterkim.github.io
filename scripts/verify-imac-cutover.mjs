@@ -97,9 +97,12 @@ function verifyPackageScripts() {
   const scripts = packageJson.scripts || {};
   for (const name of [
     'build:imac',
+    'cutover:snapshot',
+    'cutover:snapshot:dry-run',
     'qa:home-server',
     'qa:launchd',
     'qa:launchd:tooling',
+    'qa:rollback',
     'pb:rehearse:production',
     'pb:verify:data',
     'qa:cutover',
