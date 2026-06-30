@@ -114,6 +114,9 @@ function verifyPackageScripts() {
   for (const name of [
     'imac:install-services',
     'imac:install-services:dry-run',
+    'imac:install-caddy',
+    'imac:install-caddy:no-start',
+    'imac:install-caddy:dry-run',
     'qa:launchd',
     'qa:launchd:tooling',
   ]) {
@@ -134,6 +137,7 @@ function verifyInstallerScript() {
   requireCondition('launchd installer supports dry run', script.includes('--dry-run'));
   requireCondition('launchd installer supports no-start mode', script.includes('--no-start'));
   requireCondition('launchd installer protects normal user launchd setup', script.includes('Run this as the normal iMac user'));
+  requireCondition('launchd installer supports Caddy-only mode', script.includes('--caddy-only'));
   requireCondition('launchd installer defines runtime root', script.includes('RUNTIME_ROOT="${IMAC_RUNTIME_ROOT:-$HOME/.local/share/coldwaterkim/home-server}"'));
   requireCondition('launchd installer syncs runtime dist', script.includes('ditto "$LOCAL_DIST" "$RUNTIME_DIST"'));
   requireCondition('launchd installer syncs runtime migrations', script.includes('ditto "$LOCAL_MIGRATIONS" "$RUNTIME_MIGRATIONS"'));
@@ -164,6 +168,32 @@ function verifyInstallerScript() {
     requireCondition('launchd installer dry-run previews Caddy daemon install', dryRun.output.includes('/Library/LaunchDaemons/com.coldwaterkim.caddy.plist'));
     requireCondition('launchd installer dry-run previews Caddy binary install', dryRun.output.includes('/usr/local/bin/caddy'));
     requireCondition('launchd installer dry-run changes nothing', dryRun.output.includes('Dry run only. No files were changed.'));
+  }
+
+  const caddyDryRun = run('bash', [relativePath, '--dry-run', '--no-start', '--caddy-only'], { allowFailure: true });
+  requireCondition('Caddy-only installer dry-run succeeds', caddyDryRun.ok, caddyDryRun.output);
+  if (caddyDryRun.ok) {
+    requireCondition('Caddy-only dry-run previews Caddy binary install', caddyDryRun.output.includes('/usr/local/bin/caddy'));
+    requireCondition('Caddy-only dry-run previews Caddy daemon install', caddyDryRun.output.includes('/Library/LaunchDaemons/com.coldwaterkim.caddy.plist'));
+    requireCondition('Caddy-only dry-run skips PocketBase plist install', !caddyDryRun.output.includes('com.coldwaterkim.pocketbase.plist'));
+  }
+
+  const caddyCommand = path.join(root, 'deploy/imac/run-caddy-system-install.command');
+  requireCondition('Caddy system install command exists', fs.existsSync(caddyCommand), 'deploy/imac/run-caddy-system-install.command');
+  if (fs.existsSync(caddyCommand)) {
+    try {
+      fs.accessSync(caddyCommand, fs.constants.X_OK);
+      record('Caddy system install command executable', true);
+    } catch {
+      record('Caddy system install command executable', false, 'deploy/imac/run-caddy-system-install.command');
+    }
+
+    try {
+      run('bash', ['-n', 'deploy/imac/run-caddy-system-install.command']);
+      record('Caddy system install command shell syntax', true);
+    } catch (error) {
+      record('Caddy system install command shell syntax', false, error.message);
+    }
   }
 }
 

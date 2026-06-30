@@ -4,18 +4,20 @@ set -euo pipefail
 DRY_RUN=0
 NO_START=0
 SKIP_CADDY=0
+CADDY_ONLY=0
 
 usage() {
     cat <<'USAGE'
 Install coldwaterkim.com launchd services on the iMac.
 
 Usage:
-  bash deploy/imac/install-launchd-services.sh [--dry-run] [--no-start] [--skip-caddy]
+  bash deploy/imac/install-launchd-services.sh [--dry-run] [--no-start] [--skip-caddy] [--caddy-only]
 
 Options:
   --dry-run     Print the install/bootstrap commands without changing files.
   --no-start    Install plist files but do not bootstrap or kickstart launchd jobs.
   --skip-caddy  Install only user LaunchAgents for PocketBase and backups.
+  --caddy-only  Install only the Caddy runtime, binary, and LaunchDaemon.
 USAGE
 }
 
@@ -30,6 +32,9 @@ while (($#)); do
         --skip-caddy)
             SKIP_CADDY=1
             ;;
+        --caddy-only)
+            CADDY_ONLY=1
+            ;;
         -h|--help)
             usage
             exit 0
@@ -42,6 +47,11 @@ while (($#)); do
     esac
     shift
 done
+
+if [[ "$CADDY_ONLY" -eq 1 && "$SKIP_CADDY" -eq 1 ]]; then
+    echo "--caddy-only and --skip-caddy cannot be used together." >&2
+    exit 2
+fi
 
 if [[ "$(uname -s)" != "Darwin" ]]; then
     echo "This installer is intended for macOS launchd only." >&2
@@ -167,6 +177,13 @@ sync_runtime_files() {
     run_cmd install -m 755 "$LOCAL_BACKUP_SCRIPT" "$RUNTIME_BACKUP_SCRIPT"
 }
 
+sync_caddy_runtime_files() {
+    run_cmd mkdir -p "$RUNTIME_BIN_DIR" "$LOG_DIR"
+    run_cmd install -m 755 "$LOCAL_CADDY" "$RUNTIME_CADDY"
+    run_cmd ditto "$LOCAL_DIST" "$RUNTIME_DIST"
+    run_cmd install -m 644 "$LOCAL_CADDYFILE" "$RUNTIME_CADDYFILE"
+}
+
 install_user_agent() {
     local label="$1"
     local source_plist="$2"
@@ -197,20 +214,35 @@ install_caddy_daemon() {
     run_sudo_cmd launchctl kickstart -k "system/${CADDY_LABEL}"
 }
 
-require_file "$PB_PLIST_SRC"
 require_file "$CADDY_PLIST_SRC"
-require_file "$BACKUP_PLIST_SRC"
 require_file "$LOCAL_CADDYFILE"
-require_file "$LOCAL_BACKUP_SCRIPT"
 require_dir "$LOCAL_DIST"
-require_dir "$LOCAL_MIGRATIONS"
-require_executable "$LOCAL_POCKETBASE"
 if [[ "$SKIP_CADDY" -eq 0 ]]; then
     require_executable "$LOCAL_CADDY"
 fi
 
-lint_plist "$PB_PLIST_SRC"
 lint_plist "$CADDY_PLIST_SRC"
+
+if [[ "$CADDY_ONLY" -eq 1 ]]; then
+    sync_caddy_runtime_files
+    install_caddy_daemon
+
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+        echo "Dry run only. No files were changed."
+    else
+        echo "Installed coldwaterkim.com Caddy system service."
+        echo "Next: npm run qa:network-preflight && npm run qa:launchd"
+    fi
+    exit 0
+fi
+
+require_file "$PB_PLIST_SRC"
+require_file "$BACKUP_PLIST_SRC"
+require_file "$LOCAL_BACKUP_SCRIPT"
+require_dir "$LOCAL_MIGRATIONS"
+require_executable "$LOCAL_POCKETBASE"
+
+lint_plist "$PB_PLIST_SRC"
 lint_plist "$BACKUP_PLIST_SRC"
 
 sync_runtime_files
