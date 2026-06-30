@@ -93,6 +93,18 @@ curl https://api.coldwaterkim.com/api/health
 sudo -u pocketbase /home/pocketbase/pocketbase superuser upsert YOUR_EMAIL YOUR_PASSWORD --dir /home/pocketbase/pb_data
 ```
 
+이미 운영 중인 VM에서 superuser 이메일/비밀번호를 잊었으면 repo가 있는 서버 터미널에서 아래 스크립트를 실행한다. 비밀번호는 프롬프트로 입력되며 shell history에 남지 않는다.
+
+```bash
+deploy/oracle/reset-pocketbase-superuser.sh
+```
+
+Oracle Console Browser SSH처럼 서버에 repo가 없는 터미널만 열 수 있을 때는, 아이맥 로컬 repo에서 아래 명령을 실행한 뒤 출력된 전체 shell block을 VM 터미널에 붙여넣는다.
+
+```bash
+npm run pb:oracle-reset-command
+```
+
 그 다음:
 
 1. `https://api.coldwaterkim.com/_/` 접속

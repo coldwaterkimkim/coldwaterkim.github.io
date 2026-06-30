@@ -99,6 +99,7 @@ function verifyPackageScripts() {
   for (const name of [
     'pb:backup:production',
     'pb:configure:production',
+    'pb:oracle-reset-command',
     'pb:preflight:production',
     'pb:rehearse:production',
     'pb:verify:data',
@@ -114,6 +115,7 @@ function verifyPackageScripts() {
 function verifyToolingFiles() {
   for (const file of [
     'scripts/pocketbase-remote-backup.mjs',
+    'scripts/print-oracle-superuser-reset-command.mjs',
     'scripts/rehearse-pocketbase-backup.mjs',
     'scripts/verify-migration-freeze.mjs',
     'scripts/verify-pocketbase-data.mjs',
@@ -179,6 +181,30 @@ function verifyToolingFiles() {
       record('Oracle superuser reset shell syntax', true);
     } catch (error) {
       record('Oracle superuser reset shell syntax', false, error.message);
+    }
+  }
+
+  const resetCommand = path.join(root, 'scripts/print-oracle-superuser-reset-command.mjs');
+  if (fs.existsSync(resetCommand)) {
+    try {
+      run(process.execPath, ['--check', 'scripts/print-oracle-superuser-reset-command.mjs']);
+      record('Oracle reset command generator syntax', true);
+    } catch (error) {
+      record('Oracle reset command generator syntax', false, error.message);
+    }
+
+    try {
+      const output = run(process.execPath, ['scripts/print-oracle-superuser-reset-command.mjs']);
+      requireCondition(
+        'Oracle reset command generator embeds reset script',
+        output.includes('superuser upsert') && output.includes('PocketBase superuser email'),
+      );
+      requireCondition(
+        'Oracle reset command generator avoids stored credentials',
+        !output.includes('PB_ADMIN_PASSWORD') && !output.includes('PB_ADMIN_EMAIL'),
+      );
+    } catch (error) {
+      record('Oracle reset command generator output', false, error.message);
     }
   }
 }
@@ -260,12 +286,14 @@ function verifyAdminEnv() {
 
 function verifyReadme() {
   const readme = readText('deploy/imac/README.md');
+  const oracleReadme = readText('deploy/oracle/README.md');
   requireCondition('README documents env template', readme.includes('pocketbase-admin.env.example'));
   requireCondition('README documents production preflight', readme.includes('npm run pb:preflight:production'));
   requireCondition('README documents migration go/no-go QA', readme.includes('npm run qa:migration-go'));
   requireCondition('README documents readiness QA', readme.includes('npm run qa:production-readiness'));
   requireCondition('README documents interactive production gates', readme.includes('run-interactive-production-gates.command'));
   requireCondition('README documents superuser recovery', readme.includes('reset-pocketbase-superuser.sh'));
+  requireCondition('Oracle README documents paste reset command', oracleReadme.includes('pb:oracle-reset-command'));
 }
 
 function printSummary() {

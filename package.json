@@ -18,6 +18,7 @@
     "pb:backup:production": "node scripts/pocketbase-remote-backup.mjs",
     "pb:configure:production": "bash deploy/imac/configure-pocketbase-admin-env.sh",
     "pb:preflight:production": "node scripts/verify-production-readiness.mjs",
+    "pb:oracle-reset-command": "node scripts/print-oracle-superuser-reset-command.mjs",
     "pb:rehearse:backup": "node scripts/rehearse-pocketbase-backup.mjs",
     "pb:rehearse:production": "node scripts/rehearse-pocketbase-backup.mjs --download --schema pb_schema.json",
     "pb:verify:data": "node scripts/verify-pocketbase-data.mjs",
