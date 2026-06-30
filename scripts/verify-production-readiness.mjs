@@ -118,6 +118,7 @@ function verifyToolingFiles() {
     'scripts/verify-migration-freeze.mjs',
     'scripts/verify-pocketbase-data.mjs',
     'deploy/imac/configure-pocketbase-admin-env.sh',
+    'deploy/imac/run-interactive-production-gates.command',
     'deploy/imac/restore-pocketbase-backup.sh',
     'deploy/imac/pocketbase-admin.env.example',
     'pb_schema.json',
@@ -143,6 +144,23 @@ function verifyToolingFiles() {
       record('local PocketBase binary executable', true);
     } catch {
       record('local PocketBase binary executable', false, '.local-bin/pocketbase');
+    }
+  }
+
+  const interactiveGates = path.join(root, 'deploy/imac/run-interactive-production-gates.command');
+  if (fs.existsSync(interactiveGates)) {
+    try {
+      fs.accessSync(interactiveGates, fs.constants.X_OK);
+      record('interactive production gates executable', true);
+    } catch {
+      record('interactive production gates executable', false, 'deploy/imac/run-interactive-production-gates.command');
+    }
+
+    try {
+      run('bash', ['-n', 'deploy/imac/run-interactive-production-gates.command']);
+      record('interactive production gates shell syntax', true);
+    } catch (error) {
+      record('interactive production gates shell syntax', false, error.message);
     }
   }
 }
@@ -228,6 +246,7 @@ function verifyReadme() {
   requireCondition('README documents production preflight', readme.includes('npm run pb:preflight:production'));
   requireCondition('README documents migration go/no-go QA', readme.includes('npm run qa:migration-go'));
   requireCondition('README documents readiness QA', readme.includes('npm run qa:production-readiness'));
+  requireCondition('README documents interactive production gates', readme.includes('run-interactive-production-gates.command'));
 }
 
 function printSummary() {

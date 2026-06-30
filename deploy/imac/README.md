@@ -141,6 +141,12 @@ npm run qa:production-readiness
 npm run pb:preflight:production
 ```
 
+채팅에 비밀값을 남기지 않기 위해, 아이맥에서는 아래 파일을 Finder에서 열거나 터미널에서 실행해 로컬 입력 단계를 진행할 수 있다.
+
+```bash
+open deploy/imac/run-interactive-production-gates.command
+```
+
 운영 백업 생성/다운로드:
 
 ```bash
