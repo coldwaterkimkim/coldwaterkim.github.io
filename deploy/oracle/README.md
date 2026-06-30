@@ -119,6 +119,25 @@ npm run pb:oracle-reset-command
 cat ~/.config/coldwaterkim/pocketbase-admin.env
 ```
 
+## VM 로그인도 막혔을 때의 부트볼륨 백업 fallback
+
+PocketBase superuser도 모르고 SSH/Browser SSH도 막힌 상태에서는 운영 VM을 바로 재부팅하기 전에 부트볼륨 백업을 먼저 만든다. 이 경로는 운영 인스턴스를 계속 켜둔 채 저장장치 레벨의 fallback을 확보하는 용도다.
+
+아이맥 로컬 repo에서 아래 명령을 실행하고, 출력된 전체 shell block을 Oracle Cloud Shell에 붙여넣는다.
+
+```bash
+npm run pb:oracle-boot-volume-backup-command
+```
+
+첫 실행은 inspect-only라서 인스턴스/부트볼륨 정보만 보여주고 OCI 리소스를 만들지 않는다. 출력된 `CREATE_BACKUP=1 ...` 명령을 Cloud Shell에서 다시 실행하면 FULL boot volume backup을 만든다.
+
+주의:
+
+- 이건 PocketBase의 논리 백업 ZIP이 아니다.
+- 운영 중인 디스크 백업은 crash-consistent일 수 있다.
+- 백업 스토리지는 과금 대상이 될 수 있으니 Oracle 예산/무료 한도를 먼저 확인한다.
+- 백업 생성 후에는 임시 복구 볼륨/헬퍼 VM에 붙여 `/home/pocketbase/pb_data`를 복사하고, 아이맥에서 `npm run pb:verify:data -- <copied-pb-data> --schema pb_schema.json`로 검증한다.
+
 ## 백업
 
 설치 스크립트는 `/home/pocketbase/backup.sh`를 복사한다.

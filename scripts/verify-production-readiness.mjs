@@ -99,6 +99,7 @@ function verifyPackageScripts() {
   for (const name of [
     'pb:backup:production',
     'pb:configure:production',
+    'pb:oracle-boot-volume-backup-command',
     'pb:oracle-reset-command',
     'pb:preflight:production',
     'pb:rehearse:production',
@@ -115,12 +116,14 @@ function verifyPackageScripts() {
 function verifyToolingFiles() {
   for (const file of [
     'scripts/pocketbase-remote-backup.mjs',
+    'scripts/print-oracle-boot-volume-backup-command.mjs',
     'scripts/print-oracle-superuser-reset-command.mjs',
     'scripts/rehearse-pocketbase-backup.mjs',
     'scripts/verify-migration-freeze.mjs',
     'scripts/verify-pocketbase-data.mjs',
     'deploy/imac/configure-pocketbase-admin-env.sh',
     'deploy/imac/run-interactive-production-gates.command',
+    'deploy/oracle/create-boot-volume-backup.sh',
     'deploy/oracle/reset-pocketbase-superuser.sh',
     'deploy/imac/restore-pocketbase-backup.sh',
     'deploy/imac/pocketbase-admin.env.example',
@@ -205,6 +208,47 @@ function verifyToolingFiles() {
       );
     } catch (error) {
       record('Oracle reset command generator output', false, error.message);
+    }
+  }
+
+  const bootVolumeBackup = path.join(root, 'deploy/oracle/create-boot-volume-backup.sh');
+  if (fs.existsSync(bootVolumeBackup)) {
+    try {
+      fs.accessSync(bootVolumeBackup, fs.constants.X_OK);
+      record('Oracle boot volume backup executable', true);
+    } catch {
+      record('Oracle boot volume backup executable', false, 'deploy/oracle/create-boot-volume-backup.sh');
+    }
+
+    try {
+      run('bash', ['-n', 'deploy/oracle/create-boot-volume-backup.sh']);
+      record('Oracle boot volume backup shell syntax', true);
+    } catch (error) {
+      record('Oracle boot volume backup shell syntax', false, error.message);
+    }
+  }
+
+  const bootVolumeBackupCommand = path.join(root, 'scripts/print-oracle-boot-volume-backup-command.mjs');
+  if (fs.existsSync(bootVolumeBackupCommand)) {
+    try {
+      run(process.execPath, ['--check', 'scripts/print-oracle-boot-volume-backup-command.mjs']);
+      record('Oracle boot volume backup command generator syntax', true);
+    } catch (error) {
+      record('Oracle boot volume backup command generator syntax', false, error.message);
+    }
+
+    try {
+      const output = run(process.execPath, ['scripts/print-oracle-boot-volume-backup-command.mjs']);
+      requireCondition(
+        'Oracle boot volume backup command embeds OCI backup flow',
+        output.includes('boot-volume-backup create') && output.includes('CREATE_BACKUP=1'),
+      );
+      requireCondition(
+        'Oracle boot volume backup command avoids credentials',
+        !output.includes('PB_ADMIN_PASSWORD') && !output.includes('PB_ADMIN_EMAIL'),
+      );
+    } catch (error) {
+      record('Oracle boot volume backup command output', false, error.message);
     }
   }
 }
@@ -294,6 +338,10 @@ function verifyReadme() {
   requireCondition('README documents interactive production gates', readme.includes('run-interactive-production-gates.command'));
   requireCondition('README documents superuser recovery', readme.includes('reset-pocketbase-superuser.sh'));
   requireCondition('Oracle README documents paste reset command', oracleReadme.includes('pb:oracle-reset-command'));
+  requireCondition(
+    'Oracle README documents boot volume fallback',
+    oracleReadme.includes('pb:oracle-boot-volume-backup-command'),
+  );
 }
 
 function printSummary() {
