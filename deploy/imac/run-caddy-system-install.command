@@ -14,7 +14,10 @@ the public 80/443 service yet. Start Caddy only after DNS/router cutover is
 ready.
 
 You will be asked for the macOS administrator password by sudo.
+Password input is hidden while typing; press Return after typing it.
 EOF
+
+sudo -v
 
 bash deploy/imac/install-launchd-services.sh --caddy-only --no-start
 

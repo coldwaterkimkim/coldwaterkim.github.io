@@ -181,6 +181,10 @@ function verifyInstallerScript() {
   const caddyCommand = path.join(root, 'deploy/imac/run-caddy-system-install.command');
   requireCondition('Caddy system install command exists', fs.existsSync(caddyCommand), 'deploy/imac/run-caddy-system-install.command');
   if (fs.existsSync(caddyCommand)) {
+    const caddyCommandText = readText('deploy/imac/run-caddy-system-install.command');
+    requireCondition('Caddy system install command preflights sudo', caddyCommandText.includes('sudo -v'));
+    requireCondition('Caddy system install command explains hidden password input', caddyCommandText.includes('Password input is hidden'));
+
     try {
       fs.accessSync(caddyCommand, fs.constants.X_OK);
       record('Caddy system install command executable', true);
