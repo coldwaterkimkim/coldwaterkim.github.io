@@ -98,6 +98,7 @@ function verifyPackageScripts() {
   const scripts = packageJson.scripts || {};
   for (const name of [
     'pb:backup:production',
+    'pb:configure:production',
     'pb:preflight:production',
     'pb:rehearse:production',
     'pb:verify:data',
@@ -112,6 +113,7 @@ function verifyToolingFiles() {
     'scripts/pocketbase-remote-backup.mjs',
     'scripts/rehearse-pocketbase-backup.mjs',
     'scripts/verify-pocketbase-data.mjs',
+    'deploy/imac/configure-pocketbase-admin-env.sh',
     'deploy/imac/restore-pocketbase-backup.sh',
     'deploy/imac/pocketbase-admin.env.example',
     'pb_schema.json',
@@ -197,7 +199,11 @@ function verifyAdminEnv() {
 
   for (const key of ['PB_ADMIN_EMAIL', 'PB_ADMIN_PASSWORD']) {
     if (values[key]) {
-      requireCondition(`${key} is not a template placeholder`, !isPlaceholder(values[key]));
+      const placeholder = isPlaceholder(values[key]);
+      requireCondition(
+        placeholder && allowMissingEnv ? `${key} template placeholder allowed` : `${key} is not a template placeholder`,
+        allowMissingEnv || !placeholder,
+      );
     }
   }
 }
