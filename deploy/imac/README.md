@@ -70,6 +70,14 @@ sudo chown root:wheel /Library/LaunchDaemons/com.coldwaterkim.caddy.plist
 sudo launchctl bootstrap system /Library/LaunchDaemons/com.coldwaterkim.caddy.plist
 ```
 
+운영 launchd 설치/기동은 아래 스크립트로 한 번에 처리한다. `--dry-run`으로 복사/등록될 경로를 먼저 확인한 뒤 실제 설치한다.
+
+```bash
+npm run imac:install-services:dry-run
+npm run imac:install-services
+npm run qa:launchd
+```
+
 launchd 설정 파일만 먼저 점검:
 
 ```bash
@@ -80,6 +88,7 @@ QA:
 
 - `npm run qa:service-smoke:local` 통과
 - `npm run qa:launchd:tooling` 통과
+- `npm run imac:install-services:dry-run` 출력에 PocketBase/Caddy/백업 launchd 설치 경로가 모두 포함
 - `/api/health`가 200
 - `/` 홈 렌더링
 - `/posts/`, `/daily/`, `/programs/`, `/nasajab/`, `/guestbook.html`, `/about.html` 직접 URL 200
@@ -181,6 +190,7 @@ HOME_SERVER_LAN_IP=192.168.0.11 HOME_SERVER_PUBLIC_IP=<집-공인-IP> npm run qa
 
 ```bash
 npm run build:imac
+npm run imac:install-services:dry-run
 npm run qa:cutover
 npm run qa:launchd
 ```

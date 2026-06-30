@@ -110,8 +110,52 @@ function plistProgramArguments(plist) {
 function verifyPackageScripts() {
   const packageJson = JSON.parse(readText('package.json'));
   const scripts = packageJson.scripts || {};
-  for (const name of ['qa:launchd', 'qa:launchd:tooling']) {
+  for (const name of [
+    'imac:install-services',
+    'imac:install-services:dry-run',
+    'qa:launchd',
+    'qa:launchd:tooling',
+  ]) {
     requireCondition(`package script ${name}`, Boolean(scripts[name]), scripts[name] || 'missing');
+  }
+}
+
+function verifyInstallerScript() {
+  const relativePath = 'deploy/imac/install-launchd-services.sh';
+  const installerPath = path.join(root, relativePath);
+  requireCondition('launchd installer exists', fs.existsSync(installerPath), relativePath);
+  if (!fs.existsSync(installerPath)) return;
+
+  const stat = fs.statSync(installerPath);
+  requireCondition('launchd installer executable', Boolean(stat.mode & 0o111), relativePath);
+
+  const script = readText(relativePath);
+  requireCondition('launchd installer supports dry run', script.includes('--dry-run'));
+  requireCondition('launchd installer supports no-start mode', script.includes('--no-start'));
+  requireCondition('launchd installer protects normal user launchd setup', script.includes('Run this as the normal iMac user'));
+  requireCondition('launchd installer installs PocketBase LaunchAgent', script.includes('PB_LABEL="com.coldwaterkim.pocketbase"') && script.includes('USER_AGENT_DIR="$HOME/Library/LaunchAgents"'));
+  requireCondition('launchd installer installs backup LaunchAgent', script.includes('BACKUP_LABEL="com.coldwaterkim.pocketbase-backup"') && script.includes('USER_AGENT_DIR="$HOME/Library/LaunchAgents"'));
+  requireCondition('launchd installer installs Caddy LaunchDaemon', script.includes('/Library/LaunchDaemons'));
+  requireCondition('launchd installer installs root-owned Caddy binary', script.includes('/usr/local/bin/caddy') && script.includes('-o root -g wheel'));
+  requireCondition('launchd installer bootstraps user domain', script.includes('launchctl bootstrap "$USER_DOMAIN"'));
+  requireCondition('launchd installer bootstraps system domain', script.includes('launchctl bootstrap system'));
+  requireCondition('launchd installer kickstarts services', script.includes('launchctl kickstart -k'));
+
+  try {
+    run('bash', ['-n', relativePath]);
+    record('launchd installer shell syntax', true);
+  } catch (error) {
+    record('launchd installer shell syntax', false, error.message);
+  }
+
+  const dryRun = run('bash', [relativePath, '--dry-run', '--no-start'], { allowFailure: true });
+  requireCondition('launchd installer dry-run succeeds', dryRun.ok, dryRun.output);
+  if (dryRun.ok) {
+    requireCondition('launchd installer dry-run previews PocketBase plist install', dryRun.output.includes('com.coldwaterkim.pocketbase.plist'));
+    requireCondition('launchd installer dry-run previews backup plist install', dryRun.output.includes('com.coldwaterkim.pocketbase-backup.plist'));
+    requireCondition('launchd installer dry-run previews Caddy daemon install', dryRun.output.includes('/Library/LaunchDaemons/com.coldwaterkim.caddy.plist'));
+    requireCondition('launchd installer dry-run previews Caddy binary install', dryRun.output.includes('/usr/local/bin/caddy'));
+    requireCondition('launchd installer dry-run changes nothing', dryRun.output.includes('Dry run only. No files were changed.'));
   }
 }
 
@@ -208,6 +252,7 @@ function printSummary() {
 
 function main() {
   verifyPackageScripts();
+  verifyInstallerScript();
   for (const service of services) verifyStaticService(service);
   verifyLiveServices();
   printSummary();

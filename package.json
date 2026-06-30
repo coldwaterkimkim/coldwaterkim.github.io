@@ -9,6 +9,8 @@
     "dev:live-cms": "VITE_CMS_TARGET=live vite --host 127.0.0.1",
     "build": "vite build",
     "build:imac": "VITE_CMS_TARGET=same-origin vite build",
+    "imac:install-services": "bash deploy/imac/install-launchd-services.sh",
+    "imac:install-services:dry-run": "bash deploy/imac/install-launchd-services.sh --dry-run",
     "pb:backup:production": "node scripts/pocketbase-remote-backup.mjs",
     "pb:configure:production": "bash deploy/imac/configure-pocketbase-admin-env.sh",
     "pb:preflight:production": "node scripts/verify-production-readiness.mjs",
