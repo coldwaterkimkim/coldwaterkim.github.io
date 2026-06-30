@@ -57,6 +57,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 USER_ID="$(id -u)"
 USER_DOMAIN="gui/${USER_ID}"
+RUNTIME_ROOT="${IMAC_RUNTIME_ROOT:-$HOME/.local/share/coldwaterkim/home-server}"
+RUNTIME_BIN_DIR="$RUNTIME_ROOT/bin"
+RUNTIME_POCKETBASE="$RUNTIME_BIN_DIR/pocketbase"
+RUNTIME_CADDY="$RUNTIME_BIN_DIR/caddy"
+RUNTIME_CADDYFILE="$RUNTIME_ROOT/Caddyfile"
+RUNTIME_BACKUP_SCRIPT="$RUNTIME_ROOT/backup-pocketbase.sh"
+RUNTIME_DIST="$RUNTIME_ROOT/dist"
+RUNTIME_MIGRATIONS="$RUNTIME_ROOT/pb_migrations"
+RUNTIME_PB_DATA="$RUNTIME_ROOT/pb_data"
 
 PB_LABEL="com.coldwaterkim.pocketbase"
 CADDY_LABEL="com.coldwaterkim.caddy"
@@ -64,6 +73,10 @@ BACKUP_LABEL="com.coldwaterkim.pocketbase-backup"
 
 LOCAL_POCKETBASE="$REPO_ROOT/.local-bin/pocketbase"
 LOCAL_CADDY="$REPO_ROOT/.local-bin/caddy"
+LOCAL_DIST="$REPO_ROOT/dist"
+LOCAL_MIGRATIONS="$REPO_ROOT/pb_migrations"
+LOCAL_CADDYFILE="$REPO_ROOT/deploy/imac/Caddyfile"
+LOCAL_BACKUP_SCRIPT="$REPO_ROOT/deploy/imac/backup-pocketbase.sh"
 PB_PLIST_SRC="$REPO_ROOT/deploy/imac/${PB_LABEL}.plist"
 CADDY_PLIST_SRC="$REPO_ROOT/deploy/imac/${CADDY_LABEL}.plist"
 BACKUP_PLIST_SRC="$REPO_ROOT/deploy/imac/${BACKUP_LABEL}.plist"
@@ -120,6 +133,14 @@ require_file() {
     fi
 }
 
+require_dir() {
+    local dir="$1"
+    if [[ ! -d "$dir" ]]; then
+        echo "Missing required directory: $dir" >&2
+        exit 1
+    fi
+}
+
 require_executable() {
     local file="$1"
     if [[ ! -x "$file" ]]; then
@@ -132,6 +153,18 @@ require_executable() {
 lint_plist() {
     local file="$1"
     plutil -lint "$file" >/dev/null
+}
+
+sync_runtime_files() {
+    run_cmd mkdir -p "$RUNTIME_BIN_DIR" "$RUNTIME_PB_DATA"
+    run_cmd install -m 755 "$LOCAL_POCKETBASE" "$RUNTIME_POCKETBASE"
+    if [[ "$SKIP_CADDY" -eq 0 ]]; then
+        run_cmd install -m 755 "$LOCAL_CADDY" "$RUNTIME_CADDY"
+    fi
+    run_cmd ditto "$LOCAL_DIST" "$RUNTIME_DIST"
+    run_cmd ditto "$LOCAL_MIGRATIONS" "$RUNTIME_MIGRATIONS"
+    run_cmd install -m 644 "$LOCAL_CADDYFILE" "$RUNTIME_CADDYFILE"
+    run_cmd install -m 755 "$LOCAL_BACKUP_SCRIPT" "$RUNTIME_BACKUP_SCRIPT"
 }
 
 install_user_agent() {
@@ -152,7 +185,7 @@ install_user_agent() {
 
 install_caddy_daemon() {
     run_sudo_cmd mkdir -p /usr/local/bin /Library/LaunchDaemons
-    run_sudo_cmd install -m 755 -o root -g wheel "$LOCAL_CADDY" /usr/local/bin/caddy
+    run_sudo_cmd install -m 755 -o root -g wheel "$RUNTIME_CADDY" /usr/local/bin/caddy
     run_sudo_cmd install -m 644 -o root -g wheel "$CADDY_PLIST_SRC" "$CADDY_PLIST_DST"
 
     if [[ "$NO_START" -eq 1 ]]; then
@@ -167,6 +200,10 @@ install_caddy_daemon() {
 require_file "$PB_PLIST_SRC"
 require_file "$CADDY_PLIST_SRC"
 require_file "$BACKUP_PLIST_SRC"
+require_file "$LOCAL_CADDYFILE"
+require_file "$LOCAL_BACKUP_SCRIPT"
+require_dir "$LOCAL_DIST"
+require_dir "$LOCAL_MIGRATIONS"
 require_executable "$LOCAL_POCKETBASE"
 if [[ "$SKIP_CADDY" -eq 0 ]]; then
     require_executable "$LOCAL_CADDY"
@@ -176,7 +213,8 @@ lint_plist "$PB_PLIST_SRC"
 lint_plist "$CADDY_PLIST_SRC"
 lint_plist "$BACKUP_PLIST_SRC"
 
-run_cmd mkdir -p "$USER_AGENT_DIR" "$LOG_DIR" "$REPO_ROOT/pb_data"
+sync_runtime_files
+run_cmd mkdir -p "$USER_AGENT_DIR" "$LOG_DIR"
 install_user_agent "$PB_LABEL" "$PB_PLIST_SRC" "$PB_PLIST_DST"
 install_user_agent "$BACKUP_LABEL" "$BACKUP_PLIST_SRC" "$BACKUP_PLIST_DST"
 

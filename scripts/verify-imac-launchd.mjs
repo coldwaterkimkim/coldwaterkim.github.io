@@ -9,6 +9,7 @@ const args = process.argv.slice(2);
 const allowMissingLive = args.includes('--allow-missing-live');
 const checks = [];
 const uid = typeof process.getuid === 'function' ? process.getuid() : '';
+const runtimeRoot = path.join(os.homedir(), '.local', 'share', 'coldwaterkim', 'home-server');
 
 const services = [
   {
@@ -16,7 +17,7 @@ const services = [
     label: 'com.coldwaterkim.pocketbase',
     domain: uid === '' ? '' : `gui/${uid}`,
     plist: 'deploy/imac/com.coldwaterkim.pocketbase.plist',
-    expectedProgram: '.local-bin/pocketbase',
+    expectedProgram: path.join(runtimeRoot, 'bin', 'pocketbase'),
     logFiles: [
       '~/Library/Logs/coldwaterkim-pocketbase.log',
       '~/Library/Logs/coldwaterkim-pocketbase.err.log',
@@ -133,10 +134,14 @@ function verifyInstallerScript() {
   requireCondition('launchd installer supports dry run', script.includes('--dry-run'));
   requireCondition('launchd installer supports no-start mode', script.includes('--no-start'));
   requireCondition('launchd installer protects normal user launchd setup', script.includes('Run this as the normal iMac user'));
+  requireCondition('launchd installer defines runtime root', script.includes('RUNTIME_ROOT="${IMAC_RUNTIME_ROOT:-$HOME/.local/share/coldwaterkim/home-server}"'));
+  requireCondition('launchd installer syncs runtime dist', script.includes('ditto "$LOCAL_DIST" "$RUNTIME_DIST"'));
+  requireCondition('launchd installer syncs runtime migrations', script.includes('ditto "$LOCAL_MIGRATIONS" "$RUNTIME_MIGRATIONS"'));
+  requireCondition('launchd installer syncs runtime backup script', script.includes('install -m 755 "$LOCAL_BACKUP_SCRIPT" "$RUNTIME_BACKUP_SCRIPT"'));
   requireCondition('launchd installer installs PocketBase LaunchAgent', script.includes('PB_LABEL="com.coldwaterkim.pocketbase"') && script.includes('USER_AGENT_DIR="$HOME/Library/LaunchAgents"'));
   requireCondition('launchd installer installs backup LaunchAgent', script.includes('BACKUP_LABEL="com.coldwaterkim.pocketbase-backup"') && script.includes('USER_AGENT_DIR="$HOME/Library/LaunchAgents"'));
   requireCondition('launchd installer installs Caddy LaunchDaemon', script.includes('/Library/LaunchDaemons'));
-  requireCondition('launchd installer installs root-owned Caddy binary', script.includes('/usr/local/bin/caddy') && script.includes('-o root -g wheel'));
+  requireCondition('launchd installer installs root-owned Caddy binary', script.includes('/usr/local/bin/caddy') && script.includes('"$RUNTIME_CADDY"') && script.includes('-o root -g wheel'));
   requireCondition('launchd installer bootstraps user domain', script.includes('launchctl bootstrap "$USER_DOMAIN"'));
   requireCondition('launchd installer bootstraps system domain', script.includes('launchctl bootstrap system'));
   requireCondition('launchd installer kickstarts services', script.includes('launchctl kickstart -k'));
@@ -153,6 +158,9 @@ function verifyInstallerScript() {
   if (dryRun.ok) {
     requireCondition('launchd installer dry-run previews PocketBase plist install', dryRun.output.includes('com.coldwaterkim.pocketbase.plist'));
     requireCondition('launchd installer dry-run previews backup plist install', dryRun.output.includes('com.coldwaterkim.pocketbase-backup.plist'));
+    requireCondition('launchd installer dry-run previews runtime root', dryRun.output.includes(runtimeRoot));
+    requireCondition('launchd installer dry-run previews runtime dist sync', dryRun.output.includes(`${runtimeRoot}/dist`));
+    requireCondition('launchd installer dry-run previews runtime migrations sync', dryRun.output.includes(`${runtimeRoot}/pb_migrations`));
     requireCondition('launchd installer dry-run previews Caddy daemon install', dryRun.output.includes('/Library/LaunchDaemons/com.coldwaterkim.caddy.plist'));
     requireCondition('launchd installer dry-run previews Caddy binary install', dryRun.output.includes('/usr/local/bin/caddy'));
     requireCondition('launchd installer dry-run changes nothing', dryRun.output.includes('Dry run only. No files were changed.'));
@@ -176,10 +184,8 @@ function verifyStaticService(service) {
 
   const args = plistProgramArguments(plist);
   const program = args[0] || '';
-  const expectedProgram = service.expectedProgram.startsWith('.')
-    ? path.join(root, service.expectedProgram)
-    : service.expectedProgram;
-  requireCondition(`${service.name} program path set`, program === expectedProgram, program || 'missing');
+  requireCondition(`${service.name} program path set`, program === service.expectedProgram, program || 'missing');
+  requireCondition(`${service.name} launchd avoids Documents TCC path`, !plist.includes('/Documents/'));
 
   for (const logFile of service.logFiles) {
     requireCondition(`${service.name} logs to ${logFile}`, plist.includes(expandHome(logFile)), logFile);
@@ -187,17 +193,17 @@ function verifyStaticService(service) {
 
   if (service.label === 'com.coldwaterkim.pocketbase') {
     requireCondition('PocketBase launchd binds localhost', plist.includes('--http=127.0.0.1:8090'));
-    requireCondition('PocketBase launchd uses pb_data', plist.includes(`${root}/pb_data`));
-    requireCondition('PocketBase launchd uses repo migrations', plist.includes(`${root}/pb_migrations`));
+    requireCondition('PocketBase launchd uses runtime pb_data', plist.includes(`${runtimeRoot}/pb_data`));
+    requireCondition('PocketBase launchd uses runtime migrations', plist.includes(`--migrationsDir=${runtimeRoot}/pb_migrations`));
   }
 
   if (service.label === 'com.coldwaterkim.caddy') {
-    requireCondition('Caddy launchd uses production Caddyfile', plist.includes(`${root}/deploy/imac/Caddyfile`));
+    requireCondition('Caddy launchd uses runtime Caddyfile', plist.includes(`${runtimeRoot}/Caddyfile`));
     requireCondition('Caddy launchd has HOME env', plist.includes('<key>HOME</key>') && plist.includes(os.homedir()));
   }
 
   if (service.label === 'com.coldwaterkim.pocketbase-backup') {
-    requireCondition('Backup launchd runs backup script', plist.includes(`${root}/deploy/imac/backup-pocketbase.sh`));
+    requireCondition('Backup launchd runs runtime backup script', plist.includes(`${runtimeRoot}/backup-pocketbase.sh`));
     requireCondition('Backup launchd runs daily at 03:30', plist.includes('<integer>3</integer>') && plist.includes('<integer>30</integer>'));
   }
 }
@@ -221,6 +227,7 @@ function verifyLaunchctlService(service) {
 
   record(`${service.name} launchd job loaded`, true, target);
   const output = result.output;
+  requireCondition(`${service.name} live launchd avoids Documents TCC path`, !output.includes('/Documents/'));
   requireCondition(`${service.name} launchd has pid or scheduled state`, /pid\s*=\s*\d+|state\s*=|next scheduled run/.test(output));
 
   if (service.label !== 'com.coldwaterkim.pocketbase-backup') {

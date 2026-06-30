@@ -7,16 +7,16 @@
 
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/kimchansu/Documents/개인/6. codex/01.개인 웹사이트/.local-bin/pocketbase</string>
+        <string>/Users/kimchansu/.local/share/coldwaterkim/home-server/bin/pocketbase</string>
         <string>serve</string>
         <string>--http=127.0.0.1:8090</string>
-        <string>--dir=/Users/kimchansu/Documents/개인/6. codex/01.개인 웹사이트/pb_data</string>
-        <string>--migrationsDir=/Users/kimchansu/Documents/개인/6. codex/01.개인 웹사이트/pb_migrations</string>
+        <string>--dir=/Users/kimchansu/.local/share/coldwaterkim/home-server/pb_data</string>
+        <string>--migrationsDir=/Users/kimchansu/.local/share/coldwaterkim/home-server/pb_migrations</string>
         <string>--origins=https://coldwaterkim.com,https://www.coldwaterkim.com,http://127.0.0.1:5173,http://localhost:5173</string>
     </array>
 
     <key>WorkingDirectory</key>
-    <string>/Users/kimchansu/Documents/개인/6. codex/01.개인 웹사이트</string>
+    <string>/Users/kimchansu/.local/share/coldwaterkim/home-server</string>
 
     <key>RunAtLoad</key>
     <true/>

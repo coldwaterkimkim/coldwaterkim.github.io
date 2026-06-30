@@ -1,9 +1,11 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const runtimeRoot = path.join(os.homedir(), '.local', 'share', 'coldwaterkim', 'home-server');
 const checks = [];
 
 function record(name, ok, detail = '') {
@@ -61,7 +63,8 @@ function verifyBackupScript() {
     record('backup script syntax', false, error.message);
   }
 
-  requireCondition('backup script defaults to pb_data', script.includes('PB_DATA_DIR="${PB_DATA_DIR:-$REPO_ROOT/pb_data}"'));
+  requireCondition('backup script defaults to runtime pb_data', script.includes('PB_DATA_DIR="${PB_DATA_DIR:-$RUNTIME_ROOT/pb_data}"'));
+  requireCondition('backup script uses installed launchd plist', script.includes('PLIST="${PLIST:-$HOME/Library/LaunchAgents/$LABEL.plist}"'));
   requireCondition('backup script keeps at least 30 days by default', script.includes('RETENTION_DAYS="${RETENTION_DAYS:-30}"'));
   requireCondition('backup script makes cold backup', script.includes('stop_service_if_needed') && script.includes('start_service_if_needed'));
   requireCondition('backup script validates tar archive', script.includes('tar -tzf "$BACKUP_FILE"'));
@@ -81,7 +84,8 @@ function verifyBackupPlist() {
   }
 
   requireCondition('backup plist label set', plist.includes('com.coldwaterkim.pocketbase-backup'));
-  requireCondition('backup plist runs backup script', plist.includes('deploy/imac/backup-pocketbase.sh'));
+  requireCondition('backup plist runs runtime backup script', plist.includes(`${runtimeRoot}/backup-pocketbase.sh`));
+  requireCondition('backup plist avoids Documents TCC path', !plist.includes('/Documents/'));
   requireCondition('backup plist runs daily at 03:30', plist.includes('<integer>3</integer>') && plist.includes('<integer>30</integer>'));
   requireCondition('backup plist sets UTF-8 locale', plist.includes('<key>LANG</key>') && plist.includes('en_US.UTF-8'));
   requireCondition('backup plist logs stdout', plist.includes('coldwaterkim-pocketbase-backup.log'));

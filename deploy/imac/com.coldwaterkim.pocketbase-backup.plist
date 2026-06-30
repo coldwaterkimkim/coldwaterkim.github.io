@@ -8,11 +8,11 @@
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>/Users/kimchansu/Documents/개인/6. codex/01.개인 웹사이트/deploy/imac/backup-pocketbase.sh</string>
+        <string>/Users/kimchansu/.local/share/coldwaterkim/home-server/backup-pocketbase.sh</string>
     </array>
 
     <key>WorkingDirectory</key>
-    <string>/Users/kimchansu/Documents/개인/6. codex/01.개인 웹사이트</string>
+    <string>/Users/kimchansu/.local/share/coldwaterkim/home-server</string>
 
     <key>EnvironmentVariables</key>
     <dict>

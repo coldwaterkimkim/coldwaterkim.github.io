@@ -1,10 +1,12 @@
 import dns from 'node:dns/promises';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const runtimeRoot = path.join(os.homedir(), '.local', 'share', 'coldwaterkim', 'home-server');
 const args = process.argv.slice(2);
 const valueOptions = new Set(['--origin', '--expected-ip', '--profile', '--data', '--schema', '--allow-missing']);
 const flags = new Set();
@@ -122,12 +124,13 @@ function verifyCaddyfile() {
   const caddyfile = readText('deploy/imac/Caddyfile');
   const localCaddyfile = readText('deploy/imac/Caddyfile.local');
   const rootPath = path.join(root, 'dist');
+  const runtimeDistPath = path.join(runtimeRoot, 'dist');
   requireCondition('Caddyfile includes coldwaterkim.com', caddyfile.includes('coldwaterkim.com'));
   requireCondition('Caddyfile includes www.coldwaterkim.com', caddyfile.includes('www.coldwaterkim.com'));
   requireCondition('Caddyfile proxies /api to local PocketBase', caddyfile.includes('handle /api/*') && caddyfile.includes('reverse_proxy 127.0.0.1:8090'));
   requireCondition('Caddyfile proxies /_ to local PocketBase admin', caddyfile.includes('handle /_/*') && caddyfile.includes('reverse_proxy 127.0.0.1:8090'));
   requireCondition('Caddyfile allows 2GB request bodies', /request_body[\s\S]*max_size\s+2GB/.test(caddyfile));
-  requireCondition('Caddyfile serves dist root', caddyfile.includes(rootPath));
+  requireCondition('Caddyfile serves runtime dist root', caddyfile.includes(runtimeDistPath));
   requireCondition('local Caddyfile binds rehearsal port', localCaddyfile.includes('http://127.0.0.1:18081'));
   requireCondition('local Caddyfile proxies /api to local PocketBase', localCaddyfile.includes('handle /api/*') && localCaddyfile.includes('reverse_proxy 127.0.0.1:8090'));
   requireCondition('local Caddyfile proxies /_ to local PocketBase admin', localCaddyfile.includes('handle /_/*') && localCaddyfile.includes('reverse_proxy 127.0.0.1:8090'));
@@ -151,9 +154,12 @@ function verifyPlists() {
   const caddyPlist = readText('deploy/imac/com.coldwaterkim.caddy.plist');
   const pocketbasePlist = readText('deploy/imac/com.coldwaterkim.pocketbase.plist');
   requireCondition('Caddy launchd uses LaunchDaemon binary path', caddyPlist.includes('/usr/local/bin/caddy'));
+  requireCondition('Caddy launchd uses runtime Caddyfile', caddyPlist.includes(`${runtimeRoot}/Caddyfile`));
+  requireCondition('Caddy launchd avoids Documents TCC path', !caddyPlist.includes('/Documents/'));
   requireCondition('PocketBase launchd binds localhost', pocketbasePlist.includes('--http=127.0.0.1:8090'));
-  requireCondition('PocketBase launchd points at pb_data', pocketbasePlist.includes(`${root}/pb_data`));
-  requireCondition('PocketBase launchd points at repo migrations', pocketbasePlist.includes(`--migrationsDir=${root}/pb_migrations`));
+  requireCondition('PocketBase launchd points at runtime pb_data', pocketbasePlist.includes(`${runtimeRoot}/pb_data`));
+  requireCondition('PocketBase launchd points at runtime migrations', pocketbasePlist.includes(`--migrationsDir=${runtimeRoot}/pb_migrations`));
+  requireCondition('PocketBase launchd avoids Documents TCC path', !pocketbasePlist.includes('/Documents/'));
 }
 
 function verifyLocalArtifacts(profile) {

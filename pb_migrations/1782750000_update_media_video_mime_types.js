@@ -1,6 +1,16 @@
 /// <reference path="../pb_data/types.d.ts" />
+function findOptionalCollection(app, nameOrId) {
+  try {
+    return app.findCollectionByNameOrId(nameOrId)
+  } catch {
+    return null
+  }
+}
+
 migrate((app) => {
-  const collection = app.findCollectionByNameOrId("media")
+  const collection = findOptionalCollection(app, "media")
+  if (!collection) return
+
   const fileField = collection.fields.getByName("file")
 
   fileField.maxSize = 209715200
@@ -20,7 +30,9 @@ migrate((app) => {
 
   return app.save(collection)
 }, (app) => {
-  const collection = app.findCollectionByNameOrId("media")
+  const collection = findOptionalCollection(app, "media")
+  if (!collection) return
+
   const fileField = collection.fields.getByName("file")
 
   fileField.maxSize = 104857600

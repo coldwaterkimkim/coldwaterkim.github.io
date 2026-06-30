@@ -1,12 +1,12 @@
 #!/bin/bash
 set -euo pipefail
 
-REPO_ROOT="${REPO_ROOT:-/Users/kimchansu/Documents/개인/6. codex/01.개인 웹사이트}"
-PB_DATA_DIR="${PB_DATA_DIR:-$REPO_ROOT/pb_data}"
+RUNTIME_ROOT="${IMAC_RUNTIME_ROOT:-$HOME/.local/share/coldwaterkim/home-server}"
+PB_DATA_DIR="${PB_DATA_DIR:-$RUNTIME_ROOT/pb_data}"
 BACKUP_DIR="${BACKUP_DIR:-$HOME/Backups/coldwaterkim-pocketbase}"
 RETENTION_DAYS="${RETENTION_DAYS:-30}"
 LABEL="${LABEL:-com.coldwaterkim.pocketbase}"
-PLIST="${PLIST:-$REPO_ROOT/deploy/imac/$LABEL.plist}"
+PLIST="${PLIST:-$HOME/Library/LaunchAgents/$LABEL.plist}"
 TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
 BACKUP_FILE="$BACKUP_DIR/pb_data_$TIMESTAMP.tar.gz"
 CHECKSUM_FILE="$BACKUP_FILE.sha256"

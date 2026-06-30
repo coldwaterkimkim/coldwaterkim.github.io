@@ -10,10 +10,10 @@ coldwaterkim.com
   -> iMac
       - Caddy: HTTPS, 정적 파일, /api 프록시
       - PocketBase: 127.0.0.1:8090
-      - pb_data: DB + 업로드 파일 원본
+      - ~/.local/share/coldwaterkim/home-server/pb_data: DB + 업로드 파일 원본
 ```
 
-PocketBase는 외부 서비스가 아니라 아이맥에서 직접 실행되는 CMS/DB 프로그램이다. `pb_data`는 repo에 커밋하지 않고 아이맥 디스크와 백업 디스크에만 둔다.
+PocketBase는 외부 서비스가 아니라 아이맥에서 직접 실행되는 CMS/DB 프로그램이다. launchd 서비스는 macOS Documents 접근 제한을 피하기 위해 repo가 아니라 `~/.local/share/coldwaterkim/home-server`에 복사된 운영 파일을 사용한다. `pb_data`는 repo에 커밋하지 않고 아이맥 디스크와 백업 디스크에만 둔다.
 
 ## Stage 0. Freeze
 
@@ -49,11 +49,20 @@ Rollback 기준:
    - Intel iMac은 `darwin_amd64`/`mac_amd64`가 필요하다.
    - 현재 핀: PocketBase `v0.23.5`, Caddy `v2.11.4`.
 2. `npm run build:imac`
-3. 저장소의 `pb_migrations`로 PocketBase migration 적용
+3. `npm run imac:install-services:dry-run`으로 운영 런타임 폴더 복사와 launchd 설치 계획 확인
 4. PocketBase를 `deploy/imac/com.coldwaterkim.pocketbase.plist`로 launchd 실행
 5. Caddy는 운영 전 `/usr/local/bin/caddy`에 root-owned로 설치한 뒤 `deploy/imac/com.coldwaterkim.caddy.plist`로 LaunchDaemon 실행
 6. 로컬 리허설은 외부 포트 없이 `127.0.0.1`에서만 한다. 예: PocketBase `127.0.0.1:8090`, Caddy `http://127.0.0.1:18081`.
 7. `https://coldwaterkim.com` 전환 전 테스트는 `/etc/hosts` 또는 내부 DNS로만 한다.
+
+운영 launchd는 아래 파일들을 `~/.local/share/coldwaterkim/home-server`로 복사해서 실행한다.
+
+- `dist`
+- `pb_migrations`
+- `pb_data`
+- `bin/pocketbase`
+- `Caddyfile`
+- `backup-pocketbase.sh`
 
 로컬 Caddy 리허설:
 
@@ -90,12 +99,13 @@ QA:
 - `npm run qa:service-smoke:local` 통과
 - `npm run qa:launchd:tooling` 통과
 - `npm run imac:install-services:dry-run` 출력에 PocketBase/Caddy/백업 launchd 설치 경로가 모두 포함
+- launchd plist와 Caddyfile이 `Documents` 경로 대신 `~/.local/share/coldwaterkim/home-server`를 사용
 - `/api/health`가 200
 - `/` 홈 렌더링
 - `/posts/`, `/daily/`, `/programs/`, `/nasajab/`, `/guestbook.html`, `/about.html` 직접 URL 200
 - 브라우저 콘솔 error 0개
 - `media.file`, `programs.download_files` maxSize가 `2147483648`
-- launchd PocketBase 설정이 `pb_data`와 저장소의 `pb_migrations`를 함께 사용
+- launchd PocketBase 설정이 운영 런타임 폴더의 `pb_data`와 `pb_migrations`를 함께 사용
 - 관리자 로그인
 - 테스트 글 작성/수정/삭제
 - 테스트 미디어 업로드/삭제
@@ -249,6 +259,8 @@ cp deploy/imac/com.coldwaterkim.pocketbase-backup.plist ~/Library/LaunchAgents/
 launchctl bootstrap "gui/$(id -u)" ~/Library/LaunchAgents/com.coldwaterkim.pocketbase-backup.plist
 launchctl kickstart -k "gui/$(id -u)/com.coldwaterkim.pocketbase-backup"
 ```
+
+정상 운영에서는 `npm run imac:install-services`가 위 백업 plist와 `backup-pocketbase.sh`를 운영 런타임 폴더 기준으로 설치한다. 수동 설치는 구조를 확인할 때만 사용한다.
 
 백업 확인:
 

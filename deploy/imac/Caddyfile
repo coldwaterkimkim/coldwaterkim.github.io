@@ -18,7 +18,7 @@ coldwaterkim.com, www.coldwaterkim.com {
     }
 
     handle {
-        root * "/Users/kimchansu/Documents/개인/6. codex/01.개인 웹사이트/dist"
+        root * "/Users/kimchansu/.local/share/coldwaterkim/home-server/dist"
         try_files {path} {path}/ =404
         file_server
     }

@@ -10,13 +10,13 @@
         <string>/usr/local/bin/caddy</string>
         <string>run</string>
         <string>--config</string>
-        <string>/Users/kimchansu/Documents/개인/6. codex/01.개인 웹사이트/deploy/imac/Caddyfile</string>
+        <string>/Users/kimchansu/.local/share/coldwaterkim/home-server/Caddyfile</string>
         <string>--adapter</string>
         <string>caddyfile</string>
     </array>
 
     <key>WorkingDirectory</key>
-    <string>/Users/kimchansu/Documents/개인/6. codex/01.개인 웹사이트</string>
+    <string>/Users/kimchansu/.local/share/coldwaterkim/home-server</string>
 
     <key>EnvironmentVariables</key>
     <dict>
