@@ -71,6 +71,7 @@ function verifySnapshotScript() {
       const parsed = JSON.parse(dryRun.output);
       requireCondition('snapshot has capturedAt', Boolean(parsed.capturedAt));
       requireCondition('snapshot has git head', Boolean(parsed.git?.head));
+      requireCondition('snapshot has expected home server public IP', Boolean(parsed.expectedHomeServer?.publicIp));
       requireCondition('snapshot has rollback DNS records', Boolean(parsed.rollbackTargets?.dnsRecords));
       requireCondition('snapshot has route probes', Boolean(parsed.probes?.routes));
       requireCondition('snapshot has rollback notes', Array.isArray(parsed.notes) && parsed.notes.length >= 3);

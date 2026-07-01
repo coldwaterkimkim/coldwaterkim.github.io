@@ -10,7 +10,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
 const flags = new Set();
 const options = new Map();
-const valueOptions = new Set(['--output', '--lan-ip', '--public-ip', '--origin']);
+const valueOptions = new Set(['--output', '--lan-ip', '--public-ip', '--origin', '--network-env-file']);
 
 for (let index = 0; index < args.length; index += 1) {
   const arg = args[index];
@@ -36,6 +36,7 @@ Options:
   --output <file>    default: migration_backups/cutover/cutover-snapshot-<timestamp>.json
   --lan-ip <ip>      expected iMac LAN IP, default HOME_SERVER_LAN_IP or 192.168.0.11
   --public-ip <ip>   intended home public IP, default HOME_SERVER_PUBLIC_IP
+  --network-env-file <file>  default: ~/.config/coldwaterkim/home-server.env
   --origin <url>     current public site origin, default https://coldwaterkim.com
 `);
   process.exit(exitCode);
@@ -48,6 +49,40 @@ const allowNetworkFailures = flags.has('--allow-network-failures') || dryRun;
 
 function optionValue(name, fallback = '') {
   return options.get(name) || fallback;
+}
+
+function expandHome(input) {
+  if (!input) return input;
+  if (input === '~') return os.homedir();
+  if (input.startsWith('~/')) return path.join(os.homedir(), input.slice(2));
+  return input;
+}
+
+function parseEnvFile(file) {
+  const values = {};
+  const lines = fs.readFileSync(file, 'utf8').split(/\r?\n/);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+
+    const match = trimmed.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/);
+    if (!match) continue;
+
+    let value = match[2].trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    values[match[1]] = value;
+  }
+  return values;
+}
+
+function readEnvFileIfExists(file) {
+  if (!fs.existsSync(file)) return {};
+  return parseEnvFile(file);
 }
 
 function timestamp() {
@@ -107,13 +142,23 @@ async function probe(url) {
 }
 
 async function main() {
+  const networkEnvFile = expandHome(
+    optionValue('--network-env-file', process.env.HOME_SERVER_ENV_FILE || '~/.config/coldwaterkim/home-server.env'),
+  );
+  const networkEnv = readEnvFileIfExists(networkEnvFile);
   const origin = optionValue('--origin', 'https://coldwaterkim.com').replace(/\/+$/, '');
   const outputFile = path.resolve(
     root,
     optionValue('--output', `migration_backups/cutover/cutover-snapshot-${timestamp()}.json`),
   );
-  const lanIp = optionValue('--lan-ip', process.env.HOME_SERVER_LAN_IP || '192.168.0.11');
-  const publicIp = optionValue('--public-ip', process.env.HOME_SERVER_PUBLIC_IP || '');
+  const lanIp = optionValue(
+    '--lan-ip',
+    process.env.HOME_SERVER_LAN_IP || networkEnv.HOME_SERVER_LAN_IP || '192.168.0.11',
+  );
+  const publicIp = optionValue(
+    '--public-ip',
+    process.env.HOME_SERVER_PUBLIC_IP || networkEnv.HOME_SERVER_PUBLIC_IP || '',
+  );
   const gitHead = run('git', ['rev-parse', 'HEAD']).output;
   const gitBranch = run('git', ['branch', '--show-current']).output;
   const gitStatus = run('git', ['status', '--short'], true).output;
