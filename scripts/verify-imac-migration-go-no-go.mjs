@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -37,6 +38,12 @@ function lastLine(output) {
   return output.split(/\r?\n/).filter(Boolean).at(-1) || '';
 }
 
+function cutoverArgs() {
+  const dataDb = path.join(root, 'pb_data', 'data.db');
+  if (toolingMode && !fs.existsSync(dataDb)) return ['scripts/verify-imac-cutover.mjs'];
+  return ['scripts/verify-imac-cutover.mjs', '--data', 'pb_data', '--schema', 'pb_schema.json'];
+}
+
 function printSummary() {
   const failed = checks.filter(check => !check.ok);
   for (const check of checks) {
@@ -70,7 +77,7 @@ function main() {
     ...(toolingMode ? ['--allow-missing-live'] : []),
   ]);
   run('rollback snapshot readiness', ['scripts/verify-cutover-rollback.mjs']);
-  run('cutover static readiness', ['scripts/verify-imac-cutover.mjs']);
+  run('cutover data readiness', cutoverArgs());
   run('network readiness', [
     'scripts/verify-network-readiness.mjs',
     ...(toolingMode ? ['--allow-missing-live'] : []),
