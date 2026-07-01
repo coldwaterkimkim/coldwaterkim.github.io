@@ -60,7 +60,7 @@
 - Fly.io를 쓰는 경우 `fly.toml`, `deploy/fly/`, `scripts/deploy-pocketbase-fly.sh` 기준으로 배포
 - 아이맥 홈서버 이주는 `deploy/imac/README.md` 기준으로 freeze -> rehearsal -> DNS cutover -> hardening 순서로 진행
 - 아이맥 운영 빌드는 `npm run build:imac`과 `npm run qa:home-server`를 통과해야 진행
-- 2026-07-01 기준 Stage 1 repo readiness, Stage 2 iMac local rehearsal, Stage 3 데이터/런타임 준비, Oracle 부트볼륨 백업은 완료했다. 다음 단계는 공유기 TCP 80/443 포트포워딩 확인 후 DNS cutover다.
+- 2026-07-01 기준 Stage 1 repo readiness, Stage 2 iMac local rehearsal, Stage 3 데이터/런타임 준비, Oracle 부트볼륨 백업, 공유기 TCP 80/443 포트포워딩, DNS 직전 go/no-go는 완료했다. 다음 단계는 Cloudflare DNS cutover다.
 
 ## 주의
 
@@ -121,3 +121,4 @@ PocketBase 서버가 꺼져 있으면 공개 사이트는 렌더링되지만 글
 - 2026-07-01 아이맥 운영 `pb_data` cold backup `/Users/kimchansu/Backups/coldwaterkim-pocketbase/pb_data_20260701_185843.tar.gz`를 생성했고, sha256 검증 및 archive 내 `pb_data/data.db` 포함을 확인했다.
 - 2026-07-01 컷오버 스냅샷 스크립트가 `~/.config/coldwaterkim/home-server.env`의 `HOME_SERVER_PUBLIC_IP`를 함께 기록하도록 보강했고, 최신 롤백 스냅샷 `migration_backups/cutover/cutover-snapshot-20260701101757.json`에 iMac LAN IP `192.168.0.11`, 집 공인 IP `121.160.181.179`, 기존 GitHub Pages/Oracle DNS 값을 남겼다.
 - 2026-07-01 Oracle Cloud Console에서 기존 VM `coldwaterkim-pocketbase-api`의 부트볼륨 `coldwaterkim-pocketbase-api (Boot Volume)` FULL 백업 `coldwaterkim-pre-imac-boot-20260701115233`을 생성했고, 상태가 `Available`임을 확인했다. Backup OCID는 `ocid1.bootvolumebackup.oc1.ap-chuncheon-1.ab4w4ljr3a6rh5ncwcw4xtlpuauvwmgaabxjmxgsftgb3bgj4bvd7wfs6jtq`다.
+- 2026-07-01 ipTIME 공유기에서 TCP `80 -> 192.168.0.11:80`, TCP `443 -> 192.168.0.11:443` 포트포워딩을 추가했다. `http://121.160.181.179/api/health`를 `Host: coldwaterkim.com` 헤더로 호출했을 때 Caddy `308` 응답이 확인됐고, `npm run qa:network-preflight` 및 `npm run qa:migration-go` 전체 gate 8개가 통과했다. DNS 변경 직전 롤백 스냅샷은 `migration_backups/cutover/cutover-snapshot-20260701122907.json`이다.
