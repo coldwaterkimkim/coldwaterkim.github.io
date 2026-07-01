@@ -12,7 +12,7 @@
 
 공개 사이트 내부 이동은 `js/site.js`의 SPA-like router가 처리한다. 같은 origin의 공개 HTML 링크를 클릭하면 전체 문서를 새로고침하지 않고 새 페이지의 `.content`만 fetch해서 교체하며, profile/sidebar/BGM은 유지한다. 따라서 BGM은 메뉴 이동 중 끊기지 않는다. 직접 URL 접근과 새로고침은 기존 정적 HTML 진입을 그대로 지원한다.
 
-배포 캐시 완화를 위해 Vite 빌드는 `site-version.json`을 함께 생성한다. 공개 사이트 JS는 로드 후, 탭 재활성화 시, 그리고 1분 간격으로 이 버전 파일을 캐시 우회 쿼리와 함께 확인한다. 현재 JS에 박힌 빌드 버전보다 최신 버전이 보이면 현재 URL에 `?v=<version>`을 붙여 한 번만 새로고침한다. GitHub Pages의 HTML 캐시가 짧게 남아도 방문자가 강제 새로고침 없이 새 배포를 받게 하기 위한 장치다.
+배포 캐시 완화를 위해 Vite 빌드는 `site-version.json`을 함께 생성한다. 공개 사이트 JS는 로드 후, 탭 재활성화 시, 그리고 1분 간격으로 이 버전 파일을 캐시 우회 쿼리와 함께 확인한다. 현재 JS에 박힌 빌드 버전보다 최신 버전이 보이면 현재 URL에 `?v=<version>`를 붙여 한 번만 새로고침한다. GitHub Pages의 HTML 캐시가 짧게 남아도 방문자가 강제 새로고침 없이 새 배포를 받게 하기 위한 장치다.
 
 모바일에서는 같은 shell을 유지하되, 640px 이하 화면에서만 메인 2-column table이 세로로 접힌다. Home은 프로필을 가로형 미니 명함으로 압축하고 Cool Links/My WebRing은 본문 하단으로 보내 정체성을 남긴다. 글방/글 상세/나으 하루/프로그램실/나사잡/Guestbook/About는 sidebar를 숨겨 navigation 다음에 본문이 바로 오게 한다. 데스크톱의 1140px PC 레이아웃은 기본값으로 보존한다.
 
@@ -60,7 +60,7 @@
 - Fly.io를 쓰는 경우 `fly.toml`, `deploy/fly/`, `scripts/deploy-pocketbase-fly.sh` 기준으로 배포
 - 아이맥 홈서버 이주는 `deploy/imac/README.md` 기준으로 freeze -> rehearsal -> DNS cutover -> hardening 순서로 진행
 - 아이맥 운영 빌드는 `npm run build:imac`과 `npm run qa:home-server`를 통과해야 진행
-- 2026-06-30 기준 Stage 1 repo readiness와 Stage 2 iMac local rehearsal은 통과했다. 다음 단계는 운영 PocketBase 데이터 freeze/백업/복원 리허설이다.
+- 2026-07-01 기준 Stage 1 repo readiness, Stage 2 iMac local rehearsal, Stage 3 데이터/런타임 준비, Stage 4 pre-cutover readiness는 통과했다. 다음 단계는 Oracle 부트볼륨 백업 생성 확인 후 DNS cutover다.
 
 ## 주의
 
@@ -116,3 +116,7 @@ PocketBase 서버가 꺼져 있으면 공개 사이트는 렌더링되지만 글
 - 2026-06-30 아이맥 로컬 Caddy 리허설 설정을 `deploy/imac/Caddyfile.local`로 고정했고, `npm run qa:service-smoke:local`로 실제 HTTP 스모크 테스트를 재현할 수 있게 했다.
 - 2026-06-30 아이맥 launchd 운영 상태 QA를 `npm run qa:launchd`/`npm run qa:launchd:tooling`으로 추가해 Caddy, PocketBase, 자동 백업 job의 설치/상주 상태를 확인할 수 있게 했다.
 - 2026-06-30 아이맥 로컬 `pb_data` 기준 `media.file`, `programs.download_files` maxSize가 `2147483648`임을 확인했고, PocketBase 종료 상태의 cold backup 생성/압축 목록 확인까지 완료했다.
+- 2026-07-01 아이맥 운영 런타임 기준 Caddy LaunchDaemon, PocketBase LaunchAgent, PocketBase 자동 백업 LaunchAgent가 모두 로드된 상태에서 `npm run qa:migration-go` 상당의 전체 gate 8개를 통과했다.
+- 2026-07-01 컷오버 전 롤백 스냅샷 `migration_backups/cutover/cutover-snapshot-20260701095837.json`을 생성했다. 이 스냅샷은 Git HEAD `9edd92eb4ee284c176223da490b3c3b12da277e8`, 기존 GitHub Pages A records, `api.coldwaterkim.com -> 134.185.98.185`, 공개 route probe 결과를 담는다.
+- 2026-07-01 아이맥 운영 `pb_data` cold backup `/Users/kimchansu/Backups/coldwaterkim-pocketbase/pb_data_20260701_185843.tar.gz`를 생성했고, sha256 검증 및 archive 내 `pb_data/data.db` 포함을 확인했다.
+- 2026-07-01 Oracle Cloud Console에서 기존 VM `coldwaterkim-pocketbase-api`의 부트볼륨 `coldwaterkim-pocketbase-api (Boot Volume)` Backups 탭과 `Create boot volume backup` 버튼을 확인했다. 콘솔은 최근 7일 내 백업이 없다고 경고한다. 실제 부트볼륨 백업 생성은 Oracle 리소스 생성/저장공간 비용 가능성이 있어 사용자 확인 후 진행한다.
