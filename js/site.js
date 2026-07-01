@@ -801,8 +801,31 @@ function initHomeOwnerTools(scope = document) {
 // 방문자 카운터 (PocketBase 30분 세션)
 // ─────────────────────────────────────────────────────────
 (async function initCounter() {
-  const totalEl = document.getElementById('hitCounter');
-  const todayEl = document.getElementById('todayCounter');
+  const bannerStatusEl = document.getElementById('visitorBannerStatus');
+  let totalEl = document.getElementById('hitCounter');
+  let todayEl = document.getElementById('todayCounter');
+  if (!bannerStatusEl && !totalEl) return;
+
+  const isOwnerMode = isLoggedIn();
+  if (!isOwnerMode) {
+    try {
+      await recordVisitAndGetStats();
+    } catch (e) {
+      console.warn('Visitor counter failed:', cmsErrorMessage(e));
+    }
+    return;
+  }
+
+  if (bannerStatusEl && !totalEl) {
+    bannerStatusEl.innerHTML = `
+      <span class="hit">VISITORS:</span>
+      TOTAL <span id="hitCounter" class="counter-digits">0000000</span>
+      TODAY <span id="todayCounter" class="counter-digits counter-digits--today">0000</span>
+    `;
+    totalEl = document.getElementById('hitCounter');
+    todayEl = document.getElementById('todayCounter');
+  }
+
   if (!totalEl) return;
 
   const renderStats = (stats) => {
