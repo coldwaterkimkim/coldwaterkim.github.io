@@ -5,6 +5,22 @@
     <key>Label</key>
     <string>com.coldwaterkim.pocketbase</string>
 
+    <key>UserName</key>
+    <string>kimchansu</string>
+
+    <key>GroupName</key>
+    <string>staff</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <string>/Users/kimchansu</string>
+        <key>LANG</key>
+        <string>en_US.UTF-8</string>
+        <key>LC_ALL</key>
+        <string>en_US.UTF-8</string>
+    </dict>
+
     <key>ProgramArguments</key>
     <array>
         <string>/Users/kimchansu/.local/share/coldwaterkim/home-server/bin/pocketbase</string>

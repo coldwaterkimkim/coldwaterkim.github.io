@@ -50,7 +50,7 @@ Rollback 기준:
    - 현재 핀: PocketBase `v0.23.5`, Caddy `v2.11.4`.
 2. `npm run build:imac`
 3. `npm run imac:install-services:dry-run`으로 운영 런타임 폴더 복사와 launchd 설치 계획 확인
-4. PocketBase를 `deploy/imac/com.coldwaterkim.pocketbase.plist`로 launchd 실행
+4. PocketBase를 `deploy/imac/com.coldwaterkim.pocketbase.plist`로 시스템 LaunchDaemon 실행
 5. Caddy는 운영 전 `/usr/local/bin/caddy`에 root-owned로 설치한 뒤 `deploy/imac/com.coldwaterkim.caddy.plist`로 LaunchDaemon 실행
 6. 로컬 리허설은 외부 포트 없이 `127.0.0.1`에서만 한다. 예: PocketBase `127.0.0.1:8090`, Caddy `http://127.0.0.1:18081`.
 7. `https://coldwaterkim.com` 전환 전 테스트는 `/etc/hosts` 또는 내부 DNS로만 한다.
@@ -80,7 +80,7 @@ sudo chown root:wheel /Library/LaunchDaemons/com.coldwaterkim.caddy.plist
 sudo launchctl bootstrap system /Library/LaunchDaemons/com.coldwaterkim.caddy.plist
 ```
 
-운영 launchd 설치/기동은 아래 스크립트로 한 번에 처리한다. `--dry-run`으로 복사/등록될 경로를 먼저 확인한 뒤 실제 설치한다.
+운영 launchd 설치/기동은 아래 스크립트로 한 번에 처리한다. `--dry-run`으로 복사/등록될 경로를 먼저 확인한 뒤 실제 설치한다. PocketBase, Caddy, 백업 job은 `/Library/LaunchDaemons`에 등록되어 사용자 로그인 전에도 부팅 시 자동 시작된다.
 
 ```bash
 npm run imac:install-services:dry-run
@@ -100,6 +100,7 @@ QA:
 - `npm run qa:launchd:tooling` 통과
 - `npm run imac:install-services:dry-run` 출력에 PocketBase/Caddy/백업 launchd 설치 경로가 모두 포함
 - launchd plist와 Caddyfile이 `Documents` 경로 대신 `~/.local/share/coldwaterkim/home-server`를 사용
+- PocketBase/Caddy/백업 job이 시스템 LaunchDaemon으로 등록
 - `/api/health`가 200
 - `/` 홈 렌더링
 - `/posts/`, `/daily/`, `/programs/`, `/nasajab/`, `/guestbook.html`, `/about.html` 직접 URL 200
@@ -266,18 +267,26 @@ QA:
 - `deploy/imac/backup-pocketbase.sh`를 매일 실행한다.
 - 백업은 최소 30일 보관한다.
 - Time Machine 또는 외장 디스크에 `pb_data`와 백업 폴더를 포함한다.
+- 아이맥 전원 설정은 서버 모드로 고정한다. 시스템 잠자기/디스크 잠자기/standby/autopoweroff는 끄고, 정전 후 자동 재시작은 켠다.
 - Oracle API 서버와 GitHub Pages 배포는 7일 이상 롤백용으로 유지한 뒤 정리한다.
 
 자동 백업 설치:
 
 ```bash
-mkdir -p ~/Library/LaunchAgents ~/Library/Logs
-cp deploy/imac/com.coldwaterkim.pocketbase-backup.plist ~/Library/LaunchAgents/
-launchctl bootstrap "gui/$(id -u)" ~/Library/LaunchAgents/com.coldwaterkim.pocketbase-backup.plist
-launchctl kickstart -k "gui/$(id -u)/com.coldwaterkim.pocketbase-backup"
+sudo cp deploy/imac/com.coldwaterkim.pocketbase-backup.plist /Library/LaunchDaemons/
+sudo chown root:wheel /Library/LaunchDaemons/com.coldwaterkim.pocketbase-backup.plist
+sudo launchctl bootstrap system /Library/LaunchDaemons/com.coldwaterkim.pocketbase-backup.plist
+sudo launchctl kickstart -k system/com.coldwaterkim.pocketbase-backup
 ```
 
 정상 운영에서는 `npm run imac:install-services`가 위 백업 plist와 `backup-pocketbase.sh`를 운영 런타임 폴더 기준으로 설치한다. 수동 설치는 구조를 확인할 때만 사용한다.
+
+전원 설정:
+
+```bash
+sudo pmset -a sleep 0 disksleep 0 standby 0 autopoweroff 0 autorestart 1 womp 1 tcpkeepalive 1 ttyskeepawake 1
+npm run qa:power
+```
 
 백업 확인:
 
@@ -287,6 +296,7 @@ shasum -a 256 -c ~/Backups/coldwaterkim-pocketbase/pb_data_*.tar.gz.sha256
 tar -tzf "$(ls -t ~/Backups/coldwaterkim-pocketbase/pb_data_*.tar.gz | head -1)" >/dev/null
 npm run qa:hardening
 npm run qa:launchd
+npm run qa:power
 ```
 
 완료 기준:
@@ -297,3 +307,4 @@ npm run qa:launchd
 - `tar -tzf` 통과
 - `npm run qa:hardening` 통과
 - `npm run qa:launchd` 통과
+- `npm run qa:power` 통과

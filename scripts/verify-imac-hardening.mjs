@@ -64,11 +64,13 @@ function verifyBackupScript() {
   }
 
   requireCondition('backup script defaults to runtime pb_data', script.includes('PB_DATA_DIR="${PB_DATA_DIR:-$RUNTIME_ROOT/pb_data}"'));
-  requireCondition('backup script uses installed launchd plist', script.includes('PLIST="${PLIST:-$HOME/Library/LaunchAgents/$LABEL.plist}"'));
+  requireCondition('backup script targets system PocketBase service', script.includes('SERVICE_TARGET="${SERVICE_TARGET:-system/$LABEL}"'));
+  requireCondition('backup script uses installed LaunchDaemon plist', script.includes('PLIST="${PLIST:-/Library/LaunchDaemons/$LABEL.plist}"'));
   requireCondition('backup script keeps at least 30 days by default', script.includes('RETENTION_DAYS="${RETENTION_DAYS:-30}"'));
   requireCondition('backup script makes cold backup', script.includes('stop_service_if_needed') && script.includes('start_service_if_needed'));
   requireCondition('backup script validates tar archive', script.includes('tar -tzf "$BACKUP_FILE"'));
   requireCondition('backup script writes sha256 sidecar', script.includes('shasum -a 256 "$BACKUP_FILE" > "$CHECKSUM_FILE"'));
+  requireCondition('backup script restores service after backup', script.includes('launchctl bootstrap "$SERVICE_DOMAIN" "$PLIST"') && script.includes('launchctl kickstart -k "$SERVICE_TARGET"'));
   requireCondition('backup script sets macOS UTF-8 locale', script.includes('en_US.UTF-8'));
 }
 

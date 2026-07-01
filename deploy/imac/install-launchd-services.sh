@@ -92,10 +92,13 @@ CADDY_PLIST_SRC="$REPO_ROOT/deploy/imac/${CADDY_LABEL}.plist"
 BACKUP_PLIST_SRC="$REPO_ROOT/deploy/imac/${BACKUP_LABEL}.plist"
 
 USER_AGENT_DIR="$HOME/Library/LaunchAgents"
+SYSTEM_DAEMON_DIR="/Library/LaunchDaemons"
 LOG_DIR="$HOME/Library/Logs"
-PB_PLIST_DST="$USER_AGENT_DIR/${PB_LABEL}.plist"
-BACKUP_PLIST_DST="$USER_AGENT_DIR/${BACKUP_LABEL}.plist"
-CADDY_PLIST_DST="/Library/LaunchDaemons/${CADDY_LABEL}.plist"
+OLD_PB_AGENT="$USER_AGENT_DIR/${PB_LABEL}.plist"
+OLD_BACKUP_AGENT="$USER_AGENT_DIR/${BACKUP_LABEL}.plist"
+PB_PLIST_DST="$SYSTEM_DAEMON_DIR/${PB_LABEL}.plist"
+BACKUP_PLIST_DST="$SYSTEM_DAEMON_DIR/${BACKUP_LABEL}.plist"
+CADDY_PLIST_DST="$SYSTEM_DAEMON_DIR/${CADDY_LABEL}.plist"
 
 print_command() {
     printf '+'
@@ -184,20 +187,33 @@ sync_caddy_runtime_files() {
     run_cmd install -m 644 "$LOCAL_CADDYFILE" "$RUNTIME_CADDYFILE"
 }
 
-install_user_agent() {
+uninstall_old_user_agent() {
     local label="$1"
-    local source_plist="$2"
-    local target_plist="$3"
-
-    run_cmd install -m 644 "$source_plist" "$target_plist"
+    local old_plist="$2"
 
     if [[ "$NO_START" -eq 1 ]]; then
         return
     fi
 
-    run_optional_cmd launchctl bootout "$USER_DOMAIN" "$target_plist"
-    run_cmd launchctl bootstrap "$USER_DOMAIN" "$target_plist"
-    run_cmd launchctl kickstart -k "${USER_DOMAIN}/${label}"
+    run_optional_cmd launchctl bootout "$USER_DOMAIN" "$old_plist"
+    run_optional_cmd launchctl bootout "${USER_DOMAIN}/${label}"
+}
+
+install_system_daemon() {
+    local label="$1"
+    local source_plist="$2"
+    local target_plist="$3"
+
+    run_sudo_cmd install -m 644 -o root -g wheel "$source_plist" "$target_plist"
+
+    if [[ "$NO_START" -eq 1 ]]; then
+        return
+    fi
+
+    run_optional_sudo_cmd launchctl bootout system "$target_plist"
+    run_optional_sudo_cmd launchctl bootout "system/${label}"
+    run_sudo_cmd launchctl bootstrap system "$target_plist"
+    run_sudo_cmd launchctl kickstart -k "system/${label}"
 }
 
 install_caddy_daemon() {
@@ -247,8 +263,10 @@ lint_plist "$BACKUP_PLIST_SRC"
 
 sync_runtime_files
 run_cmd mkdir -p "$USER_AGENT_DIR" "$LOG_DIR"
-install_user_agent "$PB_LABEL" "$PB_PLIST_SRC" "$PB_PLIST_DST"
-install_user_agent "$BACKUP_LABEL" "$BACKUP_PLIST_SRC" "$BACKUP_PLIST_DST"
+uninstall_old_user_agent "$PB_LABEL" "$OLD_PB_AGENT"
+uninstall_old_user_agent "$BACKUP_LABEL" "$OLD_BACKUP_AGENT"
+install_system_daemon "$PB_LABEL" "$PB_PLIST_SRC" "$PB_PLIST_DST"
+install_system_daemon "$BACKUP_LABEL" "$BACKUP_PLIST_SRC" "$BACKUP_PLIST_DST"
 
 if [[ "$SKIP_CADDY" -eq 0 ]]; then
     install_caddy_daemon

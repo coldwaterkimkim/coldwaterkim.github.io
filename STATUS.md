@@ -6,6 +6,8 @@
 
 배포는 현재 아이맥 홈서버 단일 구조다. `coldwaterkim.com`과 `www.coldwaterkim.com`은 집 공인 IP를 거쳐 아이맥 Caddy로 들어오고, 정적 파일과 PocketBase DB/파일 저장소는 같은 아이맥에서 운영한다. GitHub Pages 배포와 Oracle `api.coldwaterkim.com` VM은 컷오버 후 최소 7일 동안 롤백용으로 유지한다.
 
+아이맥 운영 서비스는 macOS 시스템 LaunchDaemon으로 고정한다. Caddy, PocketBase, PocketBase 자동 백업은 사용자 로그인 전에도 부팅 시 자동 시작되며, PocketBase는 `kimchansu` 사용자 권한으로 `~/.local/share/coldwaterkim/home-server`의 운영 런타임을 사용한다.
+
 공개 사이트의 디자인 기준은 현재 `index.html` 홈페이지, `design.md`, `css/styles.css`의 `:root` 디자인 토큰에 고정한다. 새 공개 페이지나 UI 수정은 현재 홈의 90s 개인 홈페이지 감성을 먼저 보존하고, 의도적으로 방향을 바꿀 때만 `design.md`, CSS 토큰, `STATUS.md`를 함께 갱신한다.
 
 공개 메인 IA 페이지(`Home`, `글방`, `글 상세`, `나으 하루`, `프로그램실`, `나사잡`, `Guestbook`, `About / Contact`)는 모두 홈의 2-column shell을 기본 레이아웃으로 쓴다. 즉 상단 marquee, 노란 construction banner, 왼쪽 프로필/sidebar, 나무위키식 PROFILE DATA 표, 오른쪽 content 상단 navigation은 유지하고, 페이지별 내용만 오른쪽 content 영역에서 바뀌게 한다.
@@ -60,7 +62,7 @@
 - Fly.io를 쓰는 경우 `fly.toml`, `deploy/fly/`, `scripts/deploy-pocketbase-fly.sh` 기준으로 배포
 - 아이맥 홈서버 이주는 `deploy/imac/README.md` 기준으로 freeze -> rehearsal -> DNS cutover -> hardening 순서로 진행
 - 아이맥 운영 빌드는 `npm run build:imac`과 `npm run qa:home-server`를 통과해야 진행
-- 2026-07-01 기준 Stage 1 repo readiness, Stage 2 iMac local rehearsal, Stage 3 데이터/런타임 준비, Oracle 부트볼륨 백업, 공유기 TCP 80/443 포트포워딩, Cloudflare DNS cutover, post-cutover 백업 하드닝은 완료했다. 남은 단계는 24시간 안정 관찰, 실제 글 1개 작성 후 공개 화면 확인, 7일 후 GitHub Pages/Oracle 롤백 경로 정리 판단이다.
+- 2026-07-01 기준 Stage 1 repo readiness, Stage 2 iMac local rehearsal, Stage 3 데이터/런타임 준비, Oracle 부트볼륨 백업, 공유기 TCP 80/443 포트포워딩, Cloudflare DNS cutover, post-cutover 백업/전원/재부팅 하드닝은 완료했다. 남은 단계는 24시간 안정 관찰, 실제 글 1개 작성 후 공개 화면 확인, 7일 후 GitHub Pages/Oracle 롤백 경로 정리 판단이다.
 
 ## 주의
 
@@ -124,3 +126,4 @@ PocketBase 서버가 꺼져 있으면 공개 사이트는 렌더링되지만 글
 - 2026-07-01 ipTIME 공유기에서 TCP `80 -> 192.168.0.11:80`, TCP `443 -> 192.168.0.11:443` 포트포워딩을 추가했다. `http://121.160.181.179/api/health`를 `Host: coldwaterkim.com` 헤더로 호출했을 때 Caddy `308` 응답이 확인됐고, `npm run qa:network-preflight` 및 `npm run qa:migration-go` 전체 gate 8개가 통과했다. DNS 변경 직전 롤백 스냅샷은 `migration_backups/cutover/cutover-snapshot-20260701122907.json`이다.
 - 2026-07-01 Cloudflare DNS에서 `coldwaterkim.com`을 `A 121.160.181.179` DNS 전용으로 전환했고, `www.coldwaterkim.com`은 루트 CNAME으로 아이맥을 따라가게 유지했다. Caddy가 Let’s Encrypt 인증서를 정상 발급했으며 `https://coldwaterkim.com/api/health`, 홈, 글방, 나으 하루, 프로그램실, 나사잡, 방명록, About이 모두 200 응답을 반환했다. 컷오버 QA는 `verify-imac-cutover --profile production --network --expected-ip 121.160.181.179` 54개 체크와 `verify-imac-service-smoke --origin https://coldwaterkim.com` 24개 체크가 통과했고, 컷오버 후 스냅샷은 `migration_backups/cutover/cutover-snapshot-20260701124504.json`이다.
 - 2026-07-01 post-cutover 하드닝에서 `com.coldwaterkim.pocketbase-backup` launchd job 등록, 매일 03:30 실행 설정, 30일 보관 기본값, checksum/tar 검증 흐름을 확인했다. 수동 kickstart로 `/Users/kimchansu/Backups/coldwaterkim-pocketbase/pb_data_20260701_215002.tar.gz`와 `.sha256`을 생성했고 `shasum -a 256 -c` 및 `tar -tzf`가 통과했으며, 백업 후 `https://coldwaterkim.com/api/health`가 다시 200 응답했다. `verify-imac-hardening` 24개 체크와 `verify-imac-launchd` 82개 체크도 통과했다.
+- 2026-07-01 아이맥 전원/재부팅 하드닝을 완료했다. `pmset`은 sleep/disksleep/standby/autopoweroff를 끄고, 전원 복구 시 자동 재시작(`autorestart`)과 네트워크 유지(`womp`, `tcpkeepalive`)를 켜는 서버형 설정으로 고정했다. PocketBase와 백업 job을 사용자 LaunchAgent에서 시스템 LaunchDaemon으로 옮겨 로그인 전에도 자동 시작되게 했고, 예전 사용자 PocketBase LaunchAgent는 내려간 상태임을 확인했다. `verify-imac-power` 15개 체크, `verify-imac-launchd` 85개 체크, `verify-imac-service-smoke --origin https://coldwaterkim.com` 24개 체크가 통과했다. 수동 백업 kickstart로 `/Users/kimchansu/Backups/coldwaterkim-pocketbase/pb_data_20260701_225527.tar.gz`와 `.sha256`이 생성/검증됐고, 이후 PocketBase와 `https://coldwaterkim.com/api/health`가 정상 복구됐다.
