@@ -110,6 +110,17 @@ function run(command, commandArgs) {
   return result.stdout.trim();
 }
 
+function runAllowFailure(command, commandArgs) {
+  const result = spawnSync(command, commandArgs, {
+    cwd: root,
+    encoding: 'utf8',
+  });
+  return {
+    ok: result.status === 0,
+    output: [result.stdout, result.stderr].filter(Boolean).join('\n').trim(),
+  };
+}
+
 function isExecutable(file) {
   try {
     fs.accessSync(file, fs.constants.X_OK);
@@ -253,6 +264,41 @@ function verifyLiveInputs() {
   );
 
   requireCondition('production Caddy binary installed', isExecutable('/usr/local/bin/caddy'), '/usr/local/bin/caddy');
+
+  verifyPublicHttpForwarding();
+}
+
+function verifyPublicHttpForwarding() {
+  if (!isPublicIPv4(expectedPublicIp)) return;
+
+  const result = runAllowFailure('curl', [
+    '-i',
+    '--max-time',
+    '10',
+    '-H',
+    'Host: coldwaterkim.com',
+    `http://${expectedPublicIp}/api/health`,
+  ]);
+  const output = result.output || '';
+  const reachesCaddy = /server:\s*Caddy/i.test(output)
+    && (
+      /location:\s*https:\/\/coldwaterkim\.com\/api\/health/i.test(output)
+      || output.includes('"API is healthy"')
+    );
+  const reachesRouter = /ipTIME|Server:\s*Httpd\/1\.0/i.test(output);
+
+  requireCondition(
+    'public IPv4 HTTP reaches iMac Caddy',
+    reachesCaddy,
+    reachesRouter
+      ? `${expectedPublicIp}:80 reaches ipTIME/router UI; forward TCP 80 to ${expectedLanIp}:80 before DNS cutover`
+      : firstHttpLine(output) || `${expectedPublicIp}:80 did not return the expected Caddy response`,
+  );
+}
+
+function firstHttpLine(output) {
+  const line = output.split(/\r?\n/).find(item => item.startsWith('HTTP/') || /^curl:/.test(item));
+  return line || '';
 }
 
 function printSummary() {

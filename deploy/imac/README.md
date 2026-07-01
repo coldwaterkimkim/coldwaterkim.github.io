@@ -217,6 +217,8 @@ npm run qa:rollback
 npm run qa:network-preflight
 ```
 
+`npm run qa:network-preflight`는 DNS를 바꾸기 전에 집 공인 IP의 80번 포트가 아이맥 Caddy까지 도달하는지 확인한다. 응답에 `ipTIME` 또는 `Httpd/1.0`이 보이면 아직 공유기 관리 화면으로 들어가는 상태이므로, 공유기에서 TCP 80/443을 `HOME_SERVER_LAN_IP`의 80/443으로 포워딩한 뒤 다시 실행한다.
+
 `npm run imac:configure-network:auto`는 아이맥 LAN IP와 집 공인 IPv4를 감지해서 `~/.config/coldwaterkim/home-server.env`에 저장한다. 자동 감지가 틀리거나 실패하면 `npm run imac:configure-network`로 직접 입력한다. 다른 경로를 쓰려면 `HOME_SERVER_ENV_FILE`을 지정한다.
 
 전환 전 로컬 컷오버 검증:
@@ -250,6 +252,7 @@ QA:
 - `/usr/local/bin/caddy` 운영 바이너리 설치
 - `npm run qa:launchd` 통과
 - `npm run qa:network-preflight` 통과
+- 집 공인 IP의 80/443 포트가 공유기 관리 화면이 아니라 아이맥 Caddy로 연결
 - 외부에서 HTTPS 인증서 정상
 - `/api/health` 200
 - 글/방명록/미디어가 운영 데이터와 일치

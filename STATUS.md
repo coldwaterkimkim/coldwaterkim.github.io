@@ -60,7 +60,7 @@
 - Fly.io를 쓰는 경우 `fly.toml`, `deploy/fly/`, `scripts/deploy-pocketbase-fly.sh` 기준으로 배포
 - 아이맥 홈서버 이주는 `deploy/imac/README.md` 기준으로 freeze -> rehearsal -> DNS cutover -> hardening 순서로 진행
 - 아이맥 운영 빌드는 `npm run build:imac`과 `npm run qa:home-server`를 통과해야 진행
-- 2026-07-01 기준 Stage 1 repo readiness, Stage 2 iMac local rehearsal, Stage 3 데이터/런타임 준비, Stage 4 pre-cutover readiness는 통과했다. 다음 단계는 Oracle 부트볼륨 백업 생성 확인 후 DNS cutover다.
+- 2026-07-01 기준 Stage 1 repo readiness, Stage 2 iMac local rehearsal, Stage 3 데이터/런타임 준비, Oracle 부트볼륨 백업은 완료했다. 다음 단계는 공유기 TCP 80/443 포트포워딩 확인 후 DNS cutover다.
 
 ## 주의
 
