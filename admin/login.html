@@ -45,17 +45,10 @@
     </div>
 
     <script type="module">
-        import { isLoggedIn, login, cmsErrorMessage } from '../js/pb.js';
+        import { pb, isLoggedIn, login, logout, cmsErrorMessage } from '../js/pb.js';
 
         const params = new URLSearchParams(window.location.search);
         const next = params.get('next') || '/';
-
-        // 이미 로그인되어 있으면 원래 보던 공개 화면으로 이동
-        if (isLoggedIn()) {
-            window.location.replace(next);
-            await new Promise(() => { });
-        }
-
         const form = document.getElementById('loginForm');
         const alertEl = document.getElementById('alert');
 
@@ -63,6 +56,19 @@
             alertEl.textContent = message;
             alertEl.className = `alert alert-${type}`;
             alertEl.style.display = 'block';
+        }
+
+        // 이미 로그인되어 있으면 서버에 한 번 더 확인한 뒤 이동한다.
+        // 이주/복구 후 낡은 로컬 토큰이 남아 있으면 로그인 화면을 계속 건너뛰는 문제가 생긴다.
+        if (isLoggedIn()) {
+            try {
+                await pb.collection('users').authRefresh();
+                window.location.replace(next);
+                await new Promise(() => { });
+            } catch (err) {
+                logout();
+                showAlert('로그인 상태가 만료됐어. 다시 로그인해줘.', 'error');
+            }
         }
 
         form.addEventListener('submit', async (e) => {

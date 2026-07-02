@@ -44,7 +44,7 @@
                 <h2>📤 파일 업로드</h2>
                 <div id="dropzone" class="dropzone">
                     <p>📁 여기에 파일을 드래그하거나 클릭하여 업로드</p>
-                    <p style="font-size: 12px; color: #888;">이미지, 영상, MP3, PDF (최대 100MB)</p>
+                    <p style="font-size: 12px; color: #888;">이미지, 영상, MP3, PDF (최대 2GB)</p>
                 </div>
                 <input type="file" id="fileInput" style="display: none;" multiple accept="image/*,video/*,audio/*,.pdf">
                 <div id="uploadProgress" style="margin-top: 8px; display: none;">
@@ -146,6 +146,8 @@
             const progressText = document.getElementById('progressText');
 
             uploadProgress.style.display = 'block';
+            let uploadedCount = 0;
+            let failedCount = 0;
 
             for (let i = 0; i < files.length; i++) {
                 const file = files[i];
@@ -154,14 +156,20 @@
 
                 try {
                     await uploadMedia(file);
+                    uploadedCount += 1;
                 } catch (e) {
+                    failedCount += 1;
                     showAlert(`업로드 실패 (${file.name}): ${cmsErrorMessage(e)}`, 'error');
                 }
             }
 
             uploadProgress.style.display = 'none';
             fileInput.value = '';
-            showAlert(`${files.length}개 파일이 업로드되었습니다.`, 'success');
+            if (uploadedCount > 0 && failedCount === 0) {
+                showAlert(`${uploadedCount}개 파일이 업로드되었습니다.`, 'success');
+            } else if (uploadedCount > 0) {
+                showAlert(`${uploadedCount}개 업로드, ${failedCount}개 실패. 실패한 파일은 메시지를 확인해줘.`, 'error');
+            }
             loadMedia(1);
         }
 

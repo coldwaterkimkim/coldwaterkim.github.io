@@ -86,6 +86,35 @@ export function logout() {
     pb.authStore.clear();
 }
 
+const MEDIA_UPLOAD_AUTH_MESSAGE = '관리자 로그인 상태가 만료됐어. 다시 로그인한 뒤 같은 파일을 올려줘.';
+const MEDIA_UPLOAD_TYPE_MESSAGE = '지원하지 않는 파일 형식이야. 현재 JPG, PNG, GIF, WebP, MP4, WebM, MOV/M4V, MP3, PDF만 올릴 수 있어.';
+
+function errorFieldData(err) {
+    return err?.data?.data || err?.response?.data || {};
+}
+
+function hasFieldErrors(err) {
+    return Object.keys(errorFieldData(err)).length > 0;
+}
+
+function isInvalidMimeTypeError(err) {
+    return Object.values(errorFieldData(err))
+        .some(field => field?.code === 'validation_invalid_mime_type');
+}
+
+function isAuthRequiredCreateError(err) {
+    const message = err?.message || err?.data?.message || '';
+    return err?.status === 400
+        && !hasFieldErrors(err)
+        && /Failed to create record/i.test(message);
+}
+
+export function isAuthExpiredLikeError(err) {
+    return err?.status === 401
+        || err?.status === 403
+        || isAuthRequiredCreateError(err);
+}
+
 /**
  * 관리자 페이지 접근 체크 (로그인 안 되어 있으면 리다이렉트)
  */
@@ -1119,7 +1148,14 @@ export async function uploadMedia(file, altText = '', caption = '') {
     if (altText) formData.append('alt_text', altText);
     if (caption) formData.append('caption', caption);
 
-    return await pb.collection('media').create(formData);
+    try {
+        return await pb.collection('media').create(formData);
+    } catch (e) {
+        if (isAuthExpiredLikeError(e)) {
+            pb.authStore.clear();
+        }
+        throw e;
+    }
 }
 
 /**
@@ -1293,6 +1329,10 @@ export function escapeHtml(str) {
 export function cmsErrorMessage(err) {
     const message = err?.message || String(err || '');
 
+    if (isInvalidMimeTypeError(err)) {
+        return MEDIA_UPLOAD_TYPE_MESSAGE;
+    }
+
     if (
         err?.status === 0
         || /Failed to fetch|NetworkError|Load failed|connection|refused/i.test(message)
@@ -1306,8 +1346,8 @@ export function cmsErrorMessage(err) {
             : 'CMS 서버에 연결할 수 없습니다. 로컬에서는 PocketBase를 먼저 실행해야 합니다.';
     }
 
-    if (err?.status === 401 || err?.status === 403) {
-        return '권한이 없습니다. 관리자 로그인이 필요하거나 CMS 권한 규칙을 확인해야 합니다.';
+    if (isAuthExpiredLikeError(err)) {
+        return MEDIA_UPLOAD_AUTH_MESSAGE;
     }
 
     if (err?.status === 404) {
