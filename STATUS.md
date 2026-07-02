@@ -8,6 +8,8 @@
 
 아이맥 운영 서비스는 macOS 시스템 LaunchDaemon으로 고정한다. Caddy, PocketBase, PocketBase 자동 백업은 사용자 로그인 전에도 부팅 시 자동 시작되며, PocketBase는 `kimchansu` 사용자 권한으로 `~/.local/share/coldwaterkim/home-server`의 운영 런타임을 사용한다.
 
+아이맥의 기준 소스 작업 폴더는 iCloud Documents가 아니라 `~/Code/coldwaterkim.github.io`다. MacBook에서 작업하더라도 원칙적으로 아이맥에 원격 접속해 이 로컬 clone을 사용한다. 예전 iCloud 작업 폴더는 보관용으로만 두고 새 코드 수정, 빌드, 커밋, 푸쉬는 `~/Code/coldwaterkim.github.io`에서 진행한다.
+
 공개 사이트의 디자인 기준은 현재 `index.html` 홈페이지, `design.md`, `css/styles.css`의 `:root` 디자인 토큰에 고정한다. 새 공개 페이지나 UI 수정은 현재 홈의 90s 개인 홈페이지 감성을 먼저 보존하고, 의도적으로 방향을 바꿀 때만 `design.md`, CSS 토큰, `STATUS.md`를 함께 갱신한다.
 
 공개 메인 IA 페이지(`Home`, `글방`, `글 상세`, `나으 하루`, `프로그램실`, `나사잡`, `Guestbook`, `About / Contact`)는 모두 홈의 2-column shell을 기본 레이아웃으로 쓴다. 즉 상단 marquee, 노란 construction banner, 왼쪽 프로필/sidebar, 나무위키식 PROFILE DATA 표, 오른쪽 content 상단 navigation은 유지하고, 페이지별 내용만 오른쪽 content 영역에서 바뀌게 한다.

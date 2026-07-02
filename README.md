@@ -39,6 +39,14 @@
 
 ## 실행 방법
 
+아이맥에서의 기준 작업 폴더:
+
+```bash
+cd ~/Code/coldwaterkim.github.io
+```
+
+예전 iCloud Documents 안의 작업 폴더는 보관용으로만 두고, 새 작업/커밋/푸쉬는 이 로컬 clone에서 진행합니다.
+
 로컬 프론트엔드 확인:
 
 ```bash
