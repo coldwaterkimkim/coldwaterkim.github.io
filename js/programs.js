@@ -31,6 +31,8 @@ let editorUploadLabel = null;
 let hasImageTransfer = null;
 let imageFilesFromTransfer = null;
 let isSupportedEditorUpload = null;
+let normalizeEditorImageFiles = null;
+let stopEditorTransferEvent = null;
 
 const PROGRAM_IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
 
@@ -470,8 +472,7 @@ async function initProgramBodyEditor() {
 
     formFields.bodyEditorWrap?.addEventListener('drop', async (event) => {
         if (!hasImageTransfer(event.dataTransfer)) return;
-        event.preventDefault();
-        event.stopPropagation();
+        stopEditorTransferEvent(event);
         formFields.bodyEditorWrap.classList.remove('is-image-dragover');
         await insertProgramBodyImages(programImageFilesFromTransfer(event.dataTransfer), {
             index: currentProgramBodyIndex()
@@ -480,8 +481,7 @@ async function initProgramBodyEditor() {
 
     programBodyEditor.root.addEventListener('paste', async (event) => {
         if (!hasImageTransfer(event.clipboardData)) return;
-        event.preventDefault();
-        event.stopPropagation();
+        stopEditorTransferEvent(event);
         await insertProgramBodyImages(programImageFilesFromTransfer(event.clipboardData), {
             index: currentProgramBodyIndex()
         });
@@ -499,6 +499,8 @@ async function loadMarkdownEditorModule() {
     hasImageTransfer = module.hasImageTransfer;
     imageFilesFromTransfer = module.imageFilesFromTransfer;
     isSupportedEditorUpload = module.isSupportedEditorUpload;
+    normalizeEditorImageFiles = module.normalizeEditorImageFiles;
+    stopEditorTransferEvent = module.stopEditorTransferEvent;
 }
 
 function setProgramBodyImageStatus(message = '', type = 'info') {
@@ -529,8 +531,10 @@ function currentProgramBodyIndex() {
 }
 
 async function insertProgramBodyImages(files, options = {}) {
-    const imageFiles = Array.from(files || [])
-        .filter(isSupportedProgramImage);
+    const imageFiles = normalizeEditorImageFiles(files, {
+        mimeTypes: PROGRAM_IMAGE_MIME_TYPES,
+        fallbackNamePrefix: 'program-body-image'
+    }).filter(isSupportedProgramImage);
 
     if (!imageFiles.length) {
         setOwnerStatus('JPG, PNG, GIF, WebP 이미지만 본문에 넣을 수 있음.', 'error');
@@ -538,7 +542,7 @@ async function insertProgramBodyImages(files, options = {}) {
     }
 
     let insertIndex = clampProgramBodyIndex(options.index);
-    let uploadedCount = 0;
+    const uploadedImages = [];
     formFields.bodyEditorWrap?.classList.add('is-image-uploading');
 
     for (let i = 0; i < imageFiles.length; i += 1) {
@@ -548,8 +552,7 @@ async function insertProgramBodyImages(files, options = {}) {
         try {
             const media = await uploadMedia(file);
             const url = getMediaUrl(media, media.file);
-            insertIndex = programBodyEditor.insertImage(insertIndex, url, file.name);
-            uploadedCount += 1;
+            uploadedImages.push({ url, alt: file.name });
         } catch (error) {
             setOwnerStatus(`본문 이미지 업로드 실패: ${cmsErrorMessage(error)}`, 'error');
         }
@@ -557,9 +560,10 @@ async function insertProgramBodyImages(files, options = {}) {
 
     formFields.bodyEditorWrap?.classList.remove('is-image-uploading');
 
-    if (uploadedCount > 0) {
+    if (uploadedImages.length > 0) {
+        insertIndex = programBodyEditor.insertImages(insertIndex, uploadedImages);
         programBodyEditor.setSelection(insertIndex, 0, 'silent');
-        setProgramBodyImageStatus(`${uploadedCount}개 이미지가 본문에 들어갔습니다.`, 'success');
+        setProgramBodyImageStatus(`${uploadedImages.length}개 이미지가 본문에 들어갔습니다.`, 'success');
         setTimeout(() => setProgramBodyImageStatus(), 2500);
     } else {
         setProgramBodyImageStatus();

@@ -20,7 +20,9 @@ import {
     editorUploadLabel,
     hasImageTransfer,
     imageFilesFromTransfer,
-    isSupportedEditorUpload
+    isSupportedEditorUpload,
+    normalizeEditorImageFiles,
+    stopEditorTransferEvent
 } from './markdown-editor.js';
 import { findAutomaticProgramCoverFile } from './program-cover.js';
 
@@ -98,8 +100,7 @@ editorContainer?.addEventListener('dragleave', (event) => {
 
 editorContainer?.addEventListener('drop', async (event) => {
     if (!hasImageTransfer(event.dataTransfer)) return;
-    event.preventDefault();
-    event.stopPropagation();
+    stopEditorTransferEvent(event);
     editorContainer.classList.remove('is-image-dragover');
     await insertEditorImages(editorImageFilesFromTransfer(event.dataTransfer), {
         index: currentEditorIndex()
@@ -108,8 +109,7 @@ editorContainer?.addEventListener('drop', async (event) => {
 
 markdownEditor.root.addEventListener('paste', async (event) => {
     if (!hasImageTransfer(event.clipboardData)) return;
-    event.preventDefault();
-    event.stopPropagation();
+    stopEditorTransferEvent(event);
     await insertEditorImages(editorImageFilesFromTransfer(event.clipboardData), {
         index: currentEditorIndex()
     });
@@ -371,7 +371,10 @@ function currentEditorIndex() {
 }
 
 async function insertEditorImages(files, options = {}) {
-    const imageFiles = Array.from(files || []).filter(isSupportedEditorImage);
+    const imageFiles = normalizeEditorImageFiles(files, {
+        mimeTypes: IMAGE_MIME_TYPES,
+        fallbackNamePrefix: 'global-editor-image'
+    }).filter(isSupportedEditorImage);
 
     if (!imageFiles.length) {
         showAlert('JPG, PNG, GIF, WebP 이미지만 본문에 넣을 수 있어.', 'error');
@@ -379,7 +382,7 @@ async function insertEditorImages(files, options = {}) {
     }
 
     let insertIndex = clampEditorIndex(options.index);
-    let uploadedCount = 0;
+    const uploadedImages = [];
     editorContainer.classList.add('is-image-uploading');
 
     for (let i = 0; i < imageFiles.length; i += 1) {
@@ -389,8 +392,7 @@ async function insertEditorImages(files, options = {}) {
         try {
             const media = await uploadMedia(file);
             const url = getMediaUrl(media, media.file);
-            insertIndex = markdownEditor.insertImage(insertIndex, url, file.name);
-            uploadedCount += 1;
+            uploadedImages.push({ url, alt: file.name });
         } catch (error) {
             showAlert(`본문 이미지 업로드 실패 (${file.name}): ${cmsErrorMessage(error)}`, 'error');
         }
@@ -398,9 +400,10 @@ async function insertEditorImages(files, options = {}) {
 
     editorContainer.classList.remove('is-image-uploading');
 
-    if (uploadedCount > 0) {
+    if (uploadedImages.length > 0) {
+        insertIndex = markdownEditor.insertImages(insertIndex, uploadedImages);
         markdownEditor.setSelection(insertIndex, 0, 'silent');
-        setEditorImageStatus(`${uploadedCount}개 이미지가 본문에 들어갔습니다.`, 'success');
+        setEditorImageStatus(`${uploadedImages.length}개 이미지가 본문에 들어갔습니다.`, 'success');
         setTimeout(() => setEditorImageStatus(), 2500);
     } else {
         setEditorImageStatus();

@@ -117,6 +117,8 @@ function verifyPackageScripts() {
     'imac:install-caddy',
     'imac:install-caddy:no-start',
     'imac:install-caddy:dry-run',
+    'imac:sync-runtime',
+    'imac:sync-runtime:dry-run',
     'qa:launchd',
     'qa:launchd:tooling',
   ]) {
@@ -138,8 +140,9 @@ function verifyInstallerScript() {
   requireCondition('launchd installer supports no-start mode', script.includes('--no-start'));
   requireCondition('launchd installer protects normal user launchd setup', script.includes('Run this as the normal iMac user'));
   requireCondition('launchd installer supports Caddy-only mode', script.includes('--caddy-only'));
+  requireCondition('launchd installer supports runtime-only mode', script.includes('--runtime-only'));
   requireCondition('launchd installer defines runtime root', script.includes('RUNTIME_ROOT="${IMAC_RUNTIME_ROOT:-$HOME/.local/share/coldwaterkim/home-server}"'));
-  requireCondition('launchd installer syncs runtime dist', script.includes('ditto "$LOCAL_DIST" "$RUNTIME_DIST"'));
+  requireCondition('launchd installer replaces runtime dist cleanly', script.includes('replace_runtime_dir "$LOCAL_DIST" "$RUNTIME_DIST"'));
   requireCondition('launchd installer syncs runtime migrations', script.includes('ditto "$LOCAL_MIGRATIONS" "$RUNTIME_MIGRATIONS"'));
   requireCondition('launchd installer syncs runtime backup script', script.includes('install -m 755 "$LOCAL_BACKUP_SCRIPT" "$RUNTIME_BACKUP_SCRIPT"'));
   requireCondition('launchd installer installs PocketBase LaunchDaemon', script.includes('PB_LABEL="com.coldwaterkim.pocketbase"') && script.includes('SYSTEM_DAEMON_DIR="/Library/LaunchDaemons"'));
@@ -176,6 +179,14 @@ function verifyInstallerScript() {
     requireCondition('Caddy-only dry-run previews Caddy binary install', caddyDryRun.output.includes('/usr/local/bin/caddy'));
     requireCondition('Caddy-only dry-run previews Caddy daemon install', caddyDryRun.output.includes('/Library/LaunchDaemons/com.coldwaterkim.caddy.plist'));
     requireCondition('Caddy-only dry-run skips PocketBase plist install', !caddyDryRun.output.includes('com.coldwaterkim.pocketbase.plist'));
+  }
+
+  const runtimeDryRun = run('bash', [relativePath, '--dry-run', '--runtime-only'], { allowFailure: true });
+  requireCondition('runtime-only installer dry-run succeeds', runtimeDryRun.ok, runtimeDryRun.output);
+  if (runtimeDryRun.ok) {
+    requireCondition('runtime-only dry-run previews runtime dist replacement', runtimeDryRun.output.includes(`${runtimeRoot}/dist.tmp.`) && runtimeDryRun.output.includes(`${runtimeRoot}/dist.old.`));
+    requireCondition('runtime-only dry-run skips LaunchDaemon install', !runtimeDryRun.output.includes('/Library/LaunchDaemons/'));
+    requireCondition('runtime-only dry-run skips sudo', !runtimeDryRun.output.includes('sudo '));
   }
 
   const caddyCommand = path.join(root, 'deploy/imac/run-caddy-system-install.command');

@@ -5,19 +5,21 @@ DRY_RUN=0
 NO_START=0
 SKIP_CADDY=0
 CADDY_ONLY=0
+RUNTIME_ONLY=0
 
 usage() {
     cat <<'USAGE'
 Install coldwaterkim.com launchd services on the iMac.
 
 Usage:
-  bash deploy/imac/install-launchd-services.sh [--dry-run] [--no-start] [--skip-caddy] [--caddy-only]
+  bash deploy/imac/install-launchd-services.sh [--dry-run] [--no-start] [--skip-caddy] [--caddy-only] [--runtime-only]
 
 Options:
-  --dry-run     Print the install/bootstrap commands without changing files.
-  --no-start    Install plist files but do not bootstrap or kickstart launchd jobs.
-  --skip-caddy  Install only user LaunchAgents for PocketBase and backups.
-  --caddy-only  Install only the Caddy runtime, binary, and LaunchDaemon.
+  --dry-run       Print the install/bootstrap commands without changing files.
+  --no-start      Install plist files but do not bootstrap or kickstart launchd jobs.
+  --skip-caddy    Install only PocketBase and backups.
+  --caddy-only    Install only the Caddy runtime, binary, and LaunchDaemon.
+  --runtime-only  Sync runtime files only; do not use sudo or restart launchd jobs.
 USAGE
 }
 
@@ -35,6 +37,9 @@ while (($#)); do
         --caddy-only)
             CADDY_ONLY=1
             ;;
+        --runtime-only)
+            RUNTIME_ONLY=1
+            ;;
         -h|--help)
             usage
             exit 0
@@ -50,6 +55,11 @@ done
 
 if [[ "$CADDY_ONLY" -eq 1 && "$SKIP_CADDY" -eq 1 ]]; then
     echo "--caddy-only and --skip-caddy cannot be used together." >&2
+    exit 2
+fi
+
+if [[ "$CADDY_ONLY" -eq 1 && "$RUNTIME_ONLY" -eq 1 ]]; then
+    echo "--caddy-only and --runtime-only cannot be used together." >&2
     exit 2
 fi
 
@@ -168,13 +178,34 @@ lint_plist() {
     plutil -lint "$file" >/dev/null
 }
 
+replace_runtime_dir() {
+    local source="$1"
+    local target="$2"
+    local parent
+    local tmp
+    local old
+
+    parent="$(dirname "$target")"
+    tmp="${target}.tmp.$$"
+    old="${target}.old.$$"
+
+    run_cmd rm -rf "$tmp" "$old"
+    run_cmd mkdir -p "$parent"
+    run_cmd ditto "$source" "$tmp"
+    if [[ -e "$target" ]]; then
+        run_cmd mv "$target" "$old"
+    fi
+    run_cmd mv "$tmp" "$target"
+    run_cmd rm -rf "$old"
+}
+
 sync_runtime_files() {
     run_cmd mkdir -p "$RUNTIME_BIN_DIR" "$RUNTIME_PB_DATA"
     run_cmd install -m 755 "$LOCAL_POCKETBASE" "$RUNTIME_POCKETBASE"
     if [[ "$SKIP_CADDY" -eq 0 ]]; then
         run_cmd install -m 755 "$LOCAL_CADDY" "$RUNTIME_CADDY"
     fi
-    run_cmd ditto "$LOCAL_DIST" "$RUNTIME_DIST"
+    replace_runtime_dir "$LOCAL_DIST" "$RUNTIME_DIST"
     run_cmd ditto "$LOCAL_MIGRATIONS" "$RUNTIME_MIGRATIONS"
     run_cmd install -m 644 "$LOCAL_CADDYFILE" "$RUNTIME_CADDYFILE"
     run_cmd install -m 755 "$LOCAL_BACKUP_SCRIPT" "$RUNTIME_BACKUP_SCRIPT"
@@ -183,7 +214,7 @@ sync_runtime_files() {
 sync_caddy_runtime_files() {
     run_cmd mkdir -p "$RUNTIME_BIN_DIR" "$LOG_DIR"
     run_cmd install -m 755 "$LOCAL_CADDY" "$RUNTIME_CADDY"
-    run_cmd ditto "$LOCAL_DIST" "$RUNTIME_DIST"
+    replace_runtime_dir "$LOCAL_DIST" "$RUNTIME_DIST"
     run_cmd install -m 644 "$LOCAL_CADDYFILE" "$RUNTIME_CADDYFILE"
 }
 
@@ -260,6 +291,18 @@ require_executable "$LOCAL_POCKETBASE"
 
 lint_plist "$PB_PLIST_SRC"
 lint_plist "$BACKUP_PLIST_SRC"
+
+if [[ "$RUNTIME_ONLY" -eq 1 ]]; then
+    sync_runtime_files
+
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+        echo "Dry run only. No files were changed."
+    else
+        echo "Synced coldwaterkim.com runtime files."
+        echo "Next: npm run qa:service-smoke"
+    fi
+    exit 0
+fi
 
 sync_runtime_files
 run_cmd mkdir -p "$USER_AGENT_DIR" "$LOG_DIR"

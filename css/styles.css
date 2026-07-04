@@ -1667,9 +1667,12 @@ body > center > table[width="1140"] > tbody > tr > td {
   cursor: auto;
 }
 
-.post-content img {
+.post-content img,
+.program-body-content img {
+  display: block;
   max-width: 100%;
   height: auto;
+  margin: 10px 0 14px;
 }
 
 .post-content video,
@@ -1712,6 +1715,18 @@ body > center > table[width="1140"] > tbody > tr > td {
 .post-content p,
 .program-body-content p {
   margin: 0 0 0.85em;
+}
+
+.post-content p[data-cwk-empty-line="true"],
+.program-body-content p[data-cwk-empty-line="true"],
+.post-content p:empty,
+.program-body-content p:empty {
+  min-height: calc(var(--cwk-post-line-height) * 1em);
+}
+
+.post-content p:empty::before,
+.program-body-content p:empty::before {
+  content: "\00a0";
 }
 
 .post-content :is(h1, h2, h3, h4, h5, h6),

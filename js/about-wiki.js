@@ -22,6 +22,8 @@ let editorUploadLabel = null;
 let hasImageTransfer = null;
 let imageFilesFromTransfer = null;
 let isSupportedEditorUpload = null;
+let normalizeEditorImageFiles = null;
+let stopEditorTransferEvent = null;
 
 const DEFAULT_DOCUMENT = {
   title: '김찬수',
@@ -377,6 +379,8 @@ async function loadMarkdownEditorModule() {
   hasImageTransfer = module.hasImageTransfer;
   imageFilesFromTransfer = module.imageFilesFromTransfer;
   isSupportedEditorUpload = module.isSupportedEditorUpload;
+  normalizeEditorImageFiles = module.normalizeEditorImageFiles;
+  stopEditorTransferEvent = module.stopEditorTransferEvent;
 }
 
 function bindSectionEditorImages(state, form, input, editor) {
@@ -410,8 +414,7 @@ function bindSectionEditorImages(state, form, input, editor) {
 
   container.addEventListener('drop', async (event) => {
     if (!hasImageTransfer(event.dataTransfer)) return;
-    event.preventDefault();
-    event.stopPropagation();
+    stopEditorTransferEvent(event);
     container.classList.remove('is-image-dragover');
     await insertEditorImages(state, editorImageFilesFromTransfer(event.dataTransfer), {
       index: currentEditorIndex(state)
@@ -420,8 +423,7 @@ function bindSectionEditorImages(state, form, input, editor) {
 
   editor.root.addEventListener('paste', async (event) => {
     if (!hasImageTransfer(event.clipboardData)) return;
-    event.preventDefault();
-    event.stopPropagation();
+    stopEditorTransferEvent(event);
     await insertEditorImages(state, editorImageFilesFromTransfer(event.clipboardData), {
       index: currentEditorIndex(state)
     });
@@ -650,7 +652,10 @@ async function insertEditorImages(state, files, options = {}) {
   const editor = state.sectionEditor;
   if (!editor) return;
 
-  const imageFiles = Array.from(files || []).filter(isSupportedEditorImage);
+  const imageFiles = normalizeEditorImageFiles(files, {
+    mimeTypes: IMAGE_MIME_TYPES,
+    fallbackNamePrefix: 'about-section-image'
+  }).filter(isSupportedEditorImage);
   if (!imageFiles.length) {
     renderEditorImageStatus(state, 'JPG, PNG, GIF, WebP 이미지만 본문에 넣을 수 있어.', 'error');
     return;
@@ -658,7 +663,7 @@ async function insertEditorImages(state, files, options = {}) {
 
   const container = state.root.querySelector('[data-about-editor-container]');
   let insertIndex = clampEditorIndex(state, options.index);
-  let uploadedCount = 0;
+  const uploadedImages = [];
   container?.classList.add('is-image-uploading');
 
   for (let i = 0; i < imageFiles.length; i += 1) {
@@ -668,8 +673,7 @@ async function insertEditorImages(state, files, options = {}) {
     try {
       const media = await uploadMedia(file, file.name, 'About wiki');
       const url = getMediaUrl(media, media.file);
-      insertIndex = editor.insertImage(insertIndex, url, file.name);
-      uploadedCount += 1;
+      uploadedImages.push({ url, alt: file.name });
     } catch (error) {
       renderEditorImageStatus(state, `본문 이미지 업로드 실패 (${file.name}): ${cmsErrorMessage(error)}`, 'error');
     }
@@ -677,9 +681,10 @@ async function insertEditorImages(state, files, options = {}) {
 
   container?.classList.remove('is-image-uploading');
 
-  if (uploadedCount > 0) {
+  if (uploadedImages.length > 0) {
+    insertIndex = editor.insertImages(insertIndex, uploadedImages);
     editor.setSelection(insertIndex, 0, 'silent');
-    renderEditorImageStatus(state, `${uploadedCount}개 이미지가 본문에 들어갔습니다.`, 'success');
+    renderEditorImageStatus(state, `${uploadedImages.length}개 이미지가 본문에 들어갔습니다.`, 'success');
     setTimeout(() => renderEditorImageStatus(state), 2500);
   }
 }

@@ -1,31 +1,31 @@
 {
-    email ckstn1112@gmail.com
+	email ckstn1112@gmail.com
 }
 
 coldwaterkim.com, www.coldwaterkim.com {
-    encode zstd gzip
+	encode zstd gzip
 
-    request_body {
-        max_size 2GB
-    }
+	request_body {
+		max_size 2GB
+	}
 
-    handle /api/* {
-        reverse_proxy 127.0.0.1:8090
-    }
+	handle /api/* {
+		reverse_proxy 127.0.0.1:8090
+	}
 
-    handle /_/* {
-        reverse_proxy 127.0.0.1:8090
-    }
+	handle /_/* {
+		reverse_proxy 127.0.0.1:8090
+	}
 
-    handle {
-        root * "/Users/kimchansu/.local/share/coldwaterkim/home-server/dist"
-        try_files {path} {path}/ =404
-        file_server
-    }
+	handle {
+		root * "/Users/kimchansu/.local/share/coldwaterkim/home-server/dist"
+		try_files {path} {path}/ =404
+		file_server
+	}
 
-    header {
-        X-Frame-Options "SAMEORIGIN"
-        X-Content-Type-Options "nosniff"
-        Referrer-Policy "strict-origin-when-cross-origin"
-    }
+	header {
+		X-Frame-Options "SAMEORIGIN"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
 }

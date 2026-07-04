@@ -51,16 +51,34 @@ export function imageFilesFromTransfer(dataTransfer, options = {}) {
         .map(item => item.getAsFile())
         .filter(Boolean);
 
-    return [...files, ...itemFiles]
-        .filter((file, index, allFiles) => {
+    return normalizeEditorImageFiles([...files, ...itemFiles], {
+        mimeTypes,
+        fallbackNamePrefix
+    });
+}
+
+export function normalizeEditorImageFiles(files, options = {}) {
+    const mimeTypes = options.mimeTypes || IMAGE_MIME_TYPES;
+    const fallbackNamePrefix = options.fallbackNamePrefix || 'editor-image';
+    const seen = new Set();
+
+    return Array.from(files || [])
+        .filter(file => {
             if (!file || !mimeTypes.has(file.type)) return false;
-            return allFiles.findIndex(candidate =>
-                candidate.name === file.name
-                && candidate.size === file.size
-                && candidate.lastModified === file.lastModified
-            ) === index;
+
+            const key = fileFingerprint(file);
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
         })
-        .map((file, index) => namedImageFile(file, index, fallbackNamePrefix));
+        .map((file, index) => namedImageFile(file, index, fallbackNamePrefix))
+        .sort(compareFilesByName);
+}
+
+export function stopEditorTransferEvent(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation?.();
 }
 
 export function isSupportedEditorUpload(file) {
@@ -120,7 +138,8 @@ class BlockNoteMarkdownEditor {
         });
 
         this.editorApi = {
-            setPlaceholder: placeholder => this.setPlaceholder(placeholder)
+            setPlaceholder: placeholder => this.setPlaceholder(placeholder),
+            insertImages: (index, images = []) => this.insertImages(index, images)
         };
         this.editor = this.editorApi;
 
@@ -256,29 +275,23 @@ class BlockNoteMarkdownEditor {
     }
 
     insertImage(_index, url, alt = 'image') {
-        if (!this.blockNote) return 0;
+        return this.insertImages(_index, [{ url, alt }]);
+    }
 
-        const currentBlock = this.currentBlock();
-        const imageBlock = {
-            type: 'image',
-            props: {
-                url,
-                name: cleanImageName(alt),
-                caption: '',
-                showPreview: true
-            }
-        };
+    insertImages(_index, images = []) {
+        const imageBlocks = Array.from(images || [])
+            .filter(image => image?.url)
+            .map(image => ({
+                type: 'image',
+                props: {
+                    url: image.url,
+                    name: cleanImageName(image.alt || image.name),
+                    caption: '',
+                    showPreview: true
+                }
+            }));
 
-        if (currentBlock && isEmptyParagraph(currentBlock)) {
-            this.blockNote.updateBlock(currentBlock, imageBlock);
-        } else if (currentBlock) {
-            this.blockNote.insertBlocks([imageBlock], currentBlock, 'after');
-        } else {
-            this.blockNote.insertBlocks([imageBlock], this.blockNote.document.at(-1), 'after');
-        }
-
-        this.currentHtml = this.htmlFromEditor();
-        return this.textLength();
+        return this.insertBlocksAtCursor(imageBlocks);
     }
 
     insertVideo(_index, url, name = 'video') {
@@ -293,18 +306,45 @@ class BlockNoteMarkdownEditor {
     }
 
     insertFileBlock(type, props) {
-        const currentBlock = this.currentBlock();
-        const fileBlock = {
+        return this.insertBlocksAtCursor([{
             type,
             props
-        };
+        }]);
+    }
+
+    insertBlocksAtCursor(blocks = []) {
+        if (!this.blockNote || !blocks.length) return 0;
+
+        const currentBlock = this.currentBlock();
+        let insertedBlocks = [];
 
         if (currentBlock && isEmptyParagraph(currentBlock)) {
-            this.blockNote.updateBlock(currentBlock, fileBlock);
+            const [firstBlock, ...restBlocks] = blocks;
+            const updatedBlock = this.blockNote.updateBlock(currentBlock, firstBlock);
+            insertedBlocks = [updatedBlock];
+
+            if (restBlocks.length) {
+                insertedBlocks = insertedBlocks.concat(this.blockNote.insertBlocks(restBlocks, updatedBlock, 'after'));
+            }
         } else if (currentBlock) {
-            this.blockNote.insertBlocks([fileBlock], currentBlock, 'after');
+            insertedBlocks = this.blockNote.insertBlocks(blocks, currentBlock, 'after');
         } else {
-            this.blockNote.insertBlocks([fileBlock], this.blockNote.document.at(-1), 'after');
+            const lastBlock = this.blockNote.document.at(-1);
+            if (lastBlock) {
+                insertedBlocks = this.blockNote.insertBlocks(blocks, lastBlock, 'after');
+            } else {
+                this.blockNote.replaceBlocks(this.blockNote.document, blocks);
+                insertedBlocks = this.blockNote.document.slice(-blocks.length);
+            }
+        }
+
+        const lastInsertedBlock = insertedBlocks.at(-1);
+        if (lastInsertedBlock) {
+            try {
+                this.blockNote.setTextCursorPosition(lastInsertedBlock, 'end');
+            } catch (_error) {
+                // Media blocks may not always accept a text cursor; insertion still succeeded.
+            }
         }
 
         this.currentHtml = this.htmlFromEditor();
@@ -363,6 +403,35 @@ function namedImageFile(file, index, fallbackNamePrefix) {
     return new File([file], `${fallbackNamePrefix}-${Date.now()}-${index + 1}.${extension}`, {
         type: file.type
     });
+}
+
+function compareFilesByName(a, b) {
+    const nameCompare = fileSortName(a).localeCompare(fileSortName(b), 'ko-KR', {
+        numeric: true,
+        sensitivity: 'base'
+    });
+    if (nameCompare !== 0) return nameCompare;
+
+    return fileFingerprint(a).localeCompare(fileFingerprint(b), 'ko-KR', {
+        numeric: true,
+        sensitivity: 'base'
+    });
+}
+
+function fileSortName(file) {
+    return String(file?.name || '').trim().toLowerCase() || 'zzzzzz-unnamed-image';
+}
+
+function fileFingerprint(file) {
+    const name = String(file?.name || '').trim().toLowerCase();
+    const type = String(file?.type || '').trim().toLowerCase();
+    const size = Number(file?.size || 0);
+
+    if (!name) {
+        return `clipboard:${type}:${size}`;
+    }
+
+    return `${name}:${type}:${size}:${Number(file?.lastModified || 0)}`;
 }
 
 function cleanImageName(value = '') {

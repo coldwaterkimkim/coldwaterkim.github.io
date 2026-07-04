@@ -16,6 +16,8 @@
     "imac:install-caddy": "bash deploy/imac/install-launchd-services.sh --caddy-only",
     "imac:install-caddy:no-start": "bash deploy/imac/install-launchd-services.sh --caddy-only --no-start",
     "imac:install-caddy:dry-run": "bash deploy/imac/install-launchd-services.sh --caddy-only --dry-run --no-start",
+    "imac:sync-runtime": "bash deploy/imac/install-launchd-services.sh --runtime-only",
+    "imac:sync-runtime:dry-run": "bash deploy/imac/install-launchd-services.sh --runtime-only --dry-run",
     "imac:install-services": "bash deploy/imac/install-launchd-services.sh",
     "imac:install-services:dry-run": "bash deploy/imac/install-launchd-services.sh --dry-run",
     "pb:backup:production": "node scripts/pocketbase-remote-backup.mjs",

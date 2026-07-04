@@ -88,6 +88,14 @@ npm run imac:install-services
 npm run qa:launchd
 ```
 
+프론트 정적 파일만 바뀐 배포는 launchd 재등록이나 서비스 재시작이 필요 없다. 이때는 sudo 없이 운영 런타임 파일만 교체한다. `dist`는 기존 폴더 위에 누적 덮어쓰지 않고 새 폴더를 만든 뒤 교체하므로 오래된 해시 JS/CSS가 운영 폴더에 남지 않는다.
+
+```bash
+npm run build:imac
+npm run imac:sync-runtime
+npm run qa:service-smoke
+```
+
 launchd 설정 파일만 먼저 점검:
 
 ```bash

@@ -129,6 +129,7 @@
             newDailyEntryTitle,
             normalizeDailyDayKey,
             formatDate,
+            escapeHtml,
             cmsErrorMessage,
             uploadMedia,
             getMediaUrl
@@ -138,7 +139,9 @@
             editorUploadLabel,
             hasImageTransfer,
             imageFilesFromTransfer,
-            isSupportedEditorUpload
+            isSupportedEditorUpload,
+            normalizeEditorImageFiles,
+            stopEditorTransferEvent
         } from '../js/markdown-editor.js';
 
         // 인증 체크
@@ -197,8 +200,7 @@
 
         editorContainer.addEventListener('drop', async (event) => {
             if (!hasImageTransfer(event.dataTransfer)) return;
-            event.preventDefault();
-            event.stopPropagation();
+            stopEditorTransferEvent(event);
             editorContainer.classList.remove('is-image-dragover');
 
             const imageFiles = editorImageFilesFromTransfer(event.dataTransfer);
@@ -214,8 +216,7 @@
 
         markdownEditor.root.addEventListener('paste', async (event) => {
             if (!hasImageTransfer(event.clipboardData)) return;
-            event.preventDefault();
-            event.stopPropagation();
+            stopEditorTransferEvent(event);
 
             const imageFiles = editorImageFilesFromTransfer(event.clipboardData);
             if (!imageFiles.length) {
@@ -278,8 +279,10 @@
         }
 
         async function insertEditorImages(files, options = {}) {
-            const imageFiles = Array.from(files || [])
-                .filter(isSupportedEditorImage);
+            const imageFiles = normalizeEditorImageFiles(files, {
+                mimeTypes: editorImageMimeTypes,
+                fallbackNamePrefix: 'editor-image'
+            }).filter(isSupportedEditorImage);
 
             if (!imageFiles.length) {
                 showAlert('JPG, PNG, GIF, WebP 이미지만 본문에 넣을 수 있습니다.', 'error');
@@ -287,7 +290,7 @@
             }
 
             let insertIndex = clampEditorIndex(options.index);
-            let uploadedCount = 0;
+            const uploadedImages = [];
             editorContainer.classList.add('is-image-uploading');
 
             for (let i = 0; i < imageFiles.length; i += 1) {
@@ -297,8 +300,7 @@
                 try {
                     const media = await uploadMedia(file);
                     const url = getMediaUrl(media, media.file);
-                    insertIndex = markdownEditor.insertImage(insertIndex, url, file.name);
-                    uploadedCount += 1;
+                    uploadedImages.push({ url, alt: file.name });
                 } catch (e) {
                     showAlert(`본문 이미지 업로드 실패 (${file.name}): ${cmsErrorMessage(e)}`, 'error');
                 }
@@ -306,9 +308,10 @@
 
             editorContainer.classList.remove('is-image-uploading');
 
-            if (uploadedCount > 0) {
+            if (uploadedImages.length > 0) {
+                insertIndex = markdownEditor.insertImages(insertIndex, uploadedImages);
                 markdownEditor.setSelection(insertIndex, 0, 'silent');
-                setEditorImageStatus(`${uploadedCount}개 이미지가 본문에 들어갔습니다.`, 'success');
+                setEditorImageStatus(`${uploadedImages.length}개 이미지가 본문에 들어갔습니다.`, 'success');
                 setTimeout(() => setEditorImageStatus(), 2500);
             } else {
                 setEditorImageStatus();
@@ -406,7 +409,7 @@
                 tbody.innerHTML = result.items.map(post => `
           <tr>
             <td>
-              <a href="javascript:void(0)" onclick="editPost('${post.id}')">${post.title || '(제목 없음)'}</a>
+              <a href="javascript:void(0)" onclick="editPost('${post.id}')">${escapeHtml(post.title || '(제목 없음)')}</a>
             </td>
             <td><span class="badge badge-${post.status}">${post.status === 'published' ? '발행' : '초안'}</span></td>
             <td>${formatDate(dailyEntryDisplayDate(post))}</td>

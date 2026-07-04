@@ -5,6 +5,7 @@ export function prepareRichContentHtml(html = '') {
     const template = document.createElement('template');
     template.innerHTML = String(html || '').trim();
 
+    normalizeRichContentBlocks(template.content);
     template.content.querySelectorAll('video').forEach(video => {
         if (!video.getAttribute('src') && video.querySelector('source')) return;
         video.setAttribute('controls', '');
@@ -23,6 +24,7 @@ export function prepareRichContentHtml(html = '') {
 export function enhanceEmbeddedMedia(scope = document) {
     const root = scope || document;
 
+    normalizeRichContentBlocks(root);
     root.querySelectorAll('video').forEach(video => {
         if (video.dataset.cwkMediaReady === 'true') return;
 
@@ -57,6 +59,29 @@ export function enhanceEmbeddedMedia(scope = document) {
         decorateMediaIframe(iframe, youtube.title);
         iframe.dataset.cwkMediaReady = 'true';
     });
+}
+
+function normalizeRichContentBlocks(root) {
+    root.querySelectorAll('p').forEach(paragraph => {
+        if (!isVisuallyEmptyParagraph(paragraph)) {
+            delete paragraph.dataset.cwkEmptyLine;
+            return;
+        }
+
+        paragraph.dataset.cwkEmptyLine = 'true';
+        if (!paragraph.querySelector('br')) {
+            paragraph.appendChild(document.createElement('br'));
+        }
+    });
+}
+
+function isVisuallyEmptyParagraph(paragraph) {
+    if (!paragraph) return false;
+    if (paragraph.querySelector('img, video, audio, iframe, table, ul, ol, pre, blockquote')) {
+        return false;
+    }
+
+    return String(paragraph.textContent || '').replace(/\u00a0/g, '').trim() === '';
 }
 
 export function isYouTubeUrl(value = '') {
