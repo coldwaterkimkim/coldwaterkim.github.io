@@ -27,6 +27,7 @@ globalThis.window = {
 
 const pbModule = await import('../js/pb.js');
 let createdSessions = 0;
+let deletedSessions = 0;
 
 pbModule.pb.collection = collectionName => {
   if (collectionName === 'visitor_sessions') {
@@ -37,6 +38,13 @@ pbModule.pb.collection = collectionName => {
       async create() {
         createdSessions += 1;
         return { id: `session-${createdSessions}` };
+      },
+      async getFirstListItem() {
+        return { id: 'guest-session' };
+      },
+      async delete(recordId) {
+        assert.equal(recordId, 'guest-session');
+        deletedSessions += 1;
       },
     };
   }
@@ -60,11 +68,15 @@ assert.equal(ownerStats.realToday, 4);
 await pbModule.recordVisitAndGetStats();
 assert.equal(createdSessions, 1, 'a guest visit must still create a visitor session');
 
+await pbModule.excludeCurrentVisitorSession();
+assert.equal(deletedSessions, 1, 'owner login must remove the active pre-login guest session');
+assert.equal(localStorage.getItem('cwk_visitor_session'), null, 'removed owner session must be cleared locally');
+
 const siteSource = fs.readFileSync(new URL('../js/site.js', import.meta.url), 'utf8');
 assert.match(
   siteSource,
-  /const isOwnerMode = isLoggedIn\(\);[\s\S]*if \(!isOwnerMode\)[\s\S]*recordVisitAndGetStats\(\)[\s\S]*const stats = await getVisitorDisplayStats\(\);/,
-  'owner mode must load counter stats without recording a visit',
+  /const isOwnerMode = isLoggedIn\(\);[\s\S]*if \(!isOwnerMode\)[\s\S]*recordVisitAndGetStats\(\)[\s\S]*await excludeCurrentVisitorSession\(\);[\s\S]*const stats = await getVisitorDisplayStats\(\);/,
+  'owner mode must remove a pre-login session and load stats without recording a visit',
 );
 
-console.log('Visitor counter regression checks passed (6 assertions).');
+console.log('Visitor counter regression checks passed (9 assertions).');

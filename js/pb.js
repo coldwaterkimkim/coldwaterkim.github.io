@@ -899,6 +899,14 @@ function storageSet(key, value) {
     }
 }
 
+function storageRemove(key) {
+    try {
+        localStorage.removeItem(key);
+    } catch (e) {
+        // 저장소가 막힌 환경에서는 지울 방문 세션도 유지되지 않는다.
+    }
+}
+
 function getVisitorId() {
     const existing = storageGet(VISITOR_ID_KEY);
     if (existing) return existing;
@@ -1025,6 +1033,32 @@ export async function recordVisitAndGetStats() {
 
     saveActiveSession(sessionKey, dayKey, now);
     return await getVisitorDisplayStats(dayKey);
+}
+
+/**
+ * 로그인 직전에 같은 브라우저에서 생성된 활성 방문 세션을 관리자 집계에서 제외한다.
+ * 삭제에 실패하면 다음 OWNER MODE 진입에서 다시 시도할 수 있도록 로컬 세션을 유지한다.
+ * @returns {Promise<boolean>}
+ */
+export async function excludeCurrentVisitorSession() {
+    const activeSession = readActiveSession(Date.now());
+    if (!activeSession?.sessionKey) return false;
+
+    try {
+        const record = await pb.collection('visitor_sessions').getFirstListItem(
+            pb.filter('session_key = {:sessionKey}', { sessionKey: activeSession.sessionKey }),
+            {
+                fields: 'id',
+                requestKey: `visitor-session-owner-${activeSession.sessionKey}`
+            }
+        );
+        await pb.collection('visitor_sessions').delete(record.id);
+    } catch (e) {
+        if (e?.status !== 404) throw e;
+    }
+
+    storageRemove(VISITOR_SESSION_KEY);
+    return true;
 }
 
 /**

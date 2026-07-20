@@ -22,6 +22,7 @@ import {
   programDisplayDate,
   nasajabDisplayDate,
   recordVisitAndGetStats,
+  excludeCurrentVisitorSession,
   getVisitorDisplayStats,
   setVisitorTodayMinimum,
   formatDate,
@@ -878,6 +879,12 @@ function initHomeOwnerTools(scope = document) {
     controls.append(makeButton('▼', -1));
     todayEl.insertAdjacentElement('afterend', controls);
   };
+
+  try {
+    await excludeCurrentVisitorSession();
+  } catch (e) {
+    console.warn('Owner visitor session cleanup failed:', cmsErrorMessage(e));
+  }
 
   try {
     const stats = await getVisitorDisplayStats();
