@@ -6,6 +6,7 @@ import '@mantine/core/styles.css';
 import '@blocknote/core/fonts/inter.css';
 import '@blocknote/mantine/style.css';
 import { isYouTubeUrl, prepareRichContentHtml } from './media-embeds.js';
+import { preferredTransferImageFiles, uniqueSupportedFiles } from './editor-file-transfer.mjs';
 
 const IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
 const EDITOR_UPLOAD_MIME_TYPES = new Set([
@@ -45,13 +46,9 @@ export function imageFilesFromTransfer(dataTransfer, options = {}) {
 
     const mimeTypes = options.mimeTypes || IMAGE_MIME_TYPES;
     const fallbackNamePrefix = options.fallbackNamePrefix || 'editor-image';
-    const files = Array.from(dataTransfer.files || []);
-    const itemFiles = Array.from(dataTransfer.items || [])
-        .filter(item => item.kind === 'file' && item.type?.startsWith('image/'))
-        .map(item => item.getAsFile())
-        .filter(Boolean);
+    const transferFiles = preferredTransferImageFiles(dataTransfer);
 
-    return normalizeEditorImageFiles([...files, ...itemFiles], {
+    return normalizeEditorImageFiles(transferFiles, {
         mimeTypes,
         fallbackNamePrefix
     });
@@ -60,17 +57,8 @@ export function imageFilesFromTransfer(dataTransfer, options = {}) {
 export function normalizeEditorImageFiles(files, options = {}) {
     const mimeTypes = options.mimeTypes || IMAGE_MIME_TYPES;
     const fallbackNamePrefix = options.fallbackNamePrefix || 'editor-image';
-    const seen = new Set();
 
-    return Array.from(files || [])
-        .filter(file => {
-            if (!file || !mimeTypes.has(file.type)) return false;
-
-            const key = fileFingerprint(file);
-            if (seen.has(key)) return false;
-            seen.add(key);
-            return true;
-        })
+    return uniqueSupportedFiles(files, mimeTypes)
         .map((file, index) => namedImageFile(file, index, fallbackNamePrefix))
         .sort(compareFilesByName);
 }
@@ -426,11 +414,6 @@ function fileFingerprint(file) {
     const name = String(file?.name || '').trim().toLowerCase();
     const type = String(file?.type || '').trim().toLowerCase();
     const size = Number(file?.size || 0);
-
-    if (!name) {
-        return `clipboard:${type}:${size}`;
-    }
-
     return `${name}:${type}:${size}:${Number(file?.lastModified || 0)}`;
 }
 

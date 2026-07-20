@@ -130,6 +130,8 @@ export function requireAuth() {
 // Posts 헬퍼 함수들
 // ─────────────────────────────────────────────────────────
 
+const POST_DISPLAY_SORT = '-published_at,-created';
+
 /**
  * 발행된 글 목록 가져오기
  * @param {number} page
@@ -139,7 +141,7 @@ export function requireAuth() {
 export async function getPublishedPosts(page = 1, perPage = 10) {
     return await pb.collection('posts').getList(page, perPage, {
         filter: pb.filter('status = {:status}', { status: 'published' }),
-        sort: '-published_at,-created'
+        sort: POST_DISPLAY_SORT
     });
 }
 
@@ -206,7 +208,7 @@ export async function getPostBySlug(slug, includeDrafts = false) {
  */
 export async function getAllPosts(page = 1, perPage = 20) {
     return await pb.collection('posts').getList(page, perPage, {
-        sort: '-created'
+        sort: POST_DISPLAY_SORT
     });
 }
 

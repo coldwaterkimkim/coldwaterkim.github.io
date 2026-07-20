@@ -113,7 +113,7 @@
     </div>
 
     <script type="module">
-        import { pb, isLoggedIn, logout, getAllPosts, deletePost, formatDate, slugify, cmsErrorMessage, uploadMedia, getMediaUrl, getPostViewCounts, escapeHtml } from '../js/pb.js';
+        import { pb, isLoggedIn, logout, getAllPosts, deletePost, formatDate, slugify, cmsErrorMessage, uploadMedia, getMediaUrl, getPostViewCounts, escapeHtml, getKstDateKey } from '../js/pb.js';
         import {
             createMarkdownEditor,
             editorUploadLabel,
@@ -353,7 +353,7 @@
                 editingPostId = null;
 
                 // 오늘 날짜 기본값
-                document.getElementById('published_at').value = new Date().toISOString().split('T')[0];
+                document.getElementById('published_at').value = getKstDateKey();
             }
         }
 
