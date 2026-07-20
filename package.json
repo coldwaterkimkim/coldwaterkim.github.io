@@ -46,6 +46,7 @@
     "qa:rollback": "node scripts/verify-cutover-rollback.mjs",
     "qa:service-smoke": "node scripts/verify-imac-service-smoke.mjs",
     "qa:service-smoke:local": "node scripts/verify-imac-service-smoke.mjs --origin http://127.0.0.1:18081",
+    "qa:visitor-counter": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/verify-visitor-counter.mjs",
     "qa:writing": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/verify-writing-regressions.mjs",
     "preview": "vite preview"
   },

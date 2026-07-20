@@ -22,6 +22,7 @@ import {
   programDisplayDate,
   nasajabDisplayDate,
   recordVisitAndGetStats,
+  getVisitorDisplayStats,
   setVisitorTodayMinimum,
   formatDate,
   escapeHtml,
@@ -879,7 +880,7 @@ function initHomeOwnerTools(scope = document) {
   };
 
   try {
-    const stats = await recordVisitAndGetStats();
+    const stats = await getVisitorDisplayStats();
     renderStats(stats);
     renderAdminControls(stats);
   } catch (e) {

@@ -977,7 +977,7 @@ function visitorTotalForDisplay(realTotal) {
     return VISITOR_TOTAL_DISPLAY_START + Math.max(0, realTotal - VISITOR_TOTAL_BASELINE_REAL_TOTAL);
 }
 
-async function getVisitorDisplayStats(dayKey) {
+export async function getVisitorDisplayStats(dayKey = getKstDateKey()) {
     const stats = await getVisitorStats(dayKey);
     const todayMinimum = parseCounterValue(await getSetting(`${VISITOR_TODAY_MIN_KEY_PREFIX}${dayKey}`));
 
