@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { preferredTransferImageFiles, uniqueSupportedFiles } from '../js/editor-file-transfer.mjs';
+import { preferredTransferFiles, preferredTransferImageFiles, uniqueSupportedFiles } from '../js/editor-file-transfer.mjs';
 
 const bytes = new Uint8Array([1, 2, 3, 4]);
 const filesVersion = new File([bytes], 'same.png', {
@@ -35,6 +35,23 @@ const unnamedB = new File([bytes], '', { type: 'image/png', lastModified: 2000 }
 const uniqueUnnamed = uniqueSupportedFiles([unnamedA, unnamedB], new Set(['image/png']));
 assert.equal(uniqueUnnamed.length, 2, 'different unnamed clipboard images with the same size must be preserved');
 assert.equal(uniqueSupportedFiles([unnamedA, unnamedA], new Set(['image/png'])).length, 1, 'the same file object must be deduplicated');
+
+const videoA = new File([bytes], 'clip-01.mov', { type: 'video/quicktime', lastModified: 3000 });
+const videoB = new File([bytes], 'clip-02.mp4', { type: 'video/mp4', lastModified: 3001 });
+const transferredVideos = preferredTransferFiles({
+  files: [videoA, videoB],
+  items: [{ kind: 'file', type: 'video/quicktime', getAsFile: () => videoA }],
+});
+assert.deepEqual(transferredVideos, [videoA, videoB], 'multiple videos must use the canonical transfer file list once');
+
+const videoItemsFallback = preferredTransferFiles({
+  files: [],
+  items: [
+    { kind: 'file', type: 'video/quicktime', getAsFile: () => videoA },
+    { kind: 'file', type: 'video/mp4', getAsFile: () => videoB },
+  ],
+});
+assert.deepEqual(videoItemsFallback, [videoA, videoB], 'video clipboard items must remain available when files is empty');
 
 globalThis.window = {
   location: {
@@ -71,5 +88,11 @@ assert.equal(pbModule.getKstDateKey(new Date('2026-07-19T16:30:00Z')), '2026-07-
 
 const adminPosts = fs.readFileSync(new URL('../admin/posts.html', import.meta.url), 'utf8');
 assert.match(adminPosts, /published_at'\)\.value = getKstDateKey\(\)/, 'new posts must default to the KST date');
+assert.match(adminPosts, /hasEditorFileTransfer\(event\.dataTransfer\)/, 'post editor drag and drop must detect supported media files');
+assert.match(adminPosts, /markdownEditor\.insertFiles\(insertIndex, uploadedFiles\)/, 'post editor must insert uploaded videos as media blocks');
 
-console.log('Writing regression checks passed (10 assertions).');
+const globalWriter = fs.readFileSync(new URL('../js/global-writer.js', import.meta.url), 'utf8');
+assert.match(globalWriter, /hasEditorFileTransfer\(event\.clipboardData\)/, 'global writer paste must detect supported media files');
+assert.match(globalWriter, /markdownEditor\.insertFiles\(insertIndex, uploadedFiles\)/, 'global writer must insert uploaded videos as media blocks');
+
+console.log('Writing regression checks passed (16 assertions).');

@@ -1,14 +1,18 @@
-export function preferredTransferImageFiles(dataTransfer) {
+export function preferredTransferFiles(dataTransfer) {
     if (!dataTransfer) return [];
 
-    const files = Array.from(dataTransfer.files || [])
-        .filter(file => file?.type?.startsWith('image/'));
+    const files = Array.from(dataTransfer.files || []).filter(Boolean);
     if (files.length) return files;
 
     return Array.from(dataTransfer.items || [])
-        .filter(item => item.kind === 'file' && item.type?.startsWith('image/'))
+        .filter(item => item.kind === 'file')
         .map(item => item.getAsFile())
         .filter(Boolean);
+}
+
+export function preferredTransferImageFiles(dataTransfer) {
+    return preferredTransferFiles(dataTransfer)
+        .filter(file => file?.type?.startsWith('image/'));
 }
 
 export function uniqueSupportedFiles(files, mimeTypes) {

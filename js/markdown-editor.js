@@ -6,7 +6,7 @@ import '@mantine/core/styles.css';
 import '@blocknote/core/fonts/inter.css';
 import '@blocknote/mantine/style.css';
 import { isYouTubeUrl, prepareRichContentHtml } from './media-embeds.js';
-import { preferredTransferImageFiles, uniqueSupportedFiles } from './editor-file-transfer.mjs';
+import { preferredTransferFiles, preferredTransferImageFiles, uniqueSupportedFiles } from './editor-file-transfer.mjs';
 
 const IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
 const EDITOR_UPLOAD_MIME_TYPES = new Set([
@@ -39,6 +39,31 @@ export function hasImageTransfer(dataTransfer) {
     if (!dataTransfer) return false;
     return Array.from(dataTransfer.items || []).some(item => item.type?.startsWith('image/'))
         || Array.from(dataTransfer.files || []).some(file => file.type?.startsWith('image/'));
+}
+
+export function hasEditorFileTransfer(dataTransfer) {
+    if (!dataTransfer) return false;
+
+    return Array.from(dataTransfer.files || []).some(isSupportedEditorUpload)
+        || Array.from(dataTransfer.items || []).some(item => {
+            if (item.kind !== 'file') return false;
+            return !item.type || EDITOR_UPLOAD_MIME_TYPES.has(String(item.type).toLowerCase());
+        });
+}
+
+export function editorFilesFromTransfer(dataTransfer, options = {}) {
+    if (!dataTransfer) return [];
+
+    return normalizeEditorFiles(preferredTransferFiles(dataTransfer), options);
+}
+
+export function normalizeEditorFiles(files, options = {}) {
+    const fallbackNamePrefix = options.fallbackNamePrefix || 'editor-file';
+
+    return uniqueFiles(files)
+        .filter(isSupportedEditorUpload)
+        .map((file, index) => namedEditorFile(file, index, fallbackNamePrefix))
+        .sort(compareFilesByName);
 }
 
 export function imageFilesFromTransfer(dataTransfer, options = {}) {
@@ -127,7 +152,8 @@ class BlockNoteMarkdownEditor {
 
         this.editorApi = {
             setPlaceholder: placeholder => this.setPlaceholder(placeholder),
-            insertImages: (index, images = []) => this.insertImages(index, images)
+            insertImages: (index, images = []) => this.insertImages(index, images),
+            insertFiles: (index, files = []) => this.insertFiles(index, files)
         };
         this.editor = this.editorApi;
 
@@ -282,6 +308,14 @@ class BlockNoteMarkdownEditor {
         return this.insertBlocksAtCursor(imageBlocks);
     }
 
+    insertFiles(_index, files = []) {
+        const blocks = Array.from(files || [])
+            .filter(file => file?.url)
+            .map(file => editorFileBlock(file));
+
+        return this.insertBlocksAtCursor(blocks);
+    }
+
     insertVideo(_index, url, name = 'video') {
         if (!this.blockNote) return 0;
 
@@ -391,6 +425,69 @@ function namedImageFile(file, index, fallbackNamePrefix) {
     return new File([file], `${fallbackNamePrefix}-${Date.now()}-${index + 1}.${extension}`, {
         type: file.type
     });
+}
+
+function namedEditorFile(file, index, fallbackNamePrefix) {
+    if (file.name) return file;
+
+    const extensionByType = {
+        'image/jpeg': 'jpg',
+        'image/png': 'png',
+        'image/gif': 'gif',
+        'image/webp': 'webp',
+        'video/mp4': 'mp4',
+        'video/webm': 'webm',
+        'video/quicktime': 'mov',
+        'video/x-m4v': 'm4v',
+        'audio/mpeg': 'mp3',
+        'audio/mp3': 'mp3',
+        'application/pdf': 'pdf'
+    };
+    const extension = extensionByType[file.type] || 'bin';
+
+    return new File([file], `${fallbackNamePrefix}-${Date.now()}-${index + 1}.${extension}`, {
+        type: file.type
+    });
+}
+
+function uniqueFiles(files) {
+    const seenFiles = new WeakSet();
+    const seenFingerprints = new Set();
+
+    return Array.from(files || []).filter(file => {
+        if (!file || seenFiles.has(file)) return false;
+        seenFiles.add(file);
+
+        const name = String(file.name || '').trim().toLowerCase();
+        if (!name) return true;
+
+        const fingerprint = fileFingerprint(file);
+        if (seenFingerprints.has(fingerprint)) return false;
+        seenFingerprints.add(fingerprint);
+        return true;
+    });
+}
+
+function editorFileBlock(file) {
+    const type = String(file.type || '').toLowerCase();
+    const name = String(file.name || file.alt || 'file');
+    const props = {
+        url: file.url,
+        name: cleanImageName(name),
+        caption: '',
+        showPreview: true
+    };
+
+    if (type.startsWith('image/') || /\.(jpe?g|png|gif|webp)$/i.test(name)) {
+        return { type: 'image', props };
+    }
+    if (type.startsWith('video/') || /\.(mp4|webm|mov|m4v)$/i.test(name)) {
+        return { type: 'video', props };
+    }
+    if (type.startsWith('audio/') || /\.mp3$/i.test(name)) {
+        return { type: 'audio', props };
+    }
+    return { type: 'file', props };
 }
 
 function compareFilesByName(a, b) {
