@@ -1,1 +1,0 @@
-import{V as e}from"../pb-sgMgToFG.js";/* empty css               */e()||(window.location.replace(`/admin/login.html?next=/`),await new Promise(()=>{}));
