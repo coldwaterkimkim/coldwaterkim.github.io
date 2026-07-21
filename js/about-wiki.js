@@ -12,7 +12,7 @@ import {
   defaultAboutProfileRows,
   normalizeAboutProfileRows
 } from './profile-data.js';
-import { enhanceEmbeddedMedia } from './media-embeds.js';
+import { enhanceEmbeddedMedia, prepareEmbeddedMediaForDisplay } from './media-embeds.js';
 
 const SETTING_KEY = 'about_wiki_document';
 const IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
@@ -256,12 +256,12 @@ function sectionsHtml(sections, isOwner) {
 function hydrateSavedHtml(state) {
   state.root.querySelectorAll('[data-about-profile-value-index]').forEach((slot) => {
     const index = Number(slot.getAttribute('data-about-profile-value-index'));
-    slot.innerHTML = state.doc.profileRows[index]?.value || '';
+    slot.innerHTML = prepareEmbeddedMediaForDisplay(state.doc.profileRows[index]?.value || '');
   });
 
   state.root.querySelectorAll('[data-about-section-body-index]').forEach((slot) => {
     const index = Number(slot.getAttribute('data-about-section-body-index'));
-    slot.innerHTML = state.doc.sections[index]?.body || '<p></p>';
+    slot.innerHTML = prepareEmbeddedMediaForDisplay(state.doc.sections[index]?.body || '<p></p>');
   });
   enhanceEmbeddedMedia(state.root);
 }

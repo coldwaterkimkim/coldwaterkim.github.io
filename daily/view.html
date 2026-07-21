@@ -171,7 +171,7 @@
             escapeHtml,
             cmsErrorMessage
         } from '../js/pb.js';
-        import { enhanceEmbeddedMedia } from '../js/media-embeds.js';
+        import { enhanceEmbeddedMedia, prepareEmbeddedMediaForDisplay } from '../js/media-embeds.js';
 
         const params = new URLSearchParams(window.location.search);
         const dayParam = params.get('day');
@@ -298,7 +298,7 @@
                         </div>
                     </div>
                     <div class="post-content timeline-post-content ql-editor">
-                        ${entry.content || '<p>내용이 없습니다.</p>'}
+                        ${prepareEmbeddedMediaForDisplay(entry.content || '<p>내용이 없습니다.</p>')}
                     </div>
                 </article>
             `;

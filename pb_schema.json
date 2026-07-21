@@ -209,6 +209,7 @@
           "required": true,
           "maxSelect": 1,
           "maxSize": 2147483648,
+          "thumbs": ["800x0", "1600x0"],
           "mimeTypes": ["image/jpeg", "image/png", "image/gif", "image/webp", "video/mp4", "video/webm", "video/quicktime", "video/x-m4v", "audio/mpeg", "audio/mp3", "application/pdf"]
         },
         { "name": "alt_text", "type": "text", "required": false, "max": 200 },

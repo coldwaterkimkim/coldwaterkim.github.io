@@ -16,7 +16,7 @@ import PocketBase from '../vendor/pocketbase.es.mjs';
 // PocketBase API 경로
 // - 로컬 Vite: PocketBase 서버를 127.0.0.1:8090에서 따로 실행
 // - 로컬 Vite live CMS 모드: Vite 프록시를 통해 운영 API 서버 사용
-// - GitHub Pages: api.coldwaterkim.com의 PocketBase 서버 사용
+// - GitHub Pages: coldwaterkim.com의 PocketBase 서버 사용
 // - iMac/VPS 단일 배포: VITE_CMS_TARGET=same-origin 빌드에서 같은 도메인의 /api 사용
 // - 필요하면 HTML에서 window.POCKETBASE_URL로 외부 CMS 주소를 덮어쓸 수 있음
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1']);
@@ -1209,7 +1209,7 @@ export function getMediaUrl(record, filename) {
 
 /**
  * 저장되는 본문 HTML에는 로컬 Vite 프록시 주소가 아니라 실제 API 파일 주소가 들어가야 한다.
- * dev:live-cms 모드에서 글을 쓰면 /api 프록시를 쓰지만 공개 사이트는 api.coldwaterkim.com에서 이미지를 읽는다.
+ * dev:live-cms 모드에서 글을 쓰면 /api 프록시를 쓰지만 공개 사이트는 coldwaterkim.com에서 이미지를 읽는다.
  * @param {string} url
  * @returns {string}
  */
@@ -1378,7 +1378,7 @@ export function cmsErrorMessage(err) {
         }
 
         return CMS_TARGET === 'live'
-            ? '운영 CMS에 연결할 수 없습니다. dev:live-cms 프록시나 api.coldwaterkim.com 상태를 확인해야 합니다.'
+            ? '운영 CMS에 연결할 수 없습니다. dev:live-cms 프록시나 coldwaterkim.com 상태를 확인해야 합니다.'
             : 'CMS 서버에 연결할 수 없습니다. 로컬에서는 PocketBase를 먼저 실행해야 합니다.';
     }
 

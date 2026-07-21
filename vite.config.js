@@ -4,7 +4,7 @@ import fs from 'fs'
 import path from 'path'
 
 const htmlDirs = ['.', 'posts', 'daily', 'programs', 'nasajab', 'admin']
-const liveCmsUrl = 'https://api.coldwaterkim.com'
+const liveCmsUrl = 'https://coldwaterkim.com'
 const cmsTarget = String(process.env.VITE_CMS_TARGET || '').toLowerCase()
 const useLiveCmsProxy = cmsTarget === 'live'
 const useSameOriginCms = ['same-origin', 'self', 'imac', 'home'].includes(cmsTarget)

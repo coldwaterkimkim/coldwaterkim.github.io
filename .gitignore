@@ -18,3 +18,4 @@ pb_migrations/*
 !pb_migrations/1782750000_update_media_video_mime_types.js
 !pb_migrations/1782840000_raise_home_server_file_limits.js
 !pb_migrations/1782841000_created_visitor_sessions.js
+!pb_migrations/1784641062_enable_media_thumbnails.js

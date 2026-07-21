@@ -8,7 +8,7 @@ import {
     escapeHtml,
     cmsErrorMessage
 } from './pb.js';
-import { enhanceEmbeddedMedia } from './media-embeds.js';
+import { enhanceEmbeddedMedia, prepareEmbeddedMediaForDisplay } from './media-embeds.js';
 
 const params = new URLSearchParams(window.location.search);
 const slug = params.get('slug') || '';
@@ -125,7 +125,7 @@ function renderProgram(program) {
         program.platform
     ].filter(Boolean).join(' · ');
 
-    bodyEl.innerHTML = `
+    bodyEl.innerHTML = prepareEmbeddedMediaForDisplay(`
         <div class="program-detail-hero">
             <div class="program-detail-cover">
                 ${coverUrl ? `<img src="${escapeAttribute(coverUrl)}" alt="${escapeAttribute(title)} 표지">` : renderMissingPoster(program)}
@@ -141,7 +141,7 @@ function renderProgram(program) {
         <div class="program-story-block program-body-content ql-editor">
             ${programBodyHtml(program)}
         </div>
-    `;
+    `);
     enhanceEmbeddedMedia(bodyEl);
 
     renderDownloads(program);

@@ -1,5 +1,12 @@
 const YOUTUBE_HOST_RE = /(^|\.)youtube(-nocookie)?\.com$/i;
 const YOUTU_BE_HOST_RE = /(^|\.)youtu\.be$/i;
+const POCKETBASE_IMAGE_RE = /\.(?:jpe?g|png)$/i;
+const POCKETBASE_FILE_PATH_RE = /\/api\/files\//;
+const LEGACY_MEDIA_HOST = 'api.coldwaterkim.com';
+const CURRENT_MEDIA_ORIGIN = 'https://coldwaterkim.com';
+const MEDIA_THUMB_SMALL = '800x0';
+const MEDIA_THUMB_LARGE = '1600x0';
+const MEDIA_IMAGE_SIZES = '(max-width: 800px) 100vw, 800px';
 
 export function prepareRichContentHtml(html = '') {
     const template = document.createElement('template');
@@ -9,22 +16,62 @@ export function prepareRichContentHtml(html = '') {
     template.content.querySelectorAll('video').forEach(video => {
         if (!video.getAttribute('src') && video.querySelector('source')) return;
         video.setAttribute('controls', '');
-        video.setAttribute('preload', 'metadata');
+        video.setAttribute('preload', 'none');
         video.setAttribute('playsinline', '');
     });
 
     template.content.querySelectorAll('audio').forEach(audio => {
         audio.setAttribute('controls', '');
-        audio.setAttribute('preload', 'metadata');
+        audio.setAttribute('preload', 'none');
     });
 
     return template.innerHTML.trim();
 }
 
-export function enhanceEmbeddedMedia(scope = document) {
-    const root = scope || document;
+export function prepareEmbeddedMediaForDisplay(html = '') {
+    const template = document.createElement('template');
+    template.innerHTML = String(html || '').trim();
+    decorateEmbeddedMedia(template.content);
+    return template.innerHTML.trim();
+}
 
+export function enhanceEmbeddedMedia(scope = document) {
+    decorateEmbeddedMedia(scope || document);
+}
+
+export function pocketBaseImageSources(value = '', baseHref = globalThis.location?.href || CURRENT_MEDIA_ORIGIN) {
+    let original;
+    try {
+        original = new URL(String(value || '').trim(), baseHref);
+    } catch (_error) {
+        return null;
+    }
+
+    if (!POCKETBASE_FILE_PATH_RE.test(original.pathname) || !POCKETBASE_IMAGE_RE.test(original.pathname)) {
+        return null;
+    }
+
+    if (original.hostname === LEGACY_MEDIA_HOST) {
+        original = new URL(`${original.pathname}${original.search}${original.hash}`, CURRENT_MEDIA_ORIGIN);
+    }
+
+    const small = new URL(original.href);
+    const large = new URL(original.href);
+    small.searchParams.set('thumb', MEDIA_THUMB_SMALL);
+    large.searchParams.set('thumb', MEDIA_THUMB_LARGE);
+
+    return {
+        originalUrl: original.href,
+        displayUrl: large.href,
+        srcset: `${small.href} 800w, ${large.href} 1600w`,
+        sizes: MEDIA_IMAGE_SIZES,
+    };
+}
+
+function decorateEmbeddedMedia(root) {
     normalizeRichContentBlocks(root);
+    decorateImages(root);
+
     root.querySelectorAll('video').forEach(video => {
         if (video.dataset.cwkMediaReady === 'true') return;
 
@@ -37,7 +84,7 @@ export function enhanceEmbeddedMedia(scope = document) {
         }
 
         video.setAttribute('controls', '');
-        video.setAttribute('preload', 'metadata');
+        video.setAttribute('preload', 'none');
         video.setAttribute('playsinline', '');
         video.classList.add('cwk-rich-video');
         video.dataset.cwkMediaReady = 'true';
@@ -46,7 +93,7 @@ export function enhanceEmbeddedMedia(scope = document) {
     root.querySelectorAll('audio').forEach(audio => {
         if (audio.dataset.cwkMediaReady === 'true') return;
         audio.setAttribute('controls', '');
-        audio.setAttribute('preload', 'metadata');
+        audio.setAttribute('preload', 'none');
         audio.classList.add('cwk-rich-audio');
         audio.dataset.cwkMediaReady = 'true';
     });
@@ -59,6 +106,39 @@ export function enhanceEmbeddedMedia(scope = document) {
         decorateMediaIframe(iframe, youtube.title);
         iframe.dataset.cwkMediaReady = 'true';
     });
+}
+
+function decorateImages(root) {
+    root.querySelectorAll('img').forEach(img => {
+        if (img.dataset.cwkMediaReady === 'true') return;
+
+        img.setAttribute('loading', 'lazy');
+        img.setAttribute('decoding', 'async');
+
+        const sources = pocketBaseImageSources(img.getAttribute('src') || '');
+        if (sources) {
+            img.dataset.cwkOriginalSrc = sources.originalUrl;
+            img.setAttribute('src', sources.displayUrl);
+            if (!img.getAttribute('srcset')) img.setAttribute('srcset', sources.srcset);
+            if (!img.getAttribute('sizes')) img.setAttribute('sizes', sources.sizes);
+            wrapImageWithOriginalLink(img, sources.originalUrl);
+        }
+
+        img.dataset.cwkMediaReady = 'true';
+    });
+}
+
+function wrapImageWithOriginalLink(img, originalUrl) {
+    if (img.closest('a')) return;
+
+    const link = document.createElement('a');
+    link.className = 'cwk-media-original-link';
+    link.href = originalUrl;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.title = '원본 이미지 열기';
+    img.replaceWith(link);
+    link.appendChild(img);
 }
 
 function normalizeRichContentBlocks(root) {

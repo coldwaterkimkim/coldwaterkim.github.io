@@ -1675,6 +1675,16 @@ body > center > table[width="1140"] > tbody > tr > td {
   margin: 10px 0 14px;
 }
 
+.cwk-media-original-link {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.cwk-media-original-link img {
+  cursor: zoom-in;
+}
+
 .post-content video,
 .program-body-content video {
   display: block;

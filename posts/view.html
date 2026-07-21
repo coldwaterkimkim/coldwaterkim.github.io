@@ -158,7 +158,7 @@
 
     <script type="module">
         import { getPostBySlug, deletePost, isLoggedIn, logout, postDisplayDate, formatDate, escapeHtml, cmsErrorMessage, recordPostView, getPostViewCounts } from '../js/pb.js';
-        import { enhanceEmbeddedMedia } from '../js/media-embeds.js';
+        import { enhanceEmbeddedMedia, prepareEmbeddedMediaForDisplay } from '../js/media-embeds.js';
 
         const params = new URLSearchParams(window.location.search);
         const slug = params.get('slug');
@@ -254,7 +254,7 @@
                         </div>
                     </div>
                     <div class="post-content timeline-post-content ql-editor">
-                        ${post.content || '<p>내용이 없습니다.</p>'}
+                        ${prepareEmbeddedMediaForDisplay(post.content || '<p>내용이 없습니다.</p>')}
                     </div>
                 </article>
             `;

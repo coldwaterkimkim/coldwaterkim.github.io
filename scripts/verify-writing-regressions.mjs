@@ -66,6 +66,35 @@ const videoItemsFallback = preferredTransferFiles({
 });
 assert.deepEqual(videoItemsFallback, [videoA, videoB], 'video clipboard items must remain available when files is empty');
 
+const { pocketBaseImageSources } = await import('../js/media-embeds.js');
+const optimizedImage = pocketBaseImageSources(
+  'https://coldwaterkim.com/api/files/media/record/photo.jpeg?token=keep-me',
+);
+assert.equal(
+  optimizedImage.displayUrl,
+  'https://coldwaterkim.com/api/files/media/record/photo.jpeg?token=keep-me&thumb=1600x0',
+  'public article images must use the large display thumbnail while preserving existing query params',
+);
+assert.match(optimizedImage.srcset, /thumb=800x0.*800w/, 'responsive image sources must include an 800px thumbnail');
+assert.match(optimizedImage.srcset, /thumb=1600x0.*1600w/, 'responsive image sources must include a 1600px thumbnail');
+assert.equal(
+  optimizedImage.originalUrl,
+  'https://coldwaterkim.com/api/files/media/record/photo.jpeg?token=keep-me',
+  'the original image URL must remain available separately from display thumbnails',
+);
+
+const legacyImage = pocketBaseImageSources(
+  'https://api.coldwaterkim.com/api/files/media/record/photo.png',
+);
+assert.equal(
+  legacyImage.originalUrl,
+  'https://coldwaterkim.com/api/files/media/record/photo.png',
+  'legacy Oracle media URLs must resolve through the current iMac origin',
+);
+assert.equal(pocketBaseImageSources('https://coldwaterkim.com/api/files/media/record/animated.gif'), null, 'GIF animation must keep its original source');
+assert.equal(pocketBaseImageSources('https://coldwaterkim.com/api/files/media/record/animated.webp'), null, 'WebP animation must keep its original source');
+assert.equal(pocketBaseImageSources('https://example.com/photo.jpeg'), null, 'external images must not receive PocketBase thumbnail params');
+
 globalThis.window = {
   location: {
     hostname: '127.0.0.1',
@@ -108,4 +137,21 @@ const globalWriter = fs.readFileSync(new URL('../js/global-writer.js', import.me
 assert.match(globalWriter, /hasEditorFileTransfer\(event\.clipboardData\)/, 'global writer paste must detect supported media files');
 assert.match(globalWriter, /markdownEditor\.insertFiles\(insertIndex, uploadedFiles\)/, 'global writer must insert uploaded videos as media blocks');
 
-console.log('Writing regression checks passed (18 assertions).');
+const mediaEmbeds = fs.readFileSync(new URL('../js/media-embeds.js', import.meta.url), 'utf8');
+assert.match(mediaEmbeds, /img\.setAttribute\('loading', 'lazy'\)/, 'rendered images must use native lazy loading');
+assert.match(mediaEmbeds, /img\.setAttribute\('decoding', 'async'\)/, 'rendered images must decode asynchronously');
+assert.match(mediaEmbeds, /setAttribute\('preload', 'none'\)/, 'rendered video and audio must wait for user playback');
+assert.doesNotMatch(mediaEmbeds, /setAttribute\('preload', 'metadata'\)/, 'media-heavy articles must not preload every video metadata block');
+
+const postsView = fs.readFileSync(new URL('../posts/view.html', import.meta.url), 'utf8');
+assert.match(postsView, /prepareEmbeddedMediaForDisplay\(post\.content/, 'post HTML must be optimized before it enters the live DOM');
+
+const schema = JSON.parse(fs.readFileSync(new URL('../pb_schema.json', import.meta.url), 'utf8'));
+const mediaCollection = schema.collections.find(collection => collection.name === 'media');
+const mediaFileField = mediaCollection.fields.find(field => field.name === 'file');
+assert.deepEqual(mediaFileField.thumbs, ['800x0', '1600x0'], 'media schema must allow the responsive thumbnail sizes');
+
+const thumbnailMigration = fs.readFileSync(new URL('../pb_migrations/1784641062_enable_media_thumbnails.js', import.meta.url), 'utf8');
+assert.match(thumbnailMigration, /mediaFile\.thumbs = \["800x0", "1600x0"\]/, 'production migration must enable the same thumbnail sizes');
+
+console.log('Writing regression checks passed (33 assertions).');
