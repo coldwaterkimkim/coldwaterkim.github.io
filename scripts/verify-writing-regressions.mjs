@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { preferredTransferFiles, preferredTransferImageFiles, uniqueSupportedFiles } from '../js/editor-file-transfer.mjs';
+import { preferredTransferFiles, preferredTransferImageFiles, uniqueSupportedFiles, uniqueTransferFiles } from '../js/editor-file-transfer.mjs';
 
 const bytes = new Uint8Array([1, 2, 3, 4]);
 const filesVersion = new File([bytes], 'same.png', {
@@ -29,6 +29,19 @@ const distinctFiles = preferredTransferImageFiles({
   items: [],
 });
 assert.equal(distinctFiles.length, 2, 'distinct entries in the canonical files list must be preserved');
+assert.deepEqual(
+  uniqueTransferFiles(distinctFiles),
+  [filesVersion],
+  'Photos duplicates with the same name, type, and size must ignore unstable lastModified values',
+);
+
+const laterNamed = new File([bytes], 'IMG_0020.jpg', { type: 'image/jpeg', lastModified: 1000 });
+const earlierNamed = new File([bytes, 5], 'IMG_0010.jpg', { type: 'image/jpeg', lastModified: 1000 });
+assert.deepEqual(
+  uniqueTransferFiles([laterNamed, earlierNamed]),
+  [laterNamed, earlierNamed],
+  'media files must preserve the Photos transfer order instead of sorting by filename',
+);
 
 const unnamedA = new File([bytes], '', { type: 'image/png', lastModified: 2000 });
 const unnamedB = new File([bytes], '', { type: 'image/png', lastModified: 2000 });
@@ -95,4 +108,4 @@ const globalWriter = fs.readFileSync(new URL('../js/global-writer.js', import.me
 assert.match(globalWriter, /hasEditorFileTransfer\(event\.clipboardData\)/, 'global writer paste must detect supported media files');
 assert.match(globalWriter, /markdownEditor\.insertFiles\(insertIndex, uploadedFiles\)/, 'global writer must insert uploaded videos as media blocks');
 
-console.log('Writing regression checks passed (16 assertions).');
+console.log('Writing regression checks passed (18 assertions).');

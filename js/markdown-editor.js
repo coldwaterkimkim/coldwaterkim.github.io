@@ -6,7 +6,7 @@ import '@mantine/core/styles.css';
 import '@blocknote/core/fonts/inter.css';
 import '@blocknote/mantine/style.css';
 import { isYouTubeUrl, prepareRichContentHtml } from './media-embeds.js';
-import { preferredTransferFiles, preferredTransferImageFiles, uniqueSupportedFiles } from './editor-file-transfer.mjs';
+import { preferredTransferFiles, preferredTransferImageFiles, uniqueSupportedFiles, uniqueTransferFiles } from './editor-file-transfer.mjs';
 
 const IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
 const EDITOR_UPLOAD_MIME_TYPES = new Set([
@@ -60,10 +60,9 @@ export function editorFilesFromTransfer(dataTransfer, options = {}) {
 export function normalizeEditorFiles(files, options = {}) {
     const fallbackNamePrefix = options.fallbackNamePrefix || 'editor-file';
 
-    return uniqueFiles(files)
+    return uniqueTransferFiles(files)
         .filter(isSupportedEditorUpload)
-        .map((file, index) => namedEditorFile(file, index, fallbackNamePrefix))
-        .sort(compareFilesByName);
+        .map((file, index) => namedEditorFile(file, index, fallbackNamePrefix));
 }
 
 export function imageFilesFromTransfer(dataTransfer, options = {}) {
@@ -84,8 +83,7 @@ export function normalizeEditorImageFiles(files, options = {}) {
     const fallbackNamePrefix = options.fallbackNamePrefix || 'editor-image';
 
     return uniqueSupportedFiles(files, mimeTypes)
-        .map((file, index) => namedImageFile(file, index, fallbackNamePrefix))
-        .sort(compareFilesByName);
+        .map((file, index) => namedImageFile(file, index, fallbackNamePrefix));
 }
 
 export function stopEditorTransferEvent(event) {
@@ -450,24 +448,6 @@ function namedEditorFile(file, index, fallbackNamePrefix) {
     });
 }
 
-function uniqueFiles(files) {
-    const seenFiles = new WeakSet();
-    const seenFingerprints = new Set();
-
-    return Array.from(files || []).filter(file => {
-        if (!file || seenFiles.has(file)) return false;
-        seenFiles.add(file);
-
-        const name = String(file.name || '').trim().toLowerCase();
-        if (!name) return true;
-
-        const fingerprint = fileFingerprint(file);
-        if (seenFingerprints.has(fingerprint)) return false;
-        seenFingerprints.add(fingerprint);
-        return true;
-    });
-}
-
 function editorFileBlock(file) {
     const type = String(file.type || '').toLowerCase();
     const name = String(file.name || file.alt || 'file');
@@ -488,30 +468,6 @@ function editorFileBlock(file) {
         return { type: 'audio', props };
     }
     return { type: 'file', props };
-}
-
-function compareFilesByName(a, b) {
-    const nameCompare = fileSortName(a).localeCompare(fileSortName(b), 'ko-KR', {
-        numeric: true,
-        sensitivity: 'base'
-    });
-    if (nameCompare !== 0) return nameCompare;
-
-    return fileFingerprint(a).localeCompare(fileFingerprint(b), 'ko-KR', {
-        numeric: true,
-        sensitivity: 'base'
-    });
-}
-
-function fileSortName(file) {
-    return String(file?.name || '').trim().toLowerCase() || 'zzzzzz-unnamed-image';
-}
-
-function fileFingerprint(file) {
-    const name = String(file?.name || '').trim().toLowerCase();
-    const type = String(file?.type || '').trim().toLowerCase();
-    const size = Number(file?.size || 0);
-    return `${name}:${type}:${size}:${Number(file?.lastModified || 0)}`;
 }
 
 function cleanImageName(value = '') {

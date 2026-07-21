@@ -16,11 +16,16 @@ export function preferredTransferImageFiles(dataTransfer) {
 }
 
 export function uniqueSupportedFiles(files, mimeTypes) {
+    return uniqueTransferFiles(files)
+        .filter(file => mimeTypes.has(file.type));
+}
+
+export function uniqueTransferFiles(files) {
     const seenFiles = new WeakSet();
     const seenFingerprints = new Set();
 
     return Array.from(files || []).filter(file => {
-        if (!file || !mimeTypes.has(file.type)) return false;
+        if (!file) return false;
         if (seenFiles.has(file)) return false;
         seenFiles.add(file);
 
@@ -38,5 +43,5 @@ function namedFileFingerprint(file) {
 
     const type = String(file?.type || '').trim().toLowerCase();
     const size = Number(file?.size || 0);
-    return `${name}:${type}:${size}:${Number(file?.lastModified || 0)}`;
+    return `${name}:${type}:${size}`;
 }
