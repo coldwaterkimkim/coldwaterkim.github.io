@@ -66,7 +66,7 @@ const videoItemsFallback = preferredTransferFiles({
 });
 assert.deepEqual(videoItemsFallback, [videoA, videoB], 'video clipboard items must remain available when files is empty');
 
-const { pocketBaseImageSources } = await import('../js/media-embeds.js');
+const { pocketBaseImageSources, pocketBaseVideoReference, videoDerivativeSources } = await import('../js/media-embeds.js');
 const optimizedImage = pocketBaseImageSources(
   'https://coldwaterkim.com/api/files/media/record/photo.jpeg?token=keep-me',
 );
@@ -94,6 +94,28 @@ assert.equal(
 assert.equal(pocketBaseImageSources('https://coldwaterkim.com/api/files/media/record/animated.gif'), null, 'GIF animation must keep its original source');
 assert.equal(pocketBaseImageSources('https://coldwaterkim.com/api/files/media/record/animated.webp'), null, 'WebP animation must keep its original source');
 assert.equal(pocketBaseImageSources('https://example.com/photo.jpeg'), null, 'external images must not receive PocketBase thumbnail params');
+
+const videoReference = pocketBaseVideoReference(
+  'https://api.coldwaterkim.com/api/files/pbc_2708086759/abcdefghijklmno/large.MP4',
+);
+assert.equal(videoReference.origin, 'https://coldwaterkim.com', 'legacy video URLs must use the current iMac origin');
+assert.equal(videoReference.recordId, 'abcdefghijklmno', 'video media record id must be parsed from the original URL');
+assert.equal(videoReference.originalUrl, 'https://coldwaterkim.com/api/files/pbc_2708086759/abcdefghijklmno/large.MP4');
+
+const videoSources = videoDerivativeSources(videoReference, {
+  id: 'abcdefghijklmno',
+  collectionId: 'pbc_2708086759',
+  web_video: 'large_web_abcd1234.mp4',
+  video_poster: 'large_poster_abcd1234.jpg',
+  video_status: 'ready',
+});
+assert.equal(videoSources.playbackUrl, 'https://coldwaterkim.com/api/files/pbc_2708086759/abcdefghijklmno/large_web_abcd1234.mp4');
+assert.equal(videoSources.posterUrl, 'https://coldwaterkim.com/api/files/pbc_2708086759/abcdefghijklmno/large_poster_abcd1234.jpg');
+assert.equal(videoSources.originalUrl, videoReference.originalUrl, 'video derivative metadata must preserve the original URL');
+assert.equal(videoDerivativeSources(videoReference, { id: 'abcdefghijklmno', video_status: 'pending' }), null, 'pending videos must keep the original playback fallback');
+const pendingPoster = videoDerivativeSources(videoReference, { id: 'abcdefghijklmno', collectionId: 'pbc_2708086759', video_status: 'processing', video_poster: 'early.jpg' });
+assert.equal(pendingPoster.playbackUrl, '', 'processing videos must not replace the original playback source');
+assert.match(pendingPoster.posterUrl, /early\.jpg$/, 'poster must become visible before the full transcode finishes');
 
 globalThis.window = {
   location: {
@@ -142,6 +164,10 @@ assert.match(mediaEmbeds, /img\.setAttribute\('loading', 'lazy'\)/, 'rendered im
 assert.match(mediaEmbeds, /img\.setAttribute\('decoding', 'async'\)/, 'rendered images must decode asynchronously');
 assert.match(mediaEmbeds, /setAttribute\('preload', 'none'\)/, 'rendered video and audio must wait for user playback');
 assert.doesNotMatch(mediaEmbeds, /setAttribute\('preload', 'metadata'\)/, 'media-heavy articles must not preload every video metadata block');
+assert.match(mediaEmbeds, /setAttribute\('poster', sources\.posterUrl\)/, 'ready video derivatives must expose a poster frame');
+assert.match(mediaEmbeds, /dataset\.cwkOriginalSrc = sources\.originalUrl/, 'video rendering must retain the original file URL');
+assert.match(mediaEmbeds, /dataset\.cwkPlaybackFailed/, 'broken playback derivatives must fall back to the preserved original');
+assert.match(mediaEmbeds, /!video\.paused \|\| video\.currentTime > 0 \|\| video\.seeking/, 'hydration must not interrupt video playback already in progress');
 
 const postsView = fs.readFileSync(new URL('../posts/view.html', import.meta.url), 'utf8');
 assert.match(postsView, /prepareEmbeddedMediaForDisplay\(post\.content/, 'post HTML must be optimized before it enters the live DOM');
@@ -150,8 +176,30 @@ const schema = JSON.parse(fs.readFileSync(new URL('../pb_schema.json', import.me
 const mediaCollection = schema.collections.find(collection => collection.name === 'media');
 const mediaFileField = mediaCollection.fields.find(field => field.name === 'file');
 assert.deepEqual(mediaFileField.thumbs, ['800x0', '1600x0'], 'media schema must allow the responsive thumbnail sizes');
+const webVideoField = mediaCollection.fields.find(field => field.name === 'web_video');
+const videoPosterField = mediaCollection.fields.find(field => field.name === 'video_poster');
+const videoStatusField = mediaCollection.fields.find(field => field.name === 'video_status');
+const videoAttemptsField = mediaCollection.fields.find(field => field.name === 'video_attempts');
+assert.deepEqual(webVideoField.mimeTypes, ['video/mp4'], 'web playback derivatives must be MP4 files');
+assert.deepEqual(videoPosterField.mimeTypes, ['image/jpeg'], 'video posters must be JPEG files');
+assert.deepEqual(videoStatusField.values, ['pending', 'processing', 'ready', 'error'], 'video processing states must be explicit');
+assert.equal(videoAttemptsField.max, 3, 'transient video failures must have a bounded retry count');
 
 const thumbnailMigration = fs.readFileSync(new URL('../pb_migrations/1784641062_enable_media_thumbnails.js', import.meta.url), 'utf8');
 assert.match(thumbnailMigration, /mediaFile\.thumbs = \["800x0", "1600x0"\]/, 'production migration must enable the same thumbnail sizes');
 
-console.log('Writing regression checks passed (33 assertions).');
+const videoMigration = fs.readFileSync(new URL('../pb_migrations/1784726400_add_media_video_derivatives.js', import.meta.url), 'utf8');
+assert.match(videoMigration, /new FileField\(\{\s*name: "web_video"/, 'production migration must add the web playback field');
+assert.match(videoMigration, /new FileField\(\{\s*name: "video_poster"/, 'production migration must add the poster field');
+
+const videoProcessor = fs.readFileSync(new URL('../deploy/imac/process-video-media.py', import.meta.url), 'utf8');
+assert.match(videoProcessor, /"-movflags", "\+faststart"/, 'web MP4 generation must enable fast start');
+assert.match(videoProcessor, /"-maxrate", "3500k"/, 'web MP4 generation must cap sustained bitrate');
+assert.match(videoProcessor, /validate_original_path/, 'video processing must resolve a separate original file safely');
+assert.doesNotMatch(videoProcessor, /immutable=1/, 'live SQLite reference discovery must not claim the database is immutable');
+assert.match(videoProcessor, /video_attempts<3/, 'transient failures must be retried up to the bounded attempt count');
+
+const videoProcessorPlist = fs.readFileSync(new URL('../deploy/imac/com.coldwaterkim.video-processor.plist', import.meta.url), 'utf8');
+assert.match(videoProcessorPlist, /<integer>60<\/integer>/, 'video processor must poll queued uploads without blocking the editor');
+
+console.log('Writing regression checks passed (58 assertions).');

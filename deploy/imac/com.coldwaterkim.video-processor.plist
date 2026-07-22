@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.coldwaterkim.video-processor</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/python3</string>
+        <string>/Users/kimchansu/.local/share/coldwaterkim/home-server/process-video-media.py</string>
+        <string>--run-once</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StartInterval</key>
+    <integer>60</integer>
+    <key>ProcessType</key>
+    <string>Background</string>
+    <key>LowPriorityIO</key>
+    <true/>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PB_LOCAL_URL</key>
+        <string>http://127.0.0.1:8090</string>
+        <key>PB_ADMIN_ENV_FILE</key>
+        <string>/Users/kimchansu/.config/coldwaterkim/pocketbase-admin.env</string>
+        <key>VIDEO_PROCESSOR_RUNTIME_ROOT</key>
+        <string>/Users/kimchansu/.local/share/coldwaterkim/home-server</string>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>/Users/kimchansu/Library/Logs/coldwaterkim-video-processor.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/kimchansu/Library/Logs/coldwaterkim-video-processor.error.log</string>
+</dict>
+</plist>

@@ -45,7 +45,7 @@ Rollback 기준:
 
 ## Stage 2. iMac service rehearsal
 
-1. `deploy/imac/install-runtime.sh`로 아이맥 CPU에 맞는 PocketBase/Caddy 바이너리를 `.local-bin/`에 둔다.
+1. `deploy/imac/install-runtime.sh`로 아이맥 CPU에 맞는 PocketBase/Caddy 바이너리를 `.local-bin/`에 둔다. 영상 파생본 기능은 `npm run imac:install-ffmpeg`로 체크섬이 고정된 Intel용 FFmpeg/ffprobe도 설치한다.
    - Intel iMac은 `darwin_amd64`/`mac_amd64`가 필요하다.
    - 현재 핀: PocketBase `v0.23.5`, Caddy `v2.11.4`.
 2. `npm run build:imac`
@@ -61,8 +61,32 @@ Rollback 기준:
 - `pb_migrations`
 - `pb_data`
 - `bin/pocketbase`
+- `bin/ffmpeg`, `bin/ffprobe`
 - `Caddyfile`
 - `backup-pocketbase.sh`
+- `process-video-media.py`
+
+영상 업로드는 원본 `media.file`을 바꾸지 않는다. 새 영상은 `video_status=pending`으로 저장되고, 사용자 LaunchAgent `com.coldwaterkim.video-processor`가 한 번에 하나씩 포스터와 웹 재생본을 만든다. 재생본은 긴 변 1280px 이하 H.264/AAC MP4, 최대 약 3.5Mbps, Fast Start 사양이다. 처리 전/실패 시 공개 화면은 원본으로 자동 fallback한다.
+
+최초 설치나 영상 schema 변경 배포 순서는 아래처럼 분리한다. 평소 `imac:sync-runtime`은 기존 계약대로 정적 파일과 migration만 동기화하며 워커를 재시작하지 않는다.
+
+```bash
+npm run pb:backup:production
+npm run imac:sync-runtime
+# PocketBase를 재시작하고 새 media 필드가 적용됐는지 확인
+npm run imac:install-video-processor:dry-run
+npm run imac:install-video-processor
+npm run imac:video:enqueue-referenced
+```
+
+기존 글에서 참조 중인 영상만 최초 대기열에 넣을 때:
+
+```bash
+npm run imac:video:enqueue-referenced
+```
+
+처리 로그는 `~/Library/Logs/coldwaterkim-video-processor.log`과 `.error.log`에 남는다. 원본은 삭제하거나 덮어쓰지 않으며, 파생 파일은 같은 PocketBase `media` 레코드의 `web_video`, `video_poster` 필드에 별도 보관된다.
+일시 오류는 최대 3회 자동 재시도한다. 최종 실패 항목을 다시 대기열에 넣으려면 `npm run imac:video:retry-errors`를 쓴다. 사용자 LaunchAgent라 아이맥 로그인 전에는 변환이 시작되지 않지만 PocketBase와 공개 사이트는 계속 정상 동작한다.
 
 로컬 Caddy 리허설:
 

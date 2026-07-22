@@ -1183,6 +1183,10 @@ export async function uploadMedia(file, altText = '', caption = '') {
     formData.append('file', file);
     if (altText) formData.append('alt_text', altText);
     if (caption) formData.append('caption', caption);
+    if (String(file?.type || '').startsWith('video/') || /\.(?:mp4|mov|m4v|webm)$/i.test(String(file?.name || ''))) {
+        formData.append('video_status', 'pending');
+        formData.append('video_attempts', '0');
+    }
 
     try {
         return await pb.collection('media').create(formData);

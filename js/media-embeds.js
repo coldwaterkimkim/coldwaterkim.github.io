@@ -1,6 +1,7 @@
 const YOUTUBE_HOST_RE = /(^|\.)youtube(-nocookie)?\.com$/i;
 const YOUTU_BE_HOST_RE = /(^|\.)youtu\.be$/i;
 const POCKETBASE_IMAGE_RE = /\.(?:jpe?g|png)$/i;
+const POCKETBASE_VIDEO_RE = /\.(?:mp4|mov|m4v|webm)$/i;
 const POCKETBASE_FILE_PATH_RE = /\/api\/files\//;
 const LEGACY_MEDIA_HOST = 'api.coldwaterkim.com';
 const CURRENT_MEDIA_ORIGIN = 'https://coldwaterkim.com';
@@ -36,7 +37,54 @@ export function prepareEmbeddedMediaForDisplay(html = '') {
 }
 
 export function enhanceEmbeddedMedia(scope = document) {
-    decorateEmbeddedMedia(scope || document);
+    const root = scope || document;
+    decorateEmbeddedMedia(root);
+    void hydratePocketBaseVideos(root);
+}
+
+export function pocketBaseVideoReference(value = '', baseHref = globalThis.location?.href || CURRENT_MEDIA_ORIGIN) {
+    let original;
+    try {
+        original = new URL(String(value || '').trim(), baseHref);
+    } catch (_error) {
+        return null;
+    }
+
+    const parts = original.pathname.split('/').filter(Boolean);
+    if (parts[0] !== 'api' || parts[1] !== 'files' || parts.length < 5 || !POCKETBASE_VIDEO_RE.test(parts.at(-1))) {
+        return null;
+    }
+
+    if (original.hostname === LEGACY_MEDIA_HOST) {
+        original = new URL(`${original.pathname}${original.search}${original.hash}`, CURRENT_MEDIA_ORIGIN);
+    }
+
+    return {
+        originalUrl: original.href,
+        origin: original.origin,
+        collection: parts[2],
+        recordId: parts[3],
+    };
+}
+
+export function videoDerivativeSources(reference, record) {
+    if (!reference || !record?.id) return null;
+
+    const collection = record.collectionId || reference.collection;
+    const fileUrl = filename => {
+        const url = new URL(`/api/files/${encodeURIComponent(collection)}/${encodeURIComponent(record.id)}/${encodeURIComponent(filename)}`, reference.origin);
+        return url.href;
+    };
+
+    const playbackUrl = record.video_status === 'ready' && record.web_video ? fileUrl(record.web_video) : '';
+    const posterUrl = record.video_poster ? fileUrl(record.video_poster) : '';
+    if (!playbackUrl && !posterUrl) return null;
+
+    return {
+        playbackUrl,
+        posterUrl,
+        originalUrl: reference.originalUrl,
+    };
 }
 
 export function pocketBaseImageSources(value = '', baseHref = globalThis.location?.href || CURRENT_MEDIA_ORIGIN) {
@@ -87,6 +135,8 @@ function decorateEmbeddedMedia(root) {
         video.setAttribute('preload', 'none');
         video.setAttribute('playsinline', '');
         video.classList.add('cwk-rich-video');
+        const reference = pocketBaseVideoReference(src);
+        if (reference) video.dataset.cwkOriginalSrc = reference.originalUrl;
         video.dataset.cwkMediaReady = 'true';
     });
 
@@ -106,6 +156,76 @@ function decorateEmbeddedMedia(root) {
         decorateMediaIframe(iframe, youtube.title);
         iframe.dataset.cwkMediaReady = 'true';
     });
+}
+
+async function hydratePocketBaseVideos(root) {
+    const videos = [...root.querySelectorAll('video')]
+        .map(video => {
+            const src = video.dataset.cwkOriginalSrc || video.getAttribute('src') || video.querySelector('source')?.getAttribute('src') || '';
+            return { video, reference: pocketBaseVideoReference(src) };
+        })
+        .filter(item => item.reference);
+    if (!videos.length || typeof fetch !== 'function') return;
+
+    const byOrigin = new Map();
+    for (const item of videos) {
+        const entries = byOrigin.get(item.reference.origin) || [];
+        entries.push(item);
+        byOrigin.set(item.reference.origin, entries);
+    }
+
+    await Promise.all([...byOrigin.entries()].map(async ([origin, entries]) => {
+        const ids = [...new Set(entries.map(item => item.reference.recordId))];
+        const filter = ids.map(id => `id="${id.replace(/"/g, '')}"`).join('||');
+        const url = new URL('/api/collections/media/records', origin);
+        url.searchParams.set('perPage', String(Math.min(ids.length, 500)));
+        url.searchParams.set('filter', filter);
+        url.searchParams.set('fields', 'id,collectionId,web_video,video_poster,video_status');
+
+        try {
+            const response = await fetch(url.href);
+            if (!response.ok) return;
+            const payload = await response.json();
+            const records = new Map((payload.items || []).map(record => [record.id, record]));
+            for (const { video, reference } of entries) {
+                const sources = videoDerivativeSources(reference, records.get(reference.recordId));
+                if (!sources) continue;
+                applyVideoDerivatives(video, sources);
+            }
+        } catch (_error) {
+            // 파생본 조회 실패 시 저장된 원본 URL 재생을 그대로 유지한다.
+        }
+    }));
+}
+
+function applyVideoDerivatives(video, sources) {
+    video.dataset.cwkOriginalSrc = sources.originalUrl;
+    if (sources.posterUrl) video.setAttribute('poster', sources.posterUrl);
+    if (!sources.playbackUrl || !video.paused || video.currentTime > 0 || video.seeking) return;
+
+    video.addEventListener('error', () => {
+        if (video.dataset.cwkPlaybackFailed === 'true') return;
+        video.dataset.cwkPlaybackFailed = 'true';
+        const source = video.querySelector('source');
+        if (source && !video.getAttribute('src')) {
+            source.setAttribute('src', sources.originalUrl);
+            source.removeAttribute('type');
+        } else {
+            video.setAttribute('src', sources.originalUrl);
+        }
+        delete video.dataset.cwkPlaybackSrc;
+        video.load?.();
+    }, { once: true });
+
+    const source = video.querySelector('source');
+    if (source && !video.getAttribute('src')) {
+        source.setAttribute('src', sources.playbackUrl);
+        source.setAttribute('type', 'video/mp4');
+    } else {
+        video.setAttribute('src', sources.playbackUrl);
+    }
+    video.dataset.cwkPlaybackSrc = sources.playbackUrl;
+    video.load?.();
 }
 
 function decorateImages(root) {

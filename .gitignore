@@ -1,4 +1,5 @@
 node_modules
+__pycache__/
 .DS_Store
 .env
 pocketbase-admin.env
@@ -12,6 +13,7 @@ pb_public
 logs
 migration_backups
 pb_migrations/*
+!pb_migrations/1784726400_add_media_video_derivatives.js
 !pb_migrations/
 !pb_migrations/1780412204_created_nasajab.js
 !pb_migrations/1781280000_created_post_views.js

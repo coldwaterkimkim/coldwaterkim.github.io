@@ -214,6 +214,31 @@
         },
         { "name": "alt_text", "type": "text", "required": false, "max": 200 },
         { "name": "caption", "type": "text", "required": false, "max": 500 },
+        {
+          "name": "web_video",
+          "type": "file",
+          "required": false,
+          "maxSelect": 1,
+          "maxSize": 2147483648,
+          "mimeTypes": ["video/mp4"]
+        },
+        {
+          "name": "video_poster",
+          "type": "file",
+          "required": false,
+          "maxSelect": 1,
+          "maxSize": 10485760,
+          "mimeTypes": ["image/jpeg"]
+        },
+        {
+          "name": "video_status",
+          "type": "select",
+          "required": false,
+          "maxSelect": 1,
+          "values": ["pending", "processing", "ready", "error"]
+        },
+        { "name": "video_error", "type": "text", "required": false, "max": 500 },
+        { "name": "video_attempts", "type": "number", "required": false, "min": 0, "max": 3, "onlyInt": true },
         { "name": "created", "type": "autodate", "onCreate": true, "onUpdate": false },
         { "name": "updated", "type": "autodate", "onCreate": true, "onUpdate": true }
       ],
