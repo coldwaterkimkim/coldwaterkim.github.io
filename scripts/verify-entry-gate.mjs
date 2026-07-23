@@ -37,8 +37,12 @@ function check(condition, message) {
 for (const relativePath of publicHtml) {
   const source = fs.readFileSync(path.join(root, relativePath), 'utf8');
   check(
-    /<html[^>]*class="[^"]*\bentry-gate-pending\b[^"]*"/i.test(source),
-    `${relativePath} must start behind the entry gate`,
+    /<html[^>]*class="[^"]*\bentry-gate-disabled\b[^"]*"/i.test(source),
+    `${relativePath} must keep the preserved entry gate disabled`,
+  );
+  check(
+    !/<html[^>]*class="[^"]*\bentry-gate-pending\b[^"]*"/i.test(source),
+    `${relativePath} must open the public site without the entry gate`,
   );
 }
 
@@ -62,6 +66,7 @@ check(stylesSource.includes('.entry-gate'), 'entry gate styles must exist');
 check(stylesSource.includes('@media (max-width: 640px)'), 'entry gate must keep the public mobile breakpoint');
 check(postViewSource.includes('coldwaterkim:entry-admitted'), 'post views must wait for successful entry');
 check(postViewSource.includes("dataset.entryAdmitted === 'true'"), 'post views must recognize DOM admission state');
+check(postViewSource.includes('!gateActive'), 'post views must record immediately while the gate is disabled');
 
 check(
   entryWebmasterLineKey('2026-07-23') === 'entry_webmaster_line_2026-07-23',

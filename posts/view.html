@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html class="entry-gate-pending">
+<html class="entry-gate-disabled">
 
 <head>
     <title>Loading... — coldwaterkim</title>
@@ -233,9 +233,14 @@
                     console.warn('Post view count failed:', cmsErrorMessage(e));
                 });
             };
+            const gateActive = (
+                document.documentElement.classList.contains('entry-gate-pending')
+                || document.documentElement.classList.contains('entry-gate-open')
+            );
 
             if (
-                window.__coldwaterkimEntryAdmitted === true
+                !gateActive
+                || window.__coldwaterkimEntryAdmitted === true
                 || document.documentElement.dataset.entryAdmitted === 'true'
             ) {
                 record();

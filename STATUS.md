@@ -12,7 +12,7 @@
 
 공개 사이트의 디자인 기준은 현재 `index.html` 홈페이지, `design.md`, `css/styles.css`의 `:root` 디자인 토큰에 고정한다. 새 공개 페이지나 UI 수정은 현재 홈의 90s 개인 홈페이지 감성을 먼저 보존하고, 의도적으로 방향을 바꿀 때만 `design.md`, CSS 토큰, `STATUS.md`를 함께 갱신한다.
 
-모든 공개 HTML 직접 진입은 같은 문서 안의 필수 BGM 입장 게이트에서 시작한다. 게이트는 오늘의 BGM, KST 날짜별 `WEBMASTER SAYS`, 브라우저의 직전 성공 입장 이후 공개 콘텐츠 업데이트를 보여주며, 실제 `audio.play()` 성공 뒤에만 본문을 연다. 무음/건너뛰기 진입은 제공하지 않는다. 같은 탭에서 이미 입장한 뒤 새로고침하면 자동 재연결을 먼저 시도하고, 브라우저가 막으면 `RESUME` 버튼을 다시 보여준다.
+필수 BGM 입장 게이트 구현과 디자인은 보존하되 현재 공개 사이트에서는 잠시 비활성화한다. 모든 공개 HTML은 `entry-gate-disabled` 표시를 사용해 기존 홈페이지를 바로 열고, 방향을 확정해 다시 살릴 때만 이를 `entry-gate-pending`으로 되돌린다. 게이트 코드, 날짜별 `WEBMASTER SAYS`, 브라우저별 업데이트 계산, 스피커 자산은 삭제하지 않는다.
 
 공개 메인 IA 페이지(`Home`, `글방`, `글 상세`, `나으 하루`, `프로그램실`, `나사잡`, `Guestbook`, `About / Contact`)는 모두 홈의 2-column shell을 기본 레이아웃으로 쓴다. 즉 상단 marquee, 노란 construction banner, 왼쪽 프로필/sidebar, 나무위키식 PROFILE DATA 표, 오른쪽 content 상단 navigation은 유지하고, 페이지별 내용만 오른쪽 content 영역에서 바뀌게 한다.
 
@@ -32,8 +32,8 @@
 
 ## 현재 동작
 
-- 입장 성공 시 `localStorage.cwk_entry_last_admitted_at`에 직전 입장 시각을 남기고, 현재 탭의 성공 입장은 `sessionStorage.cwk_entry_admitted`로 구분한다. 이는 로그인 계정이 아니라 같은 브라우저/기기 안의 익명 기록이라 시크릿 모드, 저장소 삭제, 새 기기에서는 첫 방문으로 인식한다. 주인장 한 줄은 스키마를 늘리지 않고 `site_settings.entry_webmaster_line_YYYY-MM-DD`에 날짜별로 보관하며, 로그인 owner는 입장 화면에서 그날 문구를 수정할 수 있다.
-- 입장 전 글 상세를 직접 연 경우 본문 데이터는 준비하되 `post_views` 집계는 `coldwaterkim:entry-admitted` 이후로 미룬다. 게이트만 보고 나간 사람을 글 조회로 세지 않기 위해서다. 전체 방문자 세션은 기존처럼 공개 페이지 도착을 기준으로 유지한다.
+- 입장 게이트가 활성화된 경우에만 `localStorage.cwk_entry_last_admitted_at`, `sessionStorage.cwk_entry_admitted`, 날짜별 `site_settings.entry_webmaster_line_YYYY-MM-DD`를 사용한다. 현재 비활성 상태에서는 이 값을 지우지 않고 그대로 보존한다.
+- 글 상세 `post_views`는 게이트가 활성화된 동안에는 `coldwaterkim:entry-admitted` 이후로 미루고, 현재처럼 게이트가 비활성화된 동안에는 기존 방식대로 글 상세 렌더링 직후 기록한다. 전체 방문자 세션은 공개 페이지 도착을 기준으로 유지한다.
 - 공개 홈은 PocketBase에서 `글방`, `프로그램실`, `나사잡`의 최신 공개 항목 3개씩과 `나으 하루`의 최신 날짜 3일을 가져와 별도 table로 보여준다.
 - 글 목록은 홈과 같은 shell 안에서 PocketBase `posts` 컬렉션의 `published` 글만 보여주며, 홈의 글방 최근 3개 table과 같이 사용자가 지정한 `published_at` 최신순으로 정렬한다. OWNER MODE와 관리자 목록도 같은 기준을 쓰고, 같은 발행일에서만 `created` 최신순으로 풀어준다.
 - 글 상세 URL은 홈과 같은 shell 안에서 `slug`로 PocketBase 글을 조회하고 해당 글 하나만 렌더링한다. 글방 목록은 여러 글 table이고, 상세는 단일 글 페이지다.
