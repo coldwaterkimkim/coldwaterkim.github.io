@@ -5,9 +5,12 @@
 
 import {
   getPublishedPosts,
+  getPublishedPostTimeline,
   getPublishedDailyTimeline,
   getPublishedPrograms,
+  getPublishedProgramTimeline,
   getPublishedNasajab,
+  getPublishedNasajabTimeline,
   getGuestbookEntries,
   addGuestbookEntry,
   getSetting,
@@ -21,6 +24,7 @@ import {
   dailyEntryDisplayDate,
   programDisplayDate,
   nasajabDisplayDate,
+  getKstDateKey,
   recordVisitAndGetStats,
   excludeCurrentVisitorSession,
   getVisitorDisplayStats,
@@ -36,6 +40,13 @@ import {
   renderProfileDetailTables,
   sidebarProfileRowsFromDocument
 } from './profile-data.js';
+import {
+  ENTRY_LAST_ADMITTED_STORAGE_KEY,
+  ENTRY_SESSION_ADMITTED_STORAGE_KEY,
+  entryWebmasterLineKey,
+  normalizeEntryLastAdmittedAt,
+  summarizeEntryUpdates,
+} from './entry-gate-logic.mjs';
 
 const SITE_VERSION = typeof __SITE_VERSION__ !== 'undefined' ? __SITE_VERSION__ : 'dev';
 const VERSION_MANIFEST_PATH = '/site-version.json';
@@ -53,6 +64,7 @@ const BGM_PLAYLIST_SETTING_KEY = 'bgm_playlist';
 const ABOUT_DOCUMENT_SETTING_KEY = 'about_wiki_document';
 let spaNavigationToken = 0;
 let activeSidebarProfileRows = defaultSidebarProfileRows();
+const entryGateController = initEntryGate();
 
 (async function initProfileMedia() {
   const photo = document.querySelector('.profile-photo');
@@ -62,7 +74,9 @@ let activeSidebarProfileRows = defaultSidebarProfileRows();
 
   await loadProfileMediaSettings(photo, audio, trackTitle);
 
-  if (audio) {
+  if (audio && entryGateController) {
+    entryGateController.connectAudio(audio, getBgmPlaylist(audio));
+  } else if (audio) {
     initBgmAutoplay(audio);
   }
 
@@ -86,6 +100,340 @@ window.addEventListener('coldwaterkim:profile-data-updated', (event) => {
 window.addEventListener('coldwaterkim:content-ready', () => {
   renderProfileDetailTables(document, activeSidebarProfileRows);
 });
+
+// ─────────────────────────────────────────────────────────
+// 필수 BGM 입장 게이트
+// ─────────────────────────────────────────────────────────
+function initEntryGate() {
+  const root = document.documentElement;
+  if (!root.classList.contains('entry-gate-pending')) return null;
+
+  const siteShell = Array.from(document.body.children)
+    .find(element => element.tagName === 'CENTER');
+  const gate = document.createElement('main');
+  gate.id = 'entryGate';
+  gate.className = 'entry-gate';
+  gate.setAttribute('aria-labelledby', 'entryGateTitle');
+  gate.innerHTML = `
+    <marquee class="entry-gate-marquee" behavior="alternate" scrollamount="3">
+      ★ YOU HAVE REACHED coldwaterkim's HOME PAGE ★
+    </marquee>
+    <table class="entry-gate-table" border="1" cellspacing="0" cellpadding="0">
+      <tr>
+        <th class="entry-gate-banner">WELCOME, STRANGER! · MUSIC REQUIRED</th>
+      </tr>
+      <tr>
+        <td class="entry-gate-content">
+          <h1 id="entryGateTitle">coldwaterkim's HOME PAGE</h1>
+
+          <table class="entry-gate-info-table" cellspacing="0" cellpadding="0">
+            <tr>
+              <td class="entry-gate-bgm-row">
+                <img src="/assets/entry-speaker.png" class="entry-gate-speaker" width="32" height="32" alt="">
+                <span class="entry-gate-label">TODAY'S BGM:</span>
+                <span data-entry-bgm-title>BGM 불러오는 중...</span>
+              </td>
+            </tr>
+            <tr>
+              <td class="entry-gate-webmaster-row">
+                <span class="entry-gate-label">WEBMASTER SAYS:</span>
+                <span class="entry-gate-day" data-entry-day></span>
+                <strong data-entry-webmaster-line>오늘의 한 줄 불러오는 중...</strong>
+                <span class="entry-gate-owner-tools" data-entry-owner-tools hidden>
+                  <button type="button" class="owner-btn" data-entry-edit-line>[오늘 한 줄 수정]</button>
+                  <span data-entry-owner-status></span>
+                </span>
+              </td>
+            </tr>
+            <tr>
+              <td class="entry-gate-update-row">
+                <strong class="entry-gate-update-heading" data-entry-update-heading>UPDATE CHECKING...</strong>
+                <a href="/" data-entry-update-link hidden></a>
+                <span data-entry-update-text>새 소식 확인 중...</span>
+              </td>
+            </tr>
+          </table>
+
+          <div class="entry-gate-action">
+            <button type="button" class="entry-gate-enter" data-entry-enter disabled>
+              [ BGM 준비 중... ]
+            </button>
+            <p class="entry-gate-status" data-entry-status role="status" aria-live="polite">
+              음악 연결을 확인하고 있음.
+            </p>
+            <p class="entry-gate-warning">
+              ※ 음악을 원하지 않으면 브라우저의 뒤로가기를 누르시오.
+            </p>
+          </div>
+
+          <p class="entry-gate-footer">© coldwaterkim — no silence beyond this point</p>
+        </td>
+      </tr>
+    </table>
+  `;
+  document.body.insertBefore(gate, document.body.firstChild);
+  root.classList.remove('entry-gate-pending');
+  root.classList.add('entry-gate-open');
+
+  if (siteShell) {
+    siteShell.inert = true;
+    siteShell.setAttribute('aria-hidden', 'true');
+  }
+
+  const state = {
+    audio: null,
+    tracks: [],
+    entering: false,
+    admittedInThisTab: entrySessionGet(ENTRY_SESSION_ADMITTED_STORAGE_KEY) === '1',
+    previousAdmittedAt: normalizeEntryLastAdmittedAt(entryStorageGet(ENTRY_LAST_ADMITTED_STORAGE_KEY)),
+  };
+  const enterButton = gate.querySelector('[data-entry-enter]');
+  const status = gate.querySelector('[data-entry-status]');
+  const bgmTitle = gate.querySelector('[data-entry-bgm-title]');
+  const updateLink = gate.querySelector('[data-entry-update-link]');
+
+  const completeEntry = (destination = '') => {
+    const admittedAt = new Date().toISOString();
+    entryStorageSet(ENTRY_LAST_ADMITTED_STORAGE_KEY, admittedAt);
+    entrySessionSet(ENTRY_SESSION_ADMITTED_STORAGE_KEY, '1');
+    window.__coldwaterkimEntryAdmitted = true;
+    root.dataset.entryAdmitted = 'true';
+    root.classList.remove('entry-gate-open');
+
+    if (siteShell) {
+      siteShell.inert = false;
+      siteShell.removeAttribute('aria-hidden');
+    }
+
+    gate.remove();
+    if (!destination) {
+      window.scrollTo(0, 0);
+    }
+    initBgmAutoplay(state.audio);
+    window.dispatchEvent(new CustomEvent('coldwaterkim:entry-admitted', {
+      detail: { admittedAt },
+    }));
+
+    if (destination) {
+      navigateSpa(destination);
+    }
+  };
+
+  const beginEntry = async (destination = '') => {
+    if (state.entering || !state.audio || state.tracks.length === 0) return;
+
+    state.entering = true;
+    enterButton.disabled = true;
+    enterButton.textContent = '[ BGM 연결 중... ]';
+    status.textContent = '음악이 실제로 재생되면 문이 열림.';
+
+    try {
+      const playback = state.audio.play();
+      await playback;
+      completeEntry(destination);
+    } catch (error) {
+      state.entering = false;
+      enterButton.disabled = false;
+      enterButton.textContent = '[ ENTER — BGM WILL PLAY ]';
+      status.textContent = 'BGM 재생 실패. 버튼을 다시 누르시오.';
+    }
+  };
+
+  enterButton.addEventListener('click', () => {
+    beginEntry();
+  });
+
+  updateLink.addEventListener('click', (event) => {
+    event.preventDefault();
+    beginEntry(updateLink.href);
+  });
+
+  initEntryGateDailyLine(gate);
+  initEntryGateUpdates(gate, state.previousAdmittedAt);
+
+  return {
+    async connectAudio(audio, tracks) {
+      state.audio = audio;
+      state.tracks = Array.isArray(tracks) ? tracks : [];
+      const firstTrack = state.tracks[0];
+
+      if (!firstTrack || !audio?.src) {
+        bgmTitle.textContent = 'BGM 준비 실패';
+        enterButton.disabled = true;
+        enterButton.textContent = '[ 입장 불가 ]';
+        status.textContent = '필수 BGM을 불러오지 못했음. 새로고침하시오.';
+        return;
+      }
+
+      bgmTitle.textContent = entryBgmDisplayTitle(firstTrack.title || defaultBgmTitle(audio));
+      enterButton.disabled = false;
+      enterButton.textContent = state.admittedInThisTab
+        ? '[ RESUME — BGM WILL PLAY ]'
+        : '[ ENTER — BGM WILL PLAY ]';
+      status.textContent = state.admittedInThisTab
+        ? '이 탭에서 입장한 기록 확인. BGM 재연결 중...'
+        : '입장 버튼을 누르면 음악이 즉시 시작됨.';
+
+      if (!state.admittedInThisTab) {
+        enterButton.focus({ preventScroll: true });
+        return;
+      }
+
+      try {
+        const playback = audio.play();
+        await playback;
+        completeEntry();
+      } catch (error) {
+        status.textContent = '새로고침으로 BGM이 멈췄음. RESUME을 누르시오.';
+        enterButton.focus({ preventScroll: true });
+      }
+    },
+  };
+}
+
+async function initEntryGateDailyLine(gate) {
+  const dayKey = getKstDateKey();
+  const settingKey = entryWebmasterLineKey(dayKey);
+  const dayEl = gate.querySelector('[data-entry-day]');
+  const lineEl = gate.querySelector('[data-entry-webmaster-line]');
+  const ownerTools = gate.querySelector('[data-entry-owner-tools]');
+  const editButton = gate.querySelector('[data-entry-edit-line]');
+  const ownerStatus = gate.querySelector('[data-entry-owner-status]');
+  dayEl.textContent = `(${dayKey.replaceAll('-', '.')})`;
+
+  const [dailyLine, fallbackLine] = await Promise.all([
+    getSetting(settingKey),
+    getSetting('profile_today'),
+  ]);
+  lineEl.textContent = plainSettingText(dailyLine || fallbackLine) || '오늘의 한 줄은 아직 없음.';
+
+  if (!isLoggedIn()) return;
+  ownerTools.hidden = false;
+  editButton.addEventListener('click', async () => {
+    const nextLine = window.prompt('오늘의 한 줄', lineEl.textContent)?.trim();
+    if (!nextLine) return;
+
+    editButton.disabled = true;
+    ownerStatus.textContent = ' 저장 중...';
+    try {
+      await setSetting(settingKey, nextLine);
+      lineEl.textContent = nextLine;
+      ownerStatus.textContent = ' 저장됨';
+    } catch (error) {
+      ownerStatus.textContent = ' 저장 실패';
+    } finally {
+      editButton.disabled = false;
+    }
+  });
+}
+
+async function initEntryGateUpdates(gate, lastAdmittedAt) {
+  const heading = gate.querySelector('[data-entry-update-heading]');
+  const link = gate.querySelector('[data-entry-update-link]');
+  const text = gate.querySelector('[data-entry-update-text]');
+
+  try {
+    const [posts, dailyEntries, programs, nasajabItems] = await Promise.all([
+      getPublishedPostTimeline(),
+      getPublishedDailyTimeline(),
+      getPublishedProgramTimeline(),
+      getPublishedNasajabTimeline(),
+    ]);
+    const summary = summarizeEntryUpdates([
+      {
+        label: '글방',
+        unit: '개',
+        items: posts.map(post => ({
+          title: post.title || '(제목 없음)',
+          href: `/posts/view.html?slug=${encodeURIComponent(post.slug || '')}`,
+          updatedAt: post.updated || postDisplayDate(post),
+        })),
+      },
+      {
+        label: '나으 하루',
+        unit: '개',
+        items: dailyEntries.map(entry => ({
+          title: `${formatDate(dailyEntryDayKey(entry))}의 하루`,
+          href: `/daily/view.html?day=${encodeURIComponent(dailyEntryDayKey(entry))}`,
+          updatedAt: entry.updated || dailyEntryDisplayDate(entry),
+        })),
+      },
+      {
+        label: '프로그램실',
+        unit: '개',
+        items: programs.map(program => ({
+          title: program.title || '(이름 없음)',
+          href: `/programs/view.html?slug=${encodeURIComponent(program.slug || '')}`,
+          updatedAt: program.updated || programDisplayDate(program),
+        })),
+      },
+      {
+        label: '나사잡',
+        unit: '개',
+        items: nasajabItems.map(item => ({
+          title: item.title || item.caption || item.memo || '(제목 없음)',
+          href: item.id ? `/nasajab/index.html#${encodeURIComponent(item.id)}` : '/nasajab/index.html',
+          updatedAt: item.updated || nasajabDisplayDate(item),
+        })),
+      },
+    ], lastAdmittedAt);
+
+    heading.textContent = summary.heading;
+    if (summary.href) {
+      link.href = summary.href;
+      link.textContent = summary.text;
+      link.hidden = false;
+      text.hidden = true;
+    } else {
+      text.textContent = summary.text;
+      text.hidden = false;
+      link.hidden = true;
+    }
+  } catch (error) {
+    heading.textContent = 'UPDATE CHECK FAILED';
+    text.textContent = '새 소식 확인 실패. 그래도 BGM은 준비 중.';
+    text.hidden = false;
+    link.hidden = true;
+  }
+}
+
+function plainSettingText(value) {
+  const container = document.createElement('div');
+  container.innerHTML = String(value || '');
+  return (container.textContent || '').trim();
+}
+
+function entryStorageGet(key) {
+  try {
+    return localStorage.getItem(key);
+  } catch (error) {
+    return null;
+  }
+}
+
+function entryStorageSet(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch (error) {
+    // 저장소가 막혀도 이번 입장은 계속 허용한다.
+  }
+}
+
+function entrySessionGet(key) {
+  try {
+    return sessionStorage.getItem(key);
+  } catch (error) {
+    return null;
+  }
+}
+
+function entrySessionSet(key, value) {
+  try {
+    sessionStorage.setItem(key, value);
+  } catch (error) {
+    // 저장소가 막히면 다음 전체 로드에서 다시 입장 게이트를 보여준다.
+  }
+}
 
 function initSiteVersionRefresh() {
   if (window.__coldwaterkimVersionRefreshReady) return;
@@ -593,6 +941,10 @@ function initBgmUpload(player, audio, trackTitle) {
 function defaultBgmTitle(audio) {
   const src = audio?.currentSrc || audio?.getAttribute('src') || audio?.querySelector('source')?.getAttribute('src') || 'bgm.mp3';
   return fileNameFromUrl(src) || 'bgm.mp3';
+}
+
+function entryBgmDisplayTitle(value) {
+  return String(value || '').replace(/\.(mp3|m4a|aac|ogg|wav)$/i, '');
 }
 
 function fileNameFromUrl(value) {

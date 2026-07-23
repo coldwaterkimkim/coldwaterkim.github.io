@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html class="entry-gate-pending">
 
 <head>
     <title>Loading... — coldwaterkim</title>
@@ -219,14 +219,30 @@
 
                 renderPost(targetPost, viewCounts[targetPost.id]);
                 if (!ownerMode) {
-                    recordPostView(targetPost).catch((e) => {
-                        console.warn('Post view count failed:', cmsErrorMessage(e));
-                    });
+                    recordPostViewAfterEntry(targetPost);
                 }
 
             } catch (e) {
                 showError(cmsErrorMessage(e), 'Post not found');
             }
+        }
+
+        function recordPostViewAfterEntry(post) {
+            const record = () => {
+                recordPostView(post).catch((e) => {
+                    console.warn('Post view count failed:', cmsErrorMessage(e));
+                });
+            };
+
+            if (
+                window.__coldwaterkimEntryAdmitted === true
+                || document.documentElement.dataset.entryAdmitted === 'true'
+            ) {
+                record();
+                return;
+            }
+
+            window.addEventListener('coldwaterkim:entry-admitted', record, { once: true });
         }
 
         function renderPost(post, viewCount = null) {
