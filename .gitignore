@@ -21,3 +21,4 @@ pb_migrations/*
 !pb_migrations/1782840000_raise_home_server_file_limits.js
 !pb_migrations/1782841000_created_visitor_sessions.js
 !pb_migrations/1784641062_enable_media_thumbnails.js
+!pb_migrations/1785596400_expand_site_settings_value.js

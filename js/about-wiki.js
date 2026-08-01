@@ -13,6 +13,7 @@ import {
   normalizeAboutProfileRows
 } from './profile-data.js';
 import { enhanceEmbeddedMedia, prepareEmbeddedMediaForDisplay } from './media-embeds.js';
+import { moveItemById } from './about-wiki-logic.mjs';
 
 const SETTING_KEY = 'about_wiki_document';
 const IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
@@ -69,6 +70,7 @@ const DEFAULT_DOCUMENT = {
 const stateByRoot = new WeakMap();
 
 initAboutWiki();
+bindAboutUnloadGuard();
 
 window.addEventListener('coldwaterkim:content-ready', initAboutWiki);
 
@@ -86,6 +88,9 @@ function initAboutWiki() {
       sectionEditor: null,
       pendingEditorImageIndex: null,
       saveTimer: null,
+      saveQueue: Promise.resolve(),
+      saveVersion: 0,
+      hasUnsavedChanges: false,
     };
     stateByRoot.set(root, state);
 
@@ -246,7 +251,13 @@ function sectionsHtml(sections, isOwner) {
     <div class="about-section" id="about-section-${escapeAttribute(section.id)}" data-section-id="${escapeAttribute(section.id)}">
       <h2>
         <span>${index + 1}. ${escapeHtml(section.title)}</span>
-        ${isOwner ? `<button type="button" class="about-edit-link" data-about-action="edit-section" data-section-id="${escapeAttribute(section.id)}">[편집]</button>` : ''}
+        ${isOwner ? `
+          <span class="about-section-tools">
+            <button type="button" class="about-order-btn" data-about-action="move-section" data-section-id="${escapeAttribute(section.id)}" data-direction="-1" title="위로 이동" aria-label="${escapeAttribute(section.title)} 위로 이동" ${index <= 0 ? 'disabled' : ''}>↑</button>
+            <button type="button" class="about-order-btn" data-about-action="move-section" data-section-id="${escapeAttribute(section.id)}" data-direction="1" title="아래로 이동" aria-label="${escapeAttribute(section.title)} 아래로 이동" ${index >= sections.length - 1 ? 'disabled' : ''}>↓</button>
+            <button type="button" class="about-edit-link" data-about-action="edit-section" data-section-id="${escapeAttribute(section.id)}">[편집]</button>
+          </span>
+        ` : ''}
       </h2>
       <div class="about-section-body post-content" data-about-section-body-index="${index}"></div>
     </div>
@@ -273,7 +284,7 @@ function editorHtml(state) {
 
   if (selectedProfile) {
     return `
-      <form class="about-editor" data-about-editor="profile">
+      <form class="about-editor" data-about-editor="profile" data-version-refresh-block="${state.hasUnsavedChanges}">
         <b>프로필 표 row 편집</b>
         <table border="1" cellspacing="0" cellpadding="5" width="100%">
           <tr>
@@ -306,7 +317,7 @@ function editorHtml(state) {
   const index = state.doc.sections.findIndex(section => section.id === selected.id);
 
   return `
-    <form class="about-editor" data-about-editor="section">
+    <form class="about-editor" data-about-editor="section" data-version-refresh-block="${state.hasUnsavedChanges}">
       <b>섹션 편집: ${escapeHtml(selected.title)}</b>
       <table border="1" cellspacing="0" cellpadding="5" width="100%">
         <tr>
@@ -346,6 +357,7 @@ async function initSectionEditor(state) {
   if (!selected || !mount || !form || !input) return;
 
   const selectedId = selected.id;
+  let editorHydrated = false;
   try {
     const editor = await createMarkdownEditor(mount, {
       height: '320px',
@@ -355,13 +367,18 @@ async function initSectionEditor(state) {
         state.pendingEditorImageIndex = currentEditorIndex(state);
         input.click();
       },
-      uploadFile: file => uploadSectionEditorFile(state, file)
+      uploadFile: file => uploadSectionEditorFile(state, file),
+      onChange: () => {
+        if (editorHydrated) markAboutDirty(state);
+      }
     });
 
     if (!mount.isConnected || state.selectedSectionId !== selectedId) return;
 
+    await editor.ready();
     state.sectionEditor = editor;
     editor.root.innerHTML = selected.body || '';
+    editorHydrated = true;
     bindSectionEditorImages(state, form, input, editor);
   } catch (error) {
     renderStatus(state, `편집기 로드 실패: ${cmsErrorMessage(error)}`, 'error');
@@ -457,7 +474,7 @@ function bindEvents(state) {
     }
 
     if (action === 'move-section') {
-      moveSelectedSection(state, Number(button.dataset.direction || 0));
+      moveSection(state, button.dataset.sectionId || state.selectedSectionId, Number(button.dataset.direction || 0));
     }
 
     if (action === 'edit-profile') {
@@ -483,6 +500,12 @@ function bindEvents(state) {
       state.selectedSectionId = null;
       state.selectedProfileIndex = null;
       render(state);
+    }
+  });
+
+  state.root.addEventListener('input', (event) => {
+    if (event.target.closest('[data-about-editor]')) {
+      markAboutDirty(state);
     }
   });
 
@@ -525,13 +548,9 @@ function deleteSelectedSection(state) {
   persistAndRender(state, '섹션 삭제됨');
 }
 
-function moveSelectedSection(state, direction) {
-  const index = state.doc.sections.findIndex(section => section.id === state.selectedSectionId);
-  const nextIndex = index + direction;
-  if (index < 0 || nextIndex < 0 || nextIndex >= state.doc.sections.length) return;
-
-  const [section] = state.doc.sections.splice(index, 1);
-  state.doc.sections.splice(nextIndex, 0, section);
+function moveSection(state, sectionId, direction) {
+  captureSelectedSectionDraft(state);
+  if (!moveItemById(state.doc.sections, sectionId, direction)) return;
   persistAndRender(state, '순서 변경됨');
 }
 
@@ -590,19 +609,57 @@ function saveProfileForm(state, form) {
 }
 
 async function persistAndRender(state, message) {
+  state.hasUnsavedChanges = true;
+  const saveVersion = ++state.saveVersion;
+  state.doc.profileSchemaVersion = ABOUT_PROFILE_DOCUMENT_VERSION;
+  const payload = JSON.stringify(state.doc);
   render(state);
   renderStatus(state, '저장 중...', 'pending');
 
-  try {
-    state.doc.profileSchemaVersion = ABOUT_PROFILE_DOCUMENT_VERSION;
-    await setSetting(SETTING_KEY, JSON.stringify(state.doc));
-    window.dispatchEvent(new CustomEvent('coldwaterkim:profile-data-updated', {
-      detail: { document: state.doc }
-    }));
-    renderStatus(state, message || '저장됨', 'success');
-  } catch (error) {
-    renderStatus(state, `저장 실패: ${cmsErrorMessage(error)}`, 'error');
-  }
+  state.saveQueue = state.saveQueue.catch(() => {}).then(async () => {
+    try {
+      await setSetting(SETTING_KEY, payload);
+      if (saveVersion !== state.saveVersion) return;
+
+      markAboutDirty(state, false);
+      window.dispatchEvent(new CustomEvent('coldwaterkim:profile-data-updated', {
+        detail: { document: state.doc }
+      }));
+      renderStatus(state, message || '저장됨', 'success');
+    } catch (error) {
+      if (saveVersion !== state.saveVersion) return;
+      markAboutDirty(state, true);
+      renderStatus(state, `저장 실패: ${cmsErrorMessage(error)}`, 'error');
+    }
+  });
+
+  return state.saveQueue;
+}
+
+function captureSelectedSectionDraft(state) {
+  const selected = findSelectedSection(state);
+  const form = state.root.querySelector('[data-about-editor="section"]');
+  if (!selected || !form) return;
+
+  selected.title = cleanText(new FormData(form).get('title')) || selected.title;
+  selected.body = cleanHtml(sectionEditorHtml(state, selected.body));
+}
+
+function markAboutDirty(state, isDirty = true) {
+  state.hasUnsavedChanges = isDirty;
+  const form = state.root.querySelector('[data-about-editor]');
+  if (form) form.dataset.versionRefreshBlock = String(isDirty);
+}
+
+function bindAboutUnloadGuard() {
+  if (window.__coldwaterkimAboutUnloadGuard) return;
+  window.__coldwaterkimAboutUnloadGuard = true;
+
+  window.addEventListener('beforeunload', (event) => {
+    if (!document.querySelector('[data-version-refresh-block="true"]')) return;
+    event.preventDefault();
+    event.returnValue = '';
+  });
 }
 
 function renderStatus(state, message, type = 'success') {

@@ -1368,6 +1368,9 @@ export function escapeHtml(str) {
  */
 export function cmsErrorMessage(err) {
     const message = err?.message || String(err || '');
+    const fieldMessages = Object.values(errorFieldData(err))
+        .map(field => String(field?.message || '').trim())
+        .filter(Boolean);
 
     if (isInvalidMimeTypeError(err)) {
         return MEDIA_UPLOAD_TYPE_MESSAGE;
@@ -1392,6 +1395,15 @@ export function cmsErrorMessage(err) {
 
     if (err?.status === 404) {
         return 'CMS 컬렉션이나 글을 찾을 수 없습니다. PocketBase 스키마가 설정됐는지 확인해야 합니다.';
+    }
+
+    if (fieldMessages.length > 0) {
+        const validationMessage = fieldMessages.join(' · ');
+        const maxMatch = validationMessage.match(/less than\s+(\d+)\s+character/i);
+        if (maxMatch) {
+            return `저장 내용이 CMS 제한 ${Number(maxMatch[1]).toLocaleString()}자를 넘었습니다.`;
+        }
+        return validationMessage;
     }
 
     return message || '알 수 없는 CMS 오류가 발생했습니다.';

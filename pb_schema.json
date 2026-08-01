@@ -71,7 +71,7 @@
       "type": "base",
       "fields": [
         { "name": "key", "type": "text", "required": true, "min": 1, "max": 100 },
-        { "name": "value", "type": "text", "required": false },
+        { "name": "value", "type": "text", "required": false, "max": 5000000 },
         { "name": "created", "type": "autodate", "onCreate": true, "onUpdate": false },
         { "name": "updated", "type": "autodate", "onCreate": true, "onUpdate": true }
       ],

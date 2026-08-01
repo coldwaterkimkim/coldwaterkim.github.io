@@ -405,6 +405,7 @@ function BlockNoteMount({ adapter, placeholder }) {
         className: 'blocknote-editor-view',
         onChange: () => {
             adapter.currentHtml = adapter.htmlFromEditor();
+            adapter.options.onChange?.(adapter.currentHtml);
         }
     });
 }

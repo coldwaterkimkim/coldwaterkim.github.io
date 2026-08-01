@@ -492,6 +492,8 @@ async function checkSiteVersionAndRefresh(reason = 'manual') {
 }
 
 function refreshForSiteVersion(latestVersion) {
+  if (document.querySelector('[data-version-refresh-block="true"]')) return;
+
   const refreshKey = `cwk-version-refresh:${SITE_VERSION}->${latestVersion}`;
   try {
     if (sessionStorage.getItem(refreshKey) === '1') return;
