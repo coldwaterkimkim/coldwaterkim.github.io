@@ -34,7 +34,7 @@
 
 - 입장 게이트가 활성화된 경우에만 `localStorage.cwk_entry_last_admitted_at`, `sessionStorage.cwk_entry_admitted`, 날짜별 `site_settings.entry_webmaster_line_YYYY-MM-DD`를 사용한다. 현재 비활성 상태에서는 이 값을 지우지 않고 그대로 보존한다.
 - 글 상세 `post_views`는 게이트가 활성화된 동안에는 `coldwaterkim:entry-admitted` 이후로 미루고, 현재처럼 게이트가 비활성화된 동안에는 기존 방식대로 글 상세 렌더링 직후 기록한다. 전체 방문자 세션은 공개 페이지 도착을 기준으로 유지한다.
-- 공개 홈은 PocketBase에서 `글방`, `프로그램실`, `나사잡`의 최신 공개 항목 3개씩과 `나으 하루`의 최신 날짜 3일을 가져와 별도 table로 보여준다.
+- 공개 홈은 PocketBase에서 `나으 하루`의 최신 날짜 3일을 먼저 보여주고, 이어서 `글방`, `프로그램실`, `나사잡`의 최신 공개 항목 3개씩을 별도 table로 보여준다.
 - 글 목록은 홈과 같은 shell 안에서 PocketBase `posts` 컬렉션의 `published` 글만 보여주며, 홈의 글방 최근 3개 table과 같이 사용자가 지정한 `published_at` 최신순으로 정렬한다. OWNER MODE와 관리자 목록도 같은 기준을 쓰고, 같은 발행일에서만 `created` 최신순으로 풀어준다.
 - 글 상세 URL은 홈과 같은 shell 안에서 `slug`로 PocketBase 글을 조회하고 해당 글 하나만 렌더링한다. 글방 목록은 여러 글 table이고, 상세는 단일 글 페이지다.
 - 나으 하루는 글방과 별도인 PocketBase `daily_entries` 컬렉션을 쓴다. 작성 화면은 글방과 같은 WYSIWYG Markdown 작성 경험을 유지하고, 같은 날짜에 여러 번 써도 각각 새 글 레코드로 저장한다. `day_key`는 저장 단위가 아니라 캘린더/정렬용 날짜 메타데이터다.
@@ -52,7 +52,7 @@
 - 글별 조회수는 PocketBase `post_views` 컬렉션을 사용한다. 일반 방문자가 글 상세 URL에 들어오면 30분 단위 익명 조회 기록을 1개 만들고, 로그인한 관리자의 조회는 집계하지 않는다. 조회수는 공개 방문자에게 숨기고, owner mode의 글방 목록/글 상세 및 `admin/posts.html`에서만 보여준다. 기존 `visitor_sessions`에는 글 URL 정보가 없어 과거 전체 방문자 수를 글별 조회수로 정확히 배분할 수 없으며, 별도 서버 로그 import가 없으면 `post_views` 적용 이후 값부터 기준으로 삼는다.
 - 공개 메뉴에는 관리자 링크를 두지 않는다. 상단 marquee의 `coldwaterkim` 텍스트가 숨은 로그인 진입점이다.
 - 로그인한 관리자는 공개 사이트를 그대로 보면서 홈 문구 편집, 프로필 사진 클릭 업로드, 홈 BGM MP3 추가, Home의 통합 글쓰기 허브, 글방의 새 글/수정/삭제, 나으 하루의 새 하루/수정/삭제, 글 상세의 수정/삭제, 프로그램실의 새 프로그램/수정/삭제, 나사잡의 이미지 업로드/수정/삭제, 방명록 삭제 같은 `OWNER MODE` 권한을 추가로 본다. 통합 글쓰기 허브는 글방/나으 하루/프로그램실 새 레코드 생성을 빠르게 시작하는 추가 진입점이며 기존 각 페이지 작성/수정 플로우를 대체하지 않는다. 프로그램실 새 레코드는 공개 자료실 항목으로 저장된다.
-- 프로필 사진과 홈 BGM은 별도 컬렉션을 만들지 않고 기존 `media` 컬렉션과 `site_settings`를 쓴다. 프로필 사진은 `site_settings.profile_photo_url`에 저장한다. BGM은 `site_settings.bgm_playlist`를 최신 업로드순 플레이리스트로 쓰고, 기존 `site_settings.bgm_audio_url`, `site_settings.bgm_audio_title`은 최신곡 호환용으로 같이 갱신한다. 제목은 미니 플레이어 위에서 marquee처럼 흐르고, 오디오는 최신곡부터 차례로 재생한 뒤 마지막 곡 다음에 다시 최신곡으로 돌아간다. 자동재생이 막히면 `BGM ON` 버튼과 첫 사용자 입력 뒤 다시 시도한다.
+- 프로필 사진과 홈 BGM은 별도 컬렉션을 만들지 않고 기존 `media` 컬렉션과 `site_settings`를 쓴다. 프로필 사진은 `site_settings.profile_photo_url`에 저장한다. BGM은 `site_settings.bgm_playlist`를 최신 업로드순 플레이리스트로 쓰고, 기존 `site_settings.bgm_audio_url`, `site_settings.bgm_audio_title`은 최신곡 호환용으로 같이 갱신한다. 제목은 미니 플레이어 위에서 marquee처럼 흐르고, 첫 진입과 곡 종료 때마다 목록에서 랜덤으로 고르되 곡이 2개 이상이면 같은 곡을 바로 반복하지 않는다. 자동재생이 막히면 `BGM ON` 버튼과 첫 사용자 입력 뒤 다시 시도한다.
 - `/admin/`은 별도 대시보드가 아니라 예전 북마크용 안내판이고, 실제 운영 시작점은 공개 Home이다. 글 편집기/미디어/방명록 관리 화면은 owner action에서 필요할 때만 열린다.
 - 글 편집기의 WYSIWYG Markdown 본문 미디어는 URL 입력이 아니라 이미지 버튼, 여러 파일 드래그 앤 드롭, 붙여넣기로 업로드할 수 있다. 사진과 MP4/WebM/MOV/M4V 영상을 섞어서 넣어도 각 파일을 한 번씩 순서대로 업로드한 뒤 이미지/영상 블록으로 구분해 본문에 삽입한다. 브라우저가 같은 파일을 `DataTransfer.files`와 `items`에 동시에 제공해도 `files`를 우선하고 `items`는 fallback으로만 써서 중복 업로드하지 않는다. `/video` 같은 BlockNote 파일 블록도 공용 `uploadFile` 훅을 통해 `media` 컬렉션에 저장하며, 유튜브 링크를 붙여넣거나 비디오 블록 URL로 넣으면 공개 화면에서 iframe 임베드로 변환된다.
 - 글방/나으 하루/프로그램실/About의 WYSIWYG 본문은 작성기와 공개 화면에서 같은 rich-content 보정 규칙을 쓴다. 빈 문단은 발행 화면에서도 의도한 빈 줄로 남기고, 이미지 붙여넣기/드래그/파일 선택은 중복 파일을 한 번만 처리하며 여러 미디어는 Finder/사진 앱이 전달한 선택 순서를 그대로 보존해 본문에 들어간다.

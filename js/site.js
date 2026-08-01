@@ -47,6 +47,7 @@ import {
   normalizeEntryLastAdmittedAt,
   summarizeEntryUpdates,
 } from './entry-gate-logic.mjs';
+import { randomBgmTrackIndex } from './bgm-playlist-logic.mjs';
 
 const SITE_VERSION = typeof __SITE_VERSION__ !== 'undefined' ? __SITE_VERSION__ : 'dev';
 const VERSION_MANIFEST_PATH = '/site-version.json';
@@ -255,9 +256,9 @@ function initEntryGate() {
     async connectAudio(audio, tracks) {
       state.audio = audio;
       state.tracks = Array.isArray(tracks) ? tracks : [];
-      const firstTrack = state.tracks[0];
+      const currentTrack = state.tracks[audio?._bgmTrackIndex] || state.tracks[0];
 
-      if (!firstTrack || !audio?.src) {
+      if (!currentTrack || !audio?.src) {
         bgmTitle.textContent = 'BGM 준비 실패';
         enterButton.disabled = true;
         enterButton.textContent = '[ 입장 불가 ]';
@@ -265,7 +266,7 @@ function initEntryGate() {
         return;
       }
 
-      bgmTitle.textContent = entryBgmDisplayTitle(firstTrack.title || defaultBgmTitle(audio));
+      bgmTitle.textContent = entryBgmDisplayTitle(currentTrack.title || defaultBgmTitle(audio));
       enterButton.disabled = false;
       enterButton.textContent = state.admittedInThisTab
         ? '[ RESUME — BGM WILL PLAY ]'
@@ -520,7 +521,7 @@ async function loadProfileMediaSettings(photo, audio, trackTitle) {
   if (audio) {
     tasks.push((async () => {
       const playlist = await getSavedBgmPlaylist(audio);
-      setBgmPlaylist(audio, trackTitle, playlist, 0);
+      setBgmPlaylist(audio, trackTitle, playlist, randomBgmTrackIndex(playlist.length));
     })());
   }
 
@@ -807,7 +808,7 @@ async function advanceBgmTrack(audio) {
   const playlist = getBgmPlaylist(audio);
   if (playlist.length <= 1) return;
 
-  const nextIndex = ((audio._bgmTrackIndex || 0) + 1) % playlist.length;
+  const nextIndex = randomBgmTrackIndex(playlist.length, audio._bgmTrackIndex);
   loadBgmTrack(audio, nextIndex);
 
   const prompt = ensureBgmPrompt(audio.closest('.mini-player'), audio);
