@@ -585,8 +585,10 @@ body > center > table[width="1140"] > tbody > tr > td {
 
 /* About / Contact: wiki-ish fixed page inside the same old personal homepage shell. */
 .about-wiki {
+  min-width: 0;
   font-size: 14px;
   line-height: 1.55;
+  overflow-wrap: anywhere;
 }
 
 .about-wiki-head {
@@ -718,7 +720,7 @@ body > center > table[width="1140"] > tbody > tr > td {
 
 .about-section {
   margin: 14px 0 18px;
-  overflow-x: auto;
+  min-width: 0;
 }
 
 .about-section h2 {
@@ -790,6 +792,7 @@ body > center > table[width="1140"] > tbody > tr > td {
 
 .about-editor {
   clear: both;
+  min-width: 0;
   margin: 16px 0 12px;
   padding: 8px;
   border: 2px dashed var(--cwk-hot-red);
@@ -835,6 +838,144 @@ body > center > table[width="1140"] > tbody > tr > td {
   border: 2px inset var(--cwk-surface-page);
   background: var(--cwk-surface-page);
   min-height: 240px;
+}
+
+.about-source-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  align-items: center;
+  margin-bottom: 5px;
+}
+
+.about-source-editor {
+  min-width: 0;
+  min-height: 260px;
+}
+
+.about-source-textarea {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-height: 260px !important;
+  margin: 0;
+  padding: 9px 10px;
+  border: 0;
+  background: var(--cwk-surface-page);
+  color: var(--cwk-ink);
+  font-family: var(--cwk-font-mono) !important;
+  font-size: 13px;
+  line-height: 1.5;
+  resize: vertical;
+  overflow: auto;
+  white-space: pre-wrap;
+  tab-size: 2;
+}
+
+.about-source-preview {
+  box-sizing: border-box;
+  max-width: 100%;
+  margin-top: 8px;
+  padding: 7px;
+  border: 1px dashed var(--cwk-border-dashed);
+  background: var(--cwk-surface-preview);
+  overflow-wrap: anywhere;
+}
+
+.about-source-preview[hidden] {
+  display: none;
+}
+
+.about-source-preview-body {
+  margin-top: 6px;
+}
+
+.about-source-warning {
+  margin-top: 6px;
+  padding: 4px 6px;
+  border: 1px dashed var(--cwk-hot-red);
+  color: var(--cwk-hot-red);
+  font-weight: bold;
+}
+
+.about-syntax-help {
+  margin-top: 7px;
+  padding: 4px 6px;
+  border: 1px dotted var(--cwk-border-dashed);
+  background: var(--cwk-surface-page);
+}
+
+.about-wiki-table-scroll,
+.about-wiki-literal {
+  box-sizing: border-box;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.about-wiki-table-scroll {
+  margin: 8px 0;
+}
+
+.about-wiki-table-scroll table {
+  width: max-content;
+  min-width: min(100%, 480px);
+  border-collapse: collapse;
+  background: var(--cwk-surface-page);
+}
+
+.about-wiki-table-scroll th,
+.about-wiki-table-scroll td {
+  padding: 5px 7px;
+  border: 1px solid var(--cwk-ink);
+  vertical-align: top;
+}
+
+.about-wiki-table-scroll th {
+  background: var(--cwk-surface-table-head);
+}
+
+.about-wiki-fold {
+  margin: 7px 0;
+  padding: 4px 6px;
+  border: 1px dashed var(--cwk-border-dashed);
+  background: var(--cwk-surface-preview);
+}
+
+.about-wiki-fold summary {
+  color: var(--cwk-link);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.about-wiki-footnotes {
+  margin-top: 14px;
+  font-size: 12px;
+}
+
+.about-wiki-invalid-link {
+  color: var(--cwk-hot-red);
+  text-decoration: line-through;
+}
+
+.about-edit-link:focus-visible,
+.about-source-toolbar a:focus-visible,
+.about-source-toolbar button:focus-visible,
+.about-source-textarea:focus-visible,
+.about-syntax-help summary:focus-visible,
+.about-wiki-table-scroll:focus-visible {
+  outline: 2px dotted var(--cwk-hot-red);
+  outline-offset: 2px;
+}
+
+.about-section-body img,
+.about-section-body video,
+.about-section-body iframe,
+.about-source-preview img,
+.about-source-preview video,
+.about-source-preview iframe {
+  max-width: 100%;
+  height: auto;
 }
 
 .about-editor-container .markdown-editor-inline-toolbar {
@@ -2384,6 +2525,7 @@ body > center > table[width="1140"] > tbody > tr > td {
   }
 
   .about-wiki {
+    min-width: 0;
     font-size: 14px;
   }
 
@@ -2419,6 +2561,19 @@ body > center > table[width="1140"] > tbody > tr > td {
     display: block;
     width: 100% !important;
     box-sizing: border-box;
+  }
+
+  .about-editor,
+  .about-source-editor,
+  .about-source-preview {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .about-editor-actions .owner-btn,
+  .about-source-toolbar .owner-btn {
+    min-height: 44px;
+    padding: 6px 9px;
   }
 
   .programs-table,

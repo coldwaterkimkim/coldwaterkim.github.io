@@ -406,8 +406,9 @@ About / Contact는 포트폴리오식 소개 페이지가 아니라, 나무위�
 - 오른쪽에는 `about-infobox` 프로필 표를 둔다. 표는 나무위키 느낌이 나되, 사이트의 기본 table border와 `navy` 헤더, 기본 링크 색을 유지한다.
 - 본문 상단에는 `목차` table을 두고, 섹션 제목에서 자동 생성된 번호 링크를 보여준다.
 - 섹션 제목은 `1. 개요`, `2. 만든 것`처럼 번호가 붙고, 로그인한 관리자에게만 작은 `[편집]` 링크가 보인다.
-- OWNER MODE 편집 UI는 별도 대시보드가 아니라 공개 페이지 안에 `owner-bar`와 dashed editor box로 나타난다. 섹션 편집은 `제목` 입력과 글방/나으 하루와 같은 WYSIWYG Markdown `본문` 편집기로 나뉘어야 한다.
+- OWNER MODE 편집 UI는 별도 대시보드가 아니라 공개 페이지 안에 `owner-bar`와 dashed editor box로 나타난다. 섹션 편집은 `제목` 입력과 나무마크 원문 textarea, 같은 렌더러를 쓰는 저장 전 미리보기로 구성한다. split pane이나 모던한 위키 대시보드는 쓰지 않는다.
 - 저장은 새 CMS 컬렉션보다 `site_settings.about_wiki_document` JSON을 기본으로 한다. 고정 페이지인데 자주 손볼 수 있는 living profile 성격이기 때문이다.
+- 섹션 본문은 `namumark-v1` 원문을 기준 데이터로 삼고 롤백 호환용 렌더 HTML을 함께 저장한다. 기존 HTML 섹션은 공개 화면에서 안전하게 변환해 렌더하고, 그 섹션을 OWNER가 처음 저장할 때만 원문 형식으로 전환한다. 문서 역사·diff·방문자 편집은 제공하지 않는다.
 - 너무 현대적인 wiki clone으로 만들지 않는다. 현재 홈페이지의 Comic Sans, 테이블, 기본 버튼, 파란 링크, 노란 hover를 보존한다.
 
 ## 움직임 규칙

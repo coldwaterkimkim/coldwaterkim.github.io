@@ -10,23 +10,39 @@ import {
 import {
   ABOUT_PROFILE_DOCUMENT_VERSION,
   defaultAboutProfileRows,
-  normalizeAboutProfileRows
+  normalizeAboutProfileRows,
+  sanitizeProfileValueHtml,
 } from './profile-data.js';
 import { enhanceEmbeddedMedia, prepareEmbeddedMediaForDisplay } from './media-embeds.js';
 import { moveItemById } from './about-wiki-logic.mjs';
+import {
+  ABOUT_WIKI_MARKUP_VERSION,
+  aboutWikiMarkupWarnings,
+  aboutWikiMediaSource,
+  legacyHtmlToAboutWikiMarkup,
+  normalizeAboutWikiSource,
+  renderAboutWikiMarkup,
+} from './about-wiki-markup.mjs';
+import { preferredTransferFiles, uniqueTransferFiles } from './editor-file-transfer.mjs';
 
 const SETTING_KEY = 'about_wiki_document';
-const IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
-let markdownEditorModulePromise = null;
-let createMarkdownEditor = null;
-let editorUploadLabel = null;
-let hasImageTransfer = null;
-let imageFilesFromTransfer = null;
-let isSupportedEditorUpload = null;
-let normalizeEditorImageFiles = null;
-let stopEditorTransferEvent = null;
+const CONTENT_SCHEMA_VERSION = 2;
+const EDITOR_UPLOAD_MIME_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+  'video/mp4',
+  'video/webm',
+  'video/quicktime',
+  'video/x-m4v',
+  'audio/mpeg',
+  'audio/mp3',
+  'application/pdf',
+]);
 
 const DEFAULT_DOCUMENT = {
+  contentSchemaVersion: CONTENT_SCHEMA_VERSION,
   title: '김찬수',
   subtitle: '',
   profileTitle: 'coldwaterkim',
@@ -37,32 +53,38 @@ const DEFAULT_DOCUMENT = {
     {
       id: 'overview',
       title: '개요',
-      body: '대한민국의 밀레니엄 베이비. 개인 홈페이지 <b>coldwaterkim.com</b>의 주인장이다.<br><br>글방, 나으 하루, 프로그램실, 나사잡을 통해 생각·일상·만든 것·갑자기 사로잡힌 이미지를 계속 쌓고 있다. 모던한 포트폴리오보다는 직접 만든 홈페이지의 기척을 더 좋아하는 편.'
+      format: `namumark-v${ABOUT_WIKI_MARKUP_VERSION}`,
+      source: "대한민국의 밀레니엄 베이비. 개인 홈페이지 '''coldwaterkim.com'''의 주인장이다.\n\n글방, 나으 하루, 프로그램실, 나사잡을 통해 생각·일상·만든 것·갑자기 사로잡힌 이미지를 계속 쌓고 있다. 모던한 포트폴리오보다는 직접 만든 홈페이지의 기척을 더 좋아하는 편."
     },
     {
       id: 'what-made',
       title: '만든 것',
-      body: '<ul><li><b>글방</b>: 생각과 기록을 올리는 곳.</li><li><b>나으 하루</b>: 하루 단위로 남기는 생활 로그.</li><li><b>프로그램실</b>: 직접 만든 작은 프로그램과 실험작을 보관하는 자료실.</li><li><b>나사잡</b>: 나를 사로잡은 사진, 캡처, 장면을 한 장씩 수집하는 코너.</li></ul>'
+      format: `namumark-v${ABOUT_WIKI_MARKUP_VERSION}`,
+      source: " * '''글방''': 생각과 기록을 올리는 곳.\n * '''나으 하루''': 하루 단위로 남기는 생활 로그.\n * '''프로그램실''': 직접 만든 작은 프로그램과 실험작을 보관하는 자료실.\n * '''나사잡''': 나를 사로잡은 사진, 캡처, 장면을 한 장씩 수집하는 코너."
     },
     {
       id: 'history',
       title: '연혁',
-      body: '<table><tr><th>시기</th><th>내용</th></tr><tr><td>2000</td><td>태어남. 당시 본인은 기억이 없다.</td></tr><tr><td>2025</td><td>개인 홈페이지를 진짜 운영물로 만들기 시작.</td></tr><tr><td>2026</td><td>홈페이지가 점점 위키, 블로그, 자료실, 방명록을 겸하는 무언가가 되어가는 중.</td></tr></table>'
+      format: `namumark-v${ABOUT_WIKI_MARKUP_VERSION}`,
+      source: "|| '''시기''' || '''내용''' ||\n|| 2000 || 태어남. 당시 본인은 기억이 없다. ||\n|| 2025 || 개인 홈페이지를 진짜 운영물로 만들기 시작. ||\n|| 2026 || 홈페이지가 점점 위키, 블로그, 자료실, 방명록을 겸하는 무언가가 되어가는 중. ||"
     },
     {
       id: 'taste',
       title: '취향',
-      body: '90년대 개인 홈페이지, 기본 파란 링크, 마퀴, 방문자 카운터, 수상하게 진심인 테이블 UI를 좋아한다. 너무 매끈한 포트폴리오보다 약간 삐걱대지만 실제로 운영되는 웹을 더 신뢰한다.'
+      format: `namumark-v${ABOUT_WIKI_MARKUP_VERSION}`,
+      source: '90년대 개인 홈페이지, 기본 파란 링크, 마퀴, 방문자 카운터, 수상하게 진심인 테이블 UI를 좋아한다. 너무 매끈한 포트폴리오보다 약간 삐걱대지만 실제로 운영되는 웹을 더 신뢰한다.'
     },
     {
       id: 'contact',
       title: '연락처',
-      body: '메일은 <a href="mailto:ckstn1112@gmail.com?subject=Hello%20from%20your%20site">ckstn1112@gmail.com</a>으로 보내면 된다. 방명록에 한 줄 남기는 것도 환영.'
+      format: `namumark-v${ABOUT_WIKI_MARKUP_VERSION}`,
+      source: '메일은 [[mailto:ckstn1112@gmail.com?subject=Hello%20from%20your%20site|ckstn1112@gmail.com]]으로 보내면 된다. 방명록에 한 줄 남기는 것도 환영.'
     },
     {
       id: 'trivia',
       title: '여담',
-      body: '이 문서는 나무위키처럼 보이지만 실제로는 본인이 직접 관리한다. 그래서 틀린 내용이 있다면 높은 확률로 본인이 미래의 본인에게 남긴 과제다.'
+      format: `namumark-v${ABOUT_WIKI_MARKUP_VERSION}`,
+      source: '이 문서는 나무위키처럼 보이지만 실제로는 본인이 직접 관리한다. 그래서 틀린 내용이 있다면 높은 확률로 본인이 미래의 본인에게 남긴 과제다.'
     },
   ],
 };
@@ -85,8 +107,11 @@ function initAboutWiki() {
       isOwner: isLoggedIn(),
       selectedSectionId: null,
       selectedProfileIndex: null,
-      sectionEditor: null,
-      pendingEditorImageIndex: null,
+      sourceEditor: null,
+      previewVisible: false,
+      returnFocusSectionId: null,
+      pendingEditorSelection: null,
+      isMediaUploading: false,
       saveTimer: null,
       saveQueue: Promise.resolve(),
       saveVersion: 0,
@@ -130,6 +155,7 @@ function normalizeDocument(value) {
   if (!value || typeof value !== 'object') return next;
 
   next.title = cleanText(value.title) || next.title;
+  next.contentSchemaVersion = Number(value.contentSchemaVersion || 1);
   next.subtitle = cleanText(value.subtitle) || next.subtitle;
   next.profileTitle = cleanText(value.profileTitle) || next.profileTitle;
   next.profileImage = cleanText(value.profileImage) || next.profileImage;
@@ -143,12 +169,8 @@ function normalizeDocument(value) {
 
   if (Array.isArray(value.sections)) {
     next.sections = value.sections
-      .map((section, index) => ({
-        id: sectionId(section?.id, section?.title, index),
-        title: cleanText(section?.title) || `새 섹션 ${index + 1}`,
-        body: cleanHtml(section?.body),
-      }))
-      .filter(section => section.title || section.body);
+      .map((section, index) => normalizeSection(section, index))
+      .filter(section => section.title || sectionHasSource(section) || section.body);
   }
 
   if (next.sections.length === 0) {
@@ -160,15 +182,15 @@ function normalizeDocument(value) {
 
 function render(state) {
   const { root, doc, isOwner } = state;
-  state.sectionEditor = null;
-  state.pendingEditorImageIndex = null;
+  state.sourceEditor = null;
+  state.pendingEditorSelection = null;
 
   root.innerHTML = `
     ${isOwner ? ownerBarHtml(state) : ''}
     <div class="about-wiki-head">
       <h1>${escapeHtml(doc.title)}</h1>
     </div>
-    <div class="about-wiki-status" data-about-status hidden></div>
+    <div class="about-wiki-status" data-about-status role="status" aria-live="polite" hidden></div>
     <div class="about-profile-block">
       ${infoboxHtml(doc, isOwner)}
       ${tocHtml(doc.sections, isOwner)}
@@ -179,9 +201,9 @@ function render(state) {
     ${isOwner ? editorHtml(state) : ''}
   `;
 
-  hydrateSavedHtml(state);
+  hydrateDocumentContent(state);
   bindEvents(state);
-  initSectionEditor(state);
+  initSourceEditor(state);
 }
 
 function ownerBarHtml(state) {
@@ -264,15 +286,16 @@ function sectionsHtml(sections, isOwner) {
   `).join('');
 }
 
-function hydrateSavedHtml(state) {
+function hydrateDocumentContent(state) {
   state.root.querySelectorAll('[data-about-profile-value-index]').forEach((slot) => {
     const index = Number(slot.getAttribute('data-about-profile-value-index'));
-    slot.innerHTML = prepareEmbeddedMediaForDisplay(state.doc.profileRows[index]?.value || '');
+    slot.innerHTML = prepareEmbeddedMediaForDisplay(sanitizeProfileValueHtml(state.doc.profileRows[index]?.value || ''));
   });
 
   state.root.querySelectorAll('[data-about-section-body-index]').forEach((slot) => {
     const index = Number(slot.getAttribute('data-about-section-body-index'));
-    slot.innerHTML = prepareEmbeddedMediaForDisplay(state.doc.sections[index]?.body || '<p></p>');
+    const section = state.doc.sections[index];
+    slot.innerHTML = prepareEmbeddedMediaForDisplay(renderSectionMarkup(section));
   });
   enhanceEmbeddedMedia(state.root);
 }
@@ -315,6 +338,7 @@ function editorHtml(state) {
   }
 
   const index = state.doc.sections.findIndex(section => section.id === selected.id);
+  const editorSource = sourceForEditing(selected);
 
   return `
     <form class="about-editor" data-about-editor="section" data-version-refresh-block="${state.hasUnsavedChanges}">
@@ -325,19 +349,35 @@ function editorHtml(state) {
           <td><input type="text" name="title" value="${escapeAttribute(selected.title)}"></td>
         </tr>
         <tr>
-          <th>본문</th>
+          <th><label for="about-section-source-${escapeAttribute(selected.id)}">나무마크 원문</label></th>
           <td>
-            <div class="about-editor-container" data-about-editor-container>
-              <div data-about-markdown-editor></div>
+            <div class="about-source-toolbar" aria-label="원문 편집 도구">
+              <button type="button" class="owner-btn" data-about-action="toggle-preview" aria-pressed="${state.previewVisible}">${state.previewVisible ? '미리보기 닫기' : '미리보기'}</button>
+              <button type="button" class="owner-btn" data-about-action="insert-media">미디어 넣기</button>
+              <a href="#about-wiki-syntax-help" data-about-action="syntax-help">[문법 도움말]</a>
             </div>
-            <input type="file" data-about-image-input accept="image/*" multiple hidden>
+            <div class="about-editor-container about-source-editor" data-about-editor-container>
+              <textarea id="about-section-source-${escapeAttribute(selected.id)}" class="about-source-textarea" name="source" rows="16" spellcheck="true" data-about-source-editor>${escapeTextarea(editorSource)}</textarea>
+            </div>
+            <input type="file" data-about-media-input accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime,video/x-m4v,audio/mpeg,audio/mp3,application/pdf" multiple hidden>
             <div class="about-editor-image-status" data-about-image-status aria-live="polite"></div>
-            <div class="note">블로그랑 같은 Markdown/WYSIWYG 편집기. 저장하면 목차 번호는 자동 재계산됨.</div>
+            <div class="about-source-warning" data-about-source-warning role="alert" hidden></div>
+            <section class="about-source-preview" data-about-source-preview aria-label="저장 전 미리보기" ${state.previewVisible ? '' : 'hidden'}>
+              <b>저장 전 미리보기</b>
+              <div class="about-source-preview-body post-content" data-about-source-preview-body></div>
+            </section>
+            <details class="about-syntax-help" id="about-wiki-syntax-help">
+              <summary>문법 도움말</summary>
+              <code>'''굵게''' · ''기울임'' · [[주소|이름]] · [* 각주]</code><br>
+              <code> * 목록</code> · <code>|| 셀 || 셀 ||</code> · <code>{{{#!folding 제목</code> ... <code>}}}</code>
+            </details>
+            <div class="note">미리보기는 저장되지 않아. 저장하면 기존 About JSON에 새 원문과 호환용 HTML을 덮어씀.</div>
           </td>
         </tr>
       </table>
       <div class="about-editor-actions">
         <button type="submit" class="owner-btn">저장</button>
+        <button type="button" class="owner-btn" data-about-action="cancel-edit">취소</button>
         <button type="button" class="owner-btn" data-about-action="move-section" data-direction="-1" ${index <= 0 ? 'disabled' : ''}>위로</button>
         <button type="button" class="owner-btn" data-about-action="move-section" data-direction="1" ${index >= state.doc.sections.length - 1 ? 'disabled' : ''}>아래로</button>
         <button type="button" class="owner-btn owner-btn-danger" data-about-action="delete-section">삭제</button>
@@ -346,80 +386,39 @@ function editorHtml(state) {
   `;
 }
 
-async function initSectionEditor(state) {
+function initSourceEditor(state) {
   if (!state.isOwner) return;
-  await loadMarkdownEditorModule();
 
   const selected = findSelectedSection(state);
-  const mount = state.root.querySelector('[data-about-markdown-editor]');
+  const textarea = state.root.querySelector('[data-about-source-editor]');
   const form = state.root.querySelector('[data-about-editor="section"]');
-  const input = state.root.querySelector('[data-about-image-input]');
-  if (!selected || !mount || !form || !input) return;
+  const input = state.root.querySelector('[data-about-media-input]');
+  if (!selected || !textarea || !form || !input) return;
 
-  const selectedId = selected.id;
-  let editorHydrated = false;
-  try {
-    const editor = await createMarkdownEditor(mount, {
-      height: '320px',
-      minHeight: '240px',
-      placeholder: 'Markdown으로 섹션 본문 쓰기...',
-      onImageButton: () => {
-        state.pendingEditorImageIndex = currentEditorIndex(state);
-        input.click();
-      },
-      uploadFile: file => uploadSectionEditorFile(state, file),
-      onChange: () => {
-        if (editorHydrated) markAboutDirty(state);
-      }
-    });
-
-    if (!mount.isConnected || state.selectedSectionId !== selectedId) return;
-
-    await editor.ready();
-    state.sectionEditor = editor;
-    editor.root.innerHTML = selected.body || '';
-    editorHydrated = true;
-    bindSectionEditorImages(state, form, input, editor);
-  } catch (error) {
-    renderStatus(state, `편집기 로드 실패: ${cmsErrorMessage(error)}`, 'error');
-  }
+  state.sourceEditor = textarea;
+  if (state.previewVisible) renderSourcePreview(state);
+  bindSourceEditorMedia(state, form, input, textarea);
+  requestAnimationFrame(() => textarea.focus({ preventScroll: true }));
 }
 
-async function loadMarkdownEditorModule() {
-  if (!markdownEditorModulePromise) {
-    markdownEditorModulePromise = import('./markdown-editor.js');
-  }
-
-  const module = await markdownEditorModulePromise;
-  createMarkdownEditor = module.createMarkdownEditor;
-  editorUploadLabel = module.editorUploadLabel;
-  hasImageTransfer = module.hasImageTransfer;
-  imageFilesFromTransfer = module.imageFilesFromTransfer;
-  isSupportedEditorUpload = module.isSupportedEditorUpload;
-  normalizeEditorImageFiles = module.normalizeEditorImageFiles;
-  stopEditorTransferEvent = module.stopEditorTransferEvent;
-}
-
-function bindSectionEditorImages(state, form, input, editor) {
+function bindSourceEditorMedia(state, form, input, textarea) {
   const container = form.querySelector('[data-about-editor-container]');
   if (!container) return;
 
   input.addEventListener('change', async () => {
-    await insertEditorImages(state, input.files, {
-      index: state.pendingEditorImageIndex
-    });
-    state.pendingEditorImageIndex = null;
+    await insertEditorMedia(state, input.files, state.pendingEditorSelection);
+    state.pendingEditorSelection = null;
     input.value = '';
   });
 
   container.addEventListener('dragenter', (event) => {
-    if (!hasImageTransfer(event.dataTransfer)) return;
+    if (!hasSupportedEditorTransfer(event.dataTransfer)) return;
     event.preventDefault();
     container.classList.add('is-image-dragover');
   });
 
   container.addEventListener('dragover', (event) => {
-    if (!hasImageTransfer(event.dataTransfer)) return;
+    if (!hasSupportedEditorTransfer(event.dataTransfer)) return;
     event.preventDefault();
     container.classList.add('is-image-dragover');
   });
@@ -430,20 +429,18 @@ function bindSectionEditorImages(state, form, input, editor) {
   });
 
   container.addEventListener('drop', async (event) => {
-    if (!hasImageTransfer(event.dataTransfer)) return;
-    stopEditorTransferEvent(event);
+    if (!hasSupportedEditorTransfer(event.dataTransfer)) return;
+    event.preventDefault();
+    event.stopPropagation();
     container.classList.remove('is-image-dragover');
-    await insertEditorImages(state, editorImageFilesFromTransfer(event.dataTransfer), {
-      index: currentEditorIndex(state)
-    });
+    await insertEditorMedia(state, preferredTransferFiles(event.dataTransfer), editorSelection(textarea));
   }, true);
 
-  editor.root.addEventListener('paste', async (event) => {
-    if (!hasImageTransfer(event.clipboardData)) return;
-    stopEditorTransferEvent(event);
-    await insertEditorImages(state, editorImageFilesFromTransfer(event.clipboardData), {
-      index: currentEditorIndex(state)
-    });
+  textarea.addEventListener('paste', async (event) => {
+    if (!hasSupportedEditorTransfer(event.clipboardData)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    await insertEditorMedia(state, preferredTransferFiles(event.clipboardData), editorSelection(textarea));
   }, true);
 }
 
@@ -457,15 +454,60 @@ function bindEvents(state) {
     if (!button || !state.root.contains(button)) return;
 
     const action = button.dataset.aboutAction;
+    const uploadLockedActions = new Set([
+      'edit-section',
+      'add-section',
+      'delete-section',
+      'move-section',
+      'edit-profile',
+      'edit-profile-row',
+      'reset-selection',
+      'cancel-edit',
+      'insert-media',
+    ]);
+    if (state.isMediaUploading && uploadLockedActions.has(action)) {
+      renderEditorImageStatus(state, '미디어 업로드가 끝난 뒤 이동하거나 저장해줘.', 'error');
+      return;
+    }
 
     if (action === 'edit-section') {
+      if (state.selectedSectionId === button.dataset.sectionId) return;
+      if (!confirmDiscardAboutDraft(state)) return;
+      state.returnFocusSectionId = button.dataset.sectionId || null;
       state.selectedProfileIndex = null;
       state.selectedSectionId = button.dataset.sectionId || null;
+      state.previewVisible = false;
       render(state);
       scrollEditorIntoView(state);
     }
 
+    if (action === 'toggle-preview') {
+      state.previewVisible = !state.previewVisible;
+      toggleSourcePreview(state, button);
+    }
+
+    if (action === 'insert-media') {
+      const input = state.root.querySelector('[data-about-media-input]');
+      state.pendingEditorSelection = editorSelection(state.sourceEditor);
+      input?.click();
+    }
+
+    if (action === 'syntax-help') {
+      const help = state.root.querySelector('.about-syntax-help');
+      if (help) help.open = true;
+    }
+
+    if (action === 'cancel-edit') {
+      const returnId = state.returnFocusSectionId || state.selectedSectionId;
+      state.selectedSectionId = null;
+      state.previewVisible = false;
+      markAboutDirty(state, false);
+      render(state);
+      focusSectionEditButton(state, returnId);
+    }
+
     if (action === 'add-section') {
+      if (!confirmDiscardAboutDraft(state)) return;
       addSection(state);
     }
 
@@ -478,14 +520,17 @@ function bindEvents(state) {
     }
 
     if (action === 'edit-profile') {
+      if (!confirmDiscardAboutDraft(state)) return;
       openProfileEditor(state);
     }
 
     if (action === 'add-profile-row') {
+      if (!confirmDiscardAboutDraft(state)) return;
       addProfileRow(state);
     }
 
     if (action === 'edit-profile-row') {
+      if (!confirmDiscardAboutDraft(state)) return;
       state.selectedSectionId = null;
       state.selectedProfileIndex = Number(button.dataset.profileIndex);
       render(state);
@@ -497,6 +542,7 @@ function bindEvents(state) {
     }
 
     if (action === 'reset-selection') {
+      if (!confirmDiscardAboutDraft(state)) return;
       state.selectedSectionId = null;
       state.selectedProfileIndex = null;
       render(state);
@@ -506,6 +552,9 @@ function bindEvents(state) {
   state.root.addEventListener('input', (event) => {
     if (event.target.closest('[data-about-editor]')) {
       markAboutDirty(state);
+      if (event.target.matches('[data-about-source-editor]') && state.previewVisible) {
+        renderSourcePreview(state);
+      }
     }
   });
 
@@ -513,6 +562,11 @@ function bindEvents(state) {
     const form = event.target.closest('[data-about-editor]');
     if (!form || !state.root.contains(form)) return;
     event.preventDefault();
+
+    if (state.isMediaUploading) {
+      renderEditorImageStatus(state, '미디어 업로드가 끝난 뒤 저장해줘.', 'error');
+      return;
+    }
 
     if (form.dataset.aboutEditor === 'section') {
       saveSectionForm(state, form);
@@ -529,7 +583,9 @@ function addSection(state) {
   const next = {
     id,
     title: '새 섹션',
-    body: '여기에 내용을 적으면 목차에 자동으로 추가됨.'
+    format: `namumark-v${ABOUT_WIKI_MARKUP_VERSION}`,
+    source: '여기에 내용을 적으면 목차에 자동으로 추가됨.',
+    body: '<p>여기에 내용을 적으면 목차에 자동으로 추가됨.</p>',
   };
 
   state.doc.sections.push(next);
@@ -559,8 +615,14 @@ function saveSectionForm(state, form) {
   if (!selected) return;
 
   const title = cleanText(new FormData(form).get('title')) || '제목 없음';
+  const source = sectionEditorSource(state, sourceForEditing(selected));
+  if (!sectionHasSource(selected) && selected.body && !selected.legacyBody) {
+    selected.legacyBody = selected.body;
+  }
   selected.title = title;
-  selected.body = cleanHtml(sectionEditorHtml(state, selected.body));
+  selected.format = `namumark-v${ABOUT_WIKI_MARKUP_VERSION}`;
+  selected.source = source;
+  selected.body = renderAboutWikiMarkup(source, { idPrefix: selected.id });
   selected.id = uniqueSectionId(
     state.doc.sections.filter(section => section !== selected),
     sectionId(selected.id, title)
@@ -611,6 +673,7 @@ function saveProfileForm(state, form) {
 async function persistAndRender(state, message) {
   state.hasUnsavedChanges = true;
   const saveVersion = ++state.saveVersion;
+  state.doc.contentSchemaVersion = CONTENT_SCHEMA_VERSION;
   state.doc.profileSchemaVersion = ABOUT_PROFILE_DOCUMENT_VERSION;
   const payload = JSON.stringify(state.doc);
   render(state);
@@ -642,13 +705,26 @@ function captureSelectedSectionDraft(state) {
   if (!selected || !form) return;
 
   selected.title = cleanText(new FormData(form).get('title')) || selected.title;
-  selected.body = cleanHtml(sectionEditorHtml(state, selected.body));
+  const source = sectionEditorSource(state, sourceForEditing(selected));
+  if (!sectionHasSource(selected) && selected.body && !selected.legacyBody) {
+    selected.legacyBody = selected.body;
+  }
+  selected.format = `namumark-v${ABOUT_WIKI_MARKUP_VERSION}`;
+  selected.source = source;
+  selected.body = renderAboutWikiMarkup(source, { idPrefix: selected.id });
 }
 
 function markAboutDirty(state, isDirty = true) {
   state.hasUnsavedChanges = isDirty;
   const form = state.root.querySelector('[data-about-editor]');
   if (form) form.dataset.versionRefreshBlock = String(isDirty);
+}
+
+function confirmDiscardAboutDraft(state) {
+  if (!state.hasUnsavedChanges) return true;
+  if (!window.confirm('저장하지 않은 수정 내용이 있어. 버리고 다른 편집으로 이동할까?')) return false;
+  markAboutDirty(state, false);
+  return true;
 }
 
 function bindAboutUnloadGuard() {
@@ -669,6 +745,7 @@ function renderStatus(state, message, type = 'success') {
   status.hidden = false;
   status.textContent = message;
   status.className = `about-wiki-status about-wiki-status--${type}`;
+  status.setAttribute('role', type === 'error' ? 'alert' : 'status');
 
   if (type === 'success') {
     window.clearTimeout(state.saveTimer);
@@ -679,91 +756,138 @@ function renderStatus(state, message, type = 'success') {
   }
 }
 
-function sectionEditorHtml(state, fallback = '') {
-  const html = state.sectionEditor?.root?.innerHTML?.trim();
-  if (html === '<p><br></p>') return '';
-  return typeof html === 'string' ? html : fallback;
+function sectionEditorSource(state, fallback = '') {
+  const source = state.sourceEditor?.value;
+  return typeof source === 'string' ? normalizeAboutWikiSource(source) : normalizeAboutWikiSource(fallback);
 }
 
-function editorImageFilesFromTransfer(dataTransfer) {
-  return imageFilesFromTransfer(dataTransfer, {
-    mimeTypes: IMAGE_MIME_TYPES,
-    fallbackNamePrefix: 'about-section-image'
-  });
+function editorSelection(textarea) {
+  if (!textarea) return { start: 0, end: 0 };
+  return {
+    start: Number(textarea.selectionStart || 0),
+    end: Number(textarea.selectionEnd || 0),
+  };
 }
 
-function isSupportedEditorImage(file) {
-  return file && IMAGE_MIME_TYPES.has(file.type);
+function hasSupportedEditorTransfer(dataTransfer) {
+  return preferredTransferFiles(dataTransfer).some(isSupportedAboutUpload);
 }
 
-function clampEditorIndex(state, index) {
-  return state.sectionEditor?.clampIndex(index) || 0;
+function isSupportedAboutUpload(file) {
+  if (!file) return false;
+  const type = String(file.type || '').toLowerCase();
+  if (EDITOR_UPLOAD_MIME_TYPES.has(type)) return true;
+  return /\.(?:jpe?g|png|gif|webp|mp4|webm|mov|m4v|mp3|pdf)$/i.test(file.name || '');
 }
 
-function currentEditorIndex(state) {
-  const range = state.sectionEditor?.getSelection?.();
-  return clampEditorIndex(state, range?.index);
+function aboutUploadLabel(file) {
+  const type = String(file?.type || '').toLowerCase();
+  const name = String(file?.name || '').toLowerCase();
+  if (type.startsWith('video/') || /\.(?:mp4|webm|mov|m4v)$/i.test(name)) return '영상';
+  if (type.startsWith('audio/') || /\.mp3$/i.test(name)) return '오디오';
+  if (type === 'application/pdf' || /\.pdf$/i.test(name)) return 'PDF';
+  return '이미지';
 }
 
-async function insertEditorImages(state, files, options = {}) {
-  const editor = state.sectionEditor;
-  if (!editor) return;
-
-  const imageFiles = normalizeEditorImageFiles(files, {
-    mimeTypes: IMAGE_MIME_TYPES,
-    fallbackNamePrefix: 'about-section-image'
-  }).filter(isSupportedEditorImage);
-  if (!imageFiles.length) {
-    renderEditorImageStatus(state, 'JPG, PNG, GIF, WebP 이미지만 본문에 넣을 수 있어.', 'error');
+async function insertEditorMedia(state, files, selection = null) {
+  const textarea = state.sourceEditor;
+  const sectionIdValue = state.selectedSectionId;
+  if (!textarea || state.isMediaUploading) return;
+  const wasDirtyBeforeUpload = state.hasUnsavedChanges;
+  const uploadFiles = uniqueTransferFiles(files).filter(isSupportedAboutUpload);
+  if (!uploadFiles.length) {
+    renderEditorImageStatus(state, 'JPG, PNG, GIF, WebP, MP4, WebM, MOV, M4V, MP3, PDF만 넣을 수 있어.', 'error');
     return;
   }
 
   const container = state.root.querySelector('[data-about-editor-container]');
-  let insertIndex = clampEditorIndex(state, options.index);
-  const uploadedImages = [];
+  const tokens = [];
+  state.isMediaUploading = true;
+  markAboutDirty(state);
+  setSourceEditorUploadLocked(state, true);
   container?.classList.add('is-image-uploading');
 
-  for (let i = 0; i < imageFiles.length; i += 1) {
-    const file = imageFiles[i];
-    renderEditorImageStatus(state, `이미지 업로드 중... (${i + 1}/${imageFiles.length}) ${file.name}`, 'info');
-
-    try {
-      const media = await uploadMedia(file, file.name, 'About wiki');
-      const url = getMediaUrl(media, media.file);
-      uploadedImages.push({ url, alt: file.name });
-    } catch (error) {
-      renderEditorImageStatus(state, `본문 이미지 업로드 실패 (${file.name}): ${cmsErrorMessage(error)}`, 'error');
+  try {
+    for (let index = 0; index < uploadFiles.length; index += 1) {
+      const file = uploadFiles[index];
+      const label = aboutUploadLabel(file);
+      renderEditorImageStatus(state, `${label} 업로드 중... (${index + 1}/${uploadFiles.length}) ${file.name}`, 'info');
+      try {
+        const media = await uploadMedia(file, file.name, 'About wiki media');
+        const url = getMediaUrl(media, media.file);
+        const token = aboutWikiMediaSource({ url, name: file.name, type: file.type });
+        if (token) tokens.push(token);
+      } catch (error) {
+        renderEditorImageStatus(state, `${label} 업로드 실패 (${file.name}): ${cmsErrorMessage(error)}`, 'error');
+      }
+    }
+  } finally {
+    state.isMediaUploading = false;
+    container?.classList.remove('is-image-uploading');
+    if (state.sourceEditor === textarea && textarea.isConnected) {
+      setSourceEditorUploadLocked(state, false);
     }
   }
 
-  container?.classList.remove('is-image-uploading');
-
-  if (uploadedImages.length > 0) {
-    insertIndex = editor.insertImages(insertIndex, uploadedImages);
-    editor.setSelection(insertIndex, 0, 'silent');
-    renderEditorImageStatus(state, `${uploadedImages.length}개 이미지가 본문에 들어갔습니다.`, 'success');
-    setTimeout(() => renderEditorImageStatus(state), 2500);
+  if (!tokens.length) {
+    markAboutDirty(state, wasDirtyBeforeUpload);
+    return;
   }
+
+  if (state.sourceEditor !== textarea || !textarea.isConnected || state.selectedSectionId !== sectionIdValue) {
+    renderStatus(state, `업로드는 끝났지만 편집 화면이 바뀌어서 자동 삽입하지 못했어. 원문에 직접 붙여줘: ${tokens.join(' ')}`, 'error');
+    return;
+  }
+
+  insertSourceTokens(textarea, tokens, selection || editorSelection(textarea));
+  markAboutDirty(state);
+  renderSourcePreview(state);
+  renderEditorImageStatus(state, `${tokens.length}개 미디어 문법이 원문에 들어갔어.`, 'success');
+  setTimeout(() => renderEditorImageStatus(state), 2500);
 }
 
-async function uploadSectionEditorFile(state, file) {
-  if (!isSupportedEditorUpload?.(file)) {
-    throw new Error('JPG, PNG, GIF, WebP, MP4, WebM, MOV, M4V, MP3, PDF만 본문에 넣을 수 있어.');
-  }
+function setSourceEditorUploadLocked(state, isLocked) {
+  const form = state.root.querySelector('[data-about-editor="section"]');
+  const textarea = state.sourceEditor;
+  if (textarea) textarea.disabled = isLocked;
+  form?.querySelectorAll('button, input[type="file"]').forEach(control => {
+    control.disabled = isLocked;
+  });
+  form?.setAttribute('aria-busy', String(isLocked));
+}
 
-  const label = editorUploadLabel?.(file) || '파일';
-  renderEditorImageStatus(state, `${label} 업로드 중... ${file.name || ''}`, 'info');
+function insertSourceTokens(textarea, tokens, selection) {
+  const start = Math.max(0, Math.min(textarea.value.length, Number(selection?.start || 0)));
+  const end = Math.max(start, Math.min(textarea.value.length, Number(selection?.end || start)));
+  const prefix = start > 0 && textarea.value[start - 1] !== '\n' ? '\n' : '';
+  const suffix = end < textarea.value.length && textarea.value[end] !== '\n' ? '\n' : '';
+  const inserted = `${prefix}${tokens.join('\n')}${suffix}`;
+  textarea.setRangeText(inserted, start, end, 'end');
+  textarea.focus();
+  textarea.dispatchEvent(new Event('input', { bubbles: true }));
+}
 
-  try {
-    const media = await uploadMedia(file, file.name, 'About wiki media');
-    const url = getMediaUrl(media, media.file);
-    renderEditorImageStatus(state, `${label} 업로드 완료.`, 'success');
-    setTimeout(() => renderEditorImageStatus(state), 1800);
-    return url;
-  } catch (error) {
-    renderEditorImageStatus(state, `${label} 업로드 실패: ${cmsErrorMessage(error)}`, 'error');
-    throw error;
-  }
+function renderSourcePreview(state) {
+  const preview = state.root.querySelector('[data-about-source-preview-body]');
+  const warning = state.root.querySelector('[data-about-source-warning]');
+  const selected = findSelectedSection(state);
+  if (!preview || !warning || !selected) return;
+
+  const source = sectionEditorSource(state, sourceForEditing(selected));
+  const warnings = aboutWikiMarkupWarnings(source);
+  warning.hidden = warnings.length === 0;
+  warning.textContent = warnings.join(' ');
+  preview.innerHTML = prepareEmbeddedMediaForDisplay(renderAboutWikiMarkup(source, { idPrefix: `preview-${selected.id}` }));
+  enhanceEmbeddedMedia(preview);
+}
+
+function toggleSourcePreview(state, button) {
+  const preview = state.root.querySelector('[data-about-source-preview]');
+  if (!preview) return;
+  preview.hidden = !state.previewVisible;
+  button.setAttribute('aria-pressed', String(state.previewVisible));
+  button.textContent = state.previewVisible ? '미리보기 닫기' : '미리보기';
+  if (state.previewVisible) renderSourcePreview(state);
 }
 
 function renderEditorImageStatus(state, message = '', type = 'info') {
@@ -782,6 +906,45 @@ function scrollEditorIntoView(state) {
   requestAnimationFrame(() => {
     state.root.querySelector('.about-editor')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   });
+}
+
+function focusSectionEditButton(state, sectionIdValue) {
+  if (!sectionIdValue) return;
+  requestAnimationFrame(() => {
+    state.root.querySelector(`[data-about-action="edit-section"][data-section-id="${CSS.escape(sectionIdValue)}"]`)?.focus();
+  });
+}
+
+function normalizeSection(section, index) {
+  const normalized = {
+    id: sectionId(section?.id, section?.title, index),
+    title: cleanText(section?.title) || `새 섹션 ${index + 1}`,
+  };
+
+  if (Object.prototype.hasOwnProperty.call(section || {}, 'source')) {
+    normalized.format = cleanText(section?.format) || `namumark-v${ABOUT_WIKI_MARKUP_VERSION}`;
+    normalized.source = normalizeAboutWikiSource(section?.source);
+    normalized.body = cleanHtml(section?.body);
+    if (section?.legacyBody) normalized.legacyBody = cleanHtml(section.legacyBody);
+    return normalized;
+  }
+
+  normalized.body = cleanHtml(section?.body);
+  return normalized;
+}
+
+function sectionHasSource(section) {
+  return Object.prototype.hasOwnProperty.call(section || {}, 'source');
+}
+
+function sourceForEditing(section) {
+  if (sectionHasSource(section)) return normalizeAboutWikiSource(section.source);
+  return legacyHtmlToAboutWikiMarkup(section?.body || '');
+}
+
+function renderSectionMarkup(section) {
+  const source = sourceForEditing(section);
+  return renderAboutWikiMarkup(source, { idPrefix: section?.id || 'section' });
 }
 
 function cloneDefaultDocument() {

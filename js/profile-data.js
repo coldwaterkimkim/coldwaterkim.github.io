@@ -101,6 +101,61 @@ export function renderProfileDetailTables(root = document, rows = defaultSidebar
   });
 }
 
+export function sanitizeProfileValueHtml(value = '', ownerDocument = document) {
+  const template = ownerDocument.createElement('template');
+  template.innerHTML = String(value || '').trim();
+  const allowedTags = new Set(['A', 'BR', 'IMG', 'B', 'STRONG', 'I', 'EM', 'U', 'S', 'DEL', 'SPAN']);
+
+  [...template.content.querySelectorAll('*')].forEach(element => {
+    if (!allowedTags.has(element.tagName)) {
+      element.replaceWith(ownerDocument.createTextNode(element.textContent || ''));
+      return;
+    }
+
+    const original = {
+      href: element.getAttribute('href') || '',
+      src: element.getAttribute('src') || '',
+      alt: element.getAttribute('alt') || '',
+      title: element.getAttribute('title') || '',
+      ariaLabel: element.getAttribute('aria-label') || '',
+      className: element.getAttribute('class') || '',
+    };
+    [...element.attributes].forEach(attribute => element.removeAttribute(attribute.name));
+
+    if (original.className && /^[a-z0-9 _-]+$/i.test(original.className)) {
+      element.setAttribute('class', original.className);
+    }
+
+    if (element.tagName === 'A') {
+      const href = safeProfileHref(original.href);
+      if (!href) {
+        element.replaceWith(ownerDocument.createTextNode(element.textContent || ''));
+        return;
+      }
+      element.setAttribute('href', href);
+      if (/^https?:/i.test(href)) {
+        element.setAttribute('target', '_blank');
+        element.setAttribute('rel', 'noopener noreferrer');
+      }
+      if (original.title) element.setAttribute('title', original.title);
+      if (original.ariaLabel) element.setAttribute('aria-label', original.ariaLabel);
+    }
+
+    if (element.tagName === 'IMG') {
+      const src = safeProfileImageSrc(original.src);
+      if (!src) {
+        element.remove();
+        return;
+      }
+      element.setAttribute('src', src);
+      element.setAttribute('alt', original.alt);
+      if (original.title) element.setAttribute('title', original.title);
+    }
+  });
+
+  return template.innerHTML.trim();
+}
+
 function normalizeSavedRows(rows) {
   if (!Array.isArray(rows)) return [];
 
@@ -170,9 +225,34 @@ function profileRowHtml(row) {
   return `
     <tr>
       <th>${label}</th>
-      <td>${row.value || ''}</td>
+      <td>${sanitizeProfileValueHtml(row.value || '')}</td>
     </tr>
   `;
+}
+
+function safeProfileHref(value) {
+  const href = String(value || '').trim();
+  if (!href || /[\u0000-\u001f\u007f"'<>]/.test(href) || href.startsWith('//')) return '';
+  if (href.startsWith('#') || href.startsWith('/') || href.startsWith('./') || href.startsWith('../')) return href;
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(href)) return href;
+  try {
+    const url = new URL(href);
+    return ['http:', 'https:', 'mailto:'].includes(url.protocol) ? href : '';
+  } catch (_error) {
+    return '';
+  }
+}
+
+function safeProfileImageSrc(value) {
+  const src = String(value || '').trim();
+  if (!src || /[\u0000-\u001f\u007f"'<>]/.test(src) || src.startsWith('//')) return '';
+  if (src.startsWith('/') || src.startsWith('./') || src.startsWith('../')) return src;
+  try {
+    const url = new URL(src);
+    return ['http:', 'https:'].includes(url.protocol) ? src : '';
+  } catch (_error) {
+    return '';
+  }
 }
 
 function findDefaultRow(row) {

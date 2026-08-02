@@ -53,7 +53,7 @@
     "qa:service-smoke": "node scripts/verify-imac-service-smoke.mjs",
     "qa:service-smoke:local": "node scripts/verify-imac-service-smoke.mjs --origin http://127.0.0.1:18081",
     "qa:home-bgm": "node scripts/verify-home-bgm.mjs",
-    "qa:about-wiki": "node scripts/verify-about-wiki.mjs",
+    "qa:about-wiki": "node scripts/verify-about-wiki.mjs && node scripts/verify-about-wiki-markup.mjs",
     "qa:entry-gate": "node scripts/verify-entry-gate.mjs",
     "qa:visitor-counter": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/verify-visitor-counter.mjs",
     "qa:writing": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/verify-writing-regressions.mjs",

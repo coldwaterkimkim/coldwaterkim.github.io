@@ -4,7 +4,8 @@ import { moveItemById } from '../js/about-wiki-logic.mjs';
 
 const aboutSource = fs.readFileSync(new URL('../js/about-wiki.js', import.meta.url), 'utf8');
 const siteSource = fs.readFileSync(new URL('../js/site.js', import.meta.url), 'utf8');
-const editorSource = fs.readFileSync(new URL('../js/markdown-editor.js', import.meta.url), 'utf8');
+const markupSource = fs.readFileSync(new URL('../js/about-wiki-markup.mjs', import.meta.url), 'utf8');
+const profileSource = fs.readFileSync(new URL('../js/profile-data.js', import.meta.url), 'utf8');
 const migrationSource = fs.readFileSync(new URL('../pb_migrations/1785596400_expand_site_settings_value.js', import.meta.url), 'utf8');
 const schema = JSON.parse(fs.readFileSync(new URL('../pb_schema.json', import.meta.url), 'utf8'));
 let assertions = 0;
@@ -27,8 +28,22 @@ check(aboutSource.includes('captureSelectedSectionDraft(state)'), 'reordering pr
 check(aboutSource.includes('saveQueue: Promise.resolve()'), 'About saves must be serialized');
 check(aboutSource.includes('data-version-refresh-block="${state.hasUnsavedChanges}"'), 'dirty About forms block version refresh');
 check(aboutSource.includes("window.addEventListener('beforeunload'"), 'leaving a dirty About editor requires confirmation');
+check(aboutSource.includes('confirmDiscardAboutDraft(state)'), 'internal editor navigation protects unsaved drafts');
+check(aboutSource.includes('state.isMediaUploading = true'), 'media uploads lock editor transitions until token insertion finishes');
+check(aboutSource.includes('state.sourceEditor !== textarea || !textarea.isConnected'), 'stale upload targets expose recoverable source tokens');
 check(siteSource.includes('data-version-refresh-block="true"'), 'site refresh respects an unsaved editor');
-check(editorSource.includes('adapter.options.onChange?.(adapter.currentHtml)'), 'the rich editor reports dirty changes');
+check(aboutSource.includes('data-about-source-editor'), 'About uses a raw source textarea');
+check(aboutSource.includes('renderAboutWikiMarkup(source'), 'preview and public output use the wiki renderer');
+check(aboutSource.includes('legacyHtmlToAboutWikiMarkup'), 'legacy HTML can be converted when a section is first edited');
+check(aboutSource.includes('selected.body = renderAboutWikiMarkup'), 'saved source keeps an HTML compatibility cache for rollback');
+check(aboutSource.includes('aboutWikiMediaSource'), 'uploaded media is inserted as source markup');
+check(markupSource.includes("new Set(['http:', 'https:', 'mailto:'])"), 'the wiki renderer limits external URL protocols');
+check(markupSource.includes('safeMediaHref(target)'), 'media rendering uses a stricter URL policy than links');
+check(markupSource.includes("replace(/^\\s*}}}\\s*$/gm, '\\\\}}}')"), 'legacy literal blocks escape source-like closing lines');
+check(markupSource.includes("replace(/\\|/g, '\\\\|')"), 'legacy tables escape cell delimiters');
+check(profileSource.includes('sanitizeProfileValueHtml(row.value ||'), 'shared profile values pass through an HTML allowlist');
+check(profileSource.includes("['http:', 'https:', 'mailto:'].includes(url.protocol)"), 'profile links reject executable protocols');
+check(profileSource.includes("['http:', 'https:'].includes(url.protocol)"), 'profile images accept only web protocols');
 check(migrationSource.includes('valueField.max = 5000000'), 'production migration expands the settings value limit');
 
 const settings = schema.collections.find(collection => collection.name === 'site_settings');
