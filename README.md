@@ -74,3 +74,7 @@ npm run build
 ## 현재 범위
 
 이 저장소는 개인 홈페이지의 프론트엔드, CMS 연동 코드, 배포/운영 스크립트를 함께 담고 있습니다. PocketBase 데이터와 운영 비밀값은 저장소에 포함하지 않습니다. 더 자세한 서버 이관 및 백업 절차는 `deploy/` 문서에 따로 정리되어 있습니다.
+
+## 기획·설계 문서
+
+- [About / Contact 나무위키형 전환 분석 및 V1 명세](docs/ABOUT_WIKI_ANALYSIS_AND_V1_SPEC.md)
