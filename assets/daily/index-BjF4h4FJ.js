@@ -1,4 +1,4 @@
-import{$ as e,C as t,I as n,K as r,Y as i,b as a,c as o,l as s,r as c,v as l}from"../pb-UUPSdoxh.js";import"../site-DoPvrf4n.js";var u=null,d=[],f=10,p=r();window.goToDailyPage=y,p&&(document.getElementById(`owner-col-head`).style.display=``,document.getElementById(`daily-note`).textContent=`OWNER MODE: 초안까지 같이 보입니다.`,document.getElementById(`owner-tools`).innerHTML=`
+import{$ as e,C as t,I as n,K as r,Y as i,b as a,c as o,l as s,r as c,v as l}from"../pb-UUPSdoxh.js";import"../site-D_5v_N5a.js";var u=null,d=[],f=10,p=r();window.goToDailyPage=y,p&&(document.getElementById(`owner-col-head`).style.display=``,document.getElementById(`daily-note`).textContent=`OWNER MODE: 초안까지 같이 보입니다.`,document.getElementById(`owner-tools`).innerHTML=`
         <div class="owner-bar">
           <b>OWNER MODE</b> ·
           <a href="../admin/daily.html?new=1">새 나으 하루 쓰기</a> ·
