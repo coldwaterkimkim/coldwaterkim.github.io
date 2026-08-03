@@ -24,6 +24,7 @@ import (
 const (
 	resumableUploadBasePath = "/api/cwk/tus/files/"
 	mediaUploadMaxBytes     = int64(2147483648)
+	resumableParallelParts  = 3
 	staleUploadMaxAge       = 7 * 24 * time.Hour
 )
 
@@ -55,7 +56,7 @@ func newResumableUploadService(app core.App, uploadDir string) (*resumableUpload
 		StoreComposer:           composer,
 		MaxSize:                 mediaUploadMaxBytes,
 		DisableDownload:         true,
-		DisableConcatenation:    true,
+		DisableConcatenation:    false,
 		RespectForwardedHeaders: true,
 	})
 	if err != nil {
@@ -95,9 +96,10 @@ func (service *resumableUploadService) registerRoutes(e *core.ServeEvent) {
 
 	e.Router.GET("/api/cwk/tus/status", func(event *core.RequestEvent) error {
 		return event.JSON(http.StatusOK, map[string]any{
-			"available": true,
-			"protocol":  "tus-1.0.0",
-			"max_size":  mediaUploadMaxBytes,
+			"available":        true,
+			"protocol":         "tus-1.0.0",
+			"max_size":         mediaUploadMaxBytes,
+			"parallel_uploads": resumableParallelParts,
 		})
 	}).Bind(apis.RequireAuth("users", core.CollectionNameSuperusers))
 
@@ -135,6 +137,7 @@ func (service *resumableUploadService) finalizeUpload(e *core.RequestEvent) erro
 	defer service.finalize.Unlock()
 
 	if existing := service.findImportedMedia(uploadID); existing != nil {
+		service.cleanupImportedUpload(e.Request.Context(), uploadID)
 		return e.JSON(http.StatusOK, existing)
 	}
 
@@ -173,10 +176,24 @@ func (service *resumableUploadService) finalizeUpload(e *core.RequestEvent) erro
 		return e.InternalServerError("Failed to register the completed upload as media.", err)
 	}
 
-	if err := terminateTusUpload(e.Request.Context(), service.store, upload); err != nil {
+	if err := terminateTusUploadFamily(e.Request.Context(), service.store, upload, info); err != nil {
 		service.app.Logger().Warn("Failed to remove finalized tus staging files", "uploadId", uploadID, "error", err.Error())
 	}
 	return e.JSON(http.StatusOK, record)
+}
+
+func (service *resumableUploadService) cleanupImportedUpload(ctx context.Context, uploadID string) {
+	upload, err := service.store.GetUpload(ctx, uploadID)
+	if err != nil {
+		return
+	}
+	info, err := upload.GetInfo(ctx)
+	if err != nil {
+		return
+	}
+	if err := terminateTusUploadFamily(ctx, service.store, upload, info); err != nil {
+		service.app.Logger().Warn("Failed to remove imported tus staging files", "uploadId", uploadID, "error", err.Error())
+	}
 }
 
 func (service *resumableUploadService) findImportedMedia(uploadID string) *core.Record {
@@ -260,6 +277,31 @@ func terminateTusUpload(ctx context.Context, store filestore.FileStore, upload t
 		return errors.New("tus upload cannot be terminated")
 	}
 	return terminatable.Terminate(ctx)
+}
+
+func terminateTusUploadFamily(ctx context.Context, store filestore.FileStore, upload tusd.Upload, info tusd.FileInfo) error {
+	var cleanupErrors []error
+	if err := terminateTusUpload(ctx, store, upload); err != nil {
+		cleanupErrors = append(cleanupErrors, err)
+	}
+	for _, partialUploadID := range info.PartialUploads {
+		if !isSafeResumableUploadID(partialUploadID) {
+			cleanupErrors = append(cleanupErrors, fmt.Errorf("invalid partial tus upload id: %q", partialUploadID))
+			continue
+		}
+		partialUpload, err := store.GetUpload(ctx, partialUploadID)
+		if errors.Is(err, tusd.ErrNotFound) {
+			continue
+		}
+		if err != nil {
+			cleanupErrors = append(cleanupErrors, err)
+			continue
+		}
+		if err := terminateTusUpload(ctx, store, partialUpload); err != nil {
+			cleanupErrors = append(cleanupErrors, err)
+		}
+	}
+	return errors.Join(cleanupErrors...)
 }
 
 func isSafeResumableUploadID(value string) bool {

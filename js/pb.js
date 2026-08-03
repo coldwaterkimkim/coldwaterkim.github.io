@@ -1175,6 +1175,7 @@ export async function getPostViewCounts(postIds = []) {
 
 const MEDIA_UPLOAD_MAX_BYTES = 2147483648;
 const RESUMABLE_VIDEO_MIN_BYTES = 64 * 1024 * 1024;
+const RESUMABLE_VIDEO_PARALLEL_UPLOADS = 3;
 let resumableUploadCapabilityPromise = null;
 
 /**
@@ -1186,8 +1187,11 @@ let resumableUploadCapabilityPromise = null;
  * @returns {Promise<object>}
  */
 export async function uploadMedia(file, altText = '', caption = '', options = {}) {
-    if (shouldUseResumableUpload(file) && await supportsResumableMediaUpload()) {
-        return await uploadMediaResumable(file, altText, caption, options);
+    if (shouldUseResumableUpload(file)) {
+        const capability = await getResumableMediaUploadCapability();
+        if (capability.available) {
+            return await uploadMediaResumable(file, altText, caption, options, capability);
+        }
     }
 
     return await uploadMediaDirect(file, altText, caption, options);
@@ -1246,18 +1250,24 @@ export function formatMediaUploadProgress(progress = {}) {
     return `${progress.resumable ? '재개 업로드' : '업로드'} ${percent}%${details ? ` · ${details}` : ''}`;
 }
 
-async function supportsResumableMediaUpload() {
-    if (!isLoggedIn()) return false;
+async function getResumableMediaUploadCapability() {
+    if (!isLoggedIn()) return { available: false, parallelUploads: 1 };
     if (!resumableUploadCapabilityPromise) {
         resumableUploadCapabilityPromise = pb.send('/api/cwk/tus/status', {
             method: 'GET',
             requestKey: null
-        }).then(result => Boolean(result?.available)).catch(() => false);
+        }).then(result => ({
+            available: Boolean(result?.available),
+            parallelUploads: Math.max(1, Math.min(
+                RESUMABLE_VIDEO_PARALLEL_UPLOADS,
+                Number(result?.parallel_uploads || 1)
+            ))
+        })).catch(() => ({ available: false, parallelUploads: 1 }));
     }
     return await resumableUploadCapabilityPromise;
 }
 
-async function uploadMediaResumable(file, altText, caption, options = {}) {
+async function uploadMediaResumable(file, altText, caption, options = {}, capability = {}) {
     if (Number(file?.size || 0) > MEDIA_UPLOAD_MAX_BYTES) {
         throw new Error('파일 하나는 2GB까지 올릴 수 있어.');
     }
@@ -1282,6 +1292,7 @@ async function uploadMediaResumable(file, altText, caption, options = {}) {
         // PocketBase 미디어 등록까지 끝나기 전에 재개 정보를 지우지 않는다.
         removeFingerprintOnSuccess: false,
         allowedMetaFields: ['name', 'type', 'alt_text', 'caption', 'owner_id'],
+        parallelUploads: Number(capability.parallelUploads || 1),
         limit: 1
     });
 

@@ -1,6 +1,10 @@
 package main
 
 import (
+	"context"
+	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -51,6 +55,70 @@ func TestValidatedStoragePath(t *testing.T) {
 		Storage: map[string]string{filestore.StorageKeyPath: outside},
 	}); err == nil {
 		t.Fatal("filestore path outside the tus directory must be rejected")
+	}
+}
+
+func TestResumableUploadSupportsConcatenation(t *testing.T) {
+	service, err := newResumableUploadService(nil, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest(http.MethodOptions, resumableUploadBasePath, nil)
+	response := httptest.NewRecorder()
+	service.handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("unexpected OPTIONS status: %d", response.Code)
+	}
+	if extensions := response.Header().Get("Tus-Extension"); !strings.Contains(extensions, "concatenation") {
+		t.Fatalf("tus concatenation extension is missing: %q", extensions)
+	}
+}
+
+func TestTerminateTusUploadFamilyRemovesParallelParts(t *testing.T) {
+	ctx := context.Background()
+	store := filestore.New(t.TempDir())
+	partialUploads := make([]tusd.Upload, 0, 3)
+	partialUploadIDs := make([]string, 0, 3)
+	for range 3 {
+		upload, err := store.NewUpload(ctx, tusd.FileInfo{Size: 3})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := upload.WriteChunk(ctx, 0, strings.NewReader("abc")); err != nil {
+			t.Fatal(err)
+		}
+		info, err := upload.GetInfo(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		partialUploads = append(partialUploads, upload)
+		partialUploadIDs = append(partialUploadIDs, info.ID)
+	}
+
+	finalUpload, err := store.NewUpload(ctx, tusd.FileInfo{
+		Size:           9,
+		IsFinal:        true,
+		PartialUploads: partialUploadIDs,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.AsConcatableUpload(finalUpload).ConcatUploads(ctx, partialUploads); err != nil {
+		t.Fatal(err)
+	}
+	finalInfo, err := finalUpload.GetInfo(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := terminateTusUploadFamily(ctx, store, finalUpload, finalInfo); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, uploadID := range append(partialUploadIDs, finalInfo.ID) {
+		if _, err := store.GetUpload(ctx, uploadID); !errors.Is(err, tusd.ErrNotFound) {
+			t.Fatalf("parallel tus staging file was not removed: id=%q err=%v", uploadID, err)
+		}
 	}
 }
 

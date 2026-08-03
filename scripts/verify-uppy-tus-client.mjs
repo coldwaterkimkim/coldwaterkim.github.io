@@ -19,6 +19,7 @@ const fileName = 'uppy-resume-client-check.mov';
 const fileType = 'video/quicktime';
 
 const progress = [];
+const tusCreationRequests = [];
 const uppy = new Uppy({
   autoProceed: false,
   restrictions: {
@@ -33,6 +34,12 @@ uppy.use(Tus, {
   retryDelays: [0, 100, 300],
   removeFingerprintOnSuccess: false,
   allowedMetaFields: ['name', 'type', 'owner_id'],
+  parallelUploads: 3,
+  onBeforeRequest(request) {
+    if (request.getMethod() === 'POST') {
+      tusCreationRequests.push(request.getHeader('Upload-Concat') || 'single');
+    }
+  },
   limit: 1,
 });
 
@@ -53,6 +60,8 @@ try {
   const uploaded = result.successful[0];
   assert.ok(uploaded.response?.uploadURL, 'Uppy must expose the completed tus upload URL');
   assert.ok(progress.some(value => value > 0 && value <= source.byteLength), 'Uppy must report byte progress');
+  assert.equal(tusCreationRequests.filter(value => value === 'partial').length, 3, 'Uppy must create three parallel partial uploads');
+  assert.equal(tusCreationRequests.filter(value => value.startsWith('final;')).length, 1, 'Uppy must create one concatenated final upload');
 
   const uploadId = new URL(uploaded.response.uploadURL).pathname.split('/').filter(Boolean).at(-1);
   const finalizeResponse = await fetch(`${origin}/api/cwk/tus/finalize`, {

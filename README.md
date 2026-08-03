@@ -37,7 +37,7 @@
 - HTML, CSS, JavaScript
 - PocketBase
 - BlockNote 기반 WYSIWYG Markdown 작성기
-- Uppy + tus/tusd 기반 대용량 영상 재개 업로드
+- Uppy + tus/tusd 기반 대용량 영상 3분할 병렬·재개 업로드
 - GitHub Pages
 - Caddy / PocketBase 서버 운영 스크립트
 
