@@ -13,9 +13,11 @@ import {
     slugify,
     cmsErrorMessage,
     uploadMedia,
-    getMediaUrl
+    getMediaUrl,
+    formatMediaUploadProgress
 } from './pb.js';
 import {
+    createEditorUploadCoordinator,
     createMarkdownEditor,
     editorFilesFromTransfer,
     editorUploadLabel,
@@ -24,6 +26,7 @@ import {
     normalizeEditorFiles,
     stopEditorTransferEvent
 } from './markdown-editor.js';
+import { navigateToPublishedEntry, publishedEntryViewerUrl } from './editor-publish-navigation.mjs';
 import { findAutomaticProgramCoverFile } from './program-cover.js';
 
 const categorySelect = document.getElementById('category');
@@ -62,13 +65,21 @@ document.getElementById('logoutBtn')?.addEventListener('click', (event) => {
     window.location.href = '/admin/login.html?next=/';
 });
 
+const editorUploadCoordinator = createEditorUploadCoordinator({
+    uploadFile: uploadEditorRecord
+});
 const markdownEditor = await createMarkdownEditor('#editor', {
     placeholder: 'Markdown으로 쓰기 시작...',
+    fallbackNamePrefix: 'global-editor-file',
     onImageButton: () => {
         pendingEditorImageIndex = currentEditorIndex();
         editorImageInput.click();
     },
-    uploadFile: uploadEditorFile
+    uploadFile: uploadEditorFile,
+    onFilesPaste: files => insertEditorFiles(files, {
+        index: currentEditorIndex()
+    }),
+    onFilesPasteError: error => showAlert(`붙여넣기 실패: ${cmsErrorMessage(error)}`, 'error')
 });
 
 editorImageInput?.addEventListener('change', async () => {
@@ -101,14 +112,6 @@ editorContainer?.addEventListener('drop', async (event) => {
     stopEditorTransferEvent(event);
     editorContainer.classList.remove('is-image-dragover');
     await insertEditorFiles(transferredEditorFiles(event.dataTransfer), {
-        index: currentEditorIndex()
-    });
-}, true);
-
-markdownEditor.root.addEventListener('paste', async (event) => {
-    if (!hasEditorFileTransfer(event.clipboardData)) return;
-    stopEditorTransferEvent(event);
-    await insertEditorFiles(transferredEditorFiles(event.clipboardData), {
         index: currentEditorIndex()
     });
 }, true);
@@ -214,16 +217,25 @@ async function saveEntry(mode) {
     showAlert(mode === 'publish' ? '발행 중...' : '임시 저장 중...', 'info', false);
 
     try {
+        let saved;
+        let label;
         if (category === 'posts') {
-            const saved = await savePostEntry({ title, content, mode });
-            showSaved('글방', saved, `/posts/view.html?slug=${encodeURIComponent(saved.slug || '')}`);
+            saved = await savePostEntry({ title, content, mode });
+            label = '글방';
         } else if (category === 'daily') {
-            const saved = await saveDailyEntry({ title, content, mode });
-            showSaved('나으 하루', saved, `/daily/view.html?slug=${encodeURIComponent(saved.slug || '')}`);
+            saved = await saveDailyEntry({ title, content, mode });
+            label = '나으 하루';
         } else if (category === 'programs') {
-            const saved = await saveProgramEntry({ title, content, mode });
-            showSaved('프로그램실', saved, `/programs/view.html?slug=${encodeURIComponent(saved.slug || '')}`);
+            saved = await saveProgramEntry({ title, content, mode });
+            label = '프로그램실';
         }
+
+        if (mode === 'publish') {
+            navigateToPublishedEntry(category, saved);
+            return;
+        }
+
+        showSaved(label, saved, publishedEntryViewerUrl(category, saved));
     } catch (error) {
         showAlert(`저장 실패: ${cmsErrorMessage(error)}`, 'error');
     } finally {
@@ -374,35 +386,24 @@ async function insertEditorFiles(files, options = {}) {
     }
 
     let insertIndex = clampEditorIndex(options.index);
-    const uploadedFiles = [];
     editorContainer.classList.add('is-image-uploading');
-
-    for (let i = 0; i < editorFiles.length; i += 1) {
-        const file = editorFiles[i];
-        const label = editorUploadLabel(file);
-        setEditorImageStatus(`${label} 업로드 중... (${i + 1}/${editorFiles.length}) ${file.name}`);
-
-        try {
-            const media = await uploadMedia(file, file.name, 'Global writer media');
-            uploadedFiles.push({
-                url: getMediaUrl(media, media.file),
-                name: file.name,
-                type: file.type
-            });
-        } catch (error) {
-            showAlert(`${label} 업로드 실패 (${file.name}): ${cmsErrorMessage(error)}`, 'error');
-        }
-    }
-
-    editorContainer.classList.remove('is-image-uploading');
-
-    if (uploadedFiles.length > 0) {
-        insertIndex = markdownEditor.insertFiles(insertIndex, uploadedFiles);
-        markdownEditor.setSelection(insertIndex, 0, 'silent');
-        setEditorImageStatus(`${uploadedFiles.length}개 미디어가 본문에 들어갔습니다.`, 'success');
-        setTimeout(() => setEditorImageStatus(), 2500);
-    } else {
-        setEditorImageStatus();
+    try {
+        await editorUploadCoordinator.runBatch(editorFiles, {
+            onFileStart: (file, index, total) => setEditorImageStatus(`${editorUploadLabel(file)} 업로드 준비 중... (${index + 1}/${total}) ${file.name}`),
+            onFileProgress: (file, progress, index, total) => setEditorImageStatus(`${editorUploadLabel(file)} ${formatMediaUploadProgress(progress)} (${index + 1}/${total}) ${file.name}`),
+            onFileReused: (file, _result, index, total) => setEditorImageStatus(`이미 올린 ${editorUploadLabel(file)} 재사용 중... (${index + 1}/${total}) ${file.name}`),
+            onFileError: (file, error) => showAlert(`${editorUploadLabel(file)} 업로드 실패 (${file.name}): ${cmsErrorMessage(error)}`, 'error'),
+            onDuplicateBatch: () => setEditorImageStatus('같은 붙여넣기가 겹쳐서 한 번만 처리했습니다.', 'success'),
+            onComplete: uploaded => {
+                const uploadedFiles = uploaded.map(item => item.result);
+                insertIndex = markdownEditor.insertFiles(insertIndex, uploadedFiles);
+                markdownEditor.setSelection(insertIndex, 0, 'silent');
+                setEditorImageStatus(`${uploadedFiles.length}개 미디어가 본문에 들어갔습니다.`, 'success');
+                setTimeout(() => setEditorImageStatus(), 2500);
+            }
+        });
+    } finally {
+        editorContainer.classList.remove('is-image-uploading');
     }
 }
 
@@ -411,17 +412,26 @@ async function uploadEditorFile(file) {
         throw new Error('JPG, PNG, GIF, WebP, MP4, WebM, MOV, M4V, MP3, PDF만 올릴 수 있어.');
     }
 
-    const label = editorUploadLabel(file);
-    setEditorImageStatus(`${label} 업로드 중... ${file.name || ''}`);
-
     try {
-        const media = await uploadMedia(file, file.name, 'Global writer media');
-        const url = getMediaUrl(media, media.file);
-        setEditorImageStatus(`${label} 업로드 완료.`, 'success');
+        const uploaded = await editorUploadCoordinator.uploadSingle(file, {
+            onFileStart: current => setEditorImageStatus(`${editorUploadLabel(current)} 업로드 준비 중... ${current.name || ''}`),
+            onFileProgress: (current, progress) => setEditorImageStatus(`${editorUploadLabel(current)} ${formatMediaUploadProgress(progress)} ${current.name || ''}`),
+            onFileReused: current => setEditorImageStatus(`이미 올린 ${editorUploadLabel(current)}를 재사용합니다.`, 'success')
+        });
+        setEditorImageStatus(`${editorUploadLabel(file)} 업로드 완료.`, 'success');
         setTimeout(() => setEditorImageStatus(), 1800);
-        return url;
+        return uploaded.url;
     } catch (error) {
-        setEditorImageStatus(`${label} 업로드 실패: ${cmsErrorMessage(error)}`, 'error');
+        setEditorImageStatus(`${editorUploadLabel(file)} 업로드 실패: ${cmsErrorMessage(error)}`, 'error');
         throw error;
     }
+}
+
+async function uploadEditorRecord(file, options = {}) {
+    const media = await uploadMedia(file, file.name, 'Global writer media', options);
+    return {
+        url: getMediaUrl(media, media.file),
+        name: file.name,
+        type: file.type
+    };
 }

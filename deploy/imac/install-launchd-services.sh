@@ -86,6 +86,7 @@ RUNTIME_BACKUP_SCRIPT="$RUNTIME_ROOT/backup-pocketbase.sh"
 RUNTIME_DIST="$RUNTIME_ROOT/dist"
 RUNTIME_MIGRATIONS="$RUNTIME_ROOT/pb_migrations"
 RUNTIME_PB_DATA="$RUNTIME_ROOT/pb_data"
+RUNTIME_TUS_UPLOADS="$RUNTIME_ROOT/tus-uploads"
 
 PB_LABEL="com.coldwaterkim.pocketbase"
 CADDY_LABEL="com.coldwaterkim.caddy"
@@ -200,7 +201,7 @@ replace_runtime_dir() {
 }
 
 sync_runtime_files() {
-    run_cmd mkdir -p "$RUNTIME_BIN_DIR" "$RUNTIME_PB_DATA"
+    run_cmd mkdir -p "$RUNTIME_BIN_DIR" "$RUNTIME_PB_DATA" "$RUNTIME_TUS_UPLOADS"
     run_cmd install -m 755 "$LOCAL_POCKETBASE" "$RUNTIME_POCKETBASE"
     if [[ "$SKIP_CADDY" -eq 0 ]]; then
         run_cmd install -m 755 "$LOCAL_CADDY" "$RUNTIME_CADDY"

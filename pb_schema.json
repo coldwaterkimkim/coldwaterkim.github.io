@@ -239,8 +239,12 @@
         },
         { "name": "video_error", "type": "text", "required": false, "max": 500 },
         { "name": "video_attempts", "type": "number", "required": false, "min": 0, "max": 3, "onlyInt": true },
+        { "name": "resumable_upload_id", "type": "text", "required": false, "max": 512, "hidden": true },
         { "name": "created", "type": "autodate", "onCreate": true, "onUpdate": false },
         { "name": "updated", "type": "autodate", "onCreate": true, "onUpdate": true }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX `idx_media_resumable_upload_id` ON `media` (`resumable_upload_id`) WHERE `resumable_upload_id` != ''"
       ],
       "listRule": "",
       "viewRule": "",

@@ -57,6 +57,7 @@
     "qa:entry-gate": "node scripts/verify-entry-gate.mjs",
     "qa:visitor-counter": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/verify-visitor-counter.mjs",
     "qa:writing": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/verify-writing-regressions.mjs",
+    "qa:uppy-tus-client": "node scripts/verify-uppy-tus-client.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -65,6 +66,8 @@
     "@blocknote/react": "^0.51.4",
     "@mantine/core": "^8.3.11",
     "@mantine/hooks": "^8.3.11",
+    "@uppy/core": "^5.2.0",
+    "@uppy/tus": "^5.1.1",
     "jszip": "^3.10.1",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",

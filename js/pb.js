@@ -37,7 +37,9 @@ const CONFIGURED_API_URL = window.POCKETBASE_URL
     : '';
 const DEFAULT_LOCAL_API_URL = CMS_TARGET === 'live'
     ? window.location.origin
-    : LOCAL_API_URL;
+    : SAME_ORIGIN_CMS_TARGETS.has(CMS_TARGET)
+        ? window.location.origin
+        : LOCAL_API_URL;
 const API_URL = CONFIGURED_API_URL
     || (IS_LOCAL_FRONTEND
         ? DEFAULT_LOCAL_API_URL
@@ -1171,14 +1173,27 @@ export async function getPostViewCounts(postIds = []) {
 // Media 헬퍼 함수들
 // ─────────────────────────────────────────────────────────
 
+const MEDIA_UPLOAD_MAX_BYTES = 2147483648;
+const RESUMABLE_VIDEO_MIN_BYTES = 64 * 1024 * 1024;
+let resumableUploadCapabilityPromise = null;
+
 /**
  * 미디어 업로드
  * @param {File} file
  * @param {string} altText
  * @param {string} caption
+ * @param {{onProgress?: function}} options
  * @returns {Promise<object>}
  */
-export async function uploadMedia(file, altText = '', caption = '') {
+export async function uploadMedia(file, altText = '', caption = '', options = {}) {
+    if (shouldUseResumableUpload(file) && await supportsResumableMediaUpload()) {
+        return await uploadMediaResumable(file, altText, caption, options);
+    }
+
+    return await uploadMediaDirect(file, altText, caption, options);
+}
+
+async function uploadMediaDirect(file, altText = '', caption = '', options = {}) {
     const formData = new FormData();
     formData.append('file', file);
     if (altText) formData.append('alt_text', altText);
@@ -1189,13 +1204,195 @@ export async function uploadMedia(file, altText = '', caption = '') {
     }
 
     try {
-        return await pb.collection('media').create(formData);
+        options.onProgress?.({
+            phase: 'uploading',
+            percent: 0,
+            bytesUploaded: 0,
+            bytesTotal: Number(file?.size || 0),
+            resumable: false
+        });
+        const media = await pb.collection('media').create(formData);
+        options.onProgress?.({
+            phase: 'complete',
+            percent: 100,
+            bytesUploaded: Number(file?.size || 0),
+            bytesTotal: Number(file?.size || 0),
+            resumable: false
+        });
+        return media;
     } catch (e) {
         if (isAuthExpiredLikeError(e)) {
             pb.authStore.clear();
         }
         throw e;
     }
+}
+
+export function shouldUseResumableUpload(file) {
+    const type = String(file?.type || '').toLowerCase();
+    const name = String(file?.name || '').toLowerCase();
+    const isVideo = type.startsWith('video/') || /\.(?:mp4|mov|m4v|webm)$/i.test(name);
+    return isVideo && Number(file?.size || 0) >= RESUMABLE_VIDEO_MIN_BYTES;
+}
+
+export function formatMediaUploadProgress(progress = {}) {
+    if (progress.phase === 'finalizing') return '업로드 완료 · 서버 미디어 등록 중...';
+    if (progress.phase === 'complete') return '업로드 완료.';
+
+    const percent = Math.max(0, Math.min(100, Math.round(Number(progress.percent || 0))));
+    const rate = formatBytesPerSecond(progress.speedBytesPerSecond);
+    const eta = formatEta(progress.etaSeconds);
+    const details = [rate, eta].filter(Boolean).join(' · ');
+    return `${progress.resumable ? '재개 업로드' : '업로드'} ${percent}%${details ? ` · ${details}` : ''}`;
+}
+
+async function supportsResumableMediaUpload() {
+    if (!isLoggedIn()) return false;
+    if (!resumableUploadCapabilityPromise) {
+        resumableUploadCapabilityPromise = pb.send('/api/cwk/tus/status', {
+            method: 'GET',
+            requestKey: null
+        }).then(result => Boolean(result?.available)).catch(() => false);
+    }
+    return await resumableUploadCapabilityPromise;
+}
+
+async function uploadMediaResumable(file, altText, caption, options = {}) {
+    if (Number(file?.size || 0) > MEDIA_UPLOAD_MAX_BYTES) {
+        throw new Error('파일 하나는 2GB까지 올릴 수 있어.');
+    }
+
+    const [{ default: Uppy }, { default: Tus }] = await Promise.all([
+        import('@uppy/core'),
+        import('@uppy/tus')
+    ]);
+    const startedAt = performance.now();
+    const uppy = new Uppy({
+        autoProceed: false,
+        restrictions: {
+            maxNumberOfFiles: 1,
+            maxFileSize: MEDIA_UPLOAD_MAX_BYTES
+        }
+    });
+
+    uppy.use(Tus, {
+        endpoint: pb.buildUrl('/api/cwk/tus/files/'),
+        headers: () => ({ Authorization: pb.authStore.token }),
+        retryDelays: [0, 1000, 3000, 5000, 10000, 20000],
+        // PocketBase 미디어 등록까지 끝나기 전에 재개 정보를 지우지 않는다.
+        removeFingerprintOnSuccess: false,
+        allowedMetaFields: ['name', 'type', 'alt_text', 'caption', 'owner_id'],
+        limit: 1
+    });
+
+    const fileId = uppy.addFile({
+        name: file.name || `video-${Date.now()}`,
+        type: file.type || 'application/octet-stream',
+        data: file,
+        meta: {
+            alt_text: String(altText || '').slice(0, 200),
+            caption: String(caption || '').slice(0, 500),
+            owner_id: String(pb.authStore.model?.id || '')
+        }
+    });
+
+    uppy.on('upload-progress', (uppyFile, progress) => {
+        if (!uppyFile || uppyFile.id !== fileId) return;
+        const bytesUploaded = Number(progress.bytesUploaded || 0);
+        const bytesTotal = Number(progress.bytesTotal || file.size || 0);
+        const elapsedSeconds = Math.max((performance.now() - startedAt) / 1000, 0.001);
+        const speedBytesPerSecond = bytesUploaded / elapsedSeconds;
+        const etaSeconds = speedBytesPerSecond > 0
+            ? Math.max(0, (bytesTotal - bytesUploaded) / speedBytesPerSecond)
+            : null;
+        options.onProgress?.({
+            phase: 'uploading',
+            percent: bytesTotal > 0 ? (bytesUploaded / bytesTotal) * 100 : 0,
+            bytesUploaded,
+            bytesTotal,
+            speedBytesPerSecond,
+            etaSeconds,
+            resumable: true
+        });
+    });
+
+    try {
+        const result = await uppy.upload();
+        const failed = result?.failed?.[0];
+        if (failed) throw failed.error || new Error('재개 업로드가 실패했어.');
+
+        const uploaded = result?.successful?.[0] || uppy.getFile(fileId);
+        const uploadUrl = uploaded?.response?.uploadURL || uploaded?.uploadURL || uploaded?.tus?.uploadUrl;
+        const uploadId = resumableUploadId(uploadUrl);
+        if (!uploadId) throw new Error('완료된 재개 업로드의 식별자를 찾지 못했어.');
+
+        options.onProgress?.({
+            phase: 'finalizing',
+            percent: 100,
+            bytesUploaded: Number(file.size || 0),
+            bytesTotal: Number(file.size || 0),
+            resumable: true
+        });
+
+        const media = await finalizeResumableUpload(uploadId);
+        options.onProgress?.({
+            phase: 'complete',
+            percent: 100,
+            bytesUploaded: Number(file.size || 0),
+            bytesTotal: Number(file.size || 0),
+            resumable: true
+        });
+        return media;
+    } catch (error) {
+        if (isAuthExpiredLikeError(error)) pb.authStore.clear();
+        throw error;
+    } finally {
+        uppy.destroy();
+    }
+}
+
+async function finalizeResumableUpload(uploadId) {
+    let lastError = null;
+    const delays = [0, 1000, 3000];
+
+    for (const delay of delays) {
+        if (delay) await new Promise(resolve => setTimeout(resolve, delay));
+        try {
+            return await pb.send('/api/cwk/tus/finalize', {
+                method: 'POST',
+                body: { upload_id: uploadId },
+                requestKey: null
+            });
+        } catch (error) {
+            lastError = error;
+        }
+    }
+
+    throw lastError || new Error('재개 업로드를 미디어로 등록하지 못했어.');
+}
+
+function resumableUploadId(uploadUrl) {
+    if (!uploadUrl) return '';
+    try {
+        const url = new URL(uploadUrl, window.location.origin);
+        return decodeURIComponent(url.pathname.split('/').filter(Boolean).at(-1) || '');
+    } catch (_error) {
+        return '';
+    }
+}
+
+function formatBytesPerSecond(value) {
+    const bytes = Number(value || 0);
+    if (bytes <= 0) return '';
+    if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)}MB/s`;
+    return `${Math.max(1, Math.round(bytes / 1024))}KB/s`;
+}
+
+function formatEta(value) {
+    const seconds = Number(value);
+    if (!Number.isFinite(seconds) || seconds <= 0) return '';
+    if (seconds < 60) return `약 ${Math.ceil(seconds)}초 남음`;
+    return `약 ${Math.ceil(seconds / 60)}분 남음`;
 }
 
 /**

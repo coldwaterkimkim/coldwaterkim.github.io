@@ -14,7 +14,7 @@ http://127.0.0.1:18081 {
     }
 
     handle {
-        root * "/Users/kimchansu/Documents/개인/6. codex/01.개인 웹사이트/dist"
+        root * "/Users/kimchansu/Code/coldwaterkim.github.io/dist"
         try_files {path} {path}/ =404
         file_server
     }

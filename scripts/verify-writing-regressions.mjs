@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { preferredTransferFiles, preferredTransferImageFiles, uniqueSupportedFiles, uniqueTransferFiles } from '../js/editor-file-transfer.mjs';
+import { createEditorUploadCoordinator, editorFileFingerprint } from '../js/editor-upload-coordinator.mjs';
+import { publishedEntryViewerUrl } from '../js/editor-publish-navigation.mjs';
 
 const bytes = new Uint8Array([1, 2, 3, 4]);
 const filesVersion = new File([bytes], 'same.png', {
@@ -65,6 +67,71 @@ const videoItemsFallback = preferredTransferFiles({
   ],
 });
 assert.deepEqual(videoItemsFallback, [videoA, videoB], 'video clipboard items must remain available when files is empty');
+
+let uploadCalls = 0;
+let completedBatches = 0;
+let coordinatorNow = 0;
+const uploadCoordinator = createEditorUploadCoordinator({
+  now: () => coordinatorNow,
+  async uploadFile(file) {
+    uploadCalls += 1;
+    await new Promise(resolve => setTimeout(resolve, 5));
+    return { url: `/media/${file.name}`, name: file.name, type: file.type };
+  },
+});
+const photo1 = new File([new Uint8Array([11, 12, 13])], '1.png', { type: 'image/png', lastModified: 5000 });
+const photo2 = new File([new Uint8Array([21, 22, 23])], '2.png', { type: 'image/png', lastModified: 5001 });
+const insertedOrders = [];
+const firstPaste = uploadCoordinator.runBatch([photo1, photo2], {
+  onComplete(items) {
+    completedBatches += 1;
+    insertedOrders.push(items.map(item => item.file.name));
+  },
+});
+const repeatedPaste = uploadCoordinator.runBatch([photo2, photo1], {
+  onComplete() {
+    completedBatches += 1;
+  },
+});
+const [firstPasteResult, repeatedPasteResult] = await Promise.all([firstPaste, repeatedPaste]);
+assert.equal(firstPasteResult.duplicate, false, 'the first multi-file paste must be accepted');
+assert.equal(repeatedPasteResult.duplicate, true, 'the same batch in a different order must be treated as one duplicated paste event');
+assert.equal(uploadCalls, 2, 'duplicated paste events must upload each physical file only once');
+assert.equal(completedBatches, 1, 'duplicated paste events must insert one batch only once');
+assert.deepEqual(insertedOrders, [['1.png', '2.png']], 'the accepted paste batch must preserve its original order');
+
+coordinatorNow = 3000;
+const intentionalSecondPaste = await uploadCoordinator.runBatch([photo2, photo1], {
+  onComplete(items) {
+    insertedOrders.push(items.map(item => item.file.name));
+  },
+});
+assert.equal(intentionalSecondPaste.duplicate, false, 'the same files may be intentionally inserted again after the event suppression window');
+assert.equal(uploadCalls, 2, 'intentional reinsertion in one editor session must reuse already uploaded media records');
+assert.deepEqual(insertedOrders[1], ['2.png', '1.png'], 'a later intentional paste must preserve its own transfer order');
+
+let retryCalls = 0;
+const retryCoordinator = createEditorUploadCoordinator({
+  async uploadFile(file) {
+    retryCalls += 1;
+    if (retryCalls === 1) throw new Error('temporary failure');
+    return { name: file.name };
+  },
+});
+await assert.rejects(() => retryCoordinator.uploadSingle(photo1), /temporary failure/);
+await retryCoordinator.uploadSingle(photo1);
+assert.equal(retryCalls, 2, 'a failed upload must not be cached and must remain retryable');
+
+const sameNameDifferentImage = new File([new Uint8Array([31, 32, 33])], '1.png', { type: 'image/png', lastModified: 5000 });
+assert.notEqual(
+  await editorFileFingerprint(photo1),
+  await editorFileFingerprint(sameNameDifferentImage),
+  'image dedupe must use file content instead of filename alone',
+);
+
+assert.equal(publishedEntryViewerUrl('posts', { slug: 'hello world' }), '/posts/view.html?slug=hello%20world');
+assert.equal(publishedEntryViewerUrl('daily', { day_key: '2026-08-03' }), '/daily/view.html?day=2026-08-03');
+assert.equal(publishedEntryViewerUrl('programs', { slug: 'my-app' }), '/programs/view.html?slug=my-app');
 
 const { pocketBaseImageSources, pocketBaseVideoReference, videoDerivativeSources } = await import('../js/media-embeds.js');
 const optimizedImage = pocketBaseImageSources(
@@ -154,10 +221,25 @@ const adminPosts = fs.readFileSync(new URL('../admin/posts.html', import.meta.ur
 assert.match(adminPosts, /published_at'\)\.value = getKstDateKey\(\)/, 'new posts must default to the KST date');
 assert.match(adminPosts, /hasEditorFileTransfer\(event\.dataTransfer\)/, 'post editor drag and drop must detect supported media files');
 assert.match(adminPosts, /markdownEditor\.insertFiles\(insertIndex, uploadedFiles\)/, 'post editor must insert uploaded videos as media blocks');
+assert.match(adminPosts, /onFilesPaste: files => insertEditorFiles/, 'BlockNote must own post file paste handling');
+assert.doesNotMatch(adminPosts, /markdownEditor\.root\.addEventListener\('paste'/, 'post file paste must not have a second DOM owner');
+assert.match(adminPosts, /navigateToPublishedEntry\('posts', saved\)/, 'published posts must leave the editor for the public viewer');
 
 const globalWriter = fs.readFileSync(new URL('../js/global-writer.js', import.meta.url), 'utf8');
-assert.match(globalWriter, /hasEditorFileTransfer\(event\.clipboardData\)/, 'global writer paste must detect supported media files');
+assert.match(globalWriter, /onFilesPaste: files => insertEditorFiles/, 'BlockNote must own global writer file paste handling');
+assert.doesNotMatch(globalWriter, /markdownEditor\.root\.addEventListener\('paste'/, 'global writer file paste must not have a second DOM owner');
 assert.match(globalWriter, /markdownEditor\.insertFiles\(insertIndex, uploadedFiles\)/, 'global writer must insert uploaded videos as media blocks');
+assert.match(globalWriter, /navigateToPublishedEntry\(category, saved\)/, 'global writer publish must leave the editor for the matching viewer');
+
+const adminDaily = fs.readFileSync(new URL('../admin/daily.html', import.meta.url), 'utf8');
+assert.match(adminDaily, /onFilesPaste: files => insertEditorFiles/, 'BlockNote must own daily file paste handling');
+assert.doesNotMatch(adminDaily, /markdownEditor\.root\.addEventListener\('paste'/, 'daily file paste must not have a second DOM owner');
+assert.match(adminDaily, /navigateToPublishedEntry\('daily', saved\)/, 'published daily entries must leave the editor for the day viewer');
+
+const programs = fs.readFileSync(new URL('../js/programs.js', import.meta.url), 'utf8');
+assert.match(programs, /onFilesPaste: files => insertProgramBodyFiles/, 'BlockNote must own program file paste handling');
+assert.doesNotMatch(programs, /programBodyEditor\.root\.addEventListener\('paste'/, 'program file paste must not have a second DOM owner');
+assert.match(programs, /window\.location\.assign\(programDetailUrl\(saved\)\)/, 'published programs must leave the editor for the detail viewer');
 
 const mediaEmbeds = fs.readFileSync(new URL('../js/media-embeds.js', import.meta.url), 'utf8');
 assert.match(mediaEmbeds, /img\.setAttribute\('loading', 'lazy'\)/, 'rendered images must use native lazy loading');
@@ -180,10 +262,13 @@ const webVideoField = mediaCollection.fields.find(field => field.name === 'web_v
 const videoPosterField = mediaCollection.fields.find(field => field.name === 'video_poster');
 const videoStatusField = mediaCollection.fields.find(field => field.name === 'video_status');
 const videoAttemptsField = mediaCollection.fields.find(field => field.name === 'video_attempts');
+const resumableUploadIdField = mediaCollection.fields.find(field => field.name === 'resumable_upload_id');
 assert.deepEqual(webVideoField.mimeTypes, ['video/mp4'], 'web playback derivatives must be MP4 files');
 assert.deepEqual(videoPosterField.mimeTypes, ['image/jpeg'], 'video posters must be JPEG files');
 assert.deepEqual(videoStatusField.values, ['pending', 'processing', 'ready', 'error'], 'video processing states must be explicit');
 assert.equal(videoAttemptsField.max, 3, 'transient video failures must have a bounded retry count');
+assert.equal(resumableUploadIdField.hidden, true, 'the tus upload id must remain an internal idempotency key');
+assert.match(mediaCollection.indexes.join('\n'), /resumable_upload_id.*WHERE [`]?resumable_upload_id[`]? != ''/, 'completed tus uploads must be imported only once');
 
 const thumbnailMigration = fs.readFileSync(new URL('../pb_migrations/1784641062_enable_media_thumbnails.js', import.meta.url), 'utf8');
 assert.match(thumbnailMigration, /mediaFile\.thumbs = \["800x0", "1600x0"\]/, 'production migration must enable the same thumbnail sizes');
@@ -191,6 +276,19 @@ assert.match(thumbnailMigration, /mediaFile\.thumbs = \["800x0", "1600x0"\]/, 'p
 const videoMigration = fs.readFileSync(new URL('../pb_migrations/1784726400_add_media_video_derivatives.js', import.meta.url), 'utf8');
 assert.match(videoMigration, /new FileField\(\{\s*name: "web_video"/, 'production migration must add the web playback field');
 assert.match(videoMigration, /new FileField\(\{\s*name: "video_poster"/, 'production migration must add the poster field');
+
+const resumableMigration = fs.readFileSync(new URL('../pb_migrations/1785769200_add_media_resumable_upload_id.js', import.meta.url), 'utf8');
+assert.match(resumableMigration, /name: "resumable_upload_id"/, 'production migration must add the tus idempotency field');
+assert.match(resumableMigration, /CREATE UNIQUE INDEX/, 'production migration must prevent duplicate tus finalization');
+
+assert.equal(pbModule.shouldUseResumableUpload({ name: 'day.mov', type: 'video/quicktime', size: 64 * 1024 * 1024 }), true, 'large videos must use tus');
+assert.equal(pbModule.shouldUseResumableUpload({ name: 'short.mov', type: 'video/quicktime', size: 63 * 1024 * 1024 }), false, 'small videos must keep the simple PocketBase upload');
+assert.match(pbModule.formatMediaUploadProgress({ resumable: true, percent: 42 }), /재개 업로드 42%/, 'resumable upload progress must be visible in the editor');
+
+const pbSource = fs.readFileSync(new URL('../js/pb.js', import.meta.url), 'utf8');
+assert.match(pbSource, /import\('@uppy\/core'\)/, 'the resumable client must lazy-load Uppy');
+assert.match(pbSource, /\/api\/cwk\/tus\/finalize/, 'completed tus files must be finalized as PocketBase media records');
+assert.match(pbSource, /supportsResumableMediaUpload/, 'large video uploads must fall back when the custom tus endpoint is unavailable');
 
 const videoProcessor = fs.readFileSync(new URL('../deploy/imac/process-video-media.py', import.meta.url), 'utf8');
 assert.match(videoProcessor, /"-movflags", "\+faststart"/, 'web MP4 generation must enable fast start');
@@ -202,4 +300,4 @@ assert.match(videoProcessor, /video_attempts<3/, 'transient failures must be ret
 const videoProcessorPlist = fs.readFileSync(new URL('../deploy/imac/com.coldwaterkim.video-processor.plist', import.meta.url), 'utf8');
 assert.match(videoProcessorPlist, /<integer>60<\/integer>/, 'video processor must poll queued uploads without blocking the editor');
 
-console.log('Writing regression checks passed (58 assertions).');
+console.log('Writing regression checks passed.');

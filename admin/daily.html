@@ -96,7 +96,7 @@
                         <div class="editor-container">
                             <div id="editor"></div>
                         </div>
-                        <input type="file" id="editorImageInput" accept="image/*" multiple hidden>
+                        <input type="file" id="editorImageInput" accept="image/*,video/mp4,video/webm,video/quicktime,.m4v,audio/mpeg,.mp3,application/pdf" multiple hidden>
                         <div id="editorImageStatus" class="editor-image-status" aria-live="polite"></div>
                     </div>
 
@@ -132,17 +132,20 @@
             escapeHtml,
             cmsErrorMessage,
             uploadMedia,
-            getMediaUrl
+            getMediaUrl,
+            formatMediaUploadProgress
         } from '../js/pb.js';
         import {
+            createEditorUploadCoordinator,
             createMarkdownEditor,
+            editorFilesFromTransfer,
             editorUploadLabel,
-            hasImageTransfer,
-            imageFilesFromTransfer,
+            hasEditorFileTransfer,
             isSupportedEditorUpload,
-            normalizeEditorImageFiles,
+            normalizeEditorFiles,
             stopEditorTransferEvent
         } from '../js/markdown-editor.js';
+        import { navigateToPublishedEntry } from '../js/editor-publish-navigation.mjs';
 
         // 인증 체크
         if (!isLoggedIn()) {
@@ -159,22 +162,28 @@
 
         // Markdown 에디터 초기화
         let pendingEditorImageIndex = null;
+        const editorUploadCoordinator = createEditorUploadCoordinator({
+            uploadFile: uploadEditorRecord
+        });
         const markdownEditor = await createMarkdownEditor('#editor', {
             placeholder: 'Markdown으로 하루를 작성하세요...',
+            fallbackNamePrefix: 'daily-editor-file',
             onImageButton: () => {
                 pendingEditorImageIndex = currentEditorIndex();
                 editorImageInput.click();
             },
-            uploadFile: uploadEditorFile
+            uploadFile: uploadEditorFile,
+            onFilesPaste: files => insertEditorFiles(files, {
+                index: currentEditorIndex()
+            }),
+            onFilesPasteError: error => showAlert(`붙여넣기 실패: ${cmsErrorMessage(error)}`, 'error')
         });
 
         const editorContainer = document.querySelector('.editor-container');
         const editorImageInput = document.getElementById('editorImageInput');
         const editorImageStatus = document.getElementById('editorImageStatus');
-        const editorImageMimeTypes = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
-
         editorImageInput.addEventListener('change', async () => {
-            await insertEditorImages(editorImageInput.files, {
+            await insertEditorFiles(editorImageInput.files, {
                 index: pendingEditorImageIndex
             });
             pendingEditorImageIndex = null;
@@ -182,13 +191,13 @@
         });
 
         editorContainer.addEventListener('dragenter', (event) => {
-            if (!hasImageTransfer(event.dataTransfer)) return;
+            if (!hasEditorFileTransfer(event.dataTransfer)) return;
             event.preventDefault();
             editorContainer.classList.add('is-image-dragover');
         });
 
         editorContainer.addEventListener('dragover', (event) => {
-            if (!hasImageTransfer(event.dataTransfer)) return;
+            if (!hasEditorFileTransfer(event.dataTransfer)) return;
             event.preventDefault();
             editorContainer.classList.add('is-image-dragover');
         });
@@ -199,32 +208,17 @@
         });
 
         editorContainer.addEventListener('drop', async (event) => {
-            if (!hasImageTransfer(event.dataTransfer)) return;
+            if (!hasEditorFileTransfer(event.dataTransfer)) return;
             stopEditorTransferEvent(event);
             editorContainer.classList.remove('is-image-dragover');
 
-            const imageFiles = editorImageFilesFromTransfer(event.dataTransfer);
-            if (!imageFiles.length) {
-                showAlert('JPG, PNG, GIF, WebP 이미지만 본문에 넣을 수 있습니다.', 'error');
+            const files = transferredEditorFiles(event.dataTransfer);
+            if (!files.length) {
+                showAlert('지원하는 이미지나 영상 파일만 본문에 넣을 수 있습니다.', 'error');
                 return;
             }
 
-            await insertEditorImages(imageFiles, {
-                index: currentEditorIndex()
-            });
-        }, true);
-
-        markdownEditor.root.addEventListener('paste', async (event) => {
-            if (!hasImageTransfer(event.clipboardData)) return;
-            stopEditorTransferEvent(event);
-
-            const imageFiles = editorImageFilesFromTransfer(event.clipboardData);
-            if (!imageFiles.length) {
-                showAlert('JPG, PNG, GIF, WebP 이미지만 본문에 넣을 수 있습니다.', 'error');
-                return;
-            }
-
-            await insertEditorImages(imageFiles, {
+            await insertEditorFiles(files, {
                 index: currentEditorIndex()
             });
         }, true);
@@ -258,14 +252,9 @@
             editorImageStatus.classList.toggle('is-visible', Boolean(message));
         }
 
-        function isSupportedEditorImage(file) {
-            return file && editorImageMimeTypes.has(file.type);
-        }
-
-        function editorImageFilesFromTransfer(dataTransfer) {
-            return imageFilesFromTransfer(dataTransfer, {
-                mimeTypes: editorImageMimeTypes,
-                fallbackNamePrefix: 'editor-image'
+        function transferredEditorFiles(dataTransfer) {
+            return editorFilesFromTransfer(dataTransfer, {
+                fallbackNamePrefix: 'daily-editor-file'
             });
         }
 
@@ -278,43 +267,35 @@
             return clampEditorIndex(range?.index);
         }
 
-        async function insertEditorImages(files, options = {}) {
-            const imageFiles = normalizeEditorImageFiles(files, {
-                mimeTypes: editorImageMimeTypes,
-                fallbackNamePrefix: 'editor-image'
-            }).filter(isSupportedEditorImage);
+        async function insertEditorFiles(files, options = {}) {
+            const editorFiles = normalizeEditorFiles(files, {
+                fallbackNamePrefix: 'daily-editor-file'
+            });
 
-            if (!imageFiles.length) {
-                showAlert('JPG, PNG, GIF, WebP 이미지만 본문에 넣을 수 있습니다.', 'error');
+            if (!editorFiles.length) {
+                showAlert('JPG, PNG, GIF, WebP, MP4, WebM, MOV, M4V, MP3, PDF만 올릴 수 있습니다.', 'error');
                 return;
             }
 
             let insertIndex = clampEditorIndex(options.index);
-            const uploadedImages = [];
             editorContainer.classList.add('is-image-uploading');
-
-            for (let i = 0; i < imageFiles.length; i += 1) {
-                const file = imageFiles[i];
-                setEditorImageStatus(`이미지 업로드 중... (${i + 1}/${imageFiles.length}) ${file.name}`);
-
-                try {
-                    const media = await uploadMedia(file);
-                    const url = getMediaUrl(media, media.file);
-                    uploadedImages.push({ url, alt: file.name });
-                } catch (e) {
-                    showAlert(`본문 이미지 업로드 실패 (${file.name}): ${cmsErrorMessage(e)}`, 'error');
-                }
-            }
-
-            editorContainer.classList.remove('is-image-uploading');
-
-            if (uploadedImages.length > 0) {
-                insertIndex = markdownEditor.insertImages(insertIndex, uploadedImages);
-                markdownEditor.setSelection(insertIndex, 0, 'silent');
-                setEditorImageStatus(`${uploadedImages.length}개 이미지가 본문에 들어갔습니다.`, 'success');
-                setTimeout(() => setEditorImageStatus(), 2500);
-            } else {
-                setEditorImageStatus();
+            try {
+                await editorUploadCoordinator.runBatch(editorFiles, {
+                    onFileStart: (file, index, total) => setEditorImageStatus(`${editorUploadLabel(file)} 업로드 준비 중... (${index + 1}/${total}) ${file.name}`),
+                    onFileProgress: (file, progress, index, total) => setEditorImageStatus(`${editorUploadLabel(file)} ${formatMediaUploadProgress(progress)} (${index + 1}/${total}) ${file.name}`),
+                    onFileReused: (file, _result, index, total) => setEditorImageStatus(`이미 올린 ${editorUploadLabel(file)} 재사용 중... (${index + 1}/${total}) ${file.name}`),
+                    onFileError: (file, error) => showAlert(`${editorUploadLabel(file)} 업로드 실패 (${file.name}): ${cmsErrorMessage(error)}`, 'error'),
+                    onDuplicateBatch: () => setEditorImageStatus('같은 붙여넣기가 겹쳐서 한 번만 처리했습니다.', 'success'),
+                    onComplete: uploaded => {
+                        const uploadedFiles = uploaded.map(item => item.result);
+                        insertIndex = markdownEditor.insertFiles(insertIndex, uploadedFiles);
+                        markdownEditor.setSelection(insertIndex, 0, 'silent');
+                        setEditorImageStatus(`${uploadedFiles.length}개 미디어가 본문에 들어갔습니다.`, 'success');
+                        setTimeout(() => setEditorImageStatus(), 2500);
+                    }
+                });
+            } finally {
+                editorContainer.classList.remove('is-image-uploading');
             }
         }
 
@@ -323,19 +304,28 @@
                 throw new Error('JPG, PNG, GIF, WebP, MP4, WebM, MOV, M4V, MP3, PDF만 올릴 수 있습니다.');
             }
 
-            const label = editorUploadLabel(file);
-            setEditorImageStatus(`${label} 업로드 중... ${file.name || ''}`);
-
             try {
-                const media = await uploadMedia(file, file.name, 'Daily editor media');
-                const url = getMediaUrl(media, media.file);
-                setEditorImageStatus(`${label} 업로드 완료.`, 'success');
+                const uploaded = await editorUploadCoordinator.uploadSingle(file, {
+                    onFileStart: current => setEditorImageStatus(`${editorUploadLabel(current)} 업로드 준비 중... ${current.name || ''}`),
+                    onFileProgress: (current, progress) => setEditorImageStatus(`${editorUploadLabel(current)} ${formatMediaUploadProgress(progress)} ${current.name || ''}`),
+                    onFileReused: current => setEditorImageStatus(`이미 올린 ${editorUploadLabel(current)}를 재사용합니다.`, 'success')
+                });
+                setEditorImageStatus(`${editorUploadLabel(file)} 업로드 완료.`, 'success');
                 setTimeout(() => setEditorImageStatus(), 1800);
-                return url;
+                return uploaded.url;
             } catch (error) {
-                setEditorImageStatus(`${label} 업로드 실패: ${cmsErrorMessage(error)}`, 'error');
+                setEditorImageStatus(`${editorUploadLabel(file)} 업로드 실패: ${cmsErrorMessage(error)}`, 'error');
                 throw error;
             }
+        }
+
+        async function uploadEditorRecord(file, options = {}) {
+            const media = await uploadMedia(file, file.name, 'Daily editor media', options);
+            return {
+                url: getMediaUrl(media, media.file),
+                name: file.name,
+                type: file.type
+            };
         }
 
         // 목록 뷰
@@ -490,7 +480,8 @@
         // 저장 후 발행
         async function saveAndPublish() {
             document.getElementById('status').value = 'published';
-            await savePost();
+            const saved = await savePost();
+            if (saved) navigateToPublishedEntry('daily', saved);
         }
 
         // 글 저장
@@ -536,8 +527,10 @@
                     document.getElementById('deleteBtn').style.display = 'inline-block';
                     showAlert('새 나으 하루 글이 저장되었습니다!', 'success');
                 }
+                return result;
             } catch (e) {
                 showAlert('저장 실패: ' + cmsErrorMessage(e), 'error');
+                return null;
             }
         }
 

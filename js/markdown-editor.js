@@ -7,6 +7,7 @@ import '@blocknote/core/fonts/inter.css';
 import '@blocknote/mantine/style.css';
 import { isYouTubeUrl, prepareRichContentHtml } from './media-embeds.js';
 import { preferredTransferFiles, preferredTransferImageFiles, uniqueSupportedFiles, uniqueTransferFiles } from './editor-file-transfer.mjs';
+export { createEditorUploadCoordinator } from './editor-upload-coordinator.mjs';
 
 const IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
 const EDITOR_UPLOAD_MIME_TYPES = new Set([
@@ -385,6 +386,22 @@ function BlockNoteMount({ adapter, placeholder }) {
         placeholders: {
             default: placeholder,
             emptyDocument: placeholder
+        },
+        pasteHandler: ({ event, defaultPasteHandler }) => {
+            if (!hasEditorFileTransfer(event.clipboardData) || typeof adapter.options.onFilesPaste !== 'function') {
+                return defaultPasteHandler();
+            }
+
+            event.stopPropagation();
+            event.stopImmediatePropagation?.();
+            const files = editorFilesFromTransfer(event.clipboardData, {
+                fallbackNamePrefix: adapter.options.fallbackNamePrefix || 'editor-file'
+            });
+            Promise.resolve(adapter.options.onFilesPaste(files, event)).catch(error => {
+                adapter.options.onFilesPasteError?.(error);
+                console.error('Editor file paste failed:', error);
+            });
+            return true;
         },
         uploadFile: async file => {
             if (typeof adapter.options.uploadFile === 'function') {

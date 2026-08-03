@@ -5,7 +5,8 @@ import {
   cmsErrorMessage,
   escapeHtml,
   uploadMedia,
-  getMediaUrl
+  getMediaUrl,
+  formatMediaUploadProgress
 } from './pb.js';
 import {
   ABOUT_PROFILE_DOCUMENT_VERSION,
@@ -24,6 +25,7 @@ import {
   renderAboutWikiMarkup,
 } from './about-wiki-markup.mjs';
 import { preferredTransferFiles, uniqueTransferFiles } from './editor-file-transfer.mjs';
+import { createEditorUploadCoordinator } from './editor-upload-coordinator.mjs';
 
 const SETTING_KEY = 'about_wiki_document';
 const CONTENT_SCHEMA_VERSION = 2;
@@ -112,6 +114,10 @@ function initAboutWiki() {
       returnFocusSectionId: null,
       pendingEditorSelection: null,
       isMediaUploading: false,
+      mediaUploadOperations: 0,
+      mediaUploadCoordinator: createEditorUploadCoordinator({
+        uploadFile: uploadAboutMediaRecord,
+      }),
       saveTimer: null,
       saveQueue: Promise.resolve(),
       saveVersion: 0,
@@ -792,7 +798,7 @@ function aboutUploadLabel(file) {
 async function insertEditorMedia(state, files, selection = null) {
   const textarea = state.sourceEditor;
   const sectionIdValue = state.selectedSectionId;
-  if (!textarea || state.isMediaUploading) return;
+  if (!textarea) return;
   const wasDirtyBeforeUpload = state.hasUnsavedChanges;
   const uploadFiles = uniqueTransferFiles(files).filter(isSupportedAboutUpload);
   if (!uploadFiles.length) {
@@ -801,34 +807,44 @@ async function insertEditorMedia(state, files, selection = null) {
   }
 
   const container = state.root.querySelector('[data-about-editor-container]');
-  const tokens = [];
+  state.mediaUploadOperations += 1;
   state.isMediaUploading = true;
   markAboutDirty(state);
   setSourceEditorUploadLocked(state, true);
   container?.classList.add('is-image-uploading');
 
+  let result;
   try {
-    for (let index = 0; index < uploadFiles.length; index += 1) {
-      const file = uploadFiles[index];
-      const label = aboutUploadLabel(file);
-      renderEditorImageStatus(state, `${label} 업로드 중... (${index + 1}/${uploadFiles.length}) ${file.name}`, 'info');
-      try {
-        const media = await uploadMedia(file, file.name, 'About wiki media');
-        const url = getMediaUrl(media, media.file);
-        const token = aboutWikiMediaSource({ url, name: file.name, type: file.type });
-        if (token) tokens.push(token);
-      } catch (error) {
-        renderEditorImageStatus(state, `${label} 업로드 실패 (${file.name}): ${cmsErrorMessage(error)}`, 'error');
-      }
-    }
+    result = await state.mediaUploadCoordinator.runBatch(uploadFiles, {
+      onFileStart(file, index, total) {
+        renderEditorImageStatus(state, `${aboutUploadLabel(file)} 업로드 중... (${index + 1}/${total}) ${file.name}`, 'info');
+      },
+      onFileProgress(file, progress, index, total) {
+        renderEditorImageStatus(state, `${file.name} (${index + 1}/${total}) · ${formatMediaUploadProgress(progress)}`, 'info');
+      },
+      onFileReused(file, _media, index, total) {
+        renderEditorImageStatus(state, `${file.name} (${index + 1}/${total}) · 이미 올린 파일 재사용`, 'info');
+      },
+      onFileError(file, error) {
+        renderEditorImageStatus(state, `${aboutUploadLabel(file)} 업로드 실패 (${file.name}): ${cmsErrorMessage(error)}`, 'error');
+      },
+      onDuplicateBatch() {
+        renderEditorImageStatus(state, '같은 붙여넣기 요청이 겹쳐서 중복 삽입을 막았어.', 'info');
+      },
+    });
   } finally {
-    state.isMediaUploading = false;
-    container?.classList.remove('is-image-uploading');
-    if (state.sourceEditor === textarea && textarea.isConnected) {
+    state.mediaUploadOperations = Math.max(0, state.mediaUploadOperations - 1);
+    state.isMediaUploading = state.mediaUploadOperations > 0;
+    if (!state.isMediaUploading) container?.classList.remove('is-image-uploading');
+    if (!state.isMediaUploading && state.sourceEditor === textarea && textarea.isConnected) {
       setSourceEditorUploadLocked(state, false);
     }
   }
 
+  if (result?.duplicate) return;
+  const tokens = (result?.uploaded || [])
+    .map(({ result: media }) => aboutWikiMediaSource(media))
+    .filter(Boolean);
   if (!tokens.length) {
     markAboutDirty(state, wasDirtyBeforeUpload);
     return;
@@ -844,6 +860,15 @@ async function insertEditorMedia(state, files, selection = null) {
   renderSourcePreview(state);
   renderEditorImageStatus(state, `${tokens.length}개 미디어 문법이 원문에 들어갔어.`, 'success');
   setTimeout(() => renderEditorImageStatus(state), 2500);
+}
+
+async function uploadAboutMediaRecord(file, options = {}) {
+  const media = await uploadMedia(file, file.name, 'About wiki media', options);
+  return {
+    url: getMediaUrl(media, media.file),
+    name: file.name,
+    type: file.type,
+  };
 }
 
 function setSourceEditorUploadLocked(state, isLocked) {

@@ -25,7 +25,7 @@
 - 글방, 나으 하루, 프로그램실, 나사잡, 방명록, About 페이지
 - 공개 화면 위에서 열리는 `OWNER MODE`
 - 통합 글쓰기 흐름과 카테고리별 작성 화면
-- 이미지, 영상, 오디오, PDF 업로드
+- 이미지, 영상, 오디오, PDF 업로드와 대용량 영상 중단·재개
 - 방문자 수, 방명록, 글 조회수 관리
 - 현재 비활성 상태로 보존된 필수 BGM 입장 화면과 브라우저별 새 소식 안내
 - PocketBase 기반 CMS/API 연동
@@ -37,6 +37,7 @@
 - HTML, CSS, JavaScript
 - PocketBase
 - BlockNote 기반 WYSIWYG Markdown 작성기
+- Uppy + tus/tusd 기반 대용량 영상 재개 업로드
 - GitHub Pages
 - Caddy / PocketBase 서버 운영 스크립트
 

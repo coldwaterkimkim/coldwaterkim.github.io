@@ -240,6 +240,8 @@ function verifyStaticService(service) {
     requireCondition('PocketBase launchd runs as kimchansu', plist.includes('<key>UserName</key>') && plist.includes('<string>kimchansu</string>'));
     requireCondition('PocketBase launchd has HOME env', plist.includes('<key>HOME</key>') && plist.includes(os.homedir()));
     requireCondition('PocketBase launchd binds localhost', plist.includes('--http=127.0.0.1:8090'));
+    requireCondition('PocketBase launchd allows 30 minute media uploads', plist.includes('--httpRequestTimeout=30m'));
+    requireCondition('PocketBase launchd uses resumable upload staging outside pb_data', plist.includes(`--tusUploadDir=${runtimeRoot}/tus-uploads`));
     requireCondition('PocketBase launchd uses runtime pb_data', plist.includes(`${runtimeRoot}/pb_data`));
     requireCondition('PocketBase launchd uses runtime migrations', plist.includes(`--migrationsDir=${runtimeRoot}/pb_migrations`));
   }

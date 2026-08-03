@@ -15,7 +15,8 @@ import {
     escapeHtml,
     cmsErrorMessage,
     uploadMedia,
-    getMediaUrl
+    getMediaUrl,
+    formatMediaUploadProgress
 } from './pb.js';
 import { findAutomaticProgramCoverFile } from './program-cover.js';
 
@@ -27,14 +28,14 @@ let programBodyEditorReady = null;
 let pendingProgramBodyImageIndex = null;
 let markdownEditorModulePromise = null;
 let createMarkdownEditor = null;
+let createEditorUploadCoordinator = null;
+let editorFilesFromTransfer = null;
 let editorUploadLabel = null;
-let hasImageTransfer = null;
-let imageFilesFromTransfer = null;
+let hasEditorFileTransfer = null;
 let isSupportedEditorUpload = null;
-let normalizeEditorImageFiles = null;
+let normalizeEditorFiles = null;
 let stopEditorTransferEvent = null;
-
-const PROGRAM_IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
+let programBodyUploadCoordinator = null;
 
 const fallbackPrograms = [
     {
@@ -322,8 +323,7 @@ async function saveProgram() {
             ? await updateProgram(editingProgramId, formData)
             : await createProgram(formData);
         setOwnerStatus(`${saved.title || '프로그램'} 저장 완료.`, 'success');
-        resetProgramForm({ hidden: true });
-        await loadPrograms();
+        window.location.assign(programDetailUrl(saved));
     } catch (error) {
         setOwnerStatus(`저장 실패: ${cmsErrorMessage(error)}`, 'error');
     }
@@ -435,18 +435,26 @@ async function ensureProgramBodyEditor() {
 async function initProgramBodyEditor() {
     if (!formFields.bodyEditor) return;
     await loadMarkdownEditorModule();
+    programBodyUploadCoordinator = createEditorUploadCoordinator({
+        uploadFile: uploadProgramBodyRecord
+    });
 
     programBodyEditor = await createMarkdownEditor('#programBodyEditor', {
         placeholder: 'Markdown으로 제작 배경, 사용법, 스크린샷, 긴 이야기 쓰기...',
+        fallbackNamePrefix: 'program-body-file',
         onImageButton: () => {
             pendingProgramBodyImageIndex = currentProgramBodyIndex();
             formFields.bodyImageInput.click();
         },
-        uploadFile: uploadProgramBodyFile
+        uploadFile: uploadProgramBodyFile,
+        onFilesPaste: files => insertProgramBodyFiles(files, {
+            index: currentProgramBodyIndex()
+        }),
+        onFilesPasteError: error => setOwnerStatus(`붙여넣기 실패: ${cmsErrorMessage(error)}`, 'error')
     });
 
     formFields.bodyImageInput?.addEventListener('change', async () => {
-        await insertProgramBodyImages(formFields.bodyImageInput.files, {
+        await insertProgramBodyFiles(formFields.bodyImageInput.files, {
             index: pendingProgramBodyImageIndex
         });
         pendingProgramBodyImageIndex = null;
@@ -454,13 +462,13 @@ async function initProgramBodyEditor() {
     });
 
     formFields.bodyEditorWrap?.addEventListener('dragenter', (event) => {
-        if (!hasImageTransfer(event.dataTransfer)) return;
+        if (!hasEditorFileTransfer(event.dataTransfer)) return;
         event.preventDefault();
         formFields.bodyEditorWrap.classList.add('is-image-dragover');
     });
 
     formFields.bodyEditorWrap?.addEventListener('dragover', (event) => {
-        if (!hasImageTransfer(event.dataTransfer)) return;
+        if (!hasEditorFileTransfer(event.dataTransfer)) return;
         event.preventDefault();
         formFields.bodyEditorWrap.classList.add('is-image-dragover');
     });
@@ -471,18 +479,10 @@ async function initProgramBodyEditor() {
     });
 
     formFields.bodyEditorWrap?.addEventListener('drop', async (event) => {
-        if (!hasImageTransfer(event.dataTransfer)) return;
+        if (!hasEditorFileTransfer(event.dataTransfer)) return;
         stopEditorTransferEvent(event);
         formFields.bodyEditorWrap.classList.remove('is-image-dragover');
-        await insertProgramBodyImages(programImageFilesFromTransfer(event.dataTransfer), {
-            index: currentProgramBodyIndex()
-        });
-    }, true);
-
-    programBodyEditor.root.addEventListener('paste', async (event) => {
-        if (!hasImageTransfer(event.clipboardData)) return;
-        stopEditorTransferEvent(event);
-        await insertProgramBodyImages(programImageFilesFromTransfer(event.clipboardData), {
+        await insertProgramBodyFiles(programFilesFromTransfer(event.dataTransfer), {
             index: currentProgramBodyIndex()
         });
     }, true);
@@ -494,12 +494,13 @@ async function loadMarkdownEditorModule() {
     }
 
     const module = await markdownEditorModulePromise;
+    createEditorUploadCoordinator = module.createEditorUploadCoordinator;
     createMarkdownEditor = module.createMarkdownEditor;
+    editorFilesFromTransfer = module.editorFilesFromTransfer;
     editorUploadLabel = module.editorUploadLabel;
-    hasImageTransfer = module.hasImageTransfer;
-    imageFilesFromTransfer = module.imageFilesFromTransfer;
+    hasEditorFileTransfer = module.hasEditorFileTransfer;
     isSupportedEditorUpload = module.isSupportedEditorUpload;
-    normalizeEditorImageFiles = module.normalizeEditorImageFiles;
+    normalizeEditorFiles = module.normalizeEditorFiles;
     stopEditorTransferEvent = module.stopEditorTransferEvent;
 }
 
@@ -510,14 +511,9 @@ function setProgramBodyImageStatus(message = '', type = 'info') {
     formFields.bodyImageStatus.classList.toggle('is-visible', Boolean(message));
 }
 
-function isSupportedProgramImage(file) {
-    return file && PROGRAM_IMAGE_MIME_TYPES.has(file.type);
-}
-
-function programImageFilesFromTransfer(dataTransfer) {
-    return imageFilesFromTransfer(dataTransfer, {
-        mimeTypes: PROGRAM_IMAGE_MIME_TYPES,
-        fallbackNamePrefix: 'program-body-image'
+function programFilesFromTransfer(dataTransfer) {
+    return editorFilesFromTransfer(dataTransfer, {
+        fallbackNamePrefix: 'program-body-file'
     });
 }
 
@@ -530,43 +526,35 @@ function currentProgramBodyIndex() {
     return clampProgramBodyIndex(range?.index);
 }
 
-async function insertProgramBodyImages(files, options = {}) {
-    const imageFiles = normalizeEditorImageFiles(files, {
-        mimeTypes: PROGRAM_IMAGE_MIME_TYPES,
-        fallbackNamePrefix: 'program-body-image'
-    }).filter(isSupportedProgramImage);
+async function insertProgramBodyFiles(files, options = {}) {
+    const editorFiles = normalizeEditorFiles(files, {
+        fallbackNamePrefix: 'program-body-file'
+    });
 
-    if (!imageFiles.length) {
-        setOwnerStatus('JPG, PNG, GIF, WebP 이미지만 본문에 넣을 수 있음.', 'error');
+    if (!editorFiles.length) {
+        setOwnerStatus('JPG, PNG, GIF, WebP, MP4, WebM, MOV, M4V, MP3, PDF만 본문에 넣을 수 있음.', 'error');
         return;
     }
 
     let insertIndex = clampProgramBodyIndex(options.index);
-    const uploadedImages = [];
     formFields.bodyEditorWrap?.classList.add('is-image-uploading');
-
-    for (let i = 0; i < imageFiles.length; i += 1) {
-        const file = imageFiles[i];
-        setProgramBodyImageStatus(`이미지 업로드 중... (${i + 1}/${imageFiles.length}) ${file.name}`);
-
-        try {
-            const media = await uploadMedia(file);
-            const url = getMediaUrl(media, media.file);
-            uploadedImages.push({ url, alt: file.name });
-        } catch (error) {
-            setOwnerStatus(`본문 이미지 업로드 실패: ${cmsErrorMessage(error)}`, 'error');
-        }
-    }
-
-    formFields.bodyEditorWrap?.classList.remove('is-image-uploading');
-
-    if (uploadedImages.length > 0) {
-        insertIndex = programBodyEditor.insertImages(insertIndex, uploadedImages);
-        programBodyEditor.setSelection(insertIndex, 0, 'silent');
-        setProgramBodyImageStatus(`${uploadedImages.length}개 이미지가 본문에 들어갔습니다.`, 'success');
-        setTimeout(() => setProgramBodyImageStatus(), 2500);
-    } else {
-        setProgramBodyImageStatus();
+    try {
+        await programBodyUploadCoordinator.runBatch(editorFiles, {
+            onFileStart: (file, index, total) => setProgramBodyImageStatus(`${editorUploadLabel(file)} 업로드 준비 중... (${index + 1}/${total}) ${file.name}`),
+            onFileProgress: (file, progress, index, total) => setProgramBodyImageStatus(`${editorUploadLabel(file)} ${formatMediaUploadProgress(progress)} (${index + 1}/${total}) ${file.name}`),
+            onFileReused: (file, _result, index, total) => setProgramBodyImageStatus(`이미 올린 ${editorUploadLabel(file)} 재사용 중... (${index + 1}/${total}) ${file.name}`),
+            onFileError: (file, error) => setOwnerStatus(`본문 ${editorUploadLabel(file)} 업로드 실패: ${cmsErrorMessage(error)}`, 'error'),
+            onDuplicateBatch: () => setProgramBodyImageStatus('같은 붙여넣기가 겹쳐서 한 번만 처리했음.', 'success'),
+            onComplete: uploaded => {
+                const uploadedFiles = uploaded.map(item => item.result);
+                insertIndex = programBodyEditor.insertFiles(insertIndex, uploadedFiles);
+                programBodyEditor.setSelection(insertIndex, 0, 'silent');
+                setProgramBodyImageStatus(`${uploadedFiles.length}개 미디어가 본문에 들어갔습니다.`, 'success');
+                setTimeout(() => setProgramBodyImageStatus(), 2500);
+            }
+        });
+    } finally {
+        formFields.bodyEditorWrap?.classList.remove('is-image-uploading');
     }
 }
 
@@ -575,19 +563,28 @@ async function uploadProgramBodyFile(file) {
         throw new Error('JPG, PNG, GIF, WebP, MP4, WebM, MOV, M4V, MP3, PDF만 올릴 수 있음.');
     }
 
-    const label = editorUploadLabel?.(file) || '파일';
-    setProgramBodyImageStatus(`${label} 업로드 중... ${file.name || ''}`);
-
     try {
-        const media = await uploadMedia(file, file.name, 'Program editor media');
-        const url = getMediaUrl(media, media.file);
-        setProgramBodyImageStatus(`${label} 업로드 완료.`, 'success');
+        const uploaded = await programBodyUploadCoordinator.uploadSingle(file, {
+            onFileStart: current => setProgramBodyImageStatus(`${editorUploadLabel(current)} 업로드 준비 중... ${current.name || ''}`),
+            onFileProgress: (current, progress) => setProgramBodyImageStatus(`${editorUploadLabel(current)} ${formatMediaUploadProgress(progress)} ${current.name || ''}`),
+            onFileReused: current => setProgramBodyImageStatus(`이미 올린 ${editorUploadLabel(current)}를 재사용함.`, 'success')
+        });
+        setProgramBodyImageStatus(`${editorUploadLabel(file)} 업로드 완료.`, 'success');
         setTimeout(() => setProgramBodyImageStatus(), 1800);
-        return url;
+        return uploaded.url;
     } catch (error) {
-        setProgramBodyImageStatus(`${label} 업로드 실패: ${cmsErrorMessage(error)}`, 'error');
+        setProgramBodyImageStatus(`${editorUploadLabel(file)} 업로드 실패: ${cmsErrorMessage(error)}`, 'error');
         throw error;
     }
+}
+
+async function uploadProgramBodyRecord(file, options = {}) {
+    const media = await uploadMedia(file, file.name, 'Program editor media', options);
+    return {
+        url: getMediaUrl(media, media.file),
+        name: file.name,
+        type: file.type
+    };
 }
 
 function escapeMultiline(value) {

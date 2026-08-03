@@ -157,6 +157,8 @@ function verifyPlists() {
   requireCondition('Caddy launchd uses runtime Caddyfile', caddyPlist.includes(`${runtimeRoot}/Caddyfile`));
   requireCondition('Caddy launchd avoids Documents TCC path', !caddyPlist.includes('/Documents/'));
   requireCondition('PocketBase launchd binds localhost', pocketbasePlist.includes('--http=127.0.0.1:8090'));
+  requireCondition('PocketBase launchd allows 30 minute media uploads', pocketbasePlist.includes('--httpRequestTimeout=30m'));
+  requireCondition('PocketBase launchd uses resumable upload staging outside pb_data', pocketbasePlist.includes(`--tusUploadDir=${runtimeRoot}/tus-uploads`));
   requireCondition('PocketBase launchd points at runtime pb_data', pocketbasePlist.includes(`${runtimeRoot}/pb_data`));
   requireCondition('PocketBase launchd points at runtime migrations', pocketbasePlist.includes(`--migrationsDir=${runtimeRoot}/pb_migrations`));
   requireCondition('PocketBase launchd avoids Documents TCC path', !pocketbasePlist.includes('/Documents/'));
@@ -168,6 +170,8 @@ function verifyLocalArtifacts(profile) {
   requireCondition('launchd verifier exists', fileExists('scripts/verify-imac-launchd.mjs'));
   requireCondition('service smoke verifier exists', fileExists('scripts/verify-imac-service-smoke.mjs'));
   requireCondition('local PocketBase binary executable', isExecutable(path.join(root, '.local-bin', 'pocketbase')));
+  requireCondition('custom PocketBase source exists', fileExists('deploy/imac/pocketbase-custom/main.go'));
+  requireCondition('custom PocketBase build script exists', isExecutable('deploy/imac/build-pocketbase-custom.sh'));
   requireCondition('local Caddy binary executable', isExecutable(path.join(root, '.local-bin', 'caddy')));
 
   if (profile === 'production') {

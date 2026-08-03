@@ -27,17 +27,12 @@ esac
 mkdir -p "$BIN_DIR" "$WORK_DIR"
 rm -rf "$WORK_DIR"/*
 
-PB_ZIP="pocketbase_${POCKETBASE_VERSION}_darwin_${PB_ARCH}.zip"
-PB_URL="https://github.com/pocketbase/pocketbase/releases/download/v${POCKETBASE_VERSION}/${PB_ZIP}"
 CADDY_TARBALL="caddy_${CADDY_VERSION}_mac_${CADDY_ARCH}.tar.gz"
 CADDY_URL="https://github.com/caddyserver/caddy/releases/download/v${CADDY_VERSION}/${CADDY_TARBALL}"
 CADDY_CHECKSUMS_URL="https://github.com/caddyserver/caddy/releases/download/v${CADDY_VERSION}/caddy_${CADDY_VERSION}_checksums.txt"
 
-echo "Installing PocketBase v${POCKETBASE_VERSION} for darwin_${PB_ARCH}"
-curl -fsSL "$PB_URL" -o "$WORK_DIR/$PB_ZIP"
-unzip -q -o "$WORK_DIR/$PB_ZIP" -d "$WORK_DIR/pocketbase"
-cp "$WORK_DIR/pocketbase/pocketbase" "$BIN_DIR/pocketbase"
-chmod +x "$BIN_DIR/pocketbase"
+echo "Building PocketBase v${POCKETBASE_VERSION} with the 30 minute upload timeout"
+POCKETBASE_VERSION="$POCKETBASE_VERSION" bash "$SCRIPT_DIR/build-pocketbase-custom.sh"
 
 echo "Installing Caddy v${CADDY_VERSION} for mac_${CADDY_ARCH}"
 curl -fsSL "$CADDY_URL" -o "$WORK_DIR/$CADDY_TARBALL"
