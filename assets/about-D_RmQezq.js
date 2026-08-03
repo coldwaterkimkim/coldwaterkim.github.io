@@ -1,0 +1,165 @@
+import{K as e,U as t,_t as n,j as r,r as i,ut as a,v as o,x as s}from"./pb-BxkYzS7X.js";import{n as c,r as l,t as u}from"./site-BDLTlCrd.js";import{r as d,t as ee}from"./media-embeds-h4FUltIX.js";import{a as te,n as f,t as ne}from"./editor-upload-coordinator-BRF_fKnC.js";function re(e,t,n){if(!Array.isArray(e))return!1;let r=Math.sign(Number(n)||0),i=e.findIndex(e=>e?.id===t),a=i+r;if(r===0||i<0||a<0||a>=e.length)return!1;let[o]=e.splice(i,1);return e.splice(a,0,o),!0}var ie=new Set([`http:`,`https:`,`mailto:`]),ae=/\.(?:jpe?g|png|gif|webp)(?:[?#].*)?$/i,p=/\.(?:mp4|webm|mov|m4v)(?:[?#].*)?$/i,m=/\.mp3(?:[?#].*)?$/i,h=/\.pdf(?:[?#].*)?$/i;function g(e=``){return String(e||``).replace(/\r\n?/g,`
+`).replace(/[\uE000\uE001]/g,`�`).replace(/[ \t]+$/gm,``).trim()}function _(e=``,t={}){let n=g(e);if(!n)return`<p></p>`;let r={footnotes:[],headingIds:new Map,idPrefix:_e(t.idPrefix||`section`)};return`${v(n.split(`
+`),r,0)}${me(r)}`}function oe({url:e=``,name:t=``,type:n=``}={}){let r=S(e);if(!r)return``;let i=String(t||C(r)||`미디어`).replace(/[\]\r\n|]+/g,` `).replace(/\s+/g,` `).trim(),a=String(n||``).toLowerCase();return a.startsWith(`image/`)||ae.test(r)||a.startsWith(`video/`)||p.test(r)||a.startsWith(`audio/`)||m.test(r)||a===`application/pdf`||h.test(r)?`[[파일:${r}|${i}]]`:`[[${r}|${i}]]`}function se(e=``){let t=g(e),n=[];(t.match(/^\{\{\{#!folding\b/gm)||[]).length>(t.match(/^\}\}\}\s*$/gm)||[]).length&&n.push(`접기 문법을 닫는 }}}가 부족해.`);for(let e of t.matchAll(/\[\[([^\]|]+)(?:\|[^\]]*)?\]\]/g)){let t=e[1].replace(/^파일:/,``).trim();(e[1].startsWith(`파일:`)?S(t):x(t))||n.push(`허용되지 않는 링크 주소: ${t}`)}return[...new Set(n)]}function ce(e=``,t=globalThis.document){let n=String(e||``).trim();if(!n)return``;if(!t?.createElement)return xe(n);let r=t.createElement(`template`);return r.innerHTML=n,g(w([...r.content.childNodes],0))}function v(e,t,n=0){let r=[],i=[],a=()=>{i.length&&(r.push(`<p>${i.map(e=>y(e,t)).join(`<br>`)}</p>`),i=[])};for(let o=0;o<e.length;){let s=e[o];if(!s.trim()){a(),o+=1;continue}let c=s.match(/^(={2,6})\s*(.*?)\s*\1$/);if(c){a();let e=Math.min(6,c[1].length+1),n=ge(ve(c[2]),t);r.push(`<h${e} id="${k(n)}">${y(c[2],t)}</h${e}>`),o+=1;continue}if(/^-{4,}\s*$/.test(s)){a(),r.push(`<hr>`),o+=1;continue}if(s.trim()===`[목차]`){a(),o+=1;continue}if(/^\{\{\{#!folding(?:\s|$)/.test(s)){a();let i=s.replace(/^\{\{\{#!folding\s*/,``).trim()||`접기`,c=he(e,o+1,{nested:!0});if(!c.closed){r.push(`<pre class="about-wiki-literal"><code>${O([s,...c.lines].join(`
+`))}</code></pre>`),o=c.nextIndex;continue}r.push(`<details class="about-wiki-fold"><summary>${y(i,t)}</summary><div>${v(c.lines,t,n)}</div></details>`),o=c.nextIndex;continue}if(s.trim()===`{{{`){a();let t=he(e,o+1);r.push(`<pre class="about-wiki-literal"><code>${O(t.lines.join(`
+`))}</code></pre>`),o=t.nextIndex;continue}if(s.startsWith(`||`)){a();let n=[];for(;o<e.length&&e[o].startsWith(`||`);)n.push(e[o]),o+=1;r.push(de(n,t));continue}if(/^\s+(?:\*|\d+\.)\s+/.test(s)){a();let n=[];for(;o<e.length&&/^\s+(?:\*|\d+\.)\s+/.test(e[o]);)n.push(e[o]),o+=1;r.push(pe(n,t));continue}if(/^>\s?/.test(s)){if(n>=6){i.push(s),o+=1;continue}a();let c=[];for(;o<e.length&&/^>\s?/.test(e[o]);)c.push(e[o].replace(/^>\s?/,``)),o+=1;r.push(`<blockquote>${v(c,t,n+1)}</blockquote>`);continue}i.push(s),o+=1}return a(),r.join(``)}function y(e,t,n={}){let r=[],i=e=>`\uE000${r.push(e)-1}\uE001`,a=String(e||``);a=a.replace(/\\([\\\[\]'_~{}|])/g,(e,t)=>i(O(t))),a=a.replace(/\{\{\{([^\n]*?)\}\}\}/g,(e,t)=>i(`<code>${O(t)}</code>`)),a=a.replace(/\[br\]/gi,()=>i(`<br>`)),a=a.replace(/\[\[([^\]|]+)(?:\|([^\]]*))?\]\]/g,(e,t,n)=>{let r=t.trim();return r.startsWith(`파일:`)?i(ue(r.slice(3).trim(),n)):i(le(r,n))}),n.allowFootnotes!==!1&&(a=a.replace(/\[\*\s*([^\]]+?)\]/g,(e,n)=>{let r=t.footnotes.length+1;return t.footnotes.push(y(n,t,{allowFootnotes:!1})),i(`<sup class="about-wiki-footnote-ref"><a href="#about-footnote-${t.idPrefix}-${r}" id="about-footnote-ref-${t.idPrefix}-${r}" aria-label="각주 ${r}">[${r}]</a></sup>`)})),a=a.replace(/'''''([^'\n]+?)'''''/g,(e,n)=>i(`<strong><em>${y(n,t,{allowFootnotes:!1})}</em></strong>`)),a=a.replace(/'''([^'\n]+?)'''/g,(e,n)=>i(`<strong>${y(n,t,{allowFootnotes:!1})}</strong>`)),a=a.replace(/''([^'\n]+?)''/g,(e,n)=>i(`<em>${y(n,t,{allowFootnotes:!1})}</em>`)),a=a.replace(/__([^_\n]+?)__/g,(e,n)=>i(`<u>${y(n,t,{allowFootnotes:!1})}</u>`)),a=a.replace(/~~([^~\n]+?)~~/g,(e,n)=>i(`<del>${y(n,t,{allowFootnotes:!1})}</del>`));let o=O(a);return o=o.replace(/\uE000(\d+)\uE001/g,(e,t)=>r[Number(t)]||``),o}function le(e,t){let n=x(e),r=O(String(t||e));if(!n)return`<span class="about-wiki-invalid-link" title="허용되지 않는 링크">${r}</span>`;let i=/^(?:https?:|mailto:)/i.test(n)&&!n.startsWith(`mailto:`)?` target="_blank" rel="noopener noreferrer"`:``;return`<a href="${k(n)}"${i}>${r}</a>`}function ue(e,t=``){let n=S(e),r=String(t||C(e)||`미디어`).trim();if(!n)return`<span class="about-wiki-invalid-link">[허용되지 않는 미디어: ${O(r)}]</span>`;let i=k(n),a=k(r);return ae.test(n)?`<img src="${i}" alt="${a}">`:p.test(n)?`<video src="${i}" controls preload="none" playsinline aria-label="${a}"></video>`:m.test(n)?`<audio src="${i}" controls preload="none" aria-label="${a}"></audio>`:h.test(n)?`<a href="${i}" target="_blank" rel="noopener noreferrer">📄 ${O(r)}</a>`:`<a href="${i}" target="_blank" rel="noopener noreferrer">${O(r)}</a>`}function de(e,t){let n=e.map(e=>fe(e.replace(/^\|\|/,``).replace(/\|\|\s*$/,``))),r=n[0]?.length>0&&n[0].every(e=>/^'''[\s\S]*'''$/.test(e));return`<div class="about-wiki-table-scroll" tabindex="0" aria-label="가로로 스크롤할 수 있는 표"><table><tbody>${n.map((e,n)=>{let i=r&&n===0?`th`:`td`;return`<tr>${e.map(e=>{let n=i===`th`?e.replace(/^'''|'''$/g,``):e;return`<${i}${i===`th`?` scope="col"`:``}>${y(n,t)}</${i}>`}).join(``)}</tr>`}).join(``)}</tbody></table></div>`}function fe(e){let t=[],n=``;for(let r=0;r<e.length;r+=1){if(e[r]===`\\`&&r+1<e.length){n+=`${e[r]}${e[r+1]}`,r+=1;continue}if(e[r]===`|`&&e[r+1]===`|`){t.push(n.trim()),n=``,r+=1;continue}n+=e[r]}return t.push(n.trim()),t}function pe(e,t){let n=[],r=[{indent:-1,children:n}];for(let t of e){let e=t.match(/^(\s+)(\*|\d+\.)\s+(.*)$/);if(!e)continue;let n={indent:e[1].replace(/\t/g,`  `).length,type:e[2]===`*`?`ul`:`ol`,text:e[3],children:[]};for(;r.length>1&&r.at(-1).indent>=n.indent;)r.pop();r.at(-1).children.push(n),r.push(n)}return b(n,t)}function b(e,t){let n=``;for(let r=0;r<e.length;){let i=e[r].type,a=[];for(;r<e.length&&e[r].type===i;)a.push(e[r]),r+=1;n+=`<${i}>${a.map(e=>`<li>${y(e.text,t)}${b(e.children,t)}</li>`).join(``)}</${i}>`}return n}function me(e){return e.footnotes.length?`<section class="about-wiki-footnotes" aria-label="각주"><hr><ol>${e.footnotes.map((t,n)=>{let r=n+1;return`<li id="about-footnote-${e.idPrefix}-${r}">${t} <a href="#about-footnote-ref-${e.idPrefix}-${r}" aria-label="본문의 각주 ${r}로 돌아가기">↩</a></li>`}).join(``)}</ol></section>`:``}function he(e,t,n={}){let r=[],i=t,a=1;for(;i<e.length;){let t=e[i];if(t.trim()===`\\}}}`){r.push(t.replace(`\\}}}`,`}}}`)),i+=1;continue}if(n.nested&&/^\{\{\{(?:#!folding(?:\s|$)|\s*$)/.test(t)&&(a+=1),t.trim()===`}}}`&&(--a,a===0))return{lines:r,nextIndex:i+1,closed:!0};r.push(t),i+=1}return{lines:r,nextIndex:i,closed:!1}}function x(e){let t=String(e||``).trim();if(!t||/[\u0000-\u001f\u007f"'<>\[\]|]/.test(t)||t.startsWith(`//`))return``;if(t.startsWith(`#`)||t.startsWith(`/`)||t.startsWith(`./`)||t.startsWith(`../`)||!/^[a-z][a-z0-9+.-]*:/i.test(t))return t;try{let e=new URL(t);return ie.has(e.protocol)?t:``}catch{return``}}function S(e){let t=x(e);return!t||/^mailto:/i.test(t)?``:t}function ge(e,t){let n=String(e||`section`).normalize(`NFKD`).toLowerCase().replace(/[^a-z0-9가-힣]+/g,`-`).replace(/^-+|-+$/g,``)||`section`,r=(t.headingIds.get(n)||0)+1;return t.headingIds.set(n,r),`about-subsection-${t.idPrefix}-${n}${r>1?`-${r}`:``}`}function _e(e){return String(e||`section`).normalize(`NFKD`).toLowerCase().replace(/[^a-z0-9가-힣_-]+/g,`-`).replace(/^-+|-+$/g,``)||`section`}function ve(e){return String(e||``).replace(/(?:'''|''|__|~~|\[\[|\]\])/g,``).trim()}function C(e){try{let t=new URL(String(e||``),`https://coldwaterkim.com`);return decodeURIComponent(t.pathname.split(`/`).pop()||``)}catch{return``}}function w(e,t){return e.map(e=>T(e,t)).join(``)}function T(e,t){if(e.nodeType===3)return E(e.nodeValue||``);if(e.nodeType!==1)return``;let n=e.tagName.toLowerCase(),r=()=>w([...e.childNodes],t),i=e=>`${e.trim()}\n\n`;if(n===`br`)return`
+`;if(n===`b`||n===`strong`)return`'''${r()}'''`;if(n===`i`||n===`em`)return`''${r()}''`;if(n===`u`)return`__${r()}__`;if(n===`s`||n===`del`||n===`strike`)return`~~${r()}~~`;if(n===`p`||n===`div`)return i(r());if(n===`hr`)return`
+----
+
+`;if(n===`blockquote`)return i(r().split(`
+`).filter(Boolean).map(e=>`> ${e}`).join(`
+`));if(/^h[1-6]$/.test(n)){let e=`=`.repeat(Math.min(6,Math.max(2,Number(n.slice(1))+1)));return i(`${e} ${r().trim()} ${e}`)}if(n===`a`){let t=e.getAttribute(`href`)||``,n=D(r().trim()||t);return x(t)?`[[${t}|${n}]]`:n}if(n===`img`||n===`video`||n===`audio`||n===`iframe`){let t=e.getAttribute(`src`)||e.querySelector?.(`source`)?.getAttribute(`src`)||``,n=e.getAttribute(`alt`)||e.getAttribute(`title`)||C(t)||`미디어`;return S(t)?`[[파일:${t}|${D(n)}]]`:``}if(n===`pre`)return`{{{\n${be(e.textContent||``)}\n}}}\n\n`;if(n===`code`)return`{{{${String(e.textContent||``).replace(/}}}/g,`} } }`)}}}`;if(n===`ul`||n===`ol`){let r=n===`ul`?`*`:`1.`;return`${[...e.children].filter(e=>e.tagName?.toLowerCase()===`li`).map(e=>{let n=[...e.children].filter(e=>[`ul`,`ol`].includes(e.tagName.toLowerCase())),i=e.cloneNode(!0);return i.querySelectorAll(`ul,ol`).forEach(e=>e.remove()),`${`${` `.repeat(t+1)}${r} ${w([...i.childNodes],t+1).trim()}`}\n${n.map(e=>T(e,t+1)).join(``)}`}).join(``)}\n`}if(n===`table`)return`${ye(e)}\n\n`;if(n===`details`){let n=e.querySelector(`:scope > summary`)?.textContent?.trim()||`접기`,r=e.cloneNode(!0);return r.querySelector(`:scope > summary`)?.remove(),`{{{#!folding ${E(n)}\n${w([...r.childNodes],t).trim()}\n}}}\n\n`}return r()}function ye(e){return[...e.querySelectorAll(`tr`)].map(e=>`|| ${[...e.children].filter(e=>[`td`,`th`].includes(e.tagName.toLowerCase())).map(e=>{let t=w([...e.childNodes],0).trim().replace(/\n+/g,`[br]`).replace(/\|/g,`\\|`);return e.tagName.toLowerCase()===`th`?`'''${t}'''`:t}).join(` || `)} ||`).join(`
+`)}function E(e){return String(e||``).replace(/([\\\[\]'_~{}])/g,`\\$1`)}function D(e){return E(e).replace(/[\]|]+/g,` `).replace(/\s+/g,` `).trim()}function be(e){return String(e||``).replace(/^\s*}}}\s*$/gm,`\\}}}`)}function xe(e){return String(e||``).replace(/<br\s*\/?\s*>/gi,`
+`).replace(/<[^>]*>/g,``).replace(/&nbsp;/gi,` `).replace(/&amp;/gi,`&`).replace(/&lt;/gi,`<`).replace(/&gt;/gi,`>`)}function O(e){return String(e||``).replace(/&/g,`&amp;`).replace(/</g,`&lt;`).replace(/>/g,`&gt;`).replace(/"/g,`&quot;`).replace(/'/g,`&#039;`)}function k(e){return O(e).replace(/`/g,`&#096;`)}var Se=`about_wiki_document`,Ce=2,we=new Set([`image/jpeg`,`image/png`,`image/gif`,`image/webp`,`video/mp4`,`video/webm`,`video/quicktime`,`video/x-m4v`,`audio/mpeg`,`audio/mp3`,`application/pdf`]),Te={contentSchemaVersion:Ce,title:`김찬수`,subtitle:``,profileTitle:`coldwaterkim`,profileImage:`assets/profile-crop.jpg`,profileSchemaVersion:2,profileRows:u(),sections:[{id:`overview`,title:`개요`,format:`namumark-v1`,source:`대한민국의 밀레니엄 베이비. 개인 홈페이지 '''coldwaterkim.com'''의 주인장이다.
+
+글방, 나으 하루, 프로그램실, 나사잡을 통해 생각·일상·만든 것·갑자기 사로잡힌 이미지를 계속 쌓고 있다. 모던한 포트폴리오보다는 직접 만든 홈페이지의 기척을 더 좋아하는 편.`},{id:`what-made`,title:`만든 것`,format:`namumark-v1`,source:` * '''글방''': 생각과 기록을 올리는 곳.
+ * '''나으 하루''': 하루 단위로 남기는 생활 로그.
+ * '''프로그램실''': 직접 만든 작은 프로그램과 실험작을 보관하는 자료실.
+ * '''나사잡''': 나를 사로잡은 사진, 캡처, 장면을 한 장씩 수집하는 코너.`},{id:`history`,title:`연혁`,format:`namumark-v1`,source:`|| '''시기''' || '''내용''' ||
+|| 2000 || 태어남. 당시 본인은 기억이 없다. ||
+|| 2025 || 개인 홈페이지를 진짜 운영물로 만들기 시작. ||
+|| 2026 || 홈페이지가 점점 위키, 블로그, 자료실, 방명록을 겸하는 무언가가 되어가는 중. ||`},{id:`taste`,title:`취향`,format:`namumark-v1`,source:`90년대 개인 홈페이지, 기본 파란 링크, 마퀴, 방문자 카운터, 수상하게 진심인 테이블 UI를 좋아한다. 너무 매끈한 포트폴리오보다 약간 삐걱대지만 실제로 운영되는 웹을 더 신뢰한다.`},{id:`contact`,title:`연락처`,format:`namumark-v1`,source:`메일은 [[mailto:ckstn1112@gmail.com?subject=Hello%20from%20your%20site|ckstn1112@gmail.com]]으로 보내면 된다. 방명록에 한 줄 남기는 것도 환영.`},{id:`trivia`,title:`여담`,format:`namumark-v1`,source:`이 문서는 나무위키처럼 보이지만 실제로는 본인이 직접 관리한다. 그래서 틀린 내용이 있다면 높은 확률로 본인이 미래의 본인에게 남긴 과제다.`}]},Ee=new WeakMap;De(),Je(),window.addEventListener(`coldwaterkim:content-ready`,De);function De(){document.querySelectorAll(`[data-about-wiki-root]`).forEach(t=>{if(t.dataset.aboutWikiReady===`true`)return;t.dataset.aboutWikiReady=`true`;let n={root:t,doc:Y(),isOwner:e(),selectedSectionId:null,selectedProfileIndex:null,sourceEditor:null,previewVisible:!1,returnFocusSectionId:null,pendingEditorSelection:null,isMediaUploading:!1,mediaUploadOperations:0,mediaUploadCoordinator:ne({uploadFile:Ye}),saveTimer:null,saveQueue:Promise.resolve(),saveVersion:0,hasUnsavedChanges:!1};Ee.set(t,n),Oe(n)})}async function Oe(e){A(e);try{let n=ke(await t(Se));n&&(e.doc=n,A(e))}catch(t){F(e,`CMS 설정을 불러오지 못했음: ${i(t)}`,`error`)}}function ke(e){if(!e)return null;try{return Ae(JSON.parse(e))}catch(e){return console.warn(`About wiki document parse failed:`,e),null}}function Ae(e){let t=Y();return!e||typeof e!=`object`?t:(t.title=Z(e.title)||t.title,t.contentSchemaVersion=Number(e.contentSchemaVersion||1),t.subtitle=Z(e.subtitle)||t.subtitle,t.profileTitle=Z(e.profileTitle)||t.profileTitle,t.profileImage=Z(e.profileImage)||t.profileImage,t.profileSchemaVersion=2,Array.isArray(e.profileRows)&&(t.profileRows=c(e.profileRows,{mergeDefaults:Number(e.profileSchemaVersion||0)<2})),Array.isArray(e.sections)&&(t.sections=e.sections.map((e,t)=>$e(e,t)).filter(e=>e.title||q(e)||e.body)),t.sections.length===0&&(t.sections=Y().sections),t)}function A(e){let{root:t,doc:n,isOwner:r}=e;e.sourceEditor=null,e.pendingEditorSelection=null,t.innerHTML=`
+    ${r?je(e):``}
+    <div class="about-wiki-head">
+      <h1>${o(n.title)}</h1>
+    </div>
+    <div class="about-wiki-status" data-about-status role="status" aria-live="polite" hidden></div>
+    <div class="about-profile-block">
+      ${Me(n,r)}
+      ${Ne(n.sections,r)}
+    </div>
+    <div class="about-wiki-body">
+      ${Pe(n.sections,r)}
+    </div>
+    ${r?Ie(e):``}
+  `,Fe(e),ze(e),Le(e)}function je(e){let t=G(e);return`
+    <div class="owner-bar about-owner-bar">
+      <b>OWNER MODE</b> ·
+      <button type="button" class="owner-btn" data-about-action="add-section">섹션 추가</button>
+      <button type="button" class="owner-btn" data-about-action="edit-profile">프로필 표 수정</button>
+      <button type="button" class="owner-btn" data-about-action="reset-selection">편집 닫기</button>
+      <span class="note">${t?`"${o(t.title)}" 편집 중`:`섹션 제목에서 [편집] 누르면 바로 고침`}</span>
+    </div>
+  `}function Me(e,t){let n=e.profileRows.map((e,n)=>`
+    <tr>
+      <th>${o(e.label||``)}</th>
+      <td>
+        <span data-about-profile-value-index="${n}"></span>
+        ${t?`<button type="button" class="about-edit-link" data-about-action="edit-profile-row" data-profile-index="${n}">[편집]</button>`:``}
+      </td>
+    </tr>
+  `).join(``);return`
+    <table class="about-infobox" border="1" cellspacing="0" cellpadding="5" align="right">
+      <tr>
+        <th colspan="2" class="about-infobox-title">${o(e.profileTitle)}</th>
+      </tr>
+      <tr>
+        <td colspan="2" class="about-infobox-photo">
+          <img src="${$(e.profileImage)}" alt="${$(e.profileTitle)} profile">
+        </td>
+      </tr>
+      ${n}
+    </table>
+  `}function Ne(e,t){return`
+    <table class="about-toc" border="1" cellspacing="0" cellpadding="6">
+      <tr bgcolor="#f0f0f0">
+        <th>목차</th>
+      </tr>
+      <tr>
+        <td>
+          <ol>${e.map(e=>`
+    <li>
+      <a href="#about-section-${$(e.id)}">${o(e.title)}</a>
+      ${t?`<button type="button" class="about-edit-link" data-about-action="edit-section" data-section-id="${$(e.id)}">[편집]</button>`:``}
+    </li>
+  `).join(``)}</ol>
+        </td>
+      </tr>
+    </table>
+  `}function Pe(e,t){return e.map((n,r)=>`
+    <div class="about-section" id="about-section-${$(n.id)}" data-section-id="${$(n.id)}">
+      <h2>
+        <span>${r+1}. ${o(n.title)}</span>
+        ${t?`
+          <span class="about-section-tools">
+            <button type="button" class="about-order-btn" data-about-action="move-section" data-section-id="${$(n.id)}" data-direction="-1" title="위로 이동" aria-label="${$(n.title)} 위로 이동" ${r<=0?`disabled`:``}>↑</button>
+            <button type="button" class="about-order-btn" data-about-action="move-section" data-section-id="${$(n.id)}" data-direction="1" title="아래로 이동" aria-label="${$(n.title)} 아래로 이동" ${r>=e.length-1?`disabled`:``}>↓</button>
+            <button type="button" class="about-edit-link" data-about-action="edit-section" data-section-id="${$(n.id)}">[편집]</button>
+          </span>
+        `:``}
+      </h2>
+      <div class="about-section-body post-content" data-about-section-body-index="${r}"></div>
+    </div>
+  `).join(``)}function Fe(e){e.root.querySelectorAll(`[data-about-profile-value-index]`).forEach(t=>{let n=Number(t.getAttribute(`data-about-profile-value-index`));t.innerHTML=d(l(e.doc.profileRows[n]?.value||``))}),e.root.querySelectorAll(`[data-about-section-body-index]`).forEach(t=>{let n=Number(t.getAttribute(`data-about-section-body-index`)),r=e.doc.sections[n];t.innerHTML=d(et(r))}),ee(e.root)}function Ie(e){let t=G(e),n=e.selectedProfileIndex,r=Number.isInteger(n)?e.doc.profileRows[n]:null;if(r)return`
+      <form class="about-editor" data-about-editor="profile" data-version-refresh-block="${e.hasUnsavedChanges}">
+        <b>프로필 표 row 편집</b>
+        <table border="1" cellspacing="0" cellpadding="5" width="100%">
+          <tr>
+            <th width="120">라벨</th>
+            <td><input type="text" name="label" value="${$(r.label)}"></td>
+          </tr>
+          <tr>
+            <th>값</th>
+            <td><textarea name="value" rows="4">${nt(r.value)}</textarea></td>
+          </tr>
+        </table>
+        <div class="about-editor-actions">
+          <button type="submit" class="owner-btn">저장</button>
+          <button type="button" class="owner-btn owner-btn-danger" data-about-action="delete-profile-row">삭제</button>
+          <button type="button" class="owner-btn" data-about-action="add-profile-row">row 추가</button>
+        </div>
+      </form>
+    `;if(!t)return`
+      <div class="about-editor about-editor-empty">
+        <b>문서 편집 대기중</b><br>
+        <span class="note">섹션 제목 옆 [편집]을 누르거나, OWNER MODE에서 섹션을 추가하면 편집기가 열림.</span>
+      </div>
+    `;let i=e.doc.sections.findIndex(e=>e.id===t.id),a=J(t);return`
+    <form class="about-editor" data-about-editor="section" data-version-refresh-block="${e.hasUnsavedChanges}">
+      <b>섹션 편집: ${o(t.title)}</b>
+      <table border="1" cellspacing="0" cellpadding="5" width="100%">
+        <tr>
+          <th width="120">제목</th>
+          <td><input type="text" name="title" value="${$(t.title)}"></td>
+        </tr>
+        <tr>
+          <th><label for="about-section-source-${$(t.id)}">나무마크 원문</label></th>
+          <td>
+            <div class="about-source-toolbar" aria-label="원문 편집 도구">
+              <button type="button" class="owner-btn" data-about-action="toggle-preview" aria-pressed="${e.previewVisible}">${e.previewVisible?`미리보기 닫기`:`미리보기`}</button>
+              <button type="button" class="owner-btn" data-about-action="insert-media">미디어 넣기</button>
+              <a href="#about-wiki-syntax-help" data-about-action="syntax-help">[문법 도움말]</a>
+            </div>
+            <div class="about-editor-container about-source-editor" data-about-editor-container>
+              <textarea id="about-section-source-${$(t.id)}" class="about-source-textarea" name="source" rows="16" spellcheck="true" data-about-source-editor>${nt(a)}</textarea>
+            </div>
+            <input type="file" data-about-media-input accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime,video/x-m4v,audio/mpeg,audio/mp3,application/pdf" multiple hidden>
+            <div class="about-editor-image-status" data-about-image-status aria-live="polite"></div>
+            <div class="about-source-warning" data-about-source-warning role="alert" hidden></div>
+            <section class="about-source-preview" data-about-source-preview aria-label="저장 전 미리보기" ${e.previewVisible?``:`hidden`}>
+              <b>저장 전 미리보기</b>
+              <div class="about-source-preview-body post-content" data-about-source-preview-body></div>
+            </section>
+            <details class="about-syntax-help" id="about-wiki-syntax-help">
+              <summary>문법 도움말</summary>
+              <code>'''굵게''' · ''기울임'' · [[주소|이름]] · [* 각주]</code><br>
+              <code> * 목록</code> · <code>|| 셀 || 셀 ||</code> · <code>{{{#!folding 제목</code> ... <code>}}}</code>
+            </details>
+            <div class="note">미리보기는 저장되지 않아. 저장하면 기존 About JSON에 새 원문과 호환용 HTML을 덮어씀.</div>
+          </td>
+        </tr>
+      </table>
+      <div class="about-editor-actions">
+        <button type="submit" class="owner-btn">저장</button>
+        <button type="button" class="owner-btn" data-about-action="cancel-edit">취소</button>
+        <button type="button" class="owner-btn" data-about-action="move-section" data-direction="-1" ${i<=0?`disabled`:``}>위로</button>
+        <button type="button" class="owner-btn" data-about-action="move-section" data-direction="1" ${i>=e.doc.sections.length-1?`disabled`:``}>아래로</button>
+        <button type="button" class="owner-btn owner-btn-danger" data-about-action="delete-section">삭제</button>
+      </div>
+    </form>
+  `}function Le(e){if(!e.isOwner)return;let t=G(e),n=e.root.querySelector(`[data-about-source-editor]`),r=e.root.querySelector(`[data-about-editor="section"]`),i=e.root.querySelector(`[data-about-media-input]`);!t||!n||!r||!i||(e.sourceEditor=n,e.previewVisible&&U(e),Re(e,r,i,n),requestAnimationFrame(()=>n.focus({preventScroll:!0})))}function Re(e,t,n,r){let i=t.querySelector(`[data-about-editor-container]`);i&&(n.addEventListener(`change`,async()=>{await V(e,n.files,e.pendingEditorSelection),e.pendingEditorSelection=null,n.value=``}),i.addEventListener(`dragenter`,e=>{R(e.dataTransfer)&&(e.preventDefault(),i.classList.add(`is-image-dragover`))}),i.addEventListener(`dragover`,e=>{R(e.dataTransfer)&&(e.preventDefault(),i.classList.add(`is-image-dragover`))}),i.addEventListener(`dragleave`,e=>{e.relatedTarget instanceof Node&&i.contains(e.relatedTarget)||i.classList.remove(`is-image-dragover`)}),i.addEventListener(`drop`,async t=>{R(t.dataTransfer)&&(t.preventDefault(),t.stopPropagation(),i.classList.remove(`is-image-dragover`),await V(e,f(t.dataTransfer),L(r)))},!0),r.addEventListener(`paste`,async t=>{R(t.clipboardData)&&(t.preventDefault(),t.stopPropagation(),await V(e,f(t.clipboardData),L(r)))},!0))}function ze(e){e.isOwner&&(e.eventsBound||(e.eventsBound=!0,e.root.addEventListener(`click`,t=>{let n=t.target.closest(`[data-about-action]`);if(!n||!e.root.contains(n))return;let r=n.dataset.aboutAction,i=new Set([`edit-section`,`add-section`,`delete-section`,`move-section`,`edit-profile`,`edit-profile-row`,`reset-selection`,`cancel-edit`,`insert-media`]);if(e.isMediaUploading&&i.has(r)){W(e,`미디어 업로드가 끝난 뒤 이동하거나 저장해줘.`,`error`);return}if(r===`edit-section`){if(e.selectedSectionId===n.dataset.sectionId||!P(e))return;e.returnFocusSectionId=n.dataset.sectionId||null,e.selectedProfileIndex=null,e.selectedSectionId=n.dataset.sectionId||null,e.previewVisible=!1,A(e),K(e)}if(r===`toggle-preview`&&(e.previewVisible=!e.previewVisible,Ze(e,n)),r===`insert-media`){let t=e.root.querySelector(`[data-about-media-input]`);e.pendingEditorSelection=L(e.sourceEditor),t?.click()}if(r===`syntax-help`){let t=e.root.querySelector(`.about-syntax-help`);t&&(t.open=!0)}if(r===`cancel-edit`){let t=e.returnFocusSectionId||e.selectedSectionId;e.selectedSectionId=null,e.previewVisible=!1,N(e,!1),A(e),Qe(e,t)}if(r===`add-section`){if(!P(e))return;Be(e)}if(r===`delete-section`&&Ve(e),r===`move-section`&&He(e,n.dataset.sectionId||e.selectedSectionId,Number(n.dataset.direction||0)),r===`edit-profile`){if(!P(e))return;We(e)}if(r===`add-profile-row`){if(!P(e))return;j(e)}if(r===`edit-profile-row`){if(!P(e))return;e.selectedSectionId=null,e.selectedProfileIndex=Number(n.dataset.profileIndex),A(e),K(e)}if(r===`delete-profile-row`&&Ge(e),r===`reset-selection`){if(!P(e))return;e.selectedSectionId=null,e.selectedProfileIndex=null,A(e)}}),e.root.addEventListener(`input`,t=>{t.target.closest(`[data-about-editor]`)&&(N(e),t.target.matches(`[data-about-source-editor]`)&&e.previewVisible&&U(e))}),e.root.addEventListener(`submit`,t=>{let n=t.target.closest(`[data-about-editor]`);if(!(!n||!e.root.contains(n))){if(t.preventDefault(),e.isMediaUploading){W(e,`미디어 업로드가 끝난 뒤 저장해줘.`,`error`);return}n.dataset.aboutEditor===`section`&&Ue(e,n),n.dataset.aboutEditor===`profile`&&Ke(e,n)}})))}function Be(e){let t=tt(e.doc.sections,`new-section`),n={id:t,title:`새 섹션`,format:`namumark-v1`,source:`여기에 내용을 적으면 목차에 자동으로 추가됨.`,body:`<p>여기에 내용을 적으면 목차에 자동으로 추가됨.</p>`};e.doc.sections.push(n),e.selectedSectionId=t,e.selectedProfileIndex=null,M(e,`섹션 추가됨`)}function Ve(e){let t=G(e);t&&window.confirm(`"${t.title}" 섹션을 삭제할까?`)&&(e.doc.sections=e.doc.sections.filter(e=>e.id!==t.id),e.selectedSectionId=null,M(e,`섹션 삭제됨`))}function He(e,t,n){qe(e),re(e.doc.sections,t,n)&&M(e,`순서 변경됨`)}function Ue(e,t){let n=G(e);if(!n)return;let r=Z(new FormData(t).get(`title`))||`제목 없음`,i=I(e,J(n));!q(n)&&n.body&&!n.legacyBody&&(n.legacyBody=n.body),n.title=r,n.format=`namumark-v1`,n.source=i,n.body=_(i,{idPrefix:n.id}),n.id=tt(e.doc.sections.filter(e=>e!==n),X(n.id,r)),e.selectedSectionId=n.id,M(e,`섹션 저장됨`)}function j(e){e.doc.profileRows.push({label:`새 항목`,value:`내용`}),e.selectedSectionId=null,e.selectedProfileIndex=e.doc.profileRows.length-1,M(e,`프로필 row 추가됨`)}function We(e){if(e.doc.profileRows.length===0){j(e);return}e.selectedSectionId=null,e.selectedProfileIndex=0,A(e),K(e)}function Ge(e){Number.isInteger(e.selectedProfileIndex)&&(e.doc.profileRows.splice(e.selectedProfileIndex,1),e.selectedProfileIndex=null,M(e,`프로필 row 삭제됨`))}function Ke(e,t){let n=e.selectedProfileIndex;if(!Number.isInteger(n)||!e.doc.profileRows[n])return;let r=new FormData(t);e.doc.profileRows[n]={label:Z(r.get(`label`))||`항목`,value:Q(r.get(`value`))},M(e,`프로필 row 저장됨`)}async function M(e,t){e.hasUnsavedChanges=!0;let n=++e.saveVersion;e.doc.contentSchemaVersion=Ce,e.doc.profileSchemaVersion=2;let r=JSON.stringify(e.doc);return A(e),F(e,`저장 중...`,`pending`),e.saveQueue=e.saveQueue.catch(()=>{}).then(async()=>{try{if(await a(Se,r),n!==e.saveVersion)return;N(e,!1),window.dispatchEvent(new CustomEvent(`coldwaterkim:profile-data-updated`,{detail:{document:e.doc}})),F(e,t||`저장됨`,`success`)}catch(t){if(n!==e.saveVersion)return;N(e,!0),F(e,`저장 실패: ${i(t)}`,`error`)}}),e.saveQueue}function qe(e){let t=G(e),n=e.root.querySelector(`[data-about-editor="section"]`);if(!t||!n)return;t.title=Z(new FormData(n).get(`title`))||t.title;let r=I(e,J(t));!q(t)&&t.body&&!t.legacyBody&&(t.legacyBody=t.body),t.format=`namumark-v1`,t.source=r,t.body=_(r,{idPrefix:t.id})}function N(e,t=!0){e.hasUnsavedChanges=t;let n=e.root.querySelector(`[data-about-editor]`);n&&(n.dataset.versionRefreshBlock=String(t))}function P(e){return e.hasUnsavedChanges?window.confirm(`저장하지 않은 수정 내용이 있어. 버리고 다른 편집으로 이동할까?`)?(N(e,!1),!0):!1:!0}function Je(){window.__coldwaterkimAboutUnloadGuard||(window.__coldwaterkimAboutUnloadGuard=!0,window.addEventListener(`beforeunload`,e=>{document.querySelector(`[data-version-refresh-block="true"]`)&&(e.preventDefault(),e.returnValue=``)}))}function F(e,t,n=`success`){let r=e.root.querySelector(`[data-about-status]`);r&&(r.hidden=!1,r.textContent=t,r.className=`about-wiki-status about-wiki-status--${n}`,r.setAttribute(`role`,n===`error`?`alert`:`status`),n===`success`&&(window.clearTimeout(e.saveTimer),e.saveTimer=window.setTimeout(()=>{let t=e.root.querySelector(`[data-about-status]`);t&&(t.hidden=!0)},1600)))}function I(e,t=``){let n=e.sourceEditor?.value;return g(typeof n==`string`?n:t)}function L(e){return e?{start:Number(e.selectionStart||0),end:Number(e.selectionEnd||0)}:{start:0,end:0}}function R(e){return f(e).some(z)}function z(e){if(!e)return!1;let t=String(e.type||``).toLowerCase();return we.has(t)?!0:/\.(?:jpe?g|png|gif|webp|mp4|webm|mov|m4v|mp3|pdf)$/i.test(e.name||``)}function B(e){let t=String(e?.type||``).toLowerCase(),n=String(e?.name||``).toLowerCase();return t.startsWith(`video/`)||/\.(?:mp4|webm|mov|m4v)$/i.test(n)?`영상`:t.startsWith(`audio/`)||/\.mp3$/i.test(n)?`오디오`:t===`application/pdf`||/\.pdf$/i.test(n)?`PDF`:`이미지`}async function V(e,t,n=null){let r=e.sourceEditor,a=e.selectedSectionId;if(!r)return;let o=e.hasUnsavedChanges,c=te(t).filter(z);if(!c.length){W(e,`JPG, PNG, GIF, WebP, MP4, WebM, MOV, M4V, MP3, PDF만 넣을 수 있어.`,`error`);return}let l=e.root.querySelector(`[data-about-editor-container]`);e.mediaUploadOperations+=1,e.isMediaUploading=!0,N(e),H(e,!0),l?.classList.add(`is-image-uploading`);let u;try{u=await e.mediaUploadCoordinator.runBatch(c,{onFileStart(t,n,r){W(e,`${B(t)} 업로드 중... (${n+1}/${r}) ${t.name}`,`info`)},onFileProgress(t,n,r,i){W(e,`${t.name} (${r+1}/${i}) · ${s(n)}`,`info`)},onFileReused(t,n,r,i){W(e,`${t.name} (${r+1}/${i}) · 이미 올린 파일 재사용`,`info`)},onFileError(t,n){W(e,`${B(t)} 업로드 실패 (${t.name}): ${i(n)}`,`error`)},onDuplicateBatch(){W(e,`같은 붙여넣기 요청이 겹쳐서 중복 삽입을 막았어.`,`info`)}})}finally{e.mediaUploadOperations=Math.max(0,e.mediaUploadOperations-1),e.isMediaUploading=e.mediaUploadOperations>0,e.isMediaUploading||l?.classList.remove(`is-image-uploading`),!e.isMediaUploading&&e.sourceEditor===r&&r.isConnected&&H(e,!1)}if(u?.duplicate)return;let d=(u?.uploaded||[]).map(({result:e})=>oe(e)).filter(Boolean);if(!d.length){N(e,o);return}if(e.sourceEditor!==r||!r.isConnected||e.selectedSectionId!==a){F(e,`업로드는 끝났지만 편집 화면이 바뀌어서 자동 삽입하지 못했어. 원문에 직접 붙여줘: ${d.join(` `)}`,`error`);return}Xe(r,d,n||L(r)),N(e),U(e),W(e,`${d.length}개 미디어 문법이 원문에 들어갔어.`,`success`),setTimeout(()=>W(e),2500)}async function Ye(e,t={}){let i=await n(e,e.name,`About wiki media`,t);return{url:r(i,i.file),name:e.name,type:e.type}}function H(e,t){let n=e.root.querySelector(`[data-about-editor="section"]`),r=e.sourceEditor;r&&(r.disabled=t),n?.querySelectorAll(`button, input[type="file"]`).forEach(e=>{e.disabled=t}),n?.setAttribute(`aria-busy`,String(t))}function Xe(e,t,n){let r=Math.max(0,Math.min(e.value.length,Number(n?.start||0))),i=Math.max(r,Math.min(e.value.length,Number(n?.end||r))),a=r>0&&e.value[r-1]!==`
+`?`
+`:``,o=i<e.value.length&&e.value[i]!==`
+`?`
+`:``,s=`${a}${t.join(`
+`)}${o}`;e.setRangeText(s,r,i,`end`),e.focus(),e.dispatchEvent(new Event(`input`,{bubbles:!0}))}function U(e){let t=e.root.querySelector(`[data-about-source-preview-body]`),n=e.root.querySelector(`[data-about-source-warning]`),r=G(e);if(!t||!n||!r)return;let i=I(e,J(r)),a=se(i);n.hidden=a.length===0,n.textContent=a.join(` `),t.innerHTML=d(_(i,{idPrefix:`preview-${r.id}`})),ee(t)}function Ze(e,t){let n=e.root.querySelector(`[data-about-source-preview]`);n&&(n.hidden=!e.previewVisible,t.setAttribute(`aria-pressed`,String(e.previewVisible)),t.textContent=e.previewVisible?`미리보기 닫기`:`미리보기`,e.previewVisible&&U(e))}function W(e,t=``,n=`info`){let r=e.root.querySelector(`[data-about-image-status]`);r&&(r.textContent=t,r.className=`about-editor-image-status about-editor-image-status--${n}`,r.classList.toggle(`is-visible`,!!t))}function G(e){return e.doc.sections.find(t=>t.id===e.selectedSectionId)||null}function K(e){requestAnimationFrame(()=>{e.root.querySelector(`.about-editor`)?.scrollIntoView({block:`nearest`,behavior:`smooth`})})}function Qe(e,t){t&&requestAnimationFrame(()=>{e.root.querySelector(`[data-about-action="edit-section"][data-section-id="${CSS.escape(t)}"]`)?.focus()})}function $e(e,t){let n={id:X(e?.id,e?.title,t),title:Z(e?.title)||`새 섹션 ${t+1}`};return Object.prototype.hasOwnProperty.call(e||{},`source`)?(n.format=Z(e?.format)||`namumark-v1`,n.source=g(e?.source),n.body=Q(e?.body),e?.legacyBody&&(n.legacyBody=Q(e.legacyBody)),n):(n.body=Q(e?.body),n)}function q(e){return Object.prototype.hasOwnProperty.call(e||{},`source`)}function J(e){return q(e)?g(e.source):ce(e?.body||``)}function et(e){return _(J(e),{idPrefix:e?.id||`section`})}function Y(){return JSON.parse(JSON.stringify(Te))}function X(e,t,n=0){return(Z(e)||Z(t)||`section-${n+1}`).normalize(`NFKD`).toLowerCase().replace(/[^a-z0-9가-힣]+/g,`-`).replace(/^-+|-+$/g,``)||`section-${n+1}`}function tt(e,t){let n=X(t,t),r=n,i=2,a=new Set(e.map(e=>e.id));for(;a.has(r);)r=`${n}-${i}`,i+=1;return r}function Z(e){return String(e||``).trim()}function Q(e){return String(e||``).trim()}function $(e){return o(String(e||``)).replace(/"/g,`&quot;`)}function nt(e){return String(e||``).replace(/&/g,`&amp;`).replace(/</g,`&lt;`).replace(/>/g,`&gt;`)}
