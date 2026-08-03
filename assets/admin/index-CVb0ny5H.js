@@ -1,0 +1,1 @@
+import{K as e}from"../pb-UUPSdoxh.js";/* empty css               */e()||(window.location.replace(`/admin/login.html?next=/`),await new Promise(()=>{}));
