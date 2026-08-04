@@ -853,6 +853,34 @@ export async function addGuestbookEntry(name, message) {
 }
 
 /**
+ * 방명록 주인장 답글 저장 (관리자용)
+ * @param {string} id
+ * @param {string} message
+ * @returns {Promise<object>}
+ */
+export async function saveGuestbookReply(id, message) {
+    const safeMessage = String(message || '').trim().slice(0, 1000);
+    if (!safeMessage) throw new Error('답글 내용을 입력해주세요.');
+
+    return await pb.collection('guestbook').update(id, {
+        owner_reply: safeMessage,
+        owner_replied_at: new Date().toISOString()
+    });
+}
+
+/**
+ * 방명록 주인장 답글 삭제 (관리자용)
+ * @param {string} id
+ * @returns {Promise<object>}
+ */
+export async function clearGuestbookReply(id) {
+    return await pb.collection('guestbook').update(id, {
+        owner_reply: '',
+        owner_replied_at: ''
+    });
+}
+
+/**
  * 방명록 삭제 (관리자용)
  * @param {string} id
  * @returns {Promise<boolean>}

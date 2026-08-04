@@ -13,6 +13,8 @@ import {
   getPublishedNasajabTimeline,
   getGuestbookEntries,
   addGuestbookEntry,
+  saveGuestbookReply,
+  clearGuestbookReply,
   getSetting,
   setSetting,
   isLoggedIn,
@@ -1804,17 +1806,49 @@ async function loadGuestbook(guestbookEntries) {
     guestbookEntries.innerHTML = entries.map(entry => {
       const dateLabel = formatDate(guestbookDisplayDate(entry));
       const metaPrefix = dateLabel ? `[${dateLabel}] ` : '';
+      const replyMessage = String(entry.owner_reply || '').trim();
+      const replyDate = formatDate(entry.owner_replied_at);
       const deleteBtn = isAdmin
         ? `<button class="del-btn" data-id="${entry.id}" style="font-size:10px; color:red; border:1px solid red; background:white; cursor:pointer; margin-left:5px;">[삭제]</button>`
         : '';
+      const replyBlock = replyMessage
+        ? `
+          <div class="guestbook-owner-reply">
+            <div class="guestbook-owner-reply-meta">↳ <b>coldwaterkim의 답글</b>${replyDate ? ` · ${replyDate}` : ''}</div>
+            <div>${linkify(escapeHtml(replyMessage))}</div>
+            ${isAdmin ? `
+              <div class="guestbook-reply-actions">
+                <button type="button" class="reply-toggle-btn">[답글 수정]</button>
+                <button type="button" class="reply-delete-btn" data-id="${entry.id}">[답글 삭제]</button>
+              </div>
+            ` : ''}
+          </div>
+        `
+        : isAdmin
+          ? '<div class="guestbook-reply-actions"><button type="button" class="reply-toggle-btn">[답글 달기]</button></div>'
+          : '';
+      const replyForm = isAdmin
+        ? `
+          <form class="guestbook-reply-form" data-id="${entry.id}" hidden>
+            <label><b>coldwaterkim의 답글</b></label>
+            <textarea rows="3" maxlength="1000" required>${escapeHtml(replyMessage)}</textarea>
+            <div>
+              <button type="submit">[저장]</button>
+              <button type="button" class="reply-cancel-btn">[취소]</button>
+            </div>
+          </form>
+        `
+        : '';
 
       return `
-        <div class="entry">
+        <div class="entry" data-guestbook-entry-id="${entry.id}">
           <div class="meta">
             ${metaPrefix}by <b>${escapeHtml(entry.name)}</b>
             ${deleteBtn}
           </div>
           <div>${linkify(escapeHtml(entry.message))}</div>
+          ${replyBlock}
+          ${replyForm}
         </div>
       `;
     }).join('');
@@ -1829,6 +1863,58 @@ async function loadGuestbook(guestbookEntries) {
             loadGuestbook(guestbookEntries);
           } catch (e) {
             alert('삭제 실패: ' + cmsErrorMessage(e));
+          }
+        });
+      });
+
+      guestbookEntries.querySelectorAll('.reply-toggle-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const form = btn.closest('.entry')?.querySelector('.guestbook-reply-form');
+          if (!form) return;
+          form.hidden = !form.hidden;
+          if (!form.hidden) form.querySelector('textarea')?.focus();
+        });
+      });
+
+      guestbookEntries.querySelectorAll('.reply-cancel-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const form = btn.closest('.guestbook-reply-form');
+          if (form) form.hidden = true;
+        });
+      });
+
+      guestbookEntries.querySelectorAll('.guestbook-reply-form').forEach(form => {
+        form.addEventListener('submit', async (event) => {
+          event.preventDefault();
+          const textarea = form.querySelector('textarea');
+          const submitBtn = form.querySelector('button[type="submit"]');
+          const message = textarea?.value.trim() || '';
+          if (!message) {
+            alert('답글 내용을 입력해주세요.');
+            return;
+          }
+
+          if (submitBtn) submitBtn.disabled = true;
+          try {
+            await saveGuestbookReply(form.dataset.id, message);
+            loadGuestbook(guestbookEntries);
+          } catch (e) {
+            alert('답글 저장 실패: ' + cmsErrorMessage(e));
+            if (submitBtn) submitBtn.disabled = false;
+          }
+        });
+      });
+
+      guestbookEntries.querySelectorAll('.reply-delete-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          if (!confirm('이 답글을 삭제하시겠습니까?')) return;
+          btn.disabled = true;
+          try {
+            await clearGuestbookReply(btn.dataset.id);
+            loadGuestbook(guestbookEntries);
+          } catch (e) {
+            alert('답글 삭제 실패: ' + cmsErrorMessage(e));
+            btn.disabled = false;
           }
         });
       });
