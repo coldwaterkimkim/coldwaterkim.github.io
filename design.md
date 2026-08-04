@@ -275,6 +275,8 @@ entry table
 
 내부 이동은 SPA-like router가 담당한다. 왼쪽 profile/sidebar와 BGM player는 유지하고, 오른쪽 `.content`만 새 HTML에서 가져와 교체한다. 전체 페이지 reload로 BGM이 끊기는 경험은 피한다.
 
+로그인한 주인장에게만 BGM 아래 `MP3 추가`, `BGM 편성표` 기본 버튼을 보여준다. 편성표는 별도 관리자 대시보드나 모던한 modal이 아니라 현재 `.content` 상단에 펼쳐지는 점선 editor box다. 곡을 행, 새벽/아침/낮/저녁/밤을 열로 둔 옛 table 문법과 checkbox로 중복 배정을 보여주며, 현재 한국 시간대 열만 노란 배너색으로 표시한다. 곡이 많거나 모바일 폭이 좁으면 표 내부만 가로 스크롤하고 공개 shell 구조는 바꾸지 않는다.
+
 ```html
 <center>
   <marquee behavior="alternate" scrollamount="4" width="1140">...</marquee>

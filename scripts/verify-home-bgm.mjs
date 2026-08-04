@@ -2,7 +2,15 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { randomBgmTrackIndex } from '../js/bgm-playlist-logic.mjs';
+import {
+  DEFAULT_BGM_TIME_SLOTS,
+  activeBgmTimeSlot,
+  bgmMinuteInTimeZone,
+  normalizeBgmSchedule,
+  randomBgmCandidateIndex,
+  randomBgmTrackIndex,
+  scheduledBgmTrackIndexes,
+} from '../js/bgm-playlist-logic.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const homeSource = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
@@ -18,11 +26,15 @@ check(
   homeSource.indexOf('id="recent-daily-table"') < homeSource.indexOf('id="recent-posts-table"'),
   'the daily table must appear before the posts table on Home',
 );
-check(siteSource.includes('randomBgmTrackIndex(playlist.length)'), 'initial BGM selection must be random');
+check(siteSource.includes('randomBgmCandidateIndex(scheduledBgmTrackIndexes('), 'initial BGM selection must use the active time slot');
 check(
-  siteSource.includes('randomBgmTrackIndex(playlist.length, audio._bgmTrackIndex)'),
-  'the next BGM selection must be random and know the current track',
+  siteSource.includes('randomScheduledBgmTrackIndex(audio, audio._bgmTrackIndex)'),
+  'the next BGM selection must use the current time slot and know the current track',
 );
+check(siteSource.includes("const BGM_SCHEDULE_SETTING_KEY = 'bgm_schedule'"), 'the BGM schedule must have its own site setting');
+check(siteSource.includes("scheduleButton.textContent = 'BGM 편성표'"), 'OWNER MODE must expose the BGM schedule editor');
+check(siteSource.includes('data-bgm-assignment'), 'the schedule editor must render track/time assignment checkboxes');
+check(siteSource.includes("BGM_TIME_ZONE"), 'the site must select BGM using the configured Korean time zone');
 check(randomBgmTrackIndex(0, -1, () => 0.5) === -1, 'an empty playlist has no track');
 check(randomBgmTrackIndex(1, 0, () => 0.5) === 0, 'a one-track playlist keeps its only track');
 check(randomBgmTrackIndex(3, -1, () => 0) === 0, 'random selection can choose the first track');
@@ -35,5 +47,64 @@ for (let currentIndex = 0; currentIndex < 4; currentIndex += 1) {
     check(nextIndex !== currentIndex, 'the next track does not immediately repeat');
   }
 }
+
+const trackKeys = ['track-a', 'track-b', 'track-c'];
+const defaultSchedule = normalizeBgmSchedule(null, trackKeys);
+check(defaultSchedule.timezone === 'Asia/Seoul', 'the default BGM schedule uses Korean time');
+check(defaultSchedule.slots.length === 5, 'the default BGM schedule has five time slots');
+for (const trackKey of trackKeys) {
+  check(
+    defaultSchedule.assignments[trackKey].length === DEFAULT_BGM_TIME_SLOTS.length,
+    'a legacy or newly uploaded track defaults to every time slot',
+  );
+}
+
+const customSchedule = normalizeBgmSchedule({
+  slots: DEFAULT_BGM_TIME_SLOTS,
+  assignments: {
+    'track-a': ['dawn', 'night'],
+    'track-b': ['morning', 'day', 'evening'],
+    'track-c': [],
+  },
+}, trackKeys);
+check(customSchedule.assignments['track-a'].join(',') === 'dawn,night', 'one track can belong to overlapping time pools');
+check(customSchedule.assignments['track-c'].length === 0, 'an explicitly unassigned track stays unassigned');
+check(activeBgmTimeSlot(customSchedule.slots, 0).id === 'dawn', '00:00 selects dawn');
+check(activeBgmTimeSlot(customSchedule.slots, 359).id === 'dawn', '05:59 stays in dawn');
+check(activeBgmTimeSlot(customSchedule.slots, 360).id === 'morning', '06:00 selects morning');
+check(activeBgmTimeSlot(customSchedule.slots, 659).id === 'morning', '10:59 stays in morning');
+check(activeBgmTimeSlot(customSchedule.slots, 660).id === 'day', '11:00 selects day');
+check(activeBgmTimeSlot(customSchedule.slots, 1020).id === 'evening', '17:00 selects evening');
+check(activeBgmTimeSlot(customSchedule.slots, 1320).id === 'night', '22:00 selects night');
+check(activeBgmTimeSlot(customSchedule.slots, 1439).id === 'night', '23:59 stays in night');
+
+check(
+  scheduledBgmTrackIndexes(trackKeys, customSchedule, 60).join(',') === '0',
+  'dawn only selects tracks assigned to dawn',
+);
+check(
+  scheduledBgmTrackIndexes(trackKeys, customSchedule, 700).join(',') === '1',
+  'day only selects tracks assigned to day',
+);
+
+const emptyEveningSchedule = normalizeBgmSchedule({
+  slots: DEFAULT_BGM_TIME_SLOTS,
+  assignments: {
+    'track-a': ['dawn'],
+    'track-b': ['morning'],
+    'track-c': [],
+  },
+}, trackKeys);
+check(
+  scheduledBgmTrackIndexes(trackKeys, emptyEveningSchedule, 1100).join(',') === '0,1,2',
+  'an empty active time pool safely falls back to the full playlist',
+);
+check(randomBgmCandidateIndex([1, 2], 1, () => 0) === 2, 'candidate selection avoids repeating the current track');
+check(randomBgmCandidateIndex([1, 2], 2, () => 0.999) === 1, 'candidate selection remains inside the active pool');
+check(randomBgmCandidateIndex([2], 2, () => 0.5) === 2, 'a one-track time pool can repeat its only track');
+check(randomBgmCandidateIndex([], 0, () => 0.5) === -1, 'an empty candidate pool has no track');
+
+const knownKstMinute = bgmMinuteInTimeZone(new Date('2026-08-03T21:30:00.000Z'));
+check(knownKstMinute === 390, 'Korean time conversion handles the next calendar day');
 
 console.log(`Home/BGM QA passed (${assertions} assertions).`);

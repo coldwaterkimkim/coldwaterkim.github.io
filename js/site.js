@@ -47,7 +47,16 @@ import {
   normalizeEntryLastAdmittedAt,
   summarizeEntryUpdates,
 } from './entry-gate-logic.mjs';
-import { randomBgmTrackIndex } from './bgm-playlist-logic.mjs';
+import {
+  BGM_TIME_ZONE,
+  activeBgmTimeSlot,
+  bgmMinuteInTimeZone,
+  bgmSlotEndMinute,
+  formatBgmMinute,
+  normalizeBgmSchedule,
+  randomBgmCandidateIndex,
+  scheduledBgmTrackIndexes,
+} from './bgm-playlist-logic.mjs';
 
 const SITE_VERSION = typeof __SITE_VERSION__ !== 'undefined' ? __SITE_VERSION__ : 'dev';
 const VERSION_MANIFEST_PATH = '/site-version.json';
@@ -62,6 +71,7 @@ const PROFILE_PHOTO_SETTING_KEY = 'profile_photo_url';
 const BGM_URL_SETTING_KEY = 'bgm_audio_url';
 const BGM_TITLE_SETTING_KEY = 'bgm_audio_title';
 const BGM_PLAYLIST_SETTING_KEY = 'bgm_playlist';
+const BGM_SCHEDULE_SETTING_KEY = 'bgm_schedule';
 const ABOUT_DOCUMENT_SETTING_KEY = 'about_wiki_document';
 let spaNavigationToken = 0;
 let activeSidebarProfileRows = defaultSidebarProfileRows();
@@ -84,7 +94,7 @@ const entryGateController = initEntryGate();
   if (!isLoggedIn()) return;
 
   initProfilePhotoUpload(photo);
-  initBgmUpload(player, audio, trackTitle);
+  initBgmOwnerTools(player, audio, trackTitle);
 })();
 
 initSpaRouter();
@@ -100,6 +110,12 @@ window.addEventListener('coldwaterkim:profile-data-updated', (event) => {
 
 window.addEventListener('coldwaterkim:content-ready', () => {
   renderProfileDetailTables(document, activeSidebarProfileRows);
+});
+
+window.addEventListener('beforeunload', event => {
+  if (!document.querySelector('[data-bgm-schedule-editor][data-bgm-editor-dirty="true"]')) return;
+  event.preventDefault();
+  event.returnValue = '';
 });
 
 // ─────────────────────────────────────────────────────────
@@ -523,7 +539,14 @@ async function loadProfileMediaSettings(photo, audio, trackTitle) {
   if (audio) {
     tasks.push((async () => {
       const playlist = await getSavedBgmPlaylist(audio);
-      setBgmPlaylist(audio, trackTitle, playlist, randomBgmTrackIndex(playlist.length));
+      const schedule = await getSavedBgmSchedule(playlist);
+      setBgmSchedule(audio, schedule, playlist);
+      const startIndex = randomBgmCandidateIndex(scheduledBgmTrackIndexes(
+        bgmTrackKeys(playlist),
+        schedule,
+        bgmMinuteInTimeZone(new Date(), BGM_TIME_ZONE),
+      ));
+      setBgmPlaylist(audio, trackTitle, playlist, startIndex);
     })());
   }
 
@@ -669,6 +692,11 @@ async function getSavedBgmPlaylist(audio) {
   return normalizeBgmPlaylist(savedBgmPlaylist, savedBgmUrl, savedBgmTitle, audio);
 }
 
+async function getSavedBgmSchedule(playlist) {
+  const savedSchedule = await getSetting(BGM_SCHEDULE_SETTING_KEY);
+  return normalizeBgmSchedule(savedSchedule, bgmTrackKeys(playlist));
+}
+
 function normalizeBgmPlaylist(rawPlaylist, legacyUrl, legacyTitle, audio) {
   const playlist = parseBgmPlaylist(rawPlaylist);
   const legacyTrack = normalizeBgmTrack({
@@ -757,6 +785,32 @@ function getBgmPlaylist(audio) {
   return Array.isArray(audio?._bgmPlaylist) ? audio._bgmPlaylist : [];
 }
 
+function bgmTrackKeys(playlist) {
+  return normalizeBgmTracks(playlist).map(track => bgmTrackKey(track));
+}
+
+function setBgmSchedule(audio, schedule, playlist = getBgmPlaylist(audio)) {
+  if (!audio) return;
+  audio._bgmSchedule = normalizeBgmSchedule(schedule, bgmTrackKeys(playlist));
+}
+
+function getBgmSchedule(audio) {
+  return normalizeBgmSchedule(audio?._bgmSchedule, bgmTrackKeys(getBgmPlaylist(audio)));
+}
+
+function scheduledBgmIndexes(audio, date = new Date()) {
+  const playlist = getBgmPlaylist(audio);
+  return scheduledBgmTrackIndexes(
+    bgmTrackKeys(playlist),
+    getBgmSchedule(audio),
+    bgmMinuteInTimeZone(date, BGM_TIME_ZONE),
+  );
+}
+
+function randomScheduledBgmTrackIndex(audio, currentIndex = -1, date = new Date()) {
+  return randomBgmCandidateIndex(scheduledBgmIndexes(audio, date), currentIndex);
+}
+
 function setBgmPlaylist(audio, trackTitle, playlist, startIndex = 0) {
   if (!audio) return;
 
@@ -764,6 +818,7 @@ function setBgmPlaylist(audio, trackTitle, playlist, startIndex = 0) {
   const index = Math.max(0, Math.min(startIndex, tracks.length - 1));
   audio._bgmPlaylist = tracks;
   audio._bgmTrackTitle = trackTitle || null;
+  setBgmSchedule(audio, audio._bgmSchedule, tracks);
   audio.loop = tracks.length <= 1;
 
   bindBgmPlaylist(audio);
@@ -799,6 +854,8 @@ function loadBgmTrack(audio, index) {
   if (bgmTrackKey({ url: currentUrl }) !== bgmTrackKey(track)) {
     audio.src = nextUrl;
     audio.load();
+  } else if (audio.ended) {
+    audio.currentTime = 0;
   }
 
   if (audio._bgmTrackTitle) {
@@ -808,9 +865,10 @@ function loadBgmTrack(audio, index) {
 
 async function advanceBgmTrack(audio) {
   const playlist = getBgmPlaylist(audio);
-  if (playlist.length <= 1) return;
+  if (playlist.length === 0) return;
 
-  const nextIndex = randomBgmTrackIndex(playlist.length, audio._bgmTrackIndex);
+  const nextIndex = randomScheduledBgmTrackIndex(audio, audio._bgmTrackIndex);
+  if (nextIndex < 0) return;
   loadBgmTrack(audio, nextIndex);
 
   const prompt = ensureBgmPrompt(audio.closest('.mini-player'), audio);
@@ -872,7 +930,7 @@ function initProfilePhotoUpload(photo) {
   });
 }
 
-function initBgmUpload(player, audio, trackTitle) {
+function initBgmOwnerTools(player, audio, trackTitle) {
   if (!player || !audio) return;
 
   const input = document.createElement('input');
@@ -888,15 +946,22 @@ function initBgmUpload(player, audio, trackTitle) {
   button.type = 'button';
   button.className = 'owner-btn bgm-owner-btn';
   button.textContent = 'MP3 추가';
+  button.setAttribute('data-bgm-upload', '');
+
+  const scheduleButton = document.createElement('button');
+  scheduleButton.type = 'button';
+  scheduleButton.className = 'owner-btn bgm-owner-btn';
+  scheduleButton.textContent = 'BGM 편성표';
 
   const status = document.createElement('span');
   status.className = 'bgm-upload-status';
   status.setAttribute('aria-live', 'polite');
 
-  ownerRow.append(button, status);
+  ownerRow.append(button, ' ', scheduleButton, status);
   player.appendChild(ownerRow);
 
   button.addEventListener('click', () => input.click());
+  scheduleButton.addEventListener('click', () => toggleBgmScheduleEditor(audio, button));
 
   input.addEventListener('change', async () => {
     const file = input.files?.[0];
@@ -921,16 +986,26 @@ function initBgmUpload(player, audio, trackTitle) {
       };
       const savedPlaylist = await getSavedBgmPlaylist(audio);
       const nextPlaylist = prependBgmTrack(newTrack, savedPlaylist.length > 0 ? savedPlaylist : getBgmPlaylist(audio));
+      const nextSchedule = normalizeBgmSchedule(getBgmSchedule(audio), bgmTrackKeys(nextPlaylist));
 
       await Promise.all([
         setSetting(BGM_PLAYLIST_SETTING_KEY, JSON.stringify(nextPlaylist)),
+        setSetting(BGM_SCHEDULE_SETTING_KEY, JSON.stringify(nextSchedule)),
         setSetting(BGM_URL_SETTING_KEY, url),
         setSetting(BGM_TITLE_SETTING_KEY, newTrack.title),
       ]);
 
+      setBgmSchedule(audio, nextSchedule, nextPlaylist);
       setBgmPlaylist(audio, trackTitle, nextPlaylist, 0);
       initBgmAutoplay(audio);
       status.textContent = `추가됨 (${nextPlaylist.length}곡)`;
+      const editor = document.querySelector('[data-bgm-schedule-editor]');
+      if (editor) {
+        openBgmScheduleEditor(audio, button, {
+          replace: true,
+          message: '새 곡을 모든 시간대에 추가했음. 원하는 시간대만 남기시오.',
+        });
+      }
       setTimeout(() => status.textContent = '', 1600);
     } catch (e) {
       status.textContent = '실패';
@@ -939,6 +1014,212 @@ function initBgmUpload(player, audio, trackTitle) {
       button.disabled = false;
     }
   });
+}
+
+function toggleBgmScheduleEditor(audio, uploadButton) {
+  const existing = document.querySelector('[data-bgm-schedule-editor]');
+  if (existing) {
+    if (isBgmScheduleEditorDirty(existing) && !confirm('저장하지 않은 BGM 편성이 있어. 닫을까?')) return;
+    existing.remove();
+    return;
+  }
+
+  openBgmScheduleEditor(audio, uploadButton);
+}
+
+function openBgmScheduleEditor(audio, uploadButton, options = {}) {
+  const content = document.querySelector('.content');
+  if (!content || !audio) return;
+
+  const existing = document.querySelector('[data-bgm-schedule-editor]');
+  if (existing) {
+    if (!options.replace && isBgmScheduleEditorDirty(existing)) return;
+    existing.remove();
+  }
+
+  const playlist = getBgmPlaylist(audio);
+  const schedule = getBgmSchedule(audio);
+  const currentMinute = bgmMinuteInTimeZone(new Date(), BGM_TIME_ZONE);
+  const activeSlot = activeBgmTimeSlot(schedule.slots, currentMinute);
+  const panel = document.createElement('section');
+  panel.className = 'bgm-schedule-editor';
+  panel.setAttribute('data-bgm-schedule-editor', '');
+  panel.setAttribute('aria-labelledby', 'bgmScheduleTitle');
+
+  const slotHeaders = schedule.slots.map((slot, index) => `
+    <th class="bgm-schedule-slot${slot.id === activeSlot.id ? ' is-active' : ''}" scope="col">
+      ${escapeHtml(slot.label)}<br>
+      <span>${formatBgmMinute(slot.startMinute)}–${formatBgmMinute(bgmSlotEndMinute(schedule.slots, index))}</span><br>
+      <small>${playlist.filter(track => schedule.assignments[bgmTrackKey(track)]?.includes(slot.id)).length}곡</small>
+    </th>
+  `).join('');
+
+  const trackRows = playlist.map((track, trackIndex) => {
+    const trackKey = bgmTrackKey(track);
+    const assignedSlotIds = schedule.assignments[trackKey] || [];
+    const assignmentCells = schedule.slots.map(slot => `
+      <td class="${slot.id === activeSlot.id ? 'is-active' : ''}">
+        <input type="checkbox" data-bgm-assignment data-track-index="${trackIndex}" data-slot-id="${slot.id}"
+          aria-label="${escapeHtml(track.title)} ${escapeHtml(slot.label)} 시간대"
+          ${assignedSlotIds.includes(slot.id) ? 'checked' : ''}>
+      </td>
+    `).join('');
+    const unassigned = assignedSlotIds.length === 0 ? '<small class="bgm-unassigned">미배정</small>' : '';
+
+    return `
+      <tr>
+        <th scope="row" class="bgm-schedule-track">
+          <button type="button" class="owner-btn bgm-preview-btn" data-bgm-preview="${trackIndex}" title="이 곡 미리듣기">▶</button>
+          <span>${escapeHtml(track.title || defaultBgmTitle(audio))}</span>
+          ${unassigned}
+        </th>
+        ${assignmentCells}
+      </tr>
+    `;
+  }).join('');
+
+  const timeRows = schedule.slots.map((slot, index) => `
+    <tr>
+      <th scope="row">${index + 1}</th>
+      <td><input type="text" maxlength="20" value="${escapeHtml(slot.label)}" data-bgm-slot-label="${slot.id}" aria-label="${escapeHtml(slot.label)} 이름"></td>
+      <td><input type="time" value="${formatBgmMinute(slot.startMinute)}" data-bgm-slot-start="${slot.id}" ${index === 0 ? 'disabled' : ''}></td>
+      <td>${formatBgmMinute(bgmSlotEndMinute(schedule.slots, index))}</td>
+    </tr>
+  `).join('');
+
+  panel.innerHTML = `
+    <div class="bgm-schedule-heading">
+      <div>
+        <b id="bgmScheduleTitle">★ BGM TIME TABLE</b>
+        <span class="note">한국 시간 기준 · 현재 ${formatBgmMinute(currentMinute)} / ${escapeHtml(activeSlot.label)}</span>
+      </div>
+      <button type="button" class="owner-btn" data-bgm-editor-close>편집 닫기</button>
+    </div>
+    <p class="bgm-schedule-help">곡을 여러 시간대에 중복 체크할 수 있음. 현재 곡은 끊지 않고 다음 곡부터 새 편성을 적용함.</p>
+    <div class="bgm-schedule-table-wrap">
+      <table class="bgm-schedule-table" border="1" cellspacing="0" cellpadding="4">
+        <thead><tr><th scope="col">곡 / 시간대</th>${slotHeaders}</tr></thead>
+        <tbody>${trackRows || '<tr><td colspan="6">등록된 MP3가 없음.</td></tr>'}</tbody>
+      </table>
+    </div>
+    <div class="bgm-time-settings" data-bgm-time-settings hidden>
+      <b>시간대 설정</b>
+      <span class="note">시작 시각만 수정하면 앞 시간대의 종료 시각도 함께 바뀜.</span>
+      <table border="1" cellspacing="0" cellpadding="4">
+        <thead><tr><th>No.</th><th>이름</th><th>시작</th><th>종료</th></tr></thead>
+        <tbody>${timeRows}</tbody>
+      </table>
+    </div>
+    <div class="bgm-schedule-actions">
+      <button type="button" class="owner-btn" data-bgm-editor-upload>+ MP3 추가</button>
+      <button type="button" class="owner-btn" data-bgm-time-toggle>시간대 설정</button>
+      <button type="button" class="owner-btn" data-bgm-editor-save>편성 저장</button>
+      <span class="bgm-schedule-status" data-bgm-editor-status aria-live="polite">${escapeHtml(options.message || '')}</span>
+    </div>
+  `;
+
+  const anchor = content.querySelector('#homeOwnerTools') || content.querySelector('.top-nav')?.parentElement;
+  if (anchor) anchor.insertAdjacentElement('afterend', panel);
+  else content.prepend(panel);
+
+  bindBgmScheduleEditor(panel, audio, uploadButton);
+  panel.scrollIntoView({ block: 'start' });
+}
+
+function bindBgmScheduleEditor(panel, audio, uploadButton) {
+  const status = panel.querySelector('[data-bgm-editor-status]');
+  const saveButton = panel.querySelector('[data-bgm-editor-save]');
+
+  panel.querySelector('[data-bgm-editor-close]')?.addEventListener('click', () => {
+    if (isBgmScheduleEditorDirty(panel) && !confirm('저장하지 않은 BGM 편성이 있어. 닫을까?')) return;
+    panel.remove();
+  });
+  panel.querySelector('[data-bgm-editor-upload]')?.addEventListener('click', () => uploadButton?.click());
+  panel.querySelector('[data-bgm-time-toggle]')?.addEventListener('click', event => {
+    const settings = panel.querySelector('[data-bgm-time-settings]');
+    settings.hidden = !settings.hidden;
+    event.currentTarget.textContent = settings.hidden ? '시간대 설정' : '시간대 설정 닫기';
+  });
+
+  panel.querySelectorAll('[data-bgm-preview]').forEach(button => {
+    button.addEventListener('click', async () => {
+      const trackIndex = Number(button.dataset.bgmPreview);
+      loadBgmTrack(audio, trackIndex);
+      try {
+        await audio.play();
+        status.textContent = '미리듣기 재생 중';
+      } catch (error) {
+        status.textContent = '미리듣기 실패. BGM ON을 눌러보시오.';
+      }
+    });
+  });
+
+  panel.addEventListener('input', event => {
+    if (!event.target.matches('[data-bgm-assignment], [data-bgm-slot-label], [data-bgm-slot-start]')) return;
+    setBgmScheduleEditorDirty(panel, true);
+    status.textContent = '저장 안 됨';
+  });
+
+  saveButton?.addEventListener('click', async () => {
+    let nextSchedule;
+    try {
+      nextSchedule = collectBgmScheduleEditorValue(panel, audio, getBgmPlaylist(audio));
+    } catch (error) {
+      status.textContent = error.message;
+      status.classList.add('is-error');
+      return;
+    }
+
+    saveButton.disabled = true;
+    status.classList.remove('is-error');
+    status.textContent = '저장 중...';
+    try {
+      await setSetting(BGM_SCHEDULE_SETTING_KEY, JSON.stringify(nextSchedule));
+      setBgmSchedule(audio, nextSchedule);
+      setBgmScheduleEditorDirty(panel, false);
+      openBgmScheduleEditor(audio, uploadButton, { replace: true, message: '편성 저장 완료.' });
+    } catch (error) {
+      status.textContent = `저장 실패: ${cmsErrorMessage(error)}`;
+      status.classList.add('is-error');
+      saveButton.disabled = false;
+    }
+  });
+}
+
+function collectBgmScheduleEditorValue(panel, audio, playlist) {
+  const current = getBgmSchedule(audio);
+  const slots = current.slots.map((slot, index) => {
+    const label = panel.querySelector(`[data-bgm-slot-label="${slot.id}"]`)?.value.trim() || slot.label;
+    const timeValue = panel.querySelector(`[data-bgm-slot-start="${slot.id}"]`)?.value || '00:00';
+    const [hour, minute] = timeValue.split(':').map(Number);
+    return {
+      id: slot.id,
+      label,
+      startMinute: index === 0 ? 0 : (hour * 60) + minute,
+    };
+  });
+
+  if (slots.some((slot, index) => index > 0 && slot.startMinute <= slots[index - 1].startMinute)) {
+    throw new Error('시간대 시작 시각은 앞 시간대보다 늦어야 함.');
+  }
+
+  const assignments = {};
+  playlist.forEach((track, trackIndex) => {
+    assignments[bgmTrackKey(track)] = slots
+      .filter(slot => panel.querySelector(`[data-bgm-assignment][data-track-index="${trackIndex}"][data-slot-id="${slot.id}"]`)?.checked)
+      .map(slot => slot.id);
+  });
+
+  return normalizeBgmSchedule({ version: 1, timezone: BGM_TIME_ZONE, slots, assignments }, bgmTrackKeys(playlist));
+}
+
+function setBgmScheduleEditorDirty(panel, isDirty) {
+  panel.dataset.bgmEditorDirty = isDirty ? 'true' : 'false';
+  panel.setAttribute('data-version-refresh-block', isDirty ? 'true' : 'false');
+}
+
+function isBgmScheduleEditorDirty(panel) {
+  return panel?.dataset.bgmEditorDirty === 'true';
 }
 
 function defaultBgmTitle(audio) {
@@ -984,6 +1265,8 @@ function initSpaRouter() {
     if (!link || event.defaultPrevented || !shouldHandleSpaLink(link, event)) return;
 
     event.preventDefault();
+    const dirtyBgmEditor = document.querySelector('[data-bgm-schedule-editor][data-bgm-editor-dirty="true"]');
+    if (dirtyBgmEditor && !confirm('저장하지 않은 BGM 편성이 있어. 다른 페이지로 이동할까?')) return;
     navigateSpa(link.href);
   });
 

@@ -499,6 +499,131 @@ body > center > table[width="1140"] > tbody > tr > td {
   font-size: 11px;
 }
 
+.bgm-schedule-editor {
+  margin: 8px 0 14px;
+  padding: 8px;
+  border: 1px dashed var(--cwk-border-dashed);
+  background: var(--cwk-surface-preview);
+  font-size: 12px;
+}
+
+.bgm-schedule-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.bgm-schedule-heading .note {
+  margin-left: 6px;
+}
+
+.bgm-schedule-help {
+  margin: 5px 0;
+  color: var(--cwk-meta);
+}
+
+.bgm-schedule-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.bgm-schedule-table,
+.bgm-time-settings table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--cwk-surface-page);
+}
+
+.bgm-schedule-table th,
+.bgm-schedule-table td,
+.bgm-time-settings th,
+.bgm-time-settings td {
+  border-color: var(--cwk-border-dashed);
+  text-align: center;
+  vertical-align: middle;
+}
+
+.bgm-schedule-table thead th,
+.bgm-time-settings thead th {
+  background: var(--cwk-surface-table-head);
+}
+
+.bgm-schedule-slot {
+  min-width: 68px;
+  white-space: nowrap;
+}
+
+.bgm-schedule-slot span {
+  color: var(--cwk-meta);
+  font-size: 10px;
+  font-weight: normal;
+}
+
+.bgm-schedule-slot small {
+  color: var(--cwk-meta);
+  font-size: 10px;
+  font-weight: normal;
+}
+
+.bgm-schedule-table .is-active {
+  background: var(--cwk-surface-banner);
+}
+
+.bgm-schedule-track {
+  min-width: 210px;
+  text-align: left !important;
+  font-weight: normal;
+}
+
+.bgm-preview-btn {
+  min-width: 24px;
+  margin-right: 4px;
+  padding: 1px 4px;
+}
+
+.bgm-unassigned {
+  margin-left: 5px;
+  color: var(--cwk-danger, #cc0000);
+  font-weight: bold;
+}
+
+.bgm-time-settings {
+  margin-top: 8px;
+  padding-top: 7px;
+  border-top: 1px dashed var(--cwk-border-dashed);
+}
+
+.bgm-time-settings > .note {
+  margin-left: 5px;
+}
+
+.bgm-time-settings table {
+  margin-top: 5px;
+}
+
+.bgm-time-settings input[type="text"],
+.bgm-time-settings input[type="time"] {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 90px;
+  font: inherit;
+}
+
+.bgm-schedule-actions {
+  margin-top: 7px;
+}
+
+.bgm-schedule-status {
+  margin-left: 5px;
+  color: var(--cwk-meta);
+}
+
+.bgm-schedule-status.is-error {
+  color: var(--cwk-danger, #cc0000);
+  font-weight: bold;
+}
+
 .top-nav {
   margin: 0 0 8px;
   padding: 4px;
@@ -2506,6 +2631,34 @@ body > center > table[width="1140"] > tbody > tr > td {
 
   .owner-btn {
     margin-top: 3px;
+  }
+
+  .bgm-schedule-heading {
+    display: block;
+  }
+
+  .bgm-schedule-heading .owner-btn {
+    margin-top: 6px;
+  }
+
+  .bgm-schedule-heading .note {
+    display: block;
+    margin: 2px 0 0;
+  }
+
+  .bgm-schedule-table,
+  .bgm-time-settings table {
+    width: max-content;
+    min-width: 100%;
+    table-layout: auto !important;
+  }
+
+  .bgm-schedule-track {
+    min-width: 170px;
+  }
+
+  .bgm-schedule-slot {
+    min-width: 64px;
   }
 
   input,
