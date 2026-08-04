@@ -1,0 +1,194 @@
+.markdown-editor-crop-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.cwk-editor-image-crop-frame {
+  position: relative;
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  border: 1px dashed #999;
+  background: #fffef6;
+}
+
+.cwk-editor-image-crop-frame .cwk-image-crop-source {
+  position: absolute;
+  display: block;
+  max-width: none;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+}
+
+.cwk-image-crop-backdrop {
+  position: fixed;
+  z-index: 10000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  padding: 18px;
+  background: rgb(0 0 0 / 68%);
+}
+
+.cwk-image-crop-dialog {
+  box-sizing: border-box;
+  width: min(760px, 100%);
+  max-height: calc(100vh - 36px);
+  overflow: auto;
+  padding: 10px;
+  border: 2px outset #eee;
+  background: #f0f0f0;
+  color: #000;
+  font-family: "Comic Sans MS", Tahoma, Arial, sans-serif;
+  box-shadow: 5px 5px 0 rgb(0 0 0 / 45%);
+}
+
+.cwk-image-crop-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 4px 6px;
+  background: #000080;
+  color: #fff;
+  font-family: "Courier New", monospace;
+}
+
+.cwk-image-crop-titlebar button {
+  min-width: 26px;
+  padding: 0 4px;
+  font-weight: bold;
+}
+
+.cwk-image-crop-help {
+  margin: 8px 2px;
+  font-size: 12px;
+}
+
+.cwk-image-crop-stage {
+  display: grid;
+  place-items: center;
+  min-height: 260px;
+  padding: 8px;
+  overflow: hidden;
+  border: 2px inset #ddd;
+  background: #222;
+}
+
+.cwk-image-crop-canvas {
+  position: relative;
+  max-width: 100%;
+  overflow: hidden;
+  touch-action: none;
+}
+
+.cwk-image-crop-canvas > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.cwk-image-crop-selection {
+  position: absolute;
+  box-sizing: border-box;
+  cursor: move;
+  border: 2px dashed #fff;
+  box-shadow: 0 0 0 9999px rgb(0 0 0 / 58%);
+  touch-action: none;
+}
+
+.cwk-image-crop-selection::before,
+.cwk-image-crop-selection::after {
+  position: absolute;
+  content: "";
+  pointer-events: none;
+  opacity: 0.55;
+}
+
+.cwk-image-crop-selection::before {
+  inset: 0 33.333%;
+  border-right: 1px solid #fff;
+  border-left: 1px solid #fff;
+}
+
+.cwk-image-crop-selection::after {
+  inset: 33.333% 0;
+  border-top: 1px solid #fff;
+  border-bottom: 1px solid #fff;
+}
+
+.cwk-image-crop-handle {
+  position: absolute;
+  z-index: 1;
+  box-sizing: border-box;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 2px solid #000;
+  background: #ffe97a;
+  touch-action: none;
+}
+
+.cwk-image-crop-handle--nw { top: -10px; left: -10px; cursor: nwse-resize; }
+.cwk-image-crop-handle--ne { top: -10px; right: -10px; cursor: nesw-resize; }
+.cwk-image-crop-handle--sw { bottom: -10px; left: -10px; cursor: nesw-resize; }
+.cwk-image-crop-handle--se { right: -10px; bottom: -10px; cursor: nwse-resize; }
+
+.cwk-image-crop-ratios,
+.cwk-image-crop-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 9px;
+}
+
+.cwk-image-crop-ratios {
+  flex-wrap: wrap;
+  font-family: "Courier New", monospace;
+  font-size: 12px;
+}
+
+.cwk-image-crop-ratios button.is-active {
+  border-style: inset;
+  background: #ffe97a;
+  font-weight: bold;
+}
+
+.cwk-image-crop-action-spacer {
+  flex: 1;
+}
+
+.cwk-image-crop-error {
+  color: #fff;
+  font-weight: bold;
+}
+
+body.is-cwk-image-cropping {
+  cursor: grabbing;
+  user-select: none;
+}
+
+@media (max-width: 640px) {
+  .cwk-image-crop-backdrop {
+    padding: 6px;
+  }
+
+  .cwk-image-crop-dialog {
+    max-height: calc(100vh - 12px);
+    padding: 7px;
+  }
+
+  .cwk-image-crop-stage {
+    min-height: 210px;
+    padding: 5px;
+  }
+
+  .cwk-image-crop-actions {
+    flex-wrap: wrap;
+  }
+}

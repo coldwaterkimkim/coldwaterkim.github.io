@@ -401,9 +401,10 @@ entry table
 
 타임라인 entry는 모던 카드가 아니라 오래된 홈페이지의 dashed entry/table 문법이어야 한다. 현재 글만 `NOW READING` 배지와 빨간 테두리로 구분한다.
 
-- 본문은 기존 `ql-editor` 호환 타이포그래피를 쓴다. 클래스명은 공개 본문 스타일 훅으로 남지만 작성기는 TOAST UI 기반 WYSIWYG Markdown이다.
+- 본문은 기존 `ql-editor` 호환 타이포그래피를 쓴다. 클래스명은 공개 본문 스타일 훅으로 남지만 작성기는 BlockNote 기반 WYSIWYG Markdown이다.
 - `font-family: Georgia, serif`, `font-size: 16px`, `line-height: 1.42`가 기준이다. 일반 문단은 읽기 간격을 두고, table cell과 list item 안의 문단 margin은 줄인다.
 - table/code/blockquote/list/image/hr는 Markdown에서 변환된 HTML을 기존 본문 CSS 안에서 렌더링한다. 특히 table은 에디터에서 본 표 구조가 공개 화면에서도 border와 셀 padding을 가진 표로 보여야 한다.
+- 본문 이미지 crop은 원본 파일을 새로 만들거나 덮어쓰지 않고, 이미지 블록의 좌표와 비율로 보이는 frame만 자른다. frame은 모바일에서도 같은 영역을 유지하고 이미지를 누르면 전체 원본이 열려야 한다. JPG/PNG 반응형 썸네일과 GIF/WebP의 원본 움직임도 crop 때문에 잃지 않는다. crop 선택 창은 별도 모던 이미지 앱처럼 꾸미지 않고 회색 form, 남색 titlebar, 기본 버튼의 오래된 데스크톱 도구 느낌을 쓴다.
 - 하단에는 텍스트 링크로 `글방 첫 페이지로`를 둔다.
 
 ### About / Contact 위키 문서

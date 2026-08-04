@@ -3,6 +3,46 @@ import fs from 'node:fs';
 import { preferredTransferFiles, preferredTransferImageFiles, uniqueSupportedFiles, uniqueTransferFiles } from '../js/editor-file-transfer.mjs';
 import { createEditorUploadCoordinator, editorFileFingerprint } from '../js/editor-upload-coordinator.mjs';
 import { publishedEntryViewerUrl } from '../js/editor-publish-navigation.mjs';
+import {
+  cropAspectFromRect,
+  fitImageCropToAspect,
+  imageCropStyle,
+  parseImageCrop,
+  serializeImageCrop,
+} from '../js/image-crop.mjs';
+
+const serializedCrop = serializeImageCrop({
+  enabled: true,
+  x: 0.1,
+  y: 0.2,
+  width: 0.5,
+  height: 0.4,
+  aspect: 1.5,
+  pixelWidth: 1200,
+});
+assert.equal(serializedCrop, '0.1,0.2,0.5,0.4,1.5,1200', 'crop metadata must use a stable compact HTML value');
+assert.deepEqual(
+  parseImageCrop(serializedCrop),
+  { enabled: true, x: 0.1, y: 0.2, width: 0.5, height: 0.4, aspect: 1.5, pixelWidth: 1200 },
+  'crop metadata must survive an HTML round trip',
+);
+assert.equal(parseImageCrop('NaN,-1,0,0,nope,0').enabled, false, 'malformed crop metadata must safely show the full image');
+assert.equal(parseImageCrop('0,0,0.5,0.5,-1,0').enabled, false, 'incomplete finite crop metadata must also show the full image');
+const boundedCrop = parseImageCrop('0.99,0.99,0.5,0.5,1,100');
+assert.ok(boundedCrop.x + boundedCrop.width <= 1, 'crop metadata must stay inside the source width');
+assert.ok(boundedCrop.y + boundedCrop.height <= 1, 'crop metadata must stay inside the source height');
+const squareCrop = fitImageCropToAspect({ enabled: true, x: 0, y: 0, width: 1, height: 1 }, 1, 2);
+assert.equal(squareCrop.width, 0.5, 'a square crop on a 2:1 source must reduce the normalized width');
+assert.equal(squareCrop.height, 1, 'a square crop on a 2:1 source must keep the full normalized height');
+assert.equal(cropAspectFromRect(squareCrop, 2), 1, 'stored crop aspect must match the selected visible rectangle');
+assert.deepEqual(
+  imageCropStyle({ ...squareCrop, aspect: 1, pixelWidth: 1000 }),
+  {
+    frame: { aspectRatio: '1', width: '1000px' },
+    image: { width: '200%', height: 'auto', left: '-50%', top: '0%' },
+  },
+  'public crop CSS must enlarge and offset the untouched source image',
+);
 
 const bytes = new Uint8Array([1, 2, 3, 4]);
 const filesVersion = new File([bytes], 'same.png', {
@@ -250,6 +290,15 @@ assert.match(mediaEmbeds, /setAttribute\('poster', sources\.posterUrl\)/, 'ready
 assert.match(mediaEmbeds, /dataset\.cwkOriginalSrc = sources\.originalUrl/, 'video rendering must retain the original file URL');
 assert.match(mediaEmbeds, /dataset\.cwkPlaybackFailed/, 'broken playback derivatives must fall back to the preserved original');
 assert.match(mediaEmbeds, /!video\.paused \|\| video\.currentTime > 0 \|\| video\.seeking/, 'hydration must not interrupt video playback already in progress');
+assert.match(mediaEmbeds, /applyImageCropFrame\(img, crop, originalLink\)/, 'public rendering must apply each image block crop independently');
+assert.match(mediaEmbeds, /Math\.ceil\(displayWidth \/ crop\.width\)/, 'cropped responsive images must request enough source pixels for the visible zoom');
+assert.match(mediaEmbeds, /element\.closest\('\.cwk-media-crop-frame'\) \|\| element/, 'album deep links must target the visible crop frame');
+
+const markdownEditorSource = fs.readFileSync(new URL('../js/markdown-editor.js', import.meta.url), 'utf8');
+assert.match(markdownEditorSource, /BlockNoteSchema\.create/, 'the shared BlockNote schema must preserve custom crop props');
+assert.match(markdownEditorSource, /IMAGE_CROP_DATA_ATTRIBUTE/, 'crop coordinates must be serialized into the image HTML itself');
+assert.match(markdownEditorSource, /원본 전체로/, 'the crop dialog must provide a reversible reset action');
+assert.doesNotMatch(markdownEditorSource, /toBlob\(|drawImage\(|getContext\(['"]2d/, 'visual cropping must never create or overwrite a raster file');
 
 const postsView = fs.readFileSync(new URL('../posts/view.html', import.meta.url), 'utf8');
 assert.match(postsView, /prepareEmbeddedMediaForDisplay\(post\.content/, 'post HTML must be optimized before it enters the live DOM');

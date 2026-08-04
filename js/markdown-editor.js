@@ -1,12 +1,39 @@
-import React, { useEffect } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { useCreateBlockNote } from '@blocknote/react';
+import {
+    BlockNoteSchema,
+    createImageBlockConfig,
+    defaultBlockSpecs,
+    imageParse
+} from '@blocknote/core';
+import {
+    createReactBlockSpec,
+    ImageBlock,
+    ImageToExternalHTML,
+    ResizableFileBlockWrapper,
+    useCreateBlockNote,
+    useResolveUrl
+} from '@blocknote/react';
 import { BlockNoteView } from '@blocknote/mantine';
 import '@mantine/core/styles.css';
 import '@blocknote/core/fonts/inter.css';
 import '@blocknote/mantine/style.css';
+import '../css/editor-crop.css';
 import { isYouTubeUrl, prepareRichContentHtml } from './media-embeds.js';
 import { preferredTransferFiles, preferredTransferImageFiles, uniqueSupportedFiles, uniqueTransferFiles } from './editor-file-transfer.mjs';
+import {
+    cropAspectFromRect,
+    cropPixelWidthFromRect,
+    fitImageCropToAspect,
+    imageCropBlockProps,
+    imageCropFromBlockProps,
+    imageCropStyle,
+    IMAGE_CROP_DATA_ATTRIBUTE,
+    IMAGE_CROP_MIN_FRACTION,
+    normalizeImageCrop,
+    parseImageCrop,
+    serializeImageCrop
+} from './image-crop.mjs';
 export { createEditorUploadCoordinator } from './editor-upload-coordinator.mjs';
 
 const IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
@@ -23,6 +50,45 @@ const EDITOR_UPLOAD_MIME_TYPES = new Set([
     'audio/mp3',
     'application/pdf'
 ]);
+
+const CROPPABLE_IMAGE_CONFIG = {
+    ...createImageBlockConfig(),
+    propSchema: {
+        ...createImageBlockConfig().propSchema,
+        cropEnabled: { default: false },
+        cropX: { default: 0, type: 'number' },
+        cropY: { default: 0, type: 'number' },
+        cropWidth: { default: 1, type: 'number' },
+        cropHeight: { default: 1, type: 'number' },
+        cropAspect: { default: 0, type: 'number' },
+        cropPixelWidth: { default: 0, type: 'number' }
+    }
+};
+
+const CroppableImageBlockSpec = createReactBlockSpec(CROPPABLE_IMAGE_CONFIG, {
+    meta: {
+        fileBlockAccept: ['image/*']
+    },
+    render: CroppableImageBlock,
+    parse: parseCroppableImageElement,
+    toExternalHTML: CroppableImageToExternalHTML,
+    runsBefore: ['file']
+});
+
+const CWK_EDITOR_SCHEMA = BlockNoteSchema.create({
+    blockSpecs: {
+        ...defaultBlockSpecs,
+        image: CroppableImageBlockSpec()
+    }
+});
+
+const h = React.createElement;
+const CROP_RATIO_OPTIONS = [
+    { value: 'free', label: '자유' },
+    { value: '1', label: '1:1' },
+    { value: String(4 / 3), label: '4:3' },
+    { value: String(16 / 9), label: '16:9' }
+];
 
 export async function createMarkdownEditor(target, options = {}) {
     const root = typeof target === 'string'
@@ -120,6 +186,7 @@ class BlockNoteMarkdownEditor {
         this.editor = null;
         this.currentHtml = '';
         this.pendingHtml = '';
+        this.activeImageBlockId = '';
         this.readyPromise = new Promise(resolve => {
             this.resolveReady = resolve;
         });
@@ -128,15 +195,20 @@ class BlockNoteMarkdownEditor {
         this.mount.innerHTML = `
             <div class="markdown-editor-inline-toolbar blocknote-editor-toolbar">
                 <button type="button" class="markdown-editor-image-button">이미지</button>
+                <button type="button" class="markdown-editor-crop-button" disabled>선택 이미지 자르기</button>
                 <span class="blocknote-editor-badge">BlockNote test</span>
             </div>
             <div class="blocknote-editor-mount"></div>
+            <div class="markdown-editor-crop-dialog-mount"></div>
         `;
 
         this.inlineToolbar = this.mount.querySelector('.markdown-editor-inline-toolbar');
         this.imageButton = this.mount.querySelector('.markdown-editor-image-button');
+        this.cropButton = this.mount.querySelector('.markdown-editor-crop-button');
         this.editorMount = this.mount.querySelector('.blocknote-editor-mount');
+        this.cropDialogMount = this.mount.querySelector('.markdown-editor-crop-dialog-mount');
         this.reactRoot = createRoot(this.editorMount);
+        this.cropDialogRoot = createRoot(this.cropDialogMount);
 
         this.root = {
             addEventListener: (...args) => this.mount.addEventListener(...args),
@@ -167,6 +239,22 @@ class BlockNoteMarkdownEditor {
             }
         });
 
+        this.cropButton?.addEventListener('click', () => this.requestImageCrop());
+        this.mount.addEventListener('click', event => {
+            const image = event.target instanceof Element
+                ? event.target.closest('.bn-block-content[data-content-type="image"] .bn-visual-media')
+                : null;
+            if (!image) {
+                if (event.target instanceof Element && event.target.closest('.bn-editor')) {
+                    this.selectImageBlock('');
+                }
+                return;
+            }
+
+            const container = image.closest('[data-id]');
+            this.selectImageBlock(container?.getAttribute('data-id') || '');
+        });
+
         this.mount.addEventListener('paste', (event) => {
             const text = event.clipboardData?.getData('text/plain')?.trim();
             if (!text || !isYouTubeUrl(text)) return;
@@ -192,6 +280,65 @@ class BlockNoteMarkdownEditor {
         }
 
         this.resolveReady?.();
+    }
+
+    selectImageBlock(blockId = '') {
+        const block = blockId ? this.blockNote?.getBlock?.(blockId) : null;
+        this.activeImageBlockId = block?.type === 'image' ? block.id : '';
+        if (this.cropButton) {
+            this.cropButton.disabled = !this.activeImageBlockId;
+            this.cropButton.textContent = imageCropFromBlockProps(block?.props).enabled
+                ? '선택 이미지 다시 자르기'
+                : '선택 이미지 자르기';
+        }
+    }
+
+    syncImageSelection() {
+        let block = null;
+        try {
+            block = this.blockNote?.getTextCursorPosition?.().block || null;
+        } catch (_error) {
+            block = null;
+        }
+        this.selectImageBlock(block?.type === 'image' ? block.id : '');
+    }
+
+    requestImageCrop() {
+        const block = this.activeImageBlockId
+            ? this.blockNote?.getBlock?.(this.activeImageBlockId)
+            : null;
+        if (!block || block.type !== 'image' || !block.props?.url) {
+            this.selectImageBlock('');
+            return;
+        }
+
+        const blockElement = this.mount.querySelector(`[data-id="${cssSelectorString(block.id)}"]`);
+        const displayedImage = blockElement?.querySelector('.bn-visual-media');
+        const target = {
+            block,
+            displayedWidth: Math.round(displayedImage?.getBoundingClientRect?.().width || block.props.previewWidth || 0)
+        };
+        this.cropDialogRoot.render(React.createElement(ImageCropDialog, {
+            target,
+            onCancel: () => this.cropDialogRoot.render(null),
+            onSave: crop => {
+                this.applyImageCrop(target.block.id, crop, target.displayedWidth);
+                this.cropDialogRoot.render(null);
+            }
+        }));
+    }
+
+    applyImageCrop(blockId, crop, displayedWidth = 0) {
+        const block = this.blockNote?.getBlock?.(blockId);
+        if (!block || block.type !== 'image') return;
+
+        const nextProps = imageCropBlockProps(crop);
+        if (nextProps.cropEnabled && !block.props.previewWidth) {
+            nextProps.previewWidth = Math.max(64, Math.round(displayedWidth || crop.pixelWidth || 640));
+        }
+        this.blockNote.updateBlock(block, { props: nextProps });
+        this.selectImageBlock(block.id);
+        this.currentHtml = this.htmlFromEditor();
     }
 
     async ready() {
@@ -381,8 +528,303 @@ class BlockNoteMarkdownEditor {
     }
 }
 
+function CroppableImageBlock(props) {
+    const crop = imageCropFromBlockProps(props.block.props);
+    const resolved = useResolveUrl(props.block.props.url);
+    const cropStyles = imageCropStyle(crop);
+    if (!crop.enabled || !cropStyles || !props.block.props.showPreview) return h(ImageBlock, props);
+
+    const imageUrl = resolved.loadingState === 'loading'
+        ? props.block.props.url
+        : resolved.downloadUrl;
+
+    return h(ResizableFileBlockWrapper, {
+        ...props,
+        buttonIcon: h('span', { 'aria-hidden': 'true' }, '🖼️')
+    }, h('span', {
+        className: 'cwk-editor-image-crop-frame',
+        style: {
+            aspectRatio: cropStyles.frame.aspectRatio,
+            width: '100%'
+        }
+    }, h('img', {
+        className: 'bn-visual-media cwk-image-crop-source',
+        src: imageUrl,
+        alt: props.block.props.name || '',
+        contentEditable: false,
+        draggable: false,
+        style: cropStyles.image
+    })));
+}
+
+function CroppableImageToExternalHTML(props) {
+    const crop = imageCropFromBlockProps(props.block.props);
+    const serializedCrop = serializeImageCrop(crop);
+    if (!crop.enabled || !serializedCrop) return h(ImageToExternalHTML, props);
+    if (!props.block.props.url || !props.block.props.showPreview) {
+        return h(ImageToExternalHTML, props);
+    }
+
+    const image = h('img', {
+        src: props.block.props.url,
+        alt: props.block.props.name || '',
+        width: props.block.props.previewWidth,
+        [IMAGE_CROP_DATA_ATTRIBUTE]: serializedCrop
+    });
+
+    if (!props.block.props.caption) return image;
+    return h('figure', null,
+        image,
+        h('figcaption', null, props.block.props.caption)
+    );
+}
+
+function parseCroppableImageElement(element) {
+    const base = imageParse()(element);
+    if (!base) return undefined;
+
+    const image = element.tagName === 'IMG' ? element : element.querySelector('img');
+    const crop = parseImageCrop(image?.getAttribute(IMAGE_CROP_DATA_ATTRIBUTE) || '');
+    return {
+        ...base,
+        ...imageCropBlockProps(crop)
+    };
+}
+
+function ImageCropDialog({ target, onCancel, onSave }) {
+    const initialCrop = imageCropFromBlockProps(target.block.props);
+    const [crop, setCrop] = useState(initialCrop.enabled
+        ? initialCrop
+        : normalizeImageCrop({ enabled: true, x: 0, y: 0, width: 1, height: 1 }));
+    const [naturalSize, setNaturalSize] = useState({ width: 0, height: 0 });
+    const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
+    const [ratioMode, setRatioMode] = useState('free');
+    const [loadError, setLoadError] = useState(false);
+    const stageRef = useRef(null);
+    const canvasRef = useRef(null);
+    const interactionRef = useRef(null);
+
+    const naturalAspect = naturalSize.width > 0 && naturalSize.height > 0
+        ? naturalSize.width / naturalSize.height
+        : 0;
+
+    const updateCanvasSize = useCallback(() => {
+        const stageWidth = Math.max(0, stageRef.current?.clientWidth || 0);
+        if (!stageWidth || !naturalAspect) return;
+
+        const maxHeight = Math.min(480, Math.max(240, globalThis.innerHeight * 0.52));
+        let width = stageWidth;
+        let height = width / naturalAspect;
+        if (height > maxHeight) {
+            height = maxHeight;
+            width = height * naturalAspect;
+        }
+        setCanvasSize({ width: Math.round(width), height: Math.round(height) });
+    }, [naturalAspect]);
+
+    useLayoutEffect(() => {
+        updateCanvasSize();
+        if (!stageRef.current || typeof ResizeObserver !== 'function') return undefined;
+        const observer = new ResizeObserver(updateCanvasSize);
+        observer.observe(stageRef.current);
+        return () => observer.disconnect();
+    }, [updateCanvasSize]);
+
+    useEffect(() => {
+        const onKeyDown = event => {
+            if (event.key === 'Escape') onCancel();
+        };
+        globalThis.addEventListener('keydown', onKeyDown);
+        return () => globalThis.removeEventListener('keydown', onKeyDown);
+    }, [onCancel]);
+
+    useEffect(() => {
+        const onPointerMove = event => {
+            const interaction = interactionRef.current;
+            if (!interaction || !interaction.canvasWidth || !interaction.canvasHeight) return;
+
+            const dx = (event.clientX - interaction.clientX) / interaction.canvasWidth;
+            const dy = (event.clientY - interaction.clientY) / interaction.canvasHeight;
+            if (interaction.mode === 'move') {
+                setCrop(normalizeImageCrop({
+                    ...interaction.crop,
+                    enabled: true,
+                    x: clampCrop(interaction.crop.x + dx, 0, 1 - interaction.crop.width),
+                    y: clampCrop(interaction.crop.y + dy, 0, 1 - interaction.crop.height)
+                }));
+                return;
+            }
+
+            const pointer = {
+                x: clampCrop(interaction.pointerX + dx, 0, 1),
+                y: clampCrop(interaction.pointerY + dy, 0, 1)
+            };
+            setCrop(resizeImageCrop(interaction.crop, interaction.handle, pointer, interaction.aspect, naturalAspect));
+        };
+        const onPointerUp = () => {
+            interactionRef.current = null;
+            document.body.classList.remove('is-cwk-image-cropping');
+        };
+
+        globalThis.addEventListener('pointermove', onPointerMove);
+        globalThis.addEventListener('pointerup', onPointerUp);
+        globalThis.addEventListener('pointercancel', onPointerUp);
+        return () => {
+            globalThis.removeEventListener('pointermove', onPointerMove);
+            globalThis.removeEventListener('pointerup', onPointerUp);
+            globalThis.removeEventListener('pointercancel', onPointerUp);
+            document.body.classList.remove('is-cwk-image-cropping');
+        };
+    }, [naturalAspect]);
+
+    const beginInteraction = (event, mode, handle = '') => {
+        event.preventDefault();
+        event.stopPropagation();
+        const canvasRect = canvasRef.current?.getBoundingClientRect?.();
+        interactionRef.current = {
+            mode,
+            handle,
+            crop,
+            clientX: event.clientX,
+            clientY: event.clientY,
+            pointerX: crop.x + (handle.includes('e') ? crop.width : 0),
+            pointerY: crop.y + (handle.includes('s') ? crop.height : 0),
+            aspect: ratioMode === 'free' ? 0 : Number(ratioMode),
+            canvasWidth: canvasRect?.width || canvasSize.width,
+            canvasHeight: canvasRect?.height || canvasSize.height
+        };
+        document.body.classList.add('is-cwk-image-cropping');
+    };
+
+    const chooseRatio = value => {
+        setRatioMode(value);
+        if (value !== 'free' && naturalAspect) {
+            setCrop(fitImageCropToAspect(crop, Number(value), naturalAspect));
+        }
+    };
+
+    const saveCrop = () => {
+        if (!naturalAspect) return;
+        onSave(normalizeImageCrop({
+            ...crop,
+            enabled: true,
+            aspect: cropAspectFromRect(crop, naturalAspect),
+            pixelWidth: cropPixelWidthFromRect(crop, naturalSize.width)
+        }));
+    };
+
+    const cropBoxStyle = {
+        left: `${crop.x * 100}%`,
+        top: `${crop.y * 100}%`,
+        width: `${crop.width * 100}%`,
+        height: `${crop.height * 100}%`
+    };
+
+    const selection = naturalAspect > 0
+        ? h('div', {
+            className: 'cwk-image-crop-selection',
+            style: cropBoxStyle,
+            onPointerDown: event => beginInteraction(event, 'move')
+        }, ['nw', 'ne', 'sw', 'se'].map(handle => h('button', {
+            key: handle,
+            type: 'button',
+            className: `cwk-image-crop-handle cwk-image-crop-handle--${handle}`,
+            'aria-label': `${handle} 모서리 조절`,
+            onPointerDown: event => beginInteraction(event, 'resize', handle)
+        })))
+        : null;
+
+    const stageContent = loadError
+        ? h('p', { className: 'cwk-image-crop-error' }, '이미지를 불러오지 못했어. 원본 주소를 확인해줘.')
+        : h('div', {
+            className: 'cwk-image-crop-canvas',
+            ref: canvasRef,
+            style: {
+                width: `${canvasSize.width}px`,
+                height: `${canvasSize.height}px`
+            }
+        }, h('img', {
+            src: target.block.props.url,
+            alt: target.block.props.name || '',
+            draggable: false,
+            onLoad: event => {
+                const image = event.currentTarget;
+                setNaturalSize({ width: image.naturalWidth, height: image.naturalHeight });
+                setLoadError(false);
+            },
+            onError: () => setLoadError(true)
+        }), selection);
+
+    return h('div', {
+        className: 'cwk-image-crop-backdrop',
+        role: 'presentation',
+        onMouseDown: event => {
+            if (event.target === event.currentTarget) onCancel();
+        }
+    }, h('section', {
+        className: 'cwk-image-crop-dialog',
+        role: 'dialog',
+        'aria-modal': 'true',
+        'aria-labelledby': 'cwk-image-crop-title'
+    },
+    h('div', { className: 'cwk-image-crop-titlebar' },
+        h('strong', { id: 'cwk-image-crop-title' }, '이미지 자르기'),
+        h('button', { type: 'button', onClick: onCancel, 'aria-label': '닫기' }, '×')
+    ),
+    h('p', { className: 'cwk-image-crop-help' }, '점선 영역을 움직이거나 모서리를 끌어 보여줄 부분을 골라.'),
+    h('div', { className: 'cwk-image-crop-stage', ref: stageRef }, stageContent),
+    h('div', { className: 'cwk-image-crop-ratios', 'aria-label': '자르기 비율' },
+        h('span', null, '비율:'),
+        CROP_RATIO_OPTIONS.map(option => h('button', {
+            key: option.value,
+            type: 'button',
+            className: ratioMode === option.value ? 'is-active' : '',
+            onClick: () => chooseRatio(option.value)
+        }, option.label))
+    ),
+    h('div', { className: 'cwk-image-crop-actions' },
+        h('button', {
+            type: 'button',
+            onClick: () => onSave(normalizeImageCrop())
+        }, '원본 전체로'),
+        h('span', { className: 'cwk-image-crop-action-spacer' }),
+        h('button', { type: 'button', onClick: onCancel }, '취소'),
+        h('button', { type: 'button', disabled: !naturalAspect || loadError, onClick: saveCrop }, '이대로 보이기')
+    )));
+}
+
+function resizeImageCrop(value, handle, pointer, targetAspect = 0, naturalAspect = 0) {
+    const crop = normalizeImageCrop(value);
+    const anchorX = handle.includes('w') ? crop.x + crop.width : crop.x;
+    const anchorY = handle.includes('n') ? crop.y + crop.height : crop.y;
+    const maxWidth = handle.includes('w') ? anchorX : 1 - anchorX;
+    const maxHeight = handle.includes('n') ? anchorY : 1 - anchorY;
+    let width = Math.abs(pointer.x - anchorX);
+    let height = Math.abs(pointer.y - anchorY);
+
+    if (targetAspect > 0 && naturalAspect > 0) {
+        const heightPerWidth = naturalAspect / targetAspect;
+        const minimumWidth = Math.max(IMAGE_CROP_MIN_FRACTION, IMAGE_CROP_MIN_FRACTION / heightPerWidth);
+        const maximumWidth = Math.min(maxWidth, maxHeight / heightPerWidth);
+        width = Math.min(Math.max(Math.min(width, height / heightPerWidth), minimumWidth), maximumWidth);
+        height = width * heightPerWidth;
+    } else {
+        width = Math.min(Math.max(width, IMAGE_CROP_MIN_FRACTION), maxWidth);
+        height = Math.min(Math.max(height, IMAGE_CROP_MIN_FRACTION), maxHeight);
+    }
+
+    const x = handle.includes('w') ? anchorX - width : anchorX;
+    const y = handle.includes('n') ? anchorY - height : anchorY;
+    return normalizeImageCrop({ ...crop, enabled: true, x, y, width, height });
+}
+
+function clampCrop(value, min, max) {
+    return Math.min(Math.max(Number(value), min), max);
+}
+
 function BlockNoteMount({ adapter, placeholder }) {
     const editor = useCreateBlockNote({
+        schema: CWK_EDITOR_SCHEMA,
         placeholders: {
             default: placeholder,
             emptyDocument: placeholder
@@ -422,7 +864,15 @@ function BlockNoteMount({ adapter, placeholder }) {
         className: 'blocknote-editor-view',
         onChange: () => {
             adapter.currentHtml = adapter.htmlFromEditor();
+            if (adapter.activeImageBlockId && !editor.getBlock(adapter.activeImageBlockId)) {
+                adapter.selectImageBlock('');
+            }
             adapter.options.onChange?.(adapter.currentHtml);
+        },
+        onSelectionChange: () => {
+            if (adapter.editorMount?.contains(document.activeElement)) {
+                adapter.syncImageSelection();
+            }
         }
     });
 }
@@ -502,4 +952,9 @@ function isEmptyParagraph(block) {
 
 function cssString(value) {
     return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+function cssSelectorString(value) {
+    if (globalThis.CSS?.escape) return globalThis.CSS.escape(String(value || ''));
+    return String(value || '').replace(/["\\]/g, '\\$&');
 }

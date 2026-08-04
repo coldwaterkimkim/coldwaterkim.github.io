@@ -1,4 +1,5 @@
 import { albumMediaAnchorId, pocketBaseMediaReference } from './album-logic.mjs';
+import { imageCropStyle, parseImageCrop, serializeImageCrop } from './image-crop.mjs';
 
 const YOUTUBE_HOST_RE = /(^|\.)youtube(-nocookie)?\.com$/i;
 const YOUTU_BE_HOST_RE = /(^|\.)youtu\.be$/i;
@@ -54,8 +55,9 @@ export function decorateAlbumMediaAnchors(scope = document, sourceId = '') {
         if (!reference) return;
         const occurrence = (occurrences.get(reference.recordId) || 0) + 1;
         occurrences.set(reference.recordId, occurrence);
-        element.id = albumMediaAnchorId(sourceId, reference.recordId, occurrence);
-        element.dataset.cwkAlbumMedia = 'true';
+        const target = element.closest('.cwk-media-crop-frame') || element;
+        target.id = albumMediaAnchorId(sourceId, reference.recordId, occurrence);
+        target.dataset.cwkAlbumMedia = 'true';
     });
 }
 
@@ -270,21 +272,33 @@ function decorateImages(root) {
         img.setAttribute('loading', 'lazy');
         img.setAttribute('decoding', 'async');
 
-        const sources = pocketBaseImageSources(img.getAttribute('src') || '');
+        const storedSrc = img.getAttribute('src') || '';
+        const crop = parseImageCrop(img.getAttribute('data-cwk-image-crop') || '');
+        const sources = pocketBaseImageSources(storedSrc);
+        let originalLink = null;
         if (sources) {
             img.dataset.cwkOriginalSrc = sources.originalUrl;
             img.setAttribute('src', sources.displayUrl);
             if (!img.getAttribute('srcset')) img.setAttribute('srcset', sources.srcset);
             if (!img.getAttribute('sizes')) img.setAttribute('sizes', sources.sizes);
-            wrapImageWithOriginalLink(img, sources.originalUrl);
+            originalLink = wrapImageWithOriginalLink(img, sources.originalUrl);
+        } else if (crop.enabled) {
+            const originalUrl = pocketBaseOriginalImageUrl(storedSrc);
+            if (originalUrl) {
+                img.dataset.cwkOriginalSrc = originalUrl;
+                originalLink = wrapImageWithOriginalLink(img, originalUrl);
+            }
         }
+
+        if (crop.enabled) applyImageCropFrame(img, crop, originalLink);
 
         img.dataset.cwkMediaReady = 'true';
     });
 }
 
 function wrapImageWithOriginalLink(img, originalUrl) {
-    if (img.closest('a')) return;
+    const existing = img.closest('a');
+    if (existing) return existing;
 
     const link = document.createElement('a');
     link.className = 'cwk-media-original-link';
@@ -294,6 +308,51 @@ function wrapImageWithOriginalLink(img, originalUrl) {
     link.title = '원본 이미지 열기';
     img.replaceWith(link);
     link.appendChild(img);
+    return link;
+}
+
+function applyImageCropFrame(img, crop, originalLink = null) {
+    const cropStyles = imageCropStyle(crop);
+    if (!cropStyles) return null;
+
+    let frame = originalLink;
+    if (!frame) {
+        frame = document.createElement('span');
+        img.replaceWith(frame);
+        frame.appendChild(img);
+    }
+
+    const displayWidth = Math.max(1, Number(img.getAttribute('width') || crop.pixelWidth));
+    img.removeAttribute('width');
+    if (img.hasAttribute('srcset')) {
+        const responsiveWidth = Math.ceil(100 / crop.width);
+        const fixedWidth = Math.ceil(displayWidth / crop.width);
+        img.setAttribute('sizes', `(max-width: ${displayWidth}px) ${responsiveWidth}vw, ${fixedWidth}px`);
+    }
+    frame.classList.add('cwk-media-crop-frame');
+    frame.setAttribute('data-cwk-image-crop', serializeImageCrop(crop));
+    frame.style.setProperty('--cwk-crop-aspect', cropStyles.frame.aspectRatio);
+    frame.style.setProperty('--cwk-crop-display-width', `${displayWidth}px`);
+    Object.assign(img.style, cropStyles.image);
+    img.classList.add('cwk-image-crop-source');
+    return frame;
+}
+
+function pocketBaseOriginalImageUrl(value = '') {
+    let original;
+    try {
+        original = new URL(String(value || '').trim(), globalThis.location?.href || CURRENT_MEDIA_ORIGIN);
+    } catch (_error) {
+        return '';
+    }
+
+    if (!POCKETBASE_FILE_PATH_RE.test(original.pathname) || !/\.(?:jpe?g|png|gif|webp)$/i.test(original.pathname)) {
+        return '';
+    }
+    if (original.hostname === LEGACY_MEDIA_HOST) {
+        original = new URL(`${original.pathname}${original.search}${original.hash}`, CURRENT_MEDIA_ORIGIN);
+    }
+    return original.href;
 }
 
 function normalizeRichContentBlocks(root) {

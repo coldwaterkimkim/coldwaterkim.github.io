@@ -2223,6 +2223,35 @@ body > center > table[width="1140"] > tbody > tr > td {
   cursor: zoom-in;
 }
 
+.post-content .cwk-media-crop-frame,
+.program-body-content .cwk-media-crop-frame {
+  position: relative;
+  display: block;
+  box-sizing: border-box;
+  width: min(var(--cwk-crop-display-width, 100%), 100%);
+  max-width: 100%;
+  aspect-ratio: var(--cwk-crop-aspect);
+  margin: 10px 0 14px;
+  overflow: hidden;
+  border: 1px solid var(--cwk-ink);
+  background: var(--cwk-surface-page);
+}
+
+.post-content .cwk-media-crop-frame .cwk-image-crop-source,
+.program-body-content .cwk-media-crop-frame .cwk-image-crop-source {
+  position: absolute;
+  display: block;
+  max-width: none;
+  margin: 0;
+  border: 0;
+  background: transparent;
+}
+
+.post-content figure > .cwk-media-crop-frame,
+.program-body-content figure > .cwk-media-crop-frame {
+  margin-bottom: 4px;
+}
+
 .post-content video,
 .program-body-content video {
   display: block;
