@@ -10,9 +10,10 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <script type="module" crossorigin src="/assets/preload-helper-CZgWQFsJ.js"></script>
-  <script type="module" crossorigin src="/assets/pb-UUPSdoxh.js"></script>
-  <script type="module" crossorigin src="/assets/site-DeC2s_9n.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/site-CGVEh6D2.css">
+  <script type="module" crossorigin src="/assets/pb-DbLjBjog.js"></script>
+  <script type="module" crossorigin src="/assets/album-logic-BC9b632o.js"></script>
+  <script type="module" crossorigin src="/assets/site-CaxTqsYB.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/site-Bzt8CXK4.css">
 </head>
 
 <body class="page-home" background="" bgcolor="#e0e0e0">
@@ -133,6 +134,7 @@
               [ <a href="index.html">Home</a> |
               <a href="posts/index.html">글방</a> |
               <a href="daily/index.html">나으 하루</a> |
+              <a href="album/index.html">앨범</a> |
               <a href="programs/index.html">프로그램실</a> |
               <a href="nasajab/index.html">나사잡</a> |
               <a href="guestbook.html">Guestbook</a> |
@@ -157,6 +159,13 @@
               <th class="date-cell">Date</th>
             </tr>
             <!-- Loaded dynamically -->
+          </table>
+          <table border="1" cellspacing="0" cellpadding="6" width="100%" id="recent-album-table" class="home-recent-table home-album-table">
+            <tr bgcolor="#f0f0f0">
+              <th align="left">앨범 최신 업로드</th>
+              <th class="date-cell"><a href="album/index.html">전체 보기</a></th>
+            </tr>
+            <tr><td colspan="2"><div id="home-album-grid" class="album-grid album-grid--home"><span class="note">불러오는 중...</span></div></td></tr>
           </table>
           <table border="1" cellspacing="0" cellpadding="6" width="100%" id="recent-programs-table" class="home-recent-table">
             <tr bgcolor="#f0f0f0">

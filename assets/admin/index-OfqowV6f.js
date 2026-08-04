@@ -1,0 +1,1 @@
+import{q as e}from"../pb-DbLjBjog.js";/* empty css               */e()||(window.location.replace(`/admin/login.html?next=/`),await new Promise(()=>{}));
