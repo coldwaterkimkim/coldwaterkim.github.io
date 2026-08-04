@@ -126,6 +126,7 @@ GIF, 배지, WebRing, 방문자 카운터, 마퀴는 장식이지만 “이 홈�
 | `--cwk-ink` | `#000000` | 기본 텍스트 |
 | `--cwk-muted` | `#666666` | 작은 안내문 |
 | `--cwk-meta` | `#555555` | 방명록 meta, blockquote |
+| `--cwk-owner-reply-accent` | `#000080` | 방명록 주인장 답글 왼쪽 구분선 |
 | `--cwk-border-dashed` | `#999999` | dashed entry/preview border |
 | `--cwk-border-soft` | `#dddddd` | 코드 블록 border |
 | `--cwk-link` | `#0000EE` | 기본 브라우저 파란 링크 |
@@ -390,6 +391,7 @@ entry table
 - `background: #fcfcf0`
 - meta는 작고 어둡게
 - 메시지는 링크 변환만 하고 과하게 꾸미지 않는다.
+- 주인장 답글은 원문 entry 안에서 오른쪽으로 조금 들여쓰고, 남색 double border-left로 `↳ coldwaterkim의 답글`임을 구분한다. 별도 댓글 카드나 대화형 스레드 UI로 만들지 않는다.
 
 ### Post Detail / Timeline
 

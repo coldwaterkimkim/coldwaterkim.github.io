@@ -25,6 +25,7 @@
   --cwk-ink: #000000;
   --cwk-muted: #666666;
   --cwk-meta: #555555;
+  --cwk-owner-reply-accent: #000080;
   --cwk-border-dashed: #999999;
   --cwk-border-soft: #dddddd;
   --cwk-link: #0000EE;
@@ -662,6 +663,41 @@ body > center > table[width="1140"] > tbody > tr > td {
   background: var(--cwk-surface-entry);
 }
 .entry .meta { color: var(--cwk-meta); font-size: var(--cwk-note-size); }
+.guestbook-owner-reply {
+  margin: 8px 0 0 18px;
+  padding: 6px 8px;
+  border-left: 3px double var(--cwk-owner-reply-accent);
+  background: var(--cwk-surface-preview);
+}
+.guestbook-owner-reply-meta {
+  margin-bottom: 3px;
+  color: var(--cwk-meta);
+  font-size: var(--cwk-note-size);
+}
+.guestbook-reply-actions {
+  margin-top: 5px;
+  font-size: var(--cwk-note-size);
+}
+.guestbook-reply-actions button,
+.guestbook-reply-form button {
+  padding: 1px 4px;
+  cursor: pointer;
+}
+.guestbook-reply-actions .reply-delete-btn {
+  color: red;
+}
+.guestbook-reply-form {
+  margin: 8px 0 0 18px;
+  padding: 6px 8px;
+  border: 1px dashed var(--cwk-border-dashed);
+  background: var(--cwk-surface-preview);
+}
+.guestbook-reply-form textarea {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  margin: 4px 0;
+}
 
 /* Counter digits */
 #hitCounter,

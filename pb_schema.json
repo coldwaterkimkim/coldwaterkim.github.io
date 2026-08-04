@@ -57,13 +57,15 @@
         { "name": "name", "type": "text", "required": true, "min": 1, "max": 50 },
         { "name": "message", "type": "text", "required": true, "min": 1, "max": 1000 },
         { "name": "display_date", "type": "date", "required": false },
+        { "name": "owner_reply", "type": "text", "required": false, "max": 1000 },
+        { "name": "owner_replied_at", "type": "date", "required": false },
         { "name": "created", "type": "autodate", "onCreate": true, "onUpdate": false },
         { "name": "updated", "type": "autodate", "onCreate": true, "onUpdate": true }
       ],
       "listRule": "",
       "viewRule": "",
-      "createRule": "",
-      "updateRule": null,
+      "createRule": "@request.body.owner_reply:isset = false && @request.body.owner_replied_at:isset = false && @request.body.display_date:isset = false",
+      "updateRule": "@request.auth.id != ''",
       "deleteRule": "@request.auth.id != ''"
     },
     {
