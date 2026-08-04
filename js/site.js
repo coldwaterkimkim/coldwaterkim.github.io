@@ -1737,8 +1737,12 @@ async function initGuestbookPreview(scope = document) {
 
     entries.slice(0, 5).forEach(entry => {
       const tr = document.createElement('tr');
+      const ownerReply = String(entry.owner_reply || '').trim();
+      const ownerReplyHtml = ownerReply
+        ? `<span class="guestbook-preview-reply">↳ <b>주인장:</b> ${escapeHtml(ownerReply)}</span>`
+        : '';
       tr.innerHTML = `
-        <td><b>${escapeHtml(entry.name)}</b>: ${linkify(escapeHtml(entry.message))}</td>
+        <td class="guestbook-preview-message"><b>${escapeHtml(entry.name)}</b>: ${linkify(escapeHtml(entry.message))}${ownerReplyHtml}</td>
         <td class="date-cell" align="right">${formatDate(guestbookDisplayDate(entry))}</td>
       `;
       table.appendChild(tr);

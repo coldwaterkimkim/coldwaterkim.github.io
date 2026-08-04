@@ -653,6 +653,23 @@ body > center > table[width="1140"] > tbody > tr > td {
 .note { color: var(--cwk-muted); font-size: var(--cwk-note-size); }
 
 /* Guestbook */
+#guestbook-preview-table {
+  table-layout: fixed;
+}
+.guestbook-preview-message {
+  min-width: 0;
+  overflow: hidden;
+}
+.guestbook-preview-reply {
+  display: block;
+  min-width: 0;
+  margin-top: 2px;
+  color: var(--cwk-owner-reply-accent);
+  font-size: var(--cwk-note-size);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 #guestbookEntries {
   font-family: var(--cwk-font-mono);
 }

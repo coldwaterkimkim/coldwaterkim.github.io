@@ -31,8 +31,13 @@ check(pbSource.includes('export async function clearGuestbookReply'), 'PocketBas
 check(siteSource.includes('class="guestbook-owner-reply"'), 'public rendering includes the nested owner reply');
 check(siteSource.includes("const isAdmin = isLoggedIn()"), 'reply controls are gated by owner authentication');
 check(siteSource.includes('linkify(escapeHtml(replyMessage))'), 'reply content is escaped before linkification');
+check(siteSource.includes('class="guestbook-preview-reply"'), 'home preview includes the owner reply when present');
+check(siteSource.includes('escapeHtml(ownerReply)'), 'home preview escapes owner reply content');
 check(siteSource.includes("guestbookEntries.querySelectorAll('.guestbook-reply-form')"), 'reply form submit behavior is wired');
 check(siteSource.includes("guestbookEntries.querySelectorAll('.reply-delete-btn')"), 'reply delete behavior is wired');
 check(cssSource.includes('.guestbook-owner-reply'), 'owner reply has a dedicated retro nested style');
+check(cssSource.includes('#guestbook-preview-table {\n  table-layout: fixed;'), 'home preview uses a fixed table layout for a bounded text column');
+check(cssSource.includes('.guestbook-preview-reply'), 'home preview reply has a dedicated compact style');
+check(cssSource.includes('text-overflow: ellipsis'), 'home preview reply adapts to the available width with an ellipsis');
 
 console.log(`Guestbook reply QA passed (${assertions} assertions).`);
