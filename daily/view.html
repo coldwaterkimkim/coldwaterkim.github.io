@@ -127,7 +127,8 @@
                         <div class="top-nav">
                             [ <a href="../index.html">Home</a> |
                             <a href="../posts/index.html">글방</a> |
-                            <a href="index.html">나으 하루</a> |
+                        <a href="index.html">나으 하루</a> |
+                        <a href="../album/index.html">앨범</a> |
                             <a href="../programs/index.html">프로그램실</a> |
                             <a href="../nasajab/index.html">나사잡</a> |
                             <a href="../guestbook.html">Guestbook</a> |
@@ -171,7 +172,7 @@
             escapeHtml,
             cmsErrorMessage
         } from '../js/pb.js';
-        import { enhanceEmbeddedMedia, prepareEmbeddedMediaForDisplay } from '../js/media-embeds.js';
+        import { decorateAlbumMediaAnchors, enhanceEmbeddedMedia, prepareEmbeddedMediaForDisplay, scrollToAlbumMediaHash } from '../js/media-embeds.js';
 
         const params = new URLSearchParams(window.location.search);
         const dayParam = params.get('day');
@@ -271,7 +272,12 @@
         function renderDayEntries(entries, targetEntryId = '') {
             const timelineEl = document.getElementById('daily-timeline');
             timelineEl.innerHTML = entries.map(entry => renderDayEntry(entry, entry.id === targetEntryId)).join('');
+            entries.forEach(entry => {
+                const article = timelineEl.querySelector(`[data-daily-id="${CSS.escape(entry.id)}"]`);
+                if (article) decorateAlbumMediaAnchors(article, entry.id);
+            });
             enhanceEmbeddedMedia(timelineEl);
+            scrollToAlbumMediaHash(timelineEl);
         }
 
         function renderDayEntry(entry, isFocused) {

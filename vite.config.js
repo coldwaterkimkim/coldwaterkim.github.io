@@ -3,7 +3,7 @@ import { execSync } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 
-const htmlDirs = ['.', 'posts', 'daily', 'programs', 'nasajab', 'admin']
+const htmlDirs = ['.', 'posts', 'daily', 'album', 'programs', 'nasajab', 'admin']
 const liveCmsUrl = 'https://coldwaterkim.com'
 const cmsTarget = String(process.env.VITE_CMS_TARGET || '').toLowerCase()
 const useLiveCmsProxy = cmsTarget === 'live'

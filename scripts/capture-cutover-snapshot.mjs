@@ -164,7 +164,7 @@ async function main() {
   const gitStatus = run('git', ['status', '--short'], true).output;
 
   const hosts = ['coldwaterkim.com', 'www.coldwaterkim.com', 'api.coldwaterkim.com'];
-  const routes = ['/', '/api/health', '/posts/', '/daily/', '/programs/', '/nasajab/', '/guestbook.html', '/about.html'];
+  const routes = ['/', '/api/health', '/posts/', '/daily/', '/album/', '/programs/', '/nasajab/', '/guestbook.html', '/about.html'];
   const dnsRecords = {};
   const httpProbes = {};
 

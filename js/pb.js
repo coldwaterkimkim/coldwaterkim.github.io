@@ -51,6 +51,14 @@ const API_URL = CONFIGURED_API_URL
 export const pb = new PocketBase(API_URL);
 pb.autoCancellation(false);
 
+export async function getAlbumItems(page = 1, perPage = 60, mediaKind = '') {
+    const options = { sort: '-uploaded_at,-id' };
+    if (mediaKind === 'image' || mediaKind === 'video') {
+        options.filter = pb.filter('is_video = {:isVideo}', { isVideo: mediaKind === 'video' });
+    }
+    return await pb.collection('album_items').getList(page, perPage, options);
+}
+
 // ─────────────────────────────────────────────────────────
 // 인증 헬퍼 함수들
 // ─────────────────────────────────────────────────────────

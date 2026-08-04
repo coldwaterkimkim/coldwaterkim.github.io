@@ -257,7 +257,7 @@ assert.match(postsView, /prepareEmbeddedMediaForDisplay\(post\.content/, 'post H
 const schema = JSON.parse(fs.readFileSync(new URL('../pb_schema.json', import.meta.url), 'utf8'));
 const mediaCollection = schema.collections.find(collection => collection.name === 'media');
 const mediaFileField = mediaCollection.fields.find(field => field.name === 'file');
-assert.deepEqual(mediaFileField.thumbs, ['800x0', '1600x0'], 'media schema must allow the responsive thumbnail sizes');
+assert.deepEqual(mediaFileField.thumbs, ['400x400', '800x0', '1600x0'], 'media schema must allow album and responsive thumbnail sizes');
 const webVideoField = mediaCollection.fields.find(field => field.name === 'web_video');
 const videoPosterField = mediaCollection.fields.find(field => field.name === 'video_poster');
 const videoStatusField = mediaCollection.fields.find(field => field.name === 'video_status');
@@ -265,6 +265,7 @@ const videoAttemptsField = mediaCollection.fields.find(field => field.name === '
 const resumableUploadIdField = mediaCollection.fields.find(field => field.name === 'resumable_upload_id');
 assert.deepEqual(webVideoField.mimeTypes, ['video/mp4'], 'web playback derivatives must be MP4 files');
 assert.deepEqual(videoPosterField.mimeTypes, ['image/jpeg'], 'video posters must be JPEG files');
+assert.deepEqual(videoPosterField.thumbs, ['400x400'], 'video posters must allow square album thumbnails');
 assert.deepEqual(videoStatusField.values, ['pending', 'processing', 'ready', 'error'], 'video processing states must be explicit');
 assert.equal(videoAttemptsField.max, 3, 'transient video failures must have a bounded retry count');
 assert.equal(resumableUploadIdField.hidden, true, 'the tus upload id must remain an internal idempotency key');

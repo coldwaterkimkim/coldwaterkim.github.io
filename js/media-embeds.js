@@ -1,3 +1,5 @@
+import { albumMediaAnchorId, pocketBaseMediaReference } from './album-logic.mjs';
+
 const YOUTUBE_HOST_RE = /(^|\.)youtube(-nocookie)?\.com$/i;
 const YOUTU_BE_HOST_RE = /(^|\.)youtu\.be$/i;
 const POCKETBASE_IMAGE_RE = /\.(?:jpe?g|png)$/i;
@@ -40,6 +42,39 @@ export function enhanceEmbeddedMedia(scope = document) {
     const root = scope || document;
     decorateEmbeddedMedia(root);
     void hydratePocketBaseVideos(root);
+}
+
+export function decorateAlbumMediaAnchors(scope = document, sourceId = '') {
+    if (!sourceId) return;
+    const occurrences = new Map();
+
+    scope.querySelectorAll('img, video').forEach(element => {
+        const src = element.getAttribute('src') || element.querySelector?.('source')?.getAttribute('src') || '';
+        const reference = pocketBaseMediaReference(src);
+        if (!reference) return;
+        const occurrence = (occurrences.get(reference.recordId) || 0) + 1;
+        occurrences.set(reference.recordId, occurrence);
+        element.id = albumMediaAnchorId(sourceId, reference.recordId, occurrence);
+        element.dataset.cwkAlbumMedia = 'true';
+    });
+}
+
+export function scrollToAlbumMediaHash(scope = document) {
+    if (!globalThis.location?.hash) return false;
+    const targetId = decodeURIComponent(globalThis.location.hash.slice(1));
+    if (!targetId.startsWith('cwk-media-')) return false;
+    const target = scope.querySelector(`#${CSS.escape(targetId)}`);
+    if (!target) return false;
+
+    const centerTarget = () => target.scrollIntoView({ block: 'center' });
+    requestAnimationFrame(() => {
+        centerTarget();
+        target.classList.add('cwk-media-target');
+    });
+    globalThis.setTimeout(centerTarget, 300);
+    globalThis.setTimeout(centerTarget, 1200);
+    globalThis.setTimeout(() => target.classList.remove('cwk-media-target'), 2400);
+    return true;
 }
 
 export function pocketBaseVideoReference(value = '', baseHref = globalThis.location?.href || CURRENT_MEDIA_ORIGIN) {

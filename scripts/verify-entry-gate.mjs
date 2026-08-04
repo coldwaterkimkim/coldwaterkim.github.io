@@ -19,6 +19,7 @@ const publicHtml = [
   'posts/view.html',
   'daily/index.html',
   'daily/view.html',
+  'album/index.html',
   'programs/index.html',
   'programs/view.html',
   'nasajab/index.html',

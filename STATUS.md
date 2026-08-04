@@ -14,7 +14,7 @@
 
 필수 BGM 입장 게이트 구현과 디자인은 보존하되 현재 공개 사이트에서는 잠시 비활성화한다. 모든 공개 HTML은 `entry-gate-disabled` 표시를 사용해 기존 홈페이지를 바로 열고, 방향을 확정해 다시 살릴 때만 이를 `entry-gate-pending`으로 되돌린다. 게이트 코드, 날짜별 `WEBMASTER SAYS`, 브라우저별 업데이트 계산, 스피커 자산은 삭제하지 않는다.
 
-공개 메인 IA 페이지(`Home`, `글방`, `글 상세`, `나으 하루`, `프로그램실`, `나사잡`, `Guestbook`, `About / Contact`)는 모두 홈의 2-column shell을 기본 레이아웃으로 쓴다. 즉 상단 marquee, 노란 construction banner, 왼쪽 프로필/sidebar, 나무위키식 PROFILE DATA 표, 오른쪽 content 상단 navigation은 유지하고, 페이지별 내용만 오른쪽 content 영역에서 바뀌게 한다.
+공개 메인 IA 페이지(`Home`, `글방`, `글 상세`, `나으 하루`, `앨범`, `프로그램실`, `나사잡`, `Guestbook`, `About / Contact`)는 모두 홈의 2-column shell을 기본 레이아웃으로 쓴다. 즉 상단 marquee, 노란 construction banner, 왼쪽 프로필/sidebar, 나무위키식 PROFILE DATA 표, 오른쪽 content 상단 navigation은 유지하고, 페이지별 내용만 오른쪽 content 영역에서 바뀌게 한다.
 
 공개 사이트 내부 이동은 `js/site.js`의 SPA-like router가 처리한다. 같은 origin의 공개 HTML 링크를 클릭하면 전체 문서를 새로고침하지 않고 새 페이지의 `.content`만 fetch해서 교체하며, profile/sidebar/BGM은 유지한다. 따라서 BGM은 메뉴 이동 중 끊기지 않는다. 직접 URL 접근과 새로고침은 기존 정적 HTML 진입을 그대로 지원한다.
 
@@ -35,6 +35,7 @@
 - 입장 게이트가 활성화된 경우에만 `localStorage.cwk_entry_last_admitted_at`, `sessionStorage.cwk_entry_admitted`, 날짜별 `site_settings.entry_webmaster_line_YYYY-MM-DD`를 사용한다. 현재 비활성 상태에서는 이 값을 지우지 않고 그대로 보존한다.
 - 글 상세 `post_views`는 게이트가 활성화된 동안에는 `coldwaterkim:entry-admitted` 이후로 미루고, 현재처럼 게이트가 비활성화된 동안에는 기존 방식대로 글 상세 렌더링 직후 기록한다. 전체 방문자 세션은 공개 페이지 도착을 기준으로 유지한다.
 - 공개 홈은 PocketBase에서 `나으 하루`의 최신 날짜 3일을 먼저 보여주고, 이어서 `글방`, `프로그램실`, `나사잡`의 최신 공개 항목 3개씩을 별도 table로 보여준다.
+- 앨범은 발행된 글방/나으 하루 본문에 실제 첨부된 PocketBase 사진과 영상을 업로드 시각 최신순으로 모은다. 미사용 업로드와 초안 미디어는 제외하며 같은 미디어가 여러 글에 쓰이면 한 번만 보인다. 본문 변경을 SQL view `album_items`가 즉시 반영하므로 별도 색인 작업은 없다. 본문은 60개씩 PC 5열·중간 화면 4열·모바일 3열로, 홈은 최신 10개·8개·6개로 보여준다. 타일은 설명 없이 정방형 crop만 사용하고 영상은 포스터와 작은 `VIDEO` 표지만 보인다. 타일을 누르면 해당 글의 미디어 위치로 이동하며 뒤로가기는 기존 앨범 위치를 복원한다.
 - 글 목록은 홈과 같은 shell 안에서 PocketBase `posts` 컬렉션의 `published` 글만 보여주며, 홈의 글방 최근 3개 table과 같이 사용자가 지정한 `published_at` 최신순으로 정렬한다. OWNER MODE와 관리자 목록도 같은 기준을 쓰고, 같은 발행일에서만 `created` 최신순으로 풀어준다.
 - 글 상세 URL은 홈과 같은 shell 안에서 `slug`로 PocketBase 글을 조회하고 해당 글 하나만 렌더링한다. 글방 목록은 여러 글 table이고, 상세는 단일 글 페이지다.
 - 나으 하루는 글방과 별도인 PocketBase `daily_entries` 컬렉션을 쓴다. 작성 화면은 글방과 같은 WYSIWYG Markdown 작성 경험을 유지하고, 같은 날짜에 여러 번 써도 각각 새 글 레코드로 저장한다. `day_key`는 저장 단위가 아니라 캘린더/정렬용 날짜 메타데이터다.

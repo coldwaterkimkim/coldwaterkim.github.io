@@ -57,6 +57,7 @@ import {
   randomBgmCandidateIndex,
   scheduledBgmTrackIndexes,
 } from './bgm-playlist-logic.mjs';
+import { initHomeAlbumPreview } from './album.js';
 
 const SITE_VERSION = typeof __SITE_VERSION__ !== 'undefined' ? __SITE_VERSION__ : 'dev';
 const VERSION_MANIFEST_PATH = '/site-version.json';
@@ -1413,6 +1414,7 @@ async function initDynamicContent(scope = document) {
     initSettings(scope),
     initRecentPosts(scope),
     initGuestbookPreview(scope),
+    initHomeAlbumPreview(scope),
   ]);
   initHomeOwnerTools(scope);
   initGuestbookPage(scope);

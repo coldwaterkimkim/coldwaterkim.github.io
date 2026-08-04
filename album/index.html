@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html class="entry-gate-disabled">
+<head>
+  <title>앨범 — coldwaterkim</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="stylesheet" href="../css/styles.css">
+  <script type="module" src="../js/site.js"></script>
+</head>
+<body class="page-subpage page-album" bgcolor="#e0e0e0">
+  <center>
+    <marquee behavior="alternate" scrollamount="4" width="1140">
+      <span class="marquee-text">★ WELCOME TO <a href="/admin/login.html?next=/album/index.html" class="secret-login"><b>coldwaterkim</b></a>'s HOME PAGE ★</span>
+    </marquee>
+    <table width="1140" border="1" cellspacing="0" cellpadding="8" bgcolor="#ffffff">
+      <colgroup><col class="shell-sidebar-col"><col class="shell-content-col"></colgroup>
+      <tr><td colspan="2" align="center" class="banner"><span class="blink">UNDER CONSTRUCTION</span> · <span id="visitorBannerStatus" class="banner-status">OPEN 24H, UPDATED SOMETIMES</span></td></tr>
+      <tr>
+        <td width="180" valign="top" class="sidebar">
+          <div class="profile-card">
+            <div class="profile-person"><center><img class="profile-photo" src="../assets/profile-crop.jpg" alt="coldwaterkim profile"><br><b>김찬수</b><br><span class="note">밀레니엄 베이비</span></center></div>
+            <div class="profile-info">
+              <p class="profile-email"><a href="mailto:ckstn1112@gmail.com?subject=Hello%20from%20your%20site">ckstn1112@gmail.com</a></p>
+              <div class="today-box"><b>TODAY IS...</b><br><span data-editable="true" data-key="profile_today">온 몸 비틀기</span></div>
+              <center class="mini-player"><audio controls autoplay loop preload="none" data-bgm>Your browser does not support the audio element.</audio></center>
+            </div>
+          </div>
+          <div class="profile-details">
+            <table class="profile-detail-table" border="1" cellspacing="0" cellpadding="3" width="100%">
+              <tr><th>본명</th><td>김찬수</td></tr>
+              <tr><th>출생</th><td>2000년 11월 12일 08:51</td></tr>
+              <tr><th>국적</th><td>대한민국</td></tr>
+              <tr><th>신체</th><td>178cm 73kg</td></tr>
+              <tr><th>학력</th><td>성균관대학교</td></tr>
+              <tr><th>병역</th><td>육군 만기전역</td></tr>
+            </table>
+          </div>
+          <hr><b>Cool Links</b>
+          <ul><li><a href="https://www.archive.org/" target="_blank">Internet Archive</a></li><li><a href="https://www.cameronsworld.net/" target="_blank">GeoCities Garden</a></li></ul>
+          <hr><div class="webring"><b>My WebRing</b><br>[ <a href="#">Prev</a> | <a href="#">Random</a> | <a href="#">Next</a> ]</div>
+        </td>
+        <td valign="top" class="content">
+          <center><div class="top-nav">[ <a href="../index.html">Home</a> | <a href="../posts/index.html">글방</a> | <a href="../daily/index.html">나으 하루</a> | <a href="index.html">앨범</a> | <a href="../programs/index.html">프로그램실</a> | <a href="../nasajab/index.html">나사잡</a> | <a href="../guestbook.html">Guestbook</a> | <a href="../about.html">About / Contact</a> ]</div></center>
+          <h1>📷 앨범</h1>
+          <div class="album-toolbar">
+            <span id="album-status">불러오는 중...</span>
+            <span class="album-filters">[ <a href="/album/index.html" data-album-kind="">전체</a> | <a href="/album/index.html?kind=image" data-album-kind="image">사진</a> | <a href="/album/index.html?kind=video" data-album-kind="video">영상</a> ]</span>
+          </div>
+          <div id="album-grid" class="album-grid" aria-live="polite"><p class="album-message">앨범을 불러오는 중...</p></div>
+          <div id="album-pagination" class="album-pagination"></div>
+          <hr><center><small>© coldwaterkim — powered by me</small></center>
+        </td>
+      </tr>
+    </table>
+  </center>
+  <script type="module">
+    import { initAlbumPage } from '../js/album.js';
+    initAlbumPage();
+  </script>
+</body>
+</html>

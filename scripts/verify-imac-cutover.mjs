@@ -228,7 +228,7 @@ async function verifyNetwork() {
     }
   }
 
-  for (const route of ['/api/health', '/', '/posts/', '/daily/', '/programs/', '/nasajab/', '/guestbook.html', '/about.html']) {
+  for (const route of ['/api/health', '/', '/posts/', '/daily/', '/album/', '/programs/', '/nasajab/', '/guestbook.html', '/about.html']) {
     try {
       await fetchOk(`${origin}${route}`);
       record(`public route ${route}`, true);
