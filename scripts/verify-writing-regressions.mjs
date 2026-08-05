@@ -378,7 +378,8 @@ assert.match(pbModule.formatMediaUploadProgress({ resumable: true, percent: 42 }
 const pbSource = fs.readFileSync(new URL('../js/pb.js', import.meta.url), 'utf8');
 assert.match(pbSource, /import\('@uppy\/core'\)/, 'the resumable client must lazy-load Uppy');
 assert.match(pbSource, /\/api\/cwk\/tus\/finalize/, 'completed tus files must be finalized as PocketBase media records');
-assert.match(pbSource, /getResumableMediaUploadCapability/, 'large video uploads must fall back when the custom tus endpoint is unavailable');
+assert.match(pbSource, /getResumableMediaUploadCapability/, 'large video uploads must inspect the custom tus endpoint before starting');
+assert.match(pbSource, /64MB 이상 영상은 재개 업로드 서버가 연결되어야 올릴 수 있어/, 'large videos must not fall back to an unreliable direct upload');
 assert.match(pbSource, /parallelUploads:\s*Number\(capability\.parallelUploads/, 'large videos must use the server-advertised parallel tus capacity');
 assert.match(pbSource, /RESUMABLE_VIDEO_PARALLEL_UPLOADS\s*=\s*3/, 'parallel tus uploads must remain bounded');
 const resumableServer = fs.readFileSync(new URL('../deploy/imac/pocketbase-custom/resumable_upload.go', import.meta.url), 'utf8');

@@ -15,8 +15,8 @@ assert.ok(ownerId, 'CWK_TUS_QA_OWNER_ID is required');
 const seed = fs.readFileSync(new URL('../assets/profile-crop.jpg', import.meta.url));
 const size = (64 * 1024 * 1024) + 1024;
 const source = Buffer.concat([seed, Buffer.alloc(size - seed.byteLength)]);
-const fileName = 'uppy-resume-client-check.mov';
-const fileType = 'video/quicktime';
+const fileName = 'uppy-resume-client-check.pdf';
+const fileType = 'application/pdf';
 
 const progress = [];
 const tusCreationRequests = [];
@@ -24,7 +24,7 @@ const uppy = new Uppy({
   autoProceed: false,
   restrictions: {
     maxNumberOfFiles: 1,
-    maxFileSize: 2_147_483_648,
+    maxFileSize: 8_589_934_592,
   },
 });
 
@@ -49,6 +49,7 @@ const fileId = uppy.addFile({
   data: source,
   meta: { owner_id: ownerId },
 });
+let createdMedia = null;
 
 uppy.on('upload-progress', (uppyFile, event) => {
   if (uppyFile?.id === fileId) progress.push(Number(event.bytesUploaded || 0));
@@ -76,6 +77,7 @@ try {
     assert.fail(`finalize failed (${finalizeResponse.status}): ${await finalizeResponse.text()}`);
   }
   const media = await finalizeResponse.json();
+  createdMedia = media;
   assert.ok(media.id && media.file, 'finalize must return a PocketBase media record');
 
   const fileResponse = await fetch(`${origin}/api/files/${media.collectionId}/${media.id}/${encodeURIComponent(media.file)}`);
@@ -91,4 +93,11 @@ try {
   console.log(`Uppy tus client QA passed (${source.byteLength} bytes, media ${media.id}).`);
 } finally {
   uppy.destroy();
+  if (createdMedia?.id) {
+    const cleanupResponse = await fetch(`${origin}/api/collections/media/records/${createdMedia.id}`, {
+      method: 'DELETE',
+      headers: { Authorization: token },
+    });
+    assert.equal(cleanupResponse.status, 204, 'QA media record and file must be removed after verification');
+  }
 }
