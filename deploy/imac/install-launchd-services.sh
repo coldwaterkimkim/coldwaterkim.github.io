@@ -83,6 +83,7 @@ RUNTIME_POCKETBASE="$RUNTIME_BIN_DIR/pocketbase"
 RUNTIME_CADDY="$RUNTIME_BIN_DIR/caddy"
 RUNTIME_CADDYFILE="$RUNTIME_ROOT/Caddyfile"
 RUNTIME_BACKUP_SCRIPT="$RUNTIME_ROOT/backup-pocketbase.sh"
+RUNTIME_BACKUP_PROGRAM="$RUNTIME_ROOT/backup-pocketbase.py"
 RUNTIME_DIST="$RUNTIME_ROOT/dist"
 RUNTIME_MIGRATIONS="$RUNTIME_ROOT/pb_migrations"
 RUNTIME_PB_DATA="$RUNTIME_ROOT/pb_data"
@@ -98,6 +99,7 @@ LOCAL_DIST="$REPO_ROOT/dist"
 LOCAL_MIGRATIONS="$REPO_ROOT/pb_migrations"
 LOCAL_CADDYFILE="$REPO_ROOT/deploy/imac/Caddyfile"
 LOCAL_BACKUP_SCRIPT="$REPO_ROOT/deploy/imac/backup-pocketbase.sh"
+LOCAL_BACKUP_PROGRAM="$REPO_ROOT/deploy/imac/backup-pocketbase.py"
 PB_PLIST_SRC="$REPO_ROOT/deploy/imac/${PB_LABEL}.plist"
 CADDY_PLIST_SRC="$REPO_ROOT/deploy/imac/${CADDY_LABEL}.plist"
 BACKUP_PLIST_SRC="$REPO_ROOT/deploy/imac/${BACKUP_LABEL}.plist"
@@ -210,6 +212,7 @@ sync_runtime_files() {
     run_cmd ditto "$LOCAL_MIGRATIONS" "$RUNTIME_MIGRATIONS"
     run_cmd install -m 644 "$LOCAL_CADDYFILE" "$RUNTIME_CADDYFILE"
     run_cmd install -m 755 "$LOCAL_BACKUP_SCRIPT" "$RUNTIME_BACKUP_SCRIPT"
+    run_cmd install -m 755 "$LOCAL_BACKUP_PROGRAM" "$RUNTIME_BACKUP_PROGRAM"
 }
 
 sync_caddy_runtime_files() {
@@ -287,6 +290,7 @@ fi
 require_file "$PB_PLIST_SRC"
 require_file "$BACKUP_PLIST_SRC"
 require_file "$LOCAL_BACKUP_SCRIPT"
+require_file "$LOCAL_BACKUP_PROGRAM"
 require_dir "$LOCAL_MIGRATIONS"
 require_executable "$LOCAL_POCKETBASE"
 

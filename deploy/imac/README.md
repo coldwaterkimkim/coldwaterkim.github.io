@@ -70,6 +70,7 @@ Rollback 기준:
 - `bin/ffmpeg`, `bin/ffprobe`
 - `Caddyfile`
 - `backup-pocketbase.sh`
+- `backup-pocketbase.py`
 - `process-video-media.py`
 
 64MB 이상 영상은 브라우저 Uppy가 `/api/cwk/tus/files/`로 전송한다. 서버는 `tus-uploads`에 받은 바이트와 오프셋을 남기므로 네트워크 중단 뒤 같은 파일을 다시 선택하면 이어서 보낸다. 전송 완료 후 `/api/cwk/tus/finalize`가 한 번만 `media` 레코드를 만들고 원본을 `pb_data/storage`에 복사한 다음 임시 조각을 제거한다. 완료 전 조각은 운영 백업에 넣지 않으며 7일 이상 방치된 조각은 매일 자동 정리한다. tus 기능이 없는 서버에서는 클라이언트가 기존 PocketBase 업로드로 자동 fallback한다.
@@ -306,9 +307,10 @@ QA:
 
 ## Stage 5. Post-cutover hardening
 
-- `deploy/imac/backup-pocketbase.sh`를 매일 실행한다.
-- 백업은 최소 30일 보관한다.
-- Time Machine 또는 외장 디스크에 `pb_data`와 백업 폴더를 포함한다.
+- `deploy/imac/backup-pocketbase.sh`를 매일 실행한다. PocketBase는 중지하지 않는다.
+- `data.db` 온라인 스냅샷은 30일 보관하고, DB가 가리키는 실제 업로드 원본은 `incremental/originals`에 append-only로 한 번만 보관한다.
+- `media.web_video`, `media.video_poster`, PocketBase 썸네일, tus 임시 조각은 원본에서 재생성할 수 있으므로 증분 원본 백업에서 제외한다.
+- Time Machine 또는 외장 디스크에 `incremental/originals`, `incremental/db-snapshots`, `incremental/manifests`를 포함한다.
 - 아이맥 전원 설정은 서버 모드로 고정한다. 시스템 잠자기/디스크 잠자기/standby/autopoweroff는 끄고, 정전 후 자동 재시작은 켠다.
 - Oracle API 서버와 GitHub Pages 배포는 7일 이상 롤백용으로 유지한 뒤 정리한다.
 
@@ -321,7 +323,7 @@ sudo launchctl bootstrap system /Library/LaunchDaemons/com.coldwaterkim.pocketba
 sudo launchctl kickstart -k system/com.coldwaterkim.pocketbase-backup
 ```
 
-정상 운영에서는 `npm run imac:install-services`가 위 백업 plist와 `backup-pocketbase.sh`를 운영 런타임 폴더 기준으로 설치한다. 수동 설치는 구조를 확인할 때만 사용한다.
+정상 운영에서는 `npm run imac:install-services`가 위 백업 plist, `backup-pocketbase.sh`, `backup-pocketbase.py`를 운영 런타임 폴더 기준으로 설치한다. 수동 설치는 구조를 확인할 때만 사용한다.
 
 전원 설정:
 
@@ -333,9 +335,11 @@ npm run qa:power
 백업 확인:
 
 ```bash
-ls -lh ~/Backups/coldwaterkim-pocketbase/pb_data_*.tar.gz
-shasum -a 256 -c ~/Backups/coldwaterkim-pocketbase/pb_data_*.tar.gz.sha256
-tar -tzf "$(ls -t ~/Backups/coldwaterkim-pocketbase/pb_data_*.tar.gz | head -1)" >/dev/null
+npm run qa:incremental-backup
+latest_db="$(ls -t ~/Backups/coldwaterkim-pocketbase/incremental/db-snapshots/data_*.db | head -1)"
+(cd "$(dirname "$latest_db")" && shasum -a 256 -c "$(basename "$latest_db").sha256")
+sqlite3 -readonly "$latest_db" 'PRAGMA quick_check;'
+ls -lh ~/Backups/coldwaterkim-pocketbase/incremental/manifests/originals_*.json | tail -1
 npm run qa:hardening
 npm run qa:launchd
 npm run qa:power
@@ -344,9 +348,10 @@ npm run qa:power
 완료 기준:
 
 - `com.coldwaterkim.pocketbase-backup` launchd job 등록
-- 수동 kickstart 후 `pb_data_*.tar.gz`와 `.sha256` 생성
-- `shasum -a 256 -c` 통과
-- `tar -tzf` 통과
+- 수동 kickstart 후 DB 스냅샷, SHA-256, 원본 manifest 생성
+- DB 스냅샷 `shasum -a 256 -c` 통과
+- DB 스냅샷 `PRAGMA quick_check` 통과
+- 두 번째 실행에서 기존 원본 재복사 0개
 - `npm run qa:hardening` 통과
 - `npm run qa:launchd` 통과
 - `npm run qa:power` 통과

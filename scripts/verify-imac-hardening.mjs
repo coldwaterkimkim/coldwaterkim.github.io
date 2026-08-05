@@ -53,9 +53,12 @@ function verifyPackageScripts() {
 function verifyBackupScript() {
   const scriptPath = path.join(root, 'deploy/imac/backup-pocketbase.sh');
   const script = readText('deploy/imac/backup-pocketbase.sh');
+  const programPath = path.join(root, 'deploy/imac/backup-pocketbase.py');
+  const program = readText('deploy/imac/backup-pocketbase.py');
 
   requireCondition('launchd verifier exists', fs.existsSync(path.join(root, 'scripts/verify-imac-launchd.mjs')));
   requireCondition('backup script executable', isExecutable(scriptPath));
+  requireCondition('incremental backup program exists', fs.existsSync(programPath));
   try {
     run('bash', ['-n', 'deploy/imac/backup-pocketbase.sh']);
     record('backup script syntax', true);
@@ -64,14 +67,15 @@ function verifyBackupScript() {
   }
 
   requireCondition('backup script defaults to runtime pb_data', script.includes('PB_DATA_DIR="${PB_DATA_DIR:-$RUNTIME_ROOT/pb_data}"'));
-  requireCondition('backup script targets system PocketBase service', script.includes('SERVICE_TARGET="${SERVICE_TARGET:-system/$LABEL}"'));
-  requireCondition('backup script uses installed LaunchDaemon plist', script.includes('PLIST="${PLIST:-/Library/LaunchDaemons/$LABEL.plist}"'));
-  requireCondition('backup script keeps at least 30 days by default', script.includes('RETENTION_DAYS="${RETENTION_DAYS:-30}"'));
-  requireCondition('backup script makes cold backup', script.includes('stop_service_if_needed') && script.includes('start_service_if_needed'));
-  requireCondition('backup script validates tar archive', script.includes('tar -tzf "$BACKUP_FILE"'));
-  requireCondition('backup script writes sha256 sidecar', script.includes('shasum -a 256 "$BACKUP_FILE" > "$CHECKSUM_FILE"'));
-  requireCondition('backup script restores service after backup', script.includes('launchctl bootstrap "$SERVICE_DOMAIN" "$PLIST"') && script.includes('launchctl kickstart -k "$SERVICE_TARGET"'));
-  requireCondition('backup script sets macOS UTF-8 locale', script.includes('en_US.UTF-8'));
+  requireCondition('backup script keeps 30 days of DB snapshots', script.includes('DATABASE_RETENTION_DAYS="${DATABASE_RETENTION_DAYS:-30}"'));
+  requireCondition('backup script delegates to incremental program', script.includes('backup-pocketbase.py') && script.includes('/usr/bin/python3'));
+  requireCondition('backup does not stop PocketBase', !script.includes('launchctl bootout') && !program.includes('launchctl'));
+  requireCondition('backup uses SQLite online snapshot API', program.includes('source.backup(destination)'));
+  requireCondition('backup validates SQLite snapshot', program.includes('PRAGMA quick_check'));
+  requireCondition('backup excludes video derivatives', program.includes('("media", "web_video")') && program.includes('("media", "video_poster")'));
+  requireCondition('backup originals are append-only', program.includes('append-only backup checksum conflict'));
+  requireCondition('backup uses an execution lock', program.includes('fcntl.flock'));
+  requireCondition('backup writes sha256 metadata', program.includes('sha256'));
 }
 
 function verifyBackupPlist() {
@@ -97,7 +101,8 @@ function verifyBackupPlist() {
 function verifyReadme() {
   const readme = readText('deploy/imac/README.md');
   requireCondition('README documents backup launchd install', readme.includes('com.coldwaterkim.pocketbase-backup.plist'));
-  requireCondition('README documents sha256 verification', readme.includes('shasum -a 256 -c'));
+  requireCondition('README documents incremental originals', readme.includes('incremental/originals'));
+  requireCondition('README documents DB quick check', readme.includes('PRAGMA quick_check'));
   requireCondition('README documents qa:hardening', readme.includes('npm run qa:hardening'));
 }
 
