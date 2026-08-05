@@ -10,6 +10,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PROGRAM = ROOT / "deploy/imac/backup-pocketbase.py"
+RESTORE_PROGRAM = ROOT / "deploy/imac/restore-pocketbase-incremental.py"
 
 
 def require(condition, message):
@@ -105,6 +106,22 @@ def main():
         second = json.loads(run_backup(pb_data, backup_dir).stdout)
         require(second["copied_files"] == 0, "second run must not duplicate originals")
 
+        restore_target = root / "restored-pb_data"
+        restore = subprocess.run([
+            "/usr/bin/python3", str(RESTORE_PROGRAM),
+            "--snapshot", str(snapshots[0]),
+            "--manifest", str(manifests[0]),
+            "--originals-root", str(originals),
+            "--target", str(restore_target),
+            "--verify-all",
+        ], cwd=ROOT, text=True, capture_output=True)
+        require(restore.returncode == 0, "incremental restore fixture failed: %s" % restore.stderr)
+        restore_summary = json.loads(restore.stdout)
+        require(restore_summary["cloned_originals"] == 3, "restore must clone all manifest originals")
+        require((restore_target / "data.db").is_file(), "restored data.db missing")
+        require((restore_target / "storage/media_id/record1/original clip.mov").is_file(), "restored media original missing")
+        require(not (restore_target / "storage/media_id/record1/playback.mp4").exists(), "restore must not invent derivatives")
+
         source = pb_data / "storage/media_id/record1/original clip.mov"
         previous_mtime = source.stat().st_mtime_ns
         source.write_bytes(b"CHANGED!-VIDEO")
@@ -115,7 +132,7 @@ def main():
         require("append-only backup checksum conflict" in conflict.stderr, "changed original must fail without overwrite")
         require((originals / "media_id/record1/original clip.mov").read_bytes() == b"ORIGINAL-VIDEO", "vault original was overwritten")
 
-    print("Incremental PocketBase backup QA passed (15 checks)")
+    print("Incremental PocketBase backup QA passed (20 checks)")
     return 0
 
 

@@ -337,9 +337,18 @@ npm run qa:power
 ```bash
 npm run qa:incremental-backup
 latest_db="$(ls -t ~/Backups/coldwaterkim-pocketbase/incremental/db-snapshots/data_*.db | head -1)"
+stamp="$(basename "$latest_db" .db)"
+manifest="$HOME/Backups/coldwaterkim-pocketbase/incremental/manifests/originals_${stamp#data_}.json"
 (cd "$(dirname "$latest_db")" && shasum -a 256 -c "$(basename "$latest_db").sha256")
 sqlite3 -readonly "$latest_db" 'PRAGMA quick_check;'
 ls -lh ~/Backups/coldwaterkim-pocketbase/incremental/manifests/originals_*.json | tail -1
+# 새 target 경로를 지정해 APFS copy-on-write 복원 리허설
+npm run pb:restore:incremental -- \
+  --snapshot "$latest_db" \
+  --manifest "$manifest" \
+  --originals-root ~/Backups/coldwaterkim-pocketbase/incremental/originals/storage \
+  --target /tmp/coldwaterkim-restore-rehearsal \
+  --verify-all
 npm run qa:hardening
 npm run qa:launchd
 npm run qa:power
