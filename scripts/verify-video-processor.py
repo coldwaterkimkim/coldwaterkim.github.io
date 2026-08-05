@@ -19,12 +19,12 @@ def load_processor():
     return module
 
 
-def make_fixture(processor, output, codec, faststart=True, fps=24):
+def make_fixture(processor, output, codec, faststart=True, fps=24, pix_fmt="yuv420p"):
     command = [
         str(FFMPEG), "-hide_banner", "-loglevel", "error", "-y",
         "-f", "lavfi", "-i", "testsrc2=size=640x360:rate=%d" % fps,
         "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=44100",
-        "-t", "2", "-shortest", "-c:v", codec, "-pix_fmt", "yuv420p",
+        "-t", "2", "-shortest", "-c:v", codec, "-pix_fmt", pix_fmt,
         "-c:a", "aac", "-b:a", "96k",
     ]
     if faststart:
@@ -61,6 +61,16 @@ def main():
         playback, mode = processor.create_playback(FFMPEG, FFPROBE, remux, remux_output, remux_info)
         require(mode == "remux" and playback.is_file(), "remux path must create a playback MP4")
         require(processor.is_faststart_mp4(playback), "remuxed playback must be fast-start MP4")
+
+        full_range = temp / "full-range.mov"
+        make_fixture(processor, full_range, "libx264", faststart=False, pix_fmt="yuvj420p")
+        full_range_info = processor.probe_media(FFPROBE, full_range)
+        require(full_range_info["pix_fmt"] == "yuvj420p", "fixture must preserve the full-range 4:2:0 marker")
+        require(processor.choose_playback_mode(full_range, full_range_info) == "remux", "full-range H.264 should be remuxed without transcoding")
+        full_range_output = temp / "full-range-output"
+        full_range_output.mkdir()
+        playback, mode = processor.create_playback(FFMPEG, FFPROBE, full_range, full_range_output, full_range_info)
+        require(mode == "remux" and playback.is_file(), "full-range H.264 remux must pass playback validation")
 
         transcode = temp / "transcode.mp4"
         make_fixture(processor, transcode, "mpeg4", faststart=False, fps=60)

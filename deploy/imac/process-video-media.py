@@ -272,7 +272,10 @@ def is_h264_web_compatible(info):
         and info["width"] > 0 and info["height"] > 0
         and info["width"] <= 1920 and info["height"] <= 1080
         and info["frame_rate"] <= 30.01
-        and info["pix_fmt"] in {"yuv420p", "nv12"}
+        # FFmpeg reports full-range 4:2:0 H.264 as the legacy yuvj420p name.
+        # It is browser-compatible and must not be forced through a pointless
+        # transcode (VideoToolbox can preserve the same full-range marker).
+        and info["pix_fmt"] in {"yuv420p", "yuvj420p", "nv12"}
     )
 
 
@@ -316,7 +319,7 @@ def create_poster(ffmpeg, source, output_dir, duration):
 def validate_playback(ffmpeg, ffprobe, source_info, playback):
     info = probe_media(ffprobe, playback)
     if not is_h264_web_compatible(info):
-        raise RuntimeError("web playback is not compatible H.264 1080p/30fps yuv420p")
+        raise RuntimeError("web playback is not compatible H.264 1080p/30fps 4:2:0")
     if info["audio_codec"] not in ("", "aac"):
         raise RuntimeError("web playback audio is not AAC")
     if not is_faststart_mp4(playback):
