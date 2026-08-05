@@ -58,10 +58,10 @@ check(
   'entry must use its own tab-session storage key',
 );
 check(siteSource.includes('entryWebmasterLineKey'), 'entry must use a KST date-specific webmaster line');
-check(siteSource.includes('getPublishedPostTimeline'), 'entry must summarize posts');
-check(siteSource.includes('getPublishedDailyTimeline'), 'entry must summarize daily entries');
-check(siteSource.includes('getPublishedProgramTimeline'), 'entry must summarize programs');
-check(siteSource.includes('getPublishedNasajabTimeline'), 'entry must summarize nasajab');
+check(siteSource.includes('getPublishedPostSummaryTimeline'), 'entry must summarize posts without bodies');
+check(siteSource.includes('getPublishedDailySummaryTimeline'), 'entry must summarize daily entries without bodies');
+check(siteSource.includes('getPublishedProgramSummaryTimeline'), 'entry must summarize programs without bodies');
+check(siteSource.includes('getPublishedNasajabSummaryTimeline'), 'entry must summarize nasajab without file metadata');
 check(!/quiet|mute|sound off|소리 없이|조용히 입장/i.test(siteSource), 'entry must not offer a silent route');
 check(stylesSource.includes('.entry-gate'), 'entry gate styles must exist');
 check(stylesSource.includes('@media (max-width: 640px)'), 'entry gate must keep the public mobile breakpoint');

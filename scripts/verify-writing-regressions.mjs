@@ -250,6 +250,40 @@ assert.equal(requestedPostSort, '-published_at,-created', 'owner posts must use 
 await pbModule.getPublishedPosts(1, 20);
 assert.equal(requestedPostSort, '-published_at,-created', 'public and owner post lists must share the same sort');
 
+let requestedSummaryFields = '';
+const dailyPages = [
+  {
+    items: [
+      { id: 'a', day_key: '2026-08-05', published_at: '2026-08-05T10:00:00Z' },
+      { id: 'b', day_key: '2026-08-05', published_at: '2026-08-05T09:00:00Z' },
+      { id: 'c', day_key: '2026-08-04', published_at: '2026-08-04T09:00:00Z' },
+    ],
+    page: 1,
+    totalPages: 2,
+  },
+  {
+    items: [
+      { id: 'd', day_key: '2026-08-03', published_at: '2026-08-03T09:00:00Z' },
+      { id: 'e', day_key: '2026-08-02', published_at: '2026-08-02T09:00:00Z' },
+    ],
+    page: 2,
+    totalPages: 2,
+  },
+];
+pbModule.pb.collection = collectionName => {
+  assert.equal(collectionName, 'daily_entries');
+  return {
+    async getList(page, _perPage, options) {
+      requestedSummaryFields = options.fields;
+      return dailyPages[page - 1];
+    },
+  };
+};
+const threeDailyDays = await pbModule.getPublishedDailySummariesThroughDays(3, 3);
+assert.deepEqual(threeDailyDays.map(entry => entry.id), ['a', 'b', 'c', 'd'], 'home summary must preserve all entries from exactly three recent days');
+assert.match(requestedSummaryFields, /day_key/);
+assert.doesNotMatch(requestedSummaryFields, /content/, 'home daily summary must not request full bodies');
+
 const sortedPosts = pbModule.sortPostsForDisplay([
   { id: 'newer-created', published_at: '2026-07-17', created: '2026-07-20' },
   { id: 'newer-published', published_at: '2026-07-19', created: '2026-07-19' },

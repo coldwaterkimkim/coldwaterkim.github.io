@@ -52,7 +52,10 @@ export const pb = new PocketBase(API_URL);
 pb.autoCancellation(false);
 
 export async function getAlbumItems(page = 1, perPage = 60, mediaKind = '') {
-    const options = { sort: '-uploaded_at,-id' };
+    const options = {
+        sort: '-uploaded_at,-id',
+        fields: 'id,collectionId,collectionName,media,uploaded_at,file,video_poster,is_video,source_kind,source_id,source_slug'
+    };
     if (mediaKind === 'image' || mediaKind === 'video') {
         options.filter = pb.filter('is_video = {:isVideo}', { isVideo: mediaKind === 'video' });
     }
@@ -141,6 +144,7 @@ export function requireAuth() {
 // ─────────────────────────────────────────────────────────
 
 const POST_DISPLAY_SORT = '-published_at,-created';
+const POST_SUMMARY_FIELDS = 'id,title,slug,published_at,created,updated';
 
 /**
  * 발행된 글 목록 가져오기
@@ -152,6 +156,14 @@ export async function getPublishedPosts(page = 1, perPage = 10) {
     return await pb.collection('posts').getList(page, perPage, {
         filter: pb.filter('status = {:status}', { status: 'published' }),
         sort: POST_DISPLAY_SORT
+    });
+}
+
+export async function getPublishedPostSummaries(page = 1, perPage = 10) {
+    return await pb.collection('posts').getList(page, perPage, {
+        filter: pb.filter('status = {:status}', { status: 'published' }),
+        sort: POST_DISPLAY_SORT,
+        fields: POST_SUMMARY_FIELDS
     });
 }
 
@@ -188,6 +200,10 @@ async function collectPostPages(loader, perPage = 100) {
 
 export async function getPublishedPostTimeline(perPage = 100) {
     return await collectPostPages(getPublishedPosts, perPage);
+}
+
+export async function getPublishedPostSummaryTimeline(perPage = 100) {
+    return await collectPostPages(getPublishedPostSummaries, perPage);
 }
 
 /**
@@ -361,6 +377,38 @@ export async function getPublishedDailyEntries(page = 1, perPage = 10) {
     });
 }
 
+const DAILY_SUMMARY_FIELDS = 'id,day_key,published_at,created,updated';
+
+export async function getPublishedDailySummaries(page = 1, perPage = 20) {
+    return await pb.collection(DAILY_COLLECTION).getList(page, perPage, {
+        filter: pb.filter('status = {:status}', { status: 'published' }),
+        sort: '-day_key,-published_at,-created',
+        fields: DAILY_SUMMARY_FIELDS
+    });
+}
+
+export async function getPublishedDailySummariesThroughDays(dayLimit = 3, perPage = 20) {
+    const items = [];
+    const days = new Set();
+    let page = 1;
+    const limit = Math.max(1, Number(dayLimit) || 1);
+
+    while (true) {
+        const result = await getPublishedDailySummaries(page, perPage);
+        for (const entry of result.items || []) {
+            const dayKey = dailyEntryDayKey(entry);
+            if (!days.has(dayKey) && days.size >= limit) {
+                return sortDailyEntriesForDisplay(items);
+            }
+            days.add(dayKey);
+            items.push(entry);
+        }
+        if (!result.totalPages || page >= result.totalPages) break;
+        page += 1;
+    }
+    return sortDailyEntriesForDisplay(items);
+}
+
 /**
  * 모든 나으 하루 목록 (관리자용)
  * @param {number} page
@@ -375,6 +423,10 @@ export async function getAllDailyEntries(page = 1, perPage = 20) {
 
 export async function getPublishedDailyTimeline(perPage = 100) {
     return await collectDailyPages(getPublishedDailyEntries, perPage);
+}
+
+export async function getPublishedDailySummaryTimeline(perPage = 100) {
+    return await collectDailyPages(getPublishedDailySummaries, perPage);
 }
 
 export async function getAllDailyTimeline(perPage = 100) {
@@ -553,6 +605,14 @@ export async function getPublishedPrograms(page = 1, perPage = 50) {
     });
 }
 
+export async function getPublishedProgramSummaries(page = 1, perPage = 50) {
+    return await pb.collection('programs').getList(page, perPage, {
+        filter: pb.filter('is_public = {:isPublic}', { isPublic: true }),
+        sort: '-created',
+        fields: 'id,title,slug,created,updated'
+    });
+}
+
 /**
  * 모든 프로그램 목록 (관리자용)
  * @param {number} page
@@ -567,6 +627,10 @@ export async function getAllPrograms(page = 1, perPage = 50) {
 
 export async function getPublishedProgramTimeline(perPage = 100) {
     return await collectProgramPages(getPublishedPrograms, perPage);
+}
+
+export async function getPublishedProgramSummaryTimeline(perPage = 100) {
+    return await collectProgramPages(getPublishedProgramSummaries, perPage);
 }
 
 export async function getAllProgramTimeline(perPage = 100) {
@@ -746,6 +810,14 @@ export async function getPublishedNasajab(page = 1, perPage = 50) {
     });
 }
 
+export async function getPublishedNasajabSummaries(page = 1, perPage = 50) {
+    return await pb.collection('nasajab').getList(page, perPage, {
+        filter: pb.filter('is_public = {:isPublic}', { isPublic: true }),
+        sort: '-display_at,-created',
+        fields: 'id,title,caption,memo,display_at,created,updated'
+    });
+}
+
 /**
  * 모든 나사잡 목록 (관리자용)
  * @param {number} page
@@ -760,6 +832,10 @@ export async function getAllNasajab(page = 1, perPage = 50) {
 
 export async function getPublishedNasajabTimeline(perPage = 100) {
     return await collectNasajabPages(getPublishedNasajab, perPage);
+}
+
+export async function getPublishedNasajabSummaryTimeline(perPage = 100) {
+    return await collectNasajabPages(getPublishedNasajabSummaries, perPage);
 }
 
 export async function getAllNasajabTimeline(perPage = 100) {

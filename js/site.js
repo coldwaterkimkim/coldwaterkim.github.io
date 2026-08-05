@@ -4,13 +4,14 @@
  */
 
 import {
-  getPublishedPosts,
-  getPublishedPostTimeline,
-  getPublishedDailyTimeline,
-  getPublishedPrograms,
-  getPublishedProgramTimeline,
-  getPublishedNasajab,
-  getPublishedNasajabTimeline,
+  getPublishedPostSummaries,
+  getPublishedPostSummaryTimeline,
+  getPublishedDailySummariesThroughDays,
+  getPublishedDailySummaryTimeline,
+  getPublishedProgramSummaries,
+  getPublishedProgramSummaryTimeline,
+  getPublishedNasajabSummaries,
+  getPublishedNasajabSummaryTimeline,
   getGuestbookEntries,
   addGuestbookEntry,
   saveGuestbookReply,
@@ -354,10 +355,10 @@ async function initEntryGateUpdates(gate, lastAdmittedAt) {
 
   try {
     const [posts, dailyEntries, programs, nasajabItems] = await Promise.all([
-      getPublishedPostTimeline(),
-      getPublishedDailyTimeline(),
-      getPublishedProgramTimeline(),
-      getPublishedNasajabTimeline(),
+      getPublishedPostSummaryTimeline(),
+      getPublishedDailySummaryTimeline(),
+      getPublishedProgramSummaryTimeline(),
+      getPublishedNasajabSummaryTimeline(),
     ]);
     const summary = summarizeEntryUpdates([
       {
@@ -1416,10 +1417,25 @@ async function initDynamicContent(scope = document) {
     initSettings(scope),
     initRecentPosts(scope),
     initGuestbookPreview(scope),
-    initHomeAlbumPreview(scope),
   ]);
   initHomeOwnerTools(scope);
   initGuestbookPage(scope);
+  scheduleHomeAlbumPreview(scope);
+}
+
+function scheduleHomeAlbumPreview(scope = document) {
+  const grid = scope.querySelector?.('#home-album-grid');
+  if (!grid || grid.dataset.albumScheduled === 'true') return;
+  grid.dataset.albumScheduled = 'true';
+  const load = () => {
+    if (!grid.isConnected) return;
+    initHomeAlbumPreview(scope);
+  };
+  if (typeof requestIdleCallback === 'function') {
+    requestIdleCallback(load, { timeout: 1200 });
+  } else {
+    setTimeout(load, 0);
+  }
 }
 
 function initHomeOwnerTools(scope = document) {
@@ -1593,7 +1609,7 @@ async function initRecentPosts(scope = document) {
       selector: '#recent-posts-table',
       readyKey: 'recentPostsReady',
       empty: '아직 글방 글이 없습니다.',
-      load: () => getPublishedPosts(1, 3),
+      load: () => getPublishedPostSummaries(1, 3),
       toRow: post => ({
         title: post.title || '(제목 없음)',
         url: `posts/view.html?slug=${encodeURIComponent(post.slug || '')}`,
@@ -1605,7 +1621,7 @@ async function initRecentPosts(scope = document) {
       readyKey: 'recentDailyReady',
       empty: '아직 나으 하루가 없습니다.',
       load: async () => ({
-        items: groupDailyEntriesByDay(await getPublishedDailyTimeline()).slice(0, 3)
+        items: groupDailyEntriesByDay(await getPublishedDailySummariesThroughDays(3)).slice(0, 3)
       }),
       toRow: day => ({
         title: dailyPreviewTitle(day),
@@ -1617,7 +1633,7 @@ async function initRecentPosts(scope = document) {
       selector: '#recent-programs-table',
       readyKey: 'recentProgramsReady',
       empty: '아직 프로그램이 없습니다.',
-      load: () => getPublishedPrograms(1, 3),
+      load: () => getPublishedProgramSummaries(1, 3),
       toRow: program => ({
         title: program.title || '(이름 없음)',
         url: `programs/view.html?slug=${encodeURIComponent(program.slug || '')}`,
@@ -1628,7 +1644,7 @@ async function initRecentPosts(scope = document) {
       selector: '#recent-nasajab-table',
       readyKey: 'recentNasajabReady',
       empty: '아직 나사잡 항목이 없습니다.',
-      load: () => getPublishedNasajab(1, 3),
+      load: () => getPublishedNasajabSummaries(1, 3),
       toRow: item => ({
         title: item.title || item.caption || item.memo || '(제목 없음)',
         url: item.id ? `nasajab/index.html#${encodeURIComponent(item.id)}` : 'nasajab/index.html',

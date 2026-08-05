@@ -88,9 +88,7 @@ function markActiveFilter(scope, kind) {
 }
 
 function homePreviewCount() {
-  if (matchMedia('(max-width: 600px)').matches) return 6;
-  if (matchMedia('(max-width: 900px)').matches) return 8;
-  return 10;
+  return 5;
 }
 
 function rememberAlbumScroll() {

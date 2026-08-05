@@ -1,4 +1,4 @@
-export const ALBUM_PAGE_SIZE = 60;
+export const ALBUM_PAGE_SIZE = 24;
 
 const MEDIA_EXT_RE = /\.(jpe?g|png|gif|webp|mp4|mov|m4v|webm)$/i;
 const VIDEO_EXT_RE = /\.(mp4|mov|m4v|webm)$/i;
