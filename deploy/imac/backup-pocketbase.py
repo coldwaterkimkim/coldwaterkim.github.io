@@ -97,7 +97,12 @@ def snapshot_database(source_path, destination_path):
     destination = sqlite3.connect(str(temp_path))
     try:
         source.backup(destination)
-        destination.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        destination.commit()
+        # PocketBase runs data.db in WAL mode. A standalone snapshot must use
+        # DELETE journaling so it can be opened without a matching -wal file.
+        journal_mode = destination.execute("PRAGMA journal_mode=DELETE").fetchone()
+        if not journal_mode or str(journal_mode[0]).lower() != "delete":
+            raise RuntimeError("failed to make SQLite snapshot standalone")
         result = destination.execute("PRAGMA quick_check").fetchone()
         if not result or result[0] != "ok":
             raise RuntimeError("SQLite quick_check failed: %r" % (result,))
@@ -130,7 +135,7 @@ def write_json_atomic(path, payload):
 
 
 def discover_originals(database_path, pb_data_dir):
-    connection = sqlite3.connect("file:%s?mode=ro" % database_path.as_posix(), uri=True)
+    connection = sqlite3.connect("file:%s?mode=ro&immutable=1" % database_path.as_posix(), uri=True)
     connection.row_factory = sqlite3.Row
     storage_root = (pb_data_dir / "storage").resolve()
     originals = []
