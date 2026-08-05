@@ -75,7 +75,7 @@ Rollback 기준:
 
 64MB 이상 영상은 브라우저 Uppy가 `/api/cwk/tus/files/`로 전송한다. 서버는 `tus-uploads`에 받은 바이트와 오프셋을 남기므로 네트워크 중단 뒤 같은 파일을 다시 선택하면 이어서 보낸다. 전송 완료 후 `/api/cwk/tus/finalize`가 한 번만 `media` 레코드를 만들고 원본을 `pb_data/storage`에 복사한 다음 임시 조각을 제거한다. 완료 전 조각은 운영 백업에 넣지 않으며 7일 이상 방치된 조각은 매일 자동 정리한다. tus 기능이 없는 서버에서는 클라이언트가 기존 PocketBase 업로드로 자동 fallback한다.
 
-영상 업로드는 원본 `media.file`을 바꾸지 않는다. 새 영상은 `video_status=pending`으로 저장되고, 사용자 LaunchAgent `com.coldwaterkim.video-processor`가 한 번에 하나씩 포스터와 웹 재생본을 만든다. 재생본은 긴 변 1280px 이하 H.264/AAC MP4, 최대 약 3.5Mbps, Fast Start 사양이다. 처리 전/실패 시 공개 화면은 원본으로 자동 fallback한다.
+영상 업로드는 원본 `media.file`을 바꾸지 않는다. 새 영상은 `video_status=pending`으로 저장되고, 사용자 LaunchAgent `com.coldwaterkim.video-processor`가 한 번에 하나씩 포스터와 필요한 웹 재생본을 만든다. 이미 H.264/AAC, 1080p·30fps 이하, Fast Start MP4인 원본은 중복 재생본을 만들지 않고 그대로 쓴다. 호환 H.264 MOV나 Fast Start가 아닌 MP4는 영상 재인코딩 없이 MP4 포장만 바꾸고, HEVC·4K·고프레임 등 변환이 필요한 영상만 `h264_videotoolbox`를 우선 사용한다. 비트레이트는 원본 크기·해상도·길이에 맞춰 최대 6Mbps 안에서 정하며, 하드웨어 변환 실패 시 `libx264`로 자동 복구한다. 모든 생성본은 H.264/AAC, 1080p·30fps 이하, Fast Start와 앞·뒤 디코딩을 검사한 뒤 저장한다. 처리 전/실패 시 공개 화면은 원본으로 자동 fallback한다.
 
 최초 설치나 영상 schema 변경 배포 순서는 아래처럼 분리한다. 평소 `imac:sync-runtime`은 기존 계약대로 정적 파일과 migration만 동기화하며 워커를 재시작하지 않는다.
 
@@ -96,6 +96,8 @@ npm run imac:video:enqueue-referenced
 
 처리 로그는 `~/Library/Logs/coldwaterkim-video-processor.log`과 `.error.log`에 남는다. 원본은 삭제하거나 덮어쓰지 않으며, 파생 파일은 같은 PocketBase `media` 레코드의 `web_video`, `video_poster` 필드에 별도 보관된다.
 일시 오류는 최대 3회 자동 재시도한다. 최종 실패 항목을 다시 대기열에 넣으려면 `npm run imac:video:retry-errors`를 쓴다. 사용자 LaunchAgent라 아이맥 로그인 전에는 변환이 시작되지 않지만 PocketBase와 공개 사이트는 계속 정상 동작한다.
+
+격리 샘플로 원본 직결, 무손실 remux, 소프트웨어 fallback을 다시 검사하려면 `npm run qa:video-processor`를 실행한다.
 
 로컬 Caddy 리허설:
 

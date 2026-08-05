@@ -61,6 +61,7 @@
     "qa:album": "node scripts/verify-album.mjs",
     "qa:visitor-counter": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/verify-visitor-counter.mjs",
     "qa:writing": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/verify-writing-regressions.mjs",
+    "qa:video-processor": "/usr/bin/python3 scripts/verify-video-processor.py",
     "qa:uppy-tus-client": "node scripts/verify-uppy-tus-client.mjs",
     "preview": "vite preview"
   },

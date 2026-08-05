@@ -383,7 +383,10 @@ assert.match(resumableServer, /DisableConcatenation:\s*false/, 'the tus server m
 
 const videoProcessor = fs.readFileSync(new URL('../deploy/imac/process-video-media.py', import.meta.url), 'utf8');
 assert.match(videoProcessor, /"-movflags", "\+faststart"/, 'web MP4 generation must enable fast start');
-assert.match(videoProcessor, /"-maxrate", "3500k"/, 'web MP4 generation must cap sustained bitrate');
+assert.match(videoProcessor, /"h264_videotoolbox"/, 'non-compatible originals should use iMac hardware H.264 encoding first');
+assert.match(videoProcessor, /adaptive_bitrate_kbps/, 'web MP4 bitrate must adapt to source size and resolution');
+assert.match(videoProcessor, /"libx264"/, 'video processing must retain a software encoder fallback');
+assert.match(videoProcessor, /return None, mode/, 'already compatible fast-start MP4 originals must not be duplicated');
 assert.match(videoProcessor, /validate_original_path/, 'video processing must resolve a separate original file safely');
 assert.doesNotMatch(videoProcessor, /immutable=1/, 'live SQLite reference discovery must not claim the database is immutable');
 assert.match(videoProcessor, /video_attempts<3/, 'transient failures must be retried up to the bounded attempt count');

@@ -185,9 +185,118 @@ def validate_original_path(runtime_root, record):
     return resolved
 
 
+def parse_rate(value):
+    try:
+        numerator, denominator = str(value or "0/1").split("/", 1)
+        return float(numerator) / float(denominator) if float(denominator) else 0
+    except (TypeError, ValueError):
+        return 0
+
+
+def probe_media(ffprobe, source):
+    probe = command_json([
+        str(ffprobe), "-v", "error", "-show_entries",
+        "format=duration,format_name,bit_rate:stream=index,codec_type,codec_name,profile,width,height,pix_fmt,avg_frame_rate,r_frame_rate:stream_tags=rotate:stream_side_data=rotation",
+        "-of", "json", str(source),
+    ])
+    video = next((stream for stream in probe.get("streams", []) if stream.get("codec_type") == "video"), {})
+    audio = next((stream for stream in probe.get("streams", []) if stream.get("codec_type") == "audio"), {})
+    rotation = video.get("tags", {}).get("rotate", 0)
+    for side_data in video.get("side_data_list", []):
+        if side_data.get("rotation") is not None:
+            rotation = side_data["rotation"]
+            break
+    try:
+        rotation = int(float(rotation or 0)) % 360
+    except (TypeError, ValueError):
+        rotation = 0
+    width = int(video.get("width") or 0)
+    height = int(video.get("height") or 0)
+    if rotation in (90, 270):
+        width, height = height, width
+    format_info = probe.get("format", {})
+    return {
+        "duration": float(format_info.get("duration") or 0),
+        "format_name": str(format_info.get("format_name") or ""),
+        "bit_rate": int(format_info.get("bit_rate") or 0),
+        "video_codec": str(video.get("codec_name") or "").lower(),
+        "video_profile": str(video.get("profile") or ""),
+        "width": width,
+        "height": height,
+        "pix_fmt": str(video.get("pix_fmt") or "").lower(),
+        "frame_rate": parse_rate(video.get("avg_frame_rate") or video.get("r_frame_rate")),
+        "audio_codec": str(audio.get("codec_name") or "").lower(),
+    }
+
+
 def probe_duration(ffprobe, source):
-    probe = command_json([str(ffprobe), "-v", "error", "-show_entries", "format=duration", "-of", "json", str(source)])
-    return float(probe.get("format", {}).get("duration") or 0)
+    return probe_media(ffprobe, source)["duration"]
+
+
+def mp4_atom_order(path):
+    positions = {}
+    file_size = path.stat().st_size
+    with path.open("rb") as handle:
+        offset = 0
+        while offset + 8 <= file_size:
+            handle.seek(offset)
+            header = handle.read(16)
+            if len(header) < 8:
+                break
+            size = int.from_bytes(header[:4], "big")
+            atom = header[4:8].decode("latin-1")
+            header_size = 8
+            if size == 1:
+                if len(header) < 16:
+                    break
+                size = int.from_bytes(header[8:16], "big")
+                header_size = 16
+            elif size == 0:
+                size = file_size - offset
+            if size < header_size or offset + size > file_size:
+                break
+            if atom in ("moov", "mdat") and atom not in positions:
+                positions[atom] = offset
+            offset += size
+    return positions
+
+
+def is_faststart_mp4(path):
+    positions = mp4_atom_order(path)
+    return "moov" in positions and "mdat" in positions and positions["moov"] < positions["mdat"]
+
+
+def is_h264_web_compatible(info):
+    return (
+        info["video_codec"] == "h264"
+        and info["width"] > 0 and info["height"] > 0
+        and info["width"] <= 1920 and info["height"] <= 1080
+        and info["frame_rate"] <= 30.01
+        and info["pix_fmt"] in {"yuv420p", "nv12"}
+    )
+
+
+def choose_playback_mode(source, info):
+    if is_h264_web_compatible(info):
+        if source.suffix.lower() == ".mp4" and info["audio_codec"] in ("", "aac") and is_faststart_mp4(source):
+            return "original"
+        return "remux"
+    return "transcode"
+
+
+def adaptive_bitrate_kbps(source, info):
+    pixels = max(1, info["width"] * info["height"])
+    if pixels <= 640 * 480:
+        resolution_cap = 1800
+    elif pixels <= 1280 * 720:
+        resolution_cap = 3500
+    else:
+        resolution_cap = 6000
+    source_kbps = max(0, info["bit_rate"] // 1000)
+    source_based = max(750, int(source_kbps * 1.20)) if source_kbps else resolution_cap
+    duration = max(0.001, info["duration"])
+    size_budget = max(750, int(((source.stat().st_size * 8 * 1.10) / duration - 128000) / 1000))
+    return max(750, min(resolution_cap, source_based, size_budget))
 
 
 def create_poster(ffmpeg, source, output_dir, duration):
@@ -204,26 +313,79 @@ def create_poster(ffmpeg, source, output_dir, duration):
     return poster
 
 
-def create_playback(ffmpeg, source, output_dir, duration):
+def validate_playback(ffmpeg, ffprobe, source_info, playback):
+    info = probe_media(ffprobe, playback)
+    if not is_h264_web_compatible(info):
+        raise RuntimeError("web playback is not compatible H.264 1080p/30fps yuv420p")
+    if info["audio_codec"] not in ("", "aac"):
+        raise RuntimeError("web playback audio is not AAC")
+    if not is_faststart_mp4(playback):
+        raise RuntimeError("web playback is missing MP4 fast start")
+    tolerance = max(1.0, source_info["duration"] * 0.01)
+    if abs(info["duration"] - source_info["duration"]) > tolerance:
+        raise RuntimeError("web playback duration differs from the original")
+    duration = max(0.1, info["duration"])
+    for seek in (0, max(0, duration - 1.0)):
+        run_command([
+            str(ffmpeg), "-hide_banner", "-loglevel", "error", "-ss", "%.3f" % seek,
+            "-i", str(playback), "-t", "0.5", "-map", "0:v:0", "-f", "null", "-",
+        ], 60)
+    return info
+
+
+def create_playback(ffmpeg, ffprobe, source, output_dir, info=None):
+    info = info or probe_media(ffprobe, source)
+    mode = choose_playback_mode(source, info)
+    if mode == "original":
+        return None, mode
     playback = output_dir / "playback.mp4"
-    scale = "scale='min(1280,iw)':'min(1280,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2,format=yuv420p"
-    run_command([
+    common = [
         str(ffmpeg), "-hide_banner", "-loglevel", "error", "-y", "-i", str(source),
-        "-map", "0:v:0", "-map", "0:a:0?", "-vf", scale,
-        "-c:v", "libx264", "-preset", "veryfast", "-crf", "24",
-        "-maxrate", "3500k", "-bufsize", "7000k", "-profile:v", "high", "-level", "4.1",
-        "-c:a", "aac", "-b:a", "128k", "-ac", "2", "-movflags", "+faststart", str(playback),
-    ], max(300, int(duration * 10)))
+        "-map", "0:v:0", "-map", "0:a:0?",
+    ]
+    if mode == "remux":
+        audio = ["-c:a", "copy"] if info["audio_codec"] in ("", "aac") else ["-c:a", "aac", "-b:a", "128k", "-ac", "2"]
+        command = common + ["-c:v", "copy"] + audio + ["-movflags", "+faststart", str(playback)]
+        run_command(command, max(300, int(info["duration"] * 4)))
+    else:
+        bitrate = adaptive_bitrate_kbps(source, info)
+        scale = "scale='min(1920,iw)':'min(1080,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2,format=yuv420p"
+        if info["frame_rate"] > 30.01:
+            scale += ",fps=30"
+        common_output = [
+            "-vf", scale, "-b:v", "%dk" % bitrate,
+            "-c:a", "aac", "-b:a", "128k", "-ac", "2", "-movflags", "+faststart", str(playback),
+        ]
+        videotoolbox = common + [
+            "-c:v", "h264_videotoolbox", "-allow_sw", "0", "-profile:v", "high", "-level", "4.1",
+        ] + common_output
+        software = common + [
+            "-c:v", "libx264", "-preset", "veryfast", "-profile:v", "high", "-level", "4.1",
+            "-maxrate", "%dk" % bitrate, "-bufsize", "%dk" % (bitrate * 2),
+        ] + common_output
+        force_software = os.environ.get("VIDEO_PROCESSOR_FORCE_SOFTWARE") == "1"
+        if force_software:
+            run_command(software, max(300, int(info["duration"] * 10)))
+            mode = "transcode-software"
+        else:
+            try:
+                run_command(videotoolbox, max(300, int(info["duration"] * 10)))
+                mode = "transcode-videotoolbox"
+            except RuntimeError as error:
+                print("VideoToolbox unavailable; using libx264 fallback: %s" % error, file=sys.stderr)
+                run_command(software, max(300, int(info["duration"] * 10)))
+                mode = "transcode-software"
     if not playback.is_file():
         raise RuntimeError("FFmpeg did not create the expected playback file")
-    return playback
+    validate_playback(ffmpeg, ffprobe, info, playback)
+    return playback, mode
 
 
 def create_derivatives(ffmpeg, ffprobe, source, output_dir):
-    duration = probe_duration(ffprobe, source)
-    poster = create_poster(ffmpeg, source, output_dir, duration)
-    playback = create_playback(ffmpeg, source, output_dir, duration)
-    return playback, poster
+    info = probe_media(ffprobe, source)
+    poster = create_poster(ffmpeg, source, output_dir, info["duration"])
+    playback, mode = create_playback(ffmpeg, ffprobe, source, output_dir, info)
+    return playback, poster, mode
 
 
 def discover_referenced_ids(database_path):
@@ -272,7 +434,8 @@ def main():
             print("would queue media %s" % record_id)
         else:
             record = client.get_record(record_id)
-            if Path(str(record.get("file") or "")).suffix.lower() in VIDEO_SUFFIXES and not record.get("web_video"):
+            if (Path(str(record.get("file") or "")).suffix.lower() in VIDEO_SUFFIXES
+                    and not record.get("web_video") and record.get("video_status") != "ready"):
                 client.patch_json(record_id, {"video_status": "pending", "video_error": "", "video_attempts": 0})
                 print("queued media %s" % record_id)
 
@@ -296,19 +459,24 @@ def main():
             source = validate_original_path(runtime_root, record)
             with tempfile.TemporaryDirectory(prefix="cwk-video-", dir=str(runtime_root)) as temp_dir:
                 output_dir = Path(temp_dir)
-                duration = probe_duration(runtime_root / "bin/ffprobe", source)
-                poster = create_poster(runtime_root / "bin/ffmpeg", source, output_dir, duration)
+                ffmpeg = runtime_root / "bin/ffmpeg"
+                ffprobe = runtime_root / "bin/ffprobe"
+                info = probe_media(ffprobe, source)
+                poster = create_poster(ffmpeg, source, output_dir, info["duration"])
                 client.upload_files(record_id, {"video_status": "processing", "video_error": ""}, {"video_poster": poster})
-                playback = create_playback(runtime_root / "bin/ffmpeg", source, output_dir, duration)
-                try:
-                    client.upload_files(record_id, {"video_status": "ready", "video_error": ""}, {"web_video": playback})
-                except Exception:
-                    recovered = client.get_record(record_id)
-                    if recovered.get("web_video") and recovered.get("video_poster"):
-                        client.patch_json(record_id, {"video_status": "ready", "video_error": ""})
-                    else:
-                        raise
-            print("processed media %s" % record_id)
+                playback, mode = create_playback(ffmpeg, ffprobe, source, output_dir, info)
+                if playback is None:
+                    client.patch_json(record_id, {"video_status": "ready", "video_error": ""})
+                else:
+                    try:
+                        client.upload_files(record_id, {"video_status": "ready", "video_error": ""}, {"web_video": playback})
+                    except Exception:
+                        recovered = client.get_record(record_id)
+                        if recovered.get("web_video") and recovered.get("video_poster"):
+                            client.patch_json(record_id, {"video_status": "ready", "video_error": ""})
+                        else:
+                            raise
+            print("processed media %s (%s)" % (record_id, mode))
         except Exception as error:
             message = str(error).replace(str(runtime_root), "<runtime>")[:500]
             try:
