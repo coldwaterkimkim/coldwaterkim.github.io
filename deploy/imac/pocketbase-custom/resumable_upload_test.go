@@ -122,6 +122,61 @@ func TestTerminateTusUploadFamilyRemovesParallelParts(t *testing.T) {
 	}
 }
 
+func TestTerminateTusPartialUploadsKeepsCompletedFinal(t *testing.T) {
+	ctx := context.Background()
+	store := filestore.New(t.TempDir())
+	partialUploads := make([]tusd.Upload, 0, 3)
+	partialUploadIDs := make([]string, 0, 3)
+	for _, chunk := range []string{"abc", "def", "ghi"} {
+		upload, err := store.NewUpload(ctx, tusd.FileInfo{Size: 3})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := upload.WriteChunk(ctx, 0, strings.NewReader(chunk)); err != nil {
+			t.Fatal(err)
+		}
+		info, err := upload.GetInfo(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		partialUploads = append(partialUploads, upload)
+		partialUploadIDs = append(partialUploadIDs, info.ID)
+	}
+
+	finalUpload, err := store.NewUpload(ctx, tusd.FileInfo{Size: 9, IsFinal: true, PartialUploads: partialUploadIDs})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.AsConcatableUpload(finalUpload).ConcatUploads(ctx, partialUploads); err != nil {
+		t.Fatal(err)
+	}
+	finalInfo, err := finalUpload.GetInfo(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := terminateTusPartialUploads(ctx, store, finalInfo); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.GetUpload(ctx, finalInfo.ID); err != nil {
+		t.Fatalf("completed final upload was removed with its partials: %v", err)
+	}
+	for _, uploadID := range partialUploadIDs {
+		if _, err := store.GetUpload(ctx, uploadID); !errors.Is(err, tusd.ErrNotFound) {
+			t.Fatalf("partial upload was not released before import: id=%q err=%v", uploadID, err)
+		}
+	}
+}
+
+func TestAvailableDiskBytes(t *testing.T) {
+	available, err := availableDiskBytes(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if available <= minimumFreeDiskBytes {
+		t.Fatalf("test volume unexpectedly lacks the safety reserve: %d", available)
+	}
+}
+
 func TestCleanupStaleUploads(t *testing.T) {
 	uploadDir := t.TempDir()
 	service := &resumableUploadService{uploadDir: uploadDir}

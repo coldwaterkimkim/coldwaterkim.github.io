@@ -6,7 +6,7 @@ coldwaterkim.com, www.coldwaterkim.com {
 	encode zstd gzip
 
 	request_body {
-		max_size 2GB
+		max_size 8GB
 	}
 
 	handle /api/* {

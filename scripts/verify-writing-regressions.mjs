@@ -343,6 +343,9 @@ const schema = JSON.parse(fs.readFileSync(new URL('../pb_schema.json', import.me
 const mediaCollection = schema.collections.find(collection => collection.name === 'media');
 const mediaFileField = mediaCollection.fields.find(field => field.name === 'file');
 assert.deepEqual(mediaFileField.thumbs, ['400x400', '800x0', '1600x0'], 'media schema must allow album and responsive thumbnail sizes');
+assert.equal(mediaFileField.maxSize, 8 * 1024 * 1024 * 1024, 'media originals must allow one 8GB file');
+const programsCollection = schema.collections.find(collection => collection.name === 'programs');
+assert.equal(programsCollection.fields.find(field => field.name === 'download_files').maxSize, 2 * 1024 * 1024 * 1024, 'program downloads must keep their separate 2GB limit');
 const webVideoField = mediaCollection.fields.find(field => field.name === 'web_video');
 const videoPosterField = mediaCollection.fields.find(field => field.name === 'video_poster');
 const videoStatusField = mediaCollection.fields.find(field => field.name === 'video_status');
@@ -369,6 +372,7 @@ assert.match(resumableMigration, /CREATE UNIQUE INDEX/, 'production migration mu
 
 assert.equal(pbModule.shouldUseResumableUpload({ name: 'day.mov', type: 'video/quicktime', size: 64 * 1024 * 1024 }), true, 'large videos must use tus');
 assert.equal(pbModule.shouldUseResumableUpload({ name: 'short.mov', type: 'video/quicktime', size: 63 * 1024 * 1024 }), false, 'small videos must keep the simple PocketBase upload');
+assert.equal(pbModule.MEDIA_UPLOAD_MAX_BYTES, 8 * 1024 * 1024 * 1024, 'the client and media schema must share the 8GB limit');
 assert.match(pbModule.formatMediaUploadProgress({ resumable: true, percent: 42 }), /재개 업로드 42%/, 'resumable upload progress must be visible in the editor');
 
 const pbSource = fs.readFileSync(new URL('../js/pb.js', import.meta.url), 'utf8');
@@ -380,6 +384,9 @@ assert.match(pbSource, /RESUMABLE_VIDEO_PARALLEL_UPLOADS\s*=\s*3/, 'parallel tus
 const resumableServer = fs.readFileSync(new URL('../deploy/imac/pocketbase-custom/resumable_upload.go', import.meta.url), 'utf8');
 assert.match(resumableServer, /"parallel_uploads":\s*resumableParallelParts/, 'the tus status route must advertise the safe parallel capacity');
 assert.match(resumableServer, /DisableConcatenation:\s*false/, 'the tus server must accept parallel upload concatenation');
+assert.match(resumableServer, /mediaUploadMaxBytes\s*=\s*int64\(8589934592\)/, 'the tus server must accept an 8GB original');
+assert.match(resumableServer, /terminateTusPartialUploads/, 'parallel parts must be released before PocketBase copies the final original');
+assert.match(resumableServer, /safe_upload_bytes/, 'the client must receive a disk-aware safe upload capacity');
 
 const videoProcessor = fs.readFileSync(new URL('../deploy/imac/process-video-media.py', import.meta.url), 'utf8');
 assert.match(videoProcessor, /"-movflags", "\+faststart"/, 'web MP4 generation must enable fast start');

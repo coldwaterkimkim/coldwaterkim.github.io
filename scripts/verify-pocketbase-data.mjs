@@ -178,7 +178,7 @@ async function main() {
 
     const mediaMaxSize = inspectFileLimit(dbFile, 'media', 'file');
     const programMaxSize = inspectFileLimit(dbFile, 'programs', 'download_files');
-    if (mediaMaxSize !== 2147483648) fail(`media.file maxSize is ${mediaMaxSize}, expected 2147483648`);
+    if (mediaMaxSize !== 8589934592) fail(`media.file maxSize is ${mediaMaxSize}, expected 8589934592`);
     if (programMaxSize !== 2147483648) fail(`programs.download_files maxSize is ${programMaxSize}, expected 2147483648`);
 
     const recordCounts = inspectRecordCounts(

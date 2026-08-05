@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 	"unicode/utf8"
 
@@ -23,8 +24,9 @@ import (
 
 const (
 	resumableUploadBasePath = "/api/cwk/tus/files/"
-	mediaUploadMaxBytes     = int64(2147483648)
+	mediaUploadMaxBytes     = int64(8589934592)
 	resumableParallelParts  = 3
+	minimumFreeDiskBytes    = int64(20 * 1024 * 1024 * 1024)
 	staleUploadMaxAge       = 7 * 24 * time.Hour
 )
 
@@ -95,11 +97,25 @@ func (service *resumableUploadService) registerRoutes(e *core.ServeEvent) {
 	}
 
 	e.Router.GET("/api/cwk/tus/status", func(event *core.RequestEvent) error {
+		availableBytes, err := availableDiskBytes(service.uploadDir)
+		if err != nil {
+			return event.InternalServerError("Failed to inspect upload capacity.", err)
+		}
+		safeUploadBytes := (availableBytes - minimumFreeDiskBytes) / 2
+		if safeUploadBytes < 0 {
+			safeUploadBytes = 0
+		}
+		if safeUploadBytes > mediaUploadMaxBytes {
+			safeUploadBytes = mediaUploadMaxBytes
+		}
 		return event.JSON(http.StatusOK, map[string]any{
-			"available":        true,
-			"protocol":         "tus-1.0.0",
-			"max_size":         mediaUploadMaxBytes,
-			"parallel_uploads": resumableParallelParts,
+			"available":         true,
+			"protocol":          "tus-1.0.0",
+			"max_size":          mediaUploadMaxBytes,
+			"parallel_uploads":  resumableParallelParts,
+			"available_bytes":   availableBytes,
+			"reserve_bytes":     minimumFreeDiskBytes,
+			"safe_upload_bytes": safeUploadBytes,
 		})
 	}).Bind(apis.RequireAuth("users", core.CollectionNameSuperusers))
 
@@ -156,7 +172,7 @@ func (service *resumableUploadService) finalizeUpload(e *core.RequestEvent) erro
 		return e.BadRequestError("The resumable upload is not complete yet.", nil)
 	}
 	if info.Size > mediaUploadMaxBytes {
-		return e.BadRequestError("The uploaded file exceeds the 2GB limit.", nil)
+		return e.BadRequestError("The uploaded file exceeds the 8GB limit.", nil)
 	}
 	ownerID := strings.TrimSpace(info.MetaData["owner_id"])
 	if !e.HasSuperuserAuth() && (ownerID == "" || ownerID != e.Auth.Id) {
@@ -166,6 +182,19 @@ func (service *resumableUploadService) finalizeUpload(e *core.RequestEvent) erro
 	storagePath, err := service.validatedStoragePath(info)
 	if err != nil {
 		return e.InternalServerError("The uploaded file path is invalid.", err)
+	}
+	availableBytes, err := availableDiskBytes(service.uploadDir)
+	if err != nil {
+		return e.InternalServerError("Failed to inspect upload capacity.", err)
+	}
+	if availableBytes < minimumFreeDiskBytes {
+		return e.BadRequestError("Not enough free disk space to safely register this upload.", nil)
+	}
+	if err := terminateTusPartialUploads(e.Request.Context(), service.store, info); err != nil {
+		return e.InternalServerError("Failed to release completed upload parts before import.", err)
+	}
+	if storageInfo, err := os.Stat(storagePath); err != nil || storageInfo.Size() != info.Size {
+		return e.InternalServerError("The completed upload changed while releasing its parts.", err)
 	}
 	record, err := service.importMediaFile(uploadID, storagePath, info.MetaData)
 	if err != nil {
@@ -279,11 +308,8 @@ func terminateTusUpload(ctx context.Context, store filestore.FileStore, upload t
 	return terminatable.Terminate(ctx)
 }
 
-func terminateTusUploadFamily(ctx context.Context, store filestore.FileStore, upload tusd.Upload, info tusd.FileInfo) error {
+func terminateTusPartialUploads(ctx context.Context, store filestore.FileStore, info tusd.FileInfo) error {
 	var cleanupErrors []error
-	if err := terminateTusUpload(ctx, store, upload); err != nil {
-		cleanupErrors = append(cleanupErrors, err)
-	}
 	for _, partialUploadID := range info.PartialUploads {
 		if !isSafeResumableUploadID(partialUploadID) {
 			cleanupErrors = append(cleanupErrors, fmt.Errorf("invalid partial tus upload id: %q", partialUploadID))
@@ -302,6 +328,25 @@ func terminateTusUploadFamily(ctx context.Context, store filestore.FileStore, up
 		}
 	}
 	return errors.Join(cleanupErrors...)
+}
+
+func terminateTusUploadFamily(ctx context.Context, store filestore.FileStore, upload tusd.Upload, info tusd.FileInfo) error {
+	var cleanupErrors []error
+	if err := terminateTusUpload(ctx, store, upload); err != nil {
+		cleanupErrors = append(cleanupErrors, err)
+	}
+	if err := terminateTusPartialUploads(ctx, store, info); err != nil {
+		cleanupErrors = append(cleanupErrors, err)
+	}
+	return errors.Join(cleanupErrors...)
+}
+
+func availableDiskBytes(path string) (int64, error) {
+	var stats syscall.Statfs_t
+	if err := syscall.Statfs(path, &stats); err != nil {
+		return 0, err
+	}
+	return int64(stats.Bavail) * int64(stats.Bsize), nil
 }
 
 func isSafeResumableUploadID(value string) bool {

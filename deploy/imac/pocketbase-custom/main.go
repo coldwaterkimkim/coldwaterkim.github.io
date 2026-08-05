@@ -80,7 +80,7 @@ func main() {
 	app.RootCmd.PersistentFlags().DurationVar(
 		&httpRequestTimeout,
 		"httpRequestTimeout",
-		30*time.Minute,
+		3*time.Hour,
 		"HTTP read/write timeout used for large media uploads",
 	)
 

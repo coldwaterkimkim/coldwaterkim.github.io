@@ -29,7 +29,7 @@
         <string>--dir=/Users/kimchansu/.local/share/coldwaterkim/home-server/pb_data</string>
         <string>--migrationsDir=/Users/kimchansu/.local/share/coldwaterkim/home-server/pb_migrations</string>
         <string>--origins=https://coldwaterkim.com,https://www.coldwaterkim.com,http://127.0.0.1:5173,http://localhost:5173</string>
-        <string>--httpRequestTimeout=30m</string>
+        <string>--httpRequestTimeout=3h</string>
         <string>--tusUploadDir=/Users/kimchansu/.local/share/coldwaterkim/home-server/tus-uploads</string>
     </array>
 

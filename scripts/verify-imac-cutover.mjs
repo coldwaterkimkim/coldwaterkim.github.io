@@ -129,12 +129,12 @@ function verifyCaddyfile() {
   requireCondition('Caddyfile includes www.coldwaterkim.com', caddyfile.includes('www.coldwaterkim.com'));
   requireCondition('Caddyfile proxies /api to local PocketBase', caddyfile.includes('handle /api/*') && caddyfile.includes('reverse_proxy 127.0.0.1:8090'));
   requireCondition('Caddyfile proxies /_ to local PocketBase admin', caddyfile.includes('handle /_/*') && caddyfile.includes('reverse_proxy 127.0.0.1:8090'));
-  requireCondition('Caddyfile allows 2GB request bodies', /request_body[\s\S]*max_size\s+2GB/.test(caddyfile));
+  requireCondition('Caddyfile allows 8GB request bodies', /request_body[\s\S]*max_size\s+8GB/.test(caddyfile));
   requireCondition('Caddyfile serves runtime dist root', caddyfile.includes(runtimeDistPath));
   requireCondition('local Caddyfile binds rehearsal port', localCaddyfile.includes('http://127.0.0.1:18081'));
   requireCondition('local Caddyfile proxies /api to local PocketBase', localCaddyfile.includes('handle /api/*') && localCaddyfile.includes('reverse_proxy 127.0.0.1:8090'));
   requireCondition('local Caddyfile proxies /_ to local PocketBase admin', localCaddyfile.includes('handle /_/*') && localCaddyfile.includes('reverse_proxy 127.0.0.1:8090'));
-  requireCondition('local Caddyfile allows 2GB request bodies', /request_body[\s\S]*max_size\s+2GB/.test(localCaddyfile));
+  requireCondition('local Caddyfile allows 8GB request bodies', /request_body[\s\S]*max_size\s+8GB/.test(localCaddyfile));
   requireCondition('local Caddyfile serves dist root', localCaddyfile.includes(rootPath));
 }
 
@@ -157,7 +157,7 @@ function verifyPlists() {
   requireCondition('Caddy launchd uses runtime Caddyfile', caddyPlist.includes(`${runtimeRoot}/Caddyfile`));
   requireCondition('Caddy launchd avoids Documents TCC path', !caddyPlist.includes('/Documents/'));
   requireCondition('PocketBase launchd binds localhost', pocketbasePlist.includes('--http=127.0.0.1:8090'));
-  requireCondition('PocketBase launchd allows 30 minute media uploads', pocketbasePlist.includes('--httpRequestTimeout=30m'));
+  requireCondition('PocketBase launchd allows 3 hour media uploads', pocketbasePlist.includes('--httpRequestTimeout=3h'));
   requireCondition('PocketBase launchd uses resumable upload staging outside pb_data', pocketbasePlist.includes(`--tusUploadDir=${runtimeRoot}/tus-uploads`));
   requireCondition('PocketBase launchd points at runtime pb_data', pocketbasePlist.includes(`${runtimeRoot}/pb_data`));
   requireCondition('PocketBase launchd points at runtime migrations', pocketbasePlist.includes(`--migrationsDir=${runtimeRoot}/pb_migrations`));

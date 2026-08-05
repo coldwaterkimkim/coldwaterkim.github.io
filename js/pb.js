@@ -1285,7 +1285,7 @@ export async function getPostViewCounts(postIds = []) {
 // Media 헬퍼 함수들
 // ─────────────────────────────────────────────────────────
 
-const MEDIA_UPLOAD_MAX_BYTES = 2147483648;
+export const MEDIA_UPLOAD_MAX_BYTES = 8 * 1024 * 1024 * 1024;
 const RESUMABLE_VIDEO_MIN_BYTES = 64 * 1024 * 1024;
 const RESUMABLE_VIDEO_PARALLEL_UPLOADS = 3;
 let resumableUploadCapabilityPromise = null;
@@ -1299,11 +1299,21 @@ let resumableUploadCapabilityPromise = null;
  * @returns {Promise<object>}
  */
 export async function uploadMedia(file, altText = '', caption = '', options = {}) {
+    if (Number(file?.size || 0) > MEDIA_UPLOAD_MAX_BYTES) {
+        throw new Error('파일 하나는 8GB까지 올릴 수 있어.');
+    }
     if (shouldUseResumableUpload(file)) {
         const capability = await getResumableMediaUploadCapability();
         if (capability.available) {
+            if (Number(file?.size || 0) > capability.maxSize) {
+                throw new Error('현재 서버가 받을 수 있는 영상 크기를 넘었어. 잠시 뒤 다시 시도해줘.');
+            }
+            if (Number(file?.size || 0) > capability.safeUploadBytes) {
+                throw new Error('아이맥 저장 공간이 부족해서 이 영상을 안전하게 올릴 수 없어. 공간을 확보한 뒤 다시 시도해줘.');
+            }
             return await uploadMediaResumable(file, altText, caption, options, capability);
         }
+        throw new Error('64MB 이상 영상은 재개 업로드 서버가 연결되어야 올릴 수 있어. 잠시 뒤 다시 시도해줘.');
     }
 
     return await uploadMediaDirect(file, altText, caption, options);
@@ -1363,25 +1373,27 @@ export function formatMediaUploadProgress(progress = {}) {
 }
 
 async function getResumableMediaUploadCapability() {
-    if (!isLoggedIn()) return { available: false, parallelUploads: 1 };
+    if (!isLoggedIn()) return { available: false, parallelUploads: 1, maxSize: 0, safeUploadBytes: 0 };
     if (!resumableUploadCapabilityPromise) {
         resumableUploadCapabilityPromise = pb.send('/api/cwk/tus/status', {
             method: 'GET',
             requestKey: null
         }).then(result => ({
             available: Boolean(result?.available),
+            maxSize: Math.min(MEDIA_UPLOAD_MAX_BYTES, Number(result?.max_size || 0)),
+            safeUploadBytes: Math.max(0, Number(result?.safe_upload_bytes || 0)),
             parallelUploads: Math.max(1, Math.min(
                 RESUMABLE_VIDEO_PARALLEL_UPLOADS,
                 Number(result?.parallel_uploads || 1)
             ))
-        })).catch(() => ({ available: false, parallelUploads: 1 }));
+        })).catch(() => ({ available: false, parallelUploads: 1, maxSize: 0, safeUploadBytes: 0 }));
     }
     return await resumableUploadCapabilityPromise;
 }
 
 async function uploadMediaResumable(file, altText, caption, options = {}, capability = {}) {
     if (Number(file?.size || 0) > MEDIA_UPLOAD_MAX_BYTES) {
-        throw new Error('파일 하나는 2GB까지 올릴 수 있어.');
+        throw new Error('파일 하나는 8GB까지 올릴 수 있어.');
     }
 
     const [{ default: Uppy }, { default: Tus }] = await Promise.all([

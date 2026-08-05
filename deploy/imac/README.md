@@ -42,16 +42,16 @@ Rollback 기준:
 - `npm run build`는 기존 GitHub Pages용으로 계속 `api.coldwaterkim.com`을 본다.
 - `npm run build:imac`은 `coldwaterkim.com` 같은 origin의 `/api`를 본다.
 - 공개 dist 안에 `cdn.jsdelivr.net` 런타임 의존이 없다.
-- `media.file`, `programs.download_files` 업로드 한도는 2GB다.
-- 2GB 이내 대용량 미디어가 느린 네트워크에서도 완료되도록 PocketBase HTTP 읽기/쓰기 제한시간은 30분이다.
+- `media.file` 원본 업로드 한도는 8GB이고, `programs.download_files`는 별도 2GB 한도를 유지한다.
+- 느린 외부망에서도 8GB 원본을 재개 업로드할 수 있도록 PocketBase HTTP 읽기/쓰기 제한시간은 3시간이다.
 - 64MB 이상 영상은 Uppy/tus로 중단 지점부터 재개하며, 완료 후에만 기존 `media.file` 원본으로 등록한다.
 
 ## Stage 2. iMac service rehearsal
 
-1. `deploy/imac/install-runtime.sh`로 30분 HTTP 제한시간을 적용한 PocketBase와 아이맥 CPU에 맞는 Caddy 바이너리를 `.local-bin/`에 둔다. 영상 파생본 기능은 `npm run imac:install-ffmpeg`로 체크섬이 고정된 Intel용 FFmpeg/ffprobe도 설치한다.
+1. `deploy/imac/install-runtime.sh`로 3시간 HTTP 제한시간을 적용한 PocketBase와 아이맥 CPU에 맞는 Caddy 바이너리를 `.local-bin/`에 둔다. 영상 파생본 기능은 `npm run imac:install-ffmpeg`로 체크섬이 고정된 Intel용 FFmpeg/ffprobe도 설치한다.
    - Intel iMac은 `darwin_amd64`/`mac_amd64`가 필요하다.
    - 현재 핀: PocketBase `v0.23.5`, Caddy `v2.11.4`.
-   - PocketBase는 `deploy/imac/pocketbase-custom/`의 공식 v0.23.5 엔트리포인트에 `--httpRequestTimeout=30m`과 tusd v2.10.0 라우트를 추가한다. 완료 파일은 PocketBase 파일 API로 다시 등록되므로 `pb_data` 저장 구조와 JS migration 동작은 공식 v0.23.5와 같다.
+   - PocketBase는 `deploy/imac/pocketbase-custom/`의 공식 v0.23.5 엔트리포인트에 `--httpRequestTimeout=3h`와 tusd v2.10.0 라우트를 추가한다. 완료 파일은 PocketBase 파일 API로 다시 등록되므로 `pb_data` 저장 구조와 JS migration 동작은 공식 v0.23.5와 같다.
    - Go 1.25.12 Intel 공식 배포본의 SHA-256을 고정해 빌드하며, `deploy/imac/build-pocketbase-custom.sh`가 두 커스텀 플래그와 바이너리 버전을 확인한다.
 2. `npm run build:imac`
 3. `npm run imac:install-services:dry-run`으로 운영 런타임 폴더 복사와 launchd 설치 계획 확인
@@ -73,7 +73,7 @@ Rollback 기준:
 - `backup-pocketbase.py`
 - `process-video-media.py`
 
-64MB 이상 영상은 브라우저 Uppy가 `/api/cwk/tus/files/`로 전송한다. 서버는 `tus-uploads`에 받은 바이트와 오프셋을 남기므로 네트워크 중단 뒤 같은 파일을 다시 선택하면 이어서 보낸다. 전송 완료 후 `/api/cwk/tus/finalize`가 한 번만 `media` 레코드를 만들고 원본을 `pb_data/storage`에 복사한 다음 임시 조각을 제거한다. 완료 전 조각은 운영 백업에 넣지 않으며 7일 이상 방치된 조각은 매일 자동 정리한다. tus 기능이 없는 서버에서는 클라이언트가 기존 PocketBase 업로드로 자동 fallback한다.
+64MB 이상 영상은 브라우저 Uppy가 `/api/cwk/tus/files/`로 전송한다. 서버는 `tus-uploads`에 받은 바이트와 오프셋을 남기므로 네트워크 중단 뒤 같은 파일을 다시 선택하면 이어서 보낸다. 전송 시작 전 서버가 20GiB 안전 여유와 결합 중 최대 약 원본 2배의 임시 공간을 확인한다. 전송 완료 후 `/api/cwk/tus/finalize`는 3개 부분 조각을 먼저 지워 디스크 피크를 낮추고, 결합본 하나만 `media.file`로 등록한 뒤 남은 임시 파일도 제거한다. 완료 전 조각은 운영 백업에 넣지 않으며 7일 이상 방치된 조각은 매일 자동 정리한다. tus 기능이 없으면 64MB 이상 영상은 불안정한 단순 업로드로 우회하지 않고 재개 서버 연결 오류를 명확히 보여준다.
 
 영상 업로드는 원본 `media.file`을 바꾸지 않는다. 새 영상은 `video_status=pending`으로 저장되고, 사용자 LaunchAgent `com.coldwaterkim.video-processor`가 한 번에 하나씩 포스터와 필요한 웹 재생본을 만든다. 이미 H.264/AAC, 1080p·30fps 이하, Fast Start MP4인 원본은 중복 재생본을 만들지 않고 그대로 쓴다. 호환 H.264 MOV나 Fast Start가 아닌 MP4는 영상 재인코딩 없이 MP4 포장만 바꾸고, HEVC·4K·고프레임 등 변환이 필요한 영상만 `h264_videotoolbox`를 우선 사용한다. 비트레이트는 원본 크기·해상도·길이에 맞춰 최대 6Mbps 안에서 정하며, 하드웨어 변환 실패 시 `libx264`로 자동 복구한다. 모든 생성본은 H.264/AAC, 1080p·30fps 이하, Fast Start와 앞·뒤 디코딩을 검사한 뒤 저장한다. 처리 전/실패 시 공개 화면은 원본으로 자동 fallback한다.
 
@@ -148,7 +148,7 @@ QA:
 - `/` 홈 렌더링
 - `/posts/`, `/daily/`, `/programs/`, `/nasajab/`, `/guestbook.html`, `/about.html` 직접 URL 200
 - 브라우저 콘솔 error 0개
-- `media.file`, `programs.download_files` maxSize가 `2147483648`
+- `media.file` maxSize가 `8589934592`, `programs.download_files`가 `2147483648`
 - launchd PocketBase 설정이 운영 런타임 폴더의 `pb_data`와 `pb_migrations`를 함께 사용
 - 관리자 로그인
 - 테스트 글 작성/수정/삭제
@@ -243,7 +243,7 @@ npm run pb:rehearse:backup -- migration_backups/pocketbase/<backup-name>.zip --s
 - 리허설 `pb_data`로 PocketBase가 기동
 - `/api/health` 200
 - 운영 글/방명록/미디어 샘플이 리허설 DB에서 일치
-- `media.file`, `programs.download_files` maxSize가 `2147483648`
+- `media.file` maxSize가 `8589934592`, `programs.download_files`가 `2147483648`
 
 ## Stage 4. DNS cutover
 

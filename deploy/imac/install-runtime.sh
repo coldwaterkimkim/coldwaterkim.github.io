@@ -31,7 +31,7 @@ CADDY_TARBALL="caddy_${CADDY_VERSION}_mac_${CADDY_ARCH}.tar.gz"
 CADDY_URL="https://github.com/caddyserver/caddy/releases/download/v${CADDY_VERSION}/${CADDY_TARBALL}"
 CADDY_CHECKSUMS_URL="https://github.com/caddyserver/caddy/releases/download/v${CADDY_VERSION}/caddy_${CADDY_VERSION}_checksums.txt"
 
-echo "Building PocketBase v${POCKETBASE_VERSION} with the 30 minute upload timeout"
+echo "Building PocketBase v${POCKETBASE_VERSION} with the 3 hour upload timeout"
 POCKETBASE_VERSION="$POCKETBASE_VERSION" bash "$SCRIPT_DIR/build-pocketbase-custom.sh"
 
 echo "Installing Caddy v${CADDY_VERSION} for mac_${CADDY_ARCH}"
