@@ -6,12 +6,19 @@ import {
     defaultBlockSpecs,
     imageParse
 } from '@blocknote/core';
+import { FormattingToolbarExtension } from '@blocknote/core/extensions';
 import {
     createReactBlockSpec,
+    FormattingToolbar,
+    FormattingToolbarController,
+    getFormattingToolbarItems,
     ImageBlock,
     ImageToExternalHTML,
     ResizableFileBlockWrapper,
+    useBlockNoteEditor,
+    useComponentsContext,
     useCreateBlockNote,
+    useEditorState,
     useResolveUrl
 } from '@blocknote/react';
 import { BlockNoteView } from '@blocknote/mantine';
@@ -186,7 +193,6 @@ class BlockNoteMarkdownEditor {
         this.editor = null;
         this.currentHtml = '';
         this.pendingHtml = '';
-        this.activeImageBlockId = '';
         this.readyPromise = new Promise(resolve => {
             this.resolveReady = resolve;
         });
@@ -195,7 +201,6 @@ class BlockNoteMarkdownEditor {
         this.mount.innerHTML = `
             <div class="markdown-editor-inline-toolbar blocknote-editor-toolbar">
                 <button type="button" class="markdown-editor-image-button">이미지</button>
-                <button type="button" class="markdown-editor-crop-button" disabled>선택 이미지 자르기</button>
                 <span class="blocknote-editor-badge">BlockNote test</span>
             </div>
             <div class="blocknote-editor-mount"></div>
@@ -204,7 +209,6 @@ class BlockNoteMarkdownEditor {
 
         this.inlineToolbar = this.mount.querySelector('.markdown-editor-inline-toolbar');
         this.imageButton = this.mount.querySelector('.markdown-editor-image-button');
-        this.cropButton = this.mount.querySelector('.markdown-editor-crop-button');
         this.editorMount = this.mount.querySelector('.blocknote-editor-mount');
         this.cropDialogMount = this.mount.querySelector('.markdown-editor-crop-dialog-mount');
         this.reactRoot = createRoot(this.editorMount);
@@ -239,20 +243,12 @@ class BlockNoteMarkdownEditor {
             }
         });
 
-        this.cropButton?.addEventListener('click', () => this.requestImageCrop());
         this.mount.addEventListener('click', event => {
             const image = event.target instanceof Element
                 ? event.target.closest('.bn-block-content[data-content-type="image"] .bn-visual-media')
                 : null;
-            if (!image) {
-                if (event.target instanceof Element && event.target.closest('.bn-editor')) {
-                    this.selectImageBlock('');
-                }
-                return;
-            }
-
-            const container = image.closest('[data-id]');
-            this.selectImageBlock(container?.getAttribute('data-id') || '');
+            if (!image) return;
+            this.blockNote?.getExtension?.(FormattingToolbarExtension)?.store?.setState(true);
         });
 
         this.mount.addEventListener('paste', (event) => {
@@ -282,33 +278,9 @@ class BlockNoteMarkdownEditor {
         this.resolveReady?.();
     }
 
-    selectImageBlock(blockId = '') {
+    requestImageCrop(blockId) {
         const block = blockId ? this.blockNote?.getBlock?.(blockId) : null;
-        this.activeImageBlockId = block?.type === 'image' ? block.id : '';
-        if (this.cropButton) {
-            this.cropButton.disabled = !this.activeImageBlockId;
-            this.cropButton.textContent = imageCropFromBlockProps(block?.props).enabled
-                ? '선택 이미지 다시 자르기'
-                : '선택 이미지 자르기';
-        }
-    }
-
-    syncImageSelection() {
-        let block = null;
-        try {
-            block = this.blockNote?.getTextCursorPosition?.().block || null;
-        } catch (_error) {
-            block = null;
-        }
-        this.selectImageBlock(block?.type === 'image' ? block.id : '');
-    }
-
-    requestImageCrop() {
-        const block = this.activeImageBlockId
-            ? this.blockNote?.getBlock?.(this.activeImageBlockId)
-            : null;
         if (!block || block.type !== 'image' || !block.props?.url) {
-            this.selectImageBlock('');
             return;
         }
 
@@ -337,7 +309,6 @@ class BlockNoteMarkdownEditor {
             nextProps.previewWidth = Math.max(64, Math.round(displayedWidth || crop.pixelWidth || 640));
         }
         this.blockNote.updateBlock(block, { props: nextProps });
-        this.selectImageBlock(block.id);
         this.currentHtml = this.htmlFromEditor();
     }
 
@@ -577,6 +548,41 @@ function CroppableImageToExternalHTML(props) {
         image,
         h('figcaption', null, props.block.props.caption)
     );
+}
+
+function ImageCropToolbarButton({ adapter }) {
+    const Components = useComponentsContext();
+    const editor = useBlockNoteEditor();
+    const block = useEditorState({
+        editor,
+        selector: ({ editor: currentEditor }) => {
+            if (!currentEditor.isEditable) return undefined;
+            const selectedBlocks = currentEditor.getSelection()?.blocks || [
+                currentEditor.getTextCursorPosition().block
+            ];
+            if (selectedBlocks.length !== 1 || selectedBlocks[0]?.type !== 'image') return undefined;
+            return selectedBlocks[0];
+        }
+    });
+
+    if (!Components || !block?.props?.url) return null;
+    const cropped = imageCropFromBlockProps(block.props).enabled;
+    return h(Components.FormattingToolbar.Button, {
+        className: 'bn-button cwk-image-crop-toolbar-button',
+        label: cropped ? '이미지 다시 자르기' : '이미지 자르기',
+        mainTooltip: cropped ? '이 이미지 다시 자르기' : '이 이미지 자르기',
+        icon: h('span', { 'aria-hidden': 'true' }, '✂'),
+        onClick: () => adapter.requestImageCrop(block.id)
+    });
+}
+
+function CroppingFormattingToolbar({ adapter }) {
+    const items = getFormattingToolbarItems();
+    items.splice(8, 0, h(ImageCropToolbarButton, {
+        key: 'cwkImageCropButton',
+        adapter
+    }));
+    return h(FormattingToolbar, null, items);
 }
 
 function parseCroppableImageElement(element) {
@@ -858,23 +864,23 @@ function BlockNoteMount({ adapter, placeholder }) {
         adapter.setPlaceholder(placeholder);
     }, [adapter, editor, placeholder]);
 
+    const formattingToolbar = useCallback(
+        () => h(CroppingFormattingToolbar, { adapter }),
+        [adapter]
+    );
+
     return React.createElement(BlockNoteView, {
         editor,
         theme: 'light',
         className: 'blocknote-editor-view',
+        formattingToolbar: false,
         onChange: () => {
             adapter.currentHtml = adapter.htmlFromEditor();
-            if (adapter.activeImageBlockId && !editor.getBlock(adapter.activeImageBlockId)) {
-                adapter.selectImageBlock('');
-            }
             adapter.options.onChange?.(adapter.currentHtml);
-        },
-        onSelectionChange: () => {
-            if (adapter.editorMount?.contains(document.activeElement)) {
-                adapter.syncImageSelection();
-            }
         }
-    });
+    }, React.createElement(FormattingToolbarController, {
+        formattingToolbar
+    }));
 }
 
 function namedImageFile(file, index, fallbackNamePrefix) {

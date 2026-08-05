@@ -299,6 +299,8 @@ assert.match(markdownEditorSource, /BlockNoteSchema\.create/, 'the shared BlockN
 assert.match(markdownEditorSource, /IMAGE_CROP_DATA_ATTRIBUTE/, 'crop coordinates must be serialized into the image HTML itself');
 assert.match(markdownEditorSource, /원본 전체로/, 'the crop dialog must provide a reversible reset action');
 assert.doesNotMatch(markdownEditorSource, /toBlob\(|drawImage\(|getContext\(['"]2d/, 'visual cropping must never create or overwrite a raster file');
+assert.doesNotMatch(markdownEditorSource, /markdown-editor-crop-button/, 'the crop action must not stay fixed at the top of the editor');
+assert.match(markdownEditorSource, /cwk-image-crop-toolbar-button/, 'the selected image toolbar must expose the crop action next to the image');
 
 const postsView = fs.readFileSync(new URL('../posts/view.html', import.meta.url), 'utf8');
 assert.match(postsView, /prepareEmbeddedMediaForDisplay\(post\.content/, 'post HTML must be optimized before it enters the live DOM');
