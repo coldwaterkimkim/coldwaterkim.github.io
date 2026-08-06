@@ -73,6 +73,24 @@ Rollback 기준:
 - `backup-pocketbase.py`
 - `process-video-media.py`
 
+## 집 Wi-Fi Split DNS
+
+집 안에서도 공개 DNS를 사용하면 `coldwaterkim.com` 업로드가 공유기의 NAT loopback을 거친다. 공유기 DHCP가 집 기기에 아이맥 `192.168.0.11`을 DNS로 배포하고, 아이맥의 `com.coldwaterkim.split-dns` LaunchDaemon이 아래처럼 응답한다.
+
+- `coldwaterkim.com`, `www.coldwaterkim.com` → `192.168.0.11`
+- 나머지 도메인 → 기존 KT DNS `168.126.63.1`, `168.126.63.2`로 전달
+
+아이맥 Wi-Fi MAC `A8:BE:27:CD:56:3E`은 공유기에서 `192.168.0.11`로 고정 예약해야 한다. dnsmasq는 포트 53을 사용하므로 최초 설치만 관리자 권한이 필요하고, 이후에는 launchd가 부팅 시 자동 복구한다.
+
+```bash
+npm run imac:build-split-dns
+npm run qa:split-dns
+npm run imac:install-split-dns:dry-run
+npm run imac:install-split-dns
+```
+
+설치 직후 `dig @192.168.0.11 coldwaterkim.com`과 일반 외부 도메인 전달을 확인한 다음에만 공유기 DHCP DNS를 `192.168.0.11` 하나로 바꾼다. DNS 데몬 검증 전에 공유기 DHCP를 먼저 바꾸면 집 전체 이름 해석이 중단될 수 있으므로 순서를 바꾸지 않는다. 맥북 `/etc/hosts` 항목은 현장 속도 비교용일 뿐 영구 설정에 사용하지 않는다.
+
 64MB 이상 영상은 브라우저 Uppy가 `/api/cwk/tus/files/`로 전송한다. 서버는 `tus-uploads`에 받은 바이트와 오프셋을 남기므로 네트워크 중단 뒤 같은 파일을 다시 선택하면 이어서 보낸다. 전송 시작 전 서버가 20GiB 안전 여유와 결합 중 최대 약 원본 2배의 임시 공간을 확인한다. 전송 완료 후 `/api/cwk/tus/finalize`는 3개 부분 조각을 먼저 지워 디스크 피크를 낮추고, 결합본 하나만 `media.file`로 등록한 뒤 남은 임시 파일도 제거한다. 완료 전 조각은 운영 백업에 넣지 않으며 7일 이상 방치된 조각은 매일 자동 정리한다. tus 기능이 없으면 64MB 이상 영상은 불안정한 단순 업로드로 우회하지 않고 재개 서버 연결 오류를 명확히 보여준다.
 
 영상 업로드는 원본 `media.file`을 바꾸지 않는다. 새 영상은 `video_status=pending`으로 저장되고, 사용자 LaunchAgent `com.coldwaterkim.video-processor`가 한 번에 하나씩 포스터와 필요한 웹 재생본을 만든다. 이미 H.264/AAC, 1080p·30fps 이하, Fast Start MP4인 원본은 중복 재생본을 만들지 않고 그대로 쓴다. 호환 H.264 MOV나 Fast Start가 아닌 MP4는 영상 재인코딩 없이 MP4 포장만 바꾸고, HEVC·4K·고프레임 등 변환이 필요한 영상만 `h264_videotoolbox`를 우선 사용한다. 비트레이트는 원본 크기·해상도·길이에 맞춰 최대 6Mbps 안에서 정하며, 하드웨어 변환 실패 시 `libx264`로 자동 복구한다. 모든 생성본은 H.264/AAC, 1080p·30fps 이하, Fast Start와 앞·뒤 디코딩을 검사한 뒤 저장한다. 처리 전/실패 시 공개 화면은 원본으로 자동 fallback한다.

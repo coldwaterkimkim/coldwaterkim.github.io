@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.coldwaterkim.split-dns</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/local/libexec/coldwaterkim/dnsmasq</string>
+        <string>--keep-in-foreground</string>
+        <string>--conf-file=/usr/local/etc/coldwaterkim/dnsmasq.conf</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <dict>
+        <key>NetworkState</key>
+        <true/>
+    </dict>
+    <key>ProcessType</key>
+    <string>Background</string>
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+    <key>StandardOutPath</key>
+    <string>/var/log/coldwaterkim-split-dns.log</string>
+    <key>StandardErrorPath</key>
+    <string>/var/log/coldwaterkim-split-dns.error.log</string>
+</dict>
+</plist>
