@@ -13,10 +13,7 @@
     <key>RunAtLoad</key>
     <true/>
     <key>KeepAlive</key>
-    <dict>
-        <key>NetworkState</key>
-        <true/>
-    </dict>
+    <true/>
     <key>ProcessType</key>
     <string>Background</string>
     <key>ThrottleInterval</key>
