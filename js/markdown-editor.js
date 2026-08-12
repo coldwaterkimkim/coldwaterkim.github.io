@@ -26,6 +26,7 @@ import '@mantine/core/styles.css';
 import '@blocknote/core/fonts/inter.css';
 import '@blocknote/mantine/style.css';
 import '../css/editor-crop.css';
+import { observeEditorMediaDuringUploads } from './editor-media-quiescence.mjs';
 import { isYouTubeUrl, prepareRichContentHtml } from './media-embeds.js';
 import { preferredTransferFiles, preferredTransferImageFiles, uniqueSupportedFiles, uniqueTransferFiles } from './editor-file-transfer.mjs';
 import {
@@ -193,6 +194,8 @@ class BlockNoteMarkdownEditor {
         this.editor = null;
         this.currentHtml = '';
         this.pendingHtml = '';
+        this.uploadActivityCount = 0;
+        this.uploadClassWasPresent = false;
         this.readyPromise = new Promise(resolve => {
             this.resolveReady = resolve;
         });
@@ -213,6 +216,11 @@ class BlockNoteMarkdownEditor {
         this.cropDialogMount = this.mount.querySelector('.markdown-editor-crop-dialog-mount');
         this.reactRoot = createRoot(this.editorMount);
         this.cropDialogRoot = createRoot(this.cropDialogMount);
+        const uploadContainer = this.mount.closest('.editor-container, .program-editor-container') || this.mount;
+        this.uploadContainer = uploadContainer;
+        this.mediaQuiescence = observeEditorMediaDuringUploads(uploadContainer, {
+            mediaRoot: this.mount
+        });
 
         this.root = {
             addEventListener: (...args) => this.mount.addEventListener(...args),
@@ -325,12 +333,37 @@ class BlockNoteMarkdownEditor {
         }
     }
 
+    async withUploadActivity(callback) {
+        if (typeof callback !== 'function') return undefined;
+
+        if (this.uploadActivityCount === 0) {
+            this.uploadClassWasPresent = this.uploadContainer.classList.contains('is-image-uploading');
+            this.uploadContainer.classList.add('is-image-uploading');
+            this.mediaQuiescence?.sync?.();
+        }
+        this.uploadActivityCount += 1;
+
+        try {
+            return await callback();
+        } finally {
+            this.uploadActivityCount = Math.max(0, this.uploadActivityCount - 1);
+            if (this.uploadActivityCount === 0) {
+                if (!this.uploadClassWasPresent) {
+                    this.uploadContainer.classList.remove('is-image-uploading');
+                }
+                this.uploadClassWasPresent = false;
+                this.mediaQuiescence?.sync?.();
+            }
+        }
+    }
+
     focus() {
         this.blockNote?.focus?.();
         this.blockNote?.prosemirrorView?.focus?.();
     }
 
     destroy() {
+        this.mediaQuiescence?.destroy?.({ restore: false });
         this.reactRoot?.unmount?.();
     }
 
@@ -853,7 +886,7 @@ function BlockNoteMount({ adapter, placeholder }) {
         },
         uploadFile: async file => {
             if (typeof adapter.options.uploadFile === 'function') {
-                return adapter.options.uploadFile(file);
+                return adapter.withUploadActivity(() => adapter.options.uploadFile(file));
             }
             throw new Error('File upload is handled by the site image button.');
         }

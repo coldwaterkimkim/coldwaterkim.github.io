@@ -26,6 +26,7 @@ import {
 } from './about-wiki-markup.mjs';
 import { preferredTransferFiles, uniqueTransferFiles } from './editor-file-transfer.mjs';
 import { createEditorUploadCoordinator } from './editor-upload-coordinator.mjs';
+import { observeEditorMediaDuringUploads } from './editor-media-quiescence.mjs';
 
 const SETTING_KEY = 'about_wiki_document';
 const CONTENT_SCHEMA_VERSION = 2;
@@ -115,6 +116,7 @@ function initAboutWiki() {
       pendingEditorSelection: null,
       isMediaUploading: false,
       mediaUploadOperations: 0,
+      mediaQuiescence: null,
       mediaUploadCoordinator: createEditorUploadCoordinator({
         uploadFile: uploadAboutMediaRecord,
       }),
@@ -188,6 +190,8 @@ function normalizeDocument(value) {
 
 function render(state) {
   const { root, doc, isOwner } = state;
+  state.mediaQuiescence?.destroy({ restore: false });
+  state.mediaQuiescence = null;
   state.sourceEditor = null;
   state.pendingEditorSelection = null;
 
@@ -410,6 +414,10 @@ function initSourceEditor(state) {
 function bindSourceEditorMedia(state, form, input, textarea) {
   const container = form.querySelector('[data-about-editor-container]');
   if (!container) return;
+
+  state.mediaQuiescence = observeEditorMediaDuringUploads(container, {
+    mediaRoot: state.root,
+  });
 
   input.addEventListener('change', async () => {
     await insertEditorMedia(state, input.files, state.pendingEditorSelection);
@@ -812,6 +820,7 @@ async function insertEditorMedia(state, files, selection = null) {
   markAboutDirty(state);
   setSourceEditorUploadLocked(state, true);
   container?.classList.add('is-image-uploading');
+  state.mediaQuiescence?.sync();
 
   let result;
   try {
@@ -836,6 +845,7 @@ async function insertEditorMedia(state, files, selection = null) {
     state.mediaUploadOperations = Math.max(0, state.mediaUploadOperations - 1);
     state.isMediaUploading = state.mediaUploadOperations > 0;
     if (!state.isMediaUploading) container?.classList.remove('is-image-uploading');
+    state.mediaQuiescence?.sync();
     if (!state.isMediaUploading && state.sourceEditor === textarea && textarea.isConnected) {
       setSourceEditorUploadLocked(state, false);
     }

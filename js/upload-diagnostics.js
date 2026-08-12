@@ -169,6 +169,7 @@ async function startDiagnostic() {
     try {
         const capability = await getCapability();
         validateCapability(capability, file.size);
+        const clientScope = classifyDiagnosticClient(capability.clientIp);
         const rounds = Math.max(1, Math.min(2, Number(elements.rounds.value || 1)));
         const sequence = buildBalancedSequence(rounds);
         const sourceProbe = await probeSourceRead(file);
@@ -182,6 +183,9 @@ async function startDiagnostic() {
             userAgent: navigator.userAgent,
             online: navigator.onLine,
             connection: connectionSnapshot(),
+            serverSeenClientIp: capability.clientIp,
+            clientScope: clientScope.id,
+            countsAsMacBookLanEvidence: clientScope.countsAsMacBookLanEvidence,
             file: {
                 name: file.name,
                 type: file.type,
@@ -200,7 +204,10 @@ async function startDiagnostic() {
         };
 
         logLine(`파일: ${file.name} · ${formatBytes(file.size)} · 원본 읽기 ${formatRate(sourceProbe.speedBytesPerSecond)}`);
-        logLine(`서버: 최대 ${capability.maxParallelUploads}-way · 청크 ${formatBytes(capability.chunkSize)} · 안전 한도 ${formatBytes(capability.safeUploadBytes)}`);
+        logLine(`서버: 클라이언트 ${capability.clientIp || '확인 불가'} · ${clientScope.label} · 최대 ${capability.maxParallelUploads}-way · 청크 ${formatBytes(capability.chunkSize)} · 안전 한도 ${formatBytes(capability.safeUploadBytes)}`);
+        if (!clientScope.countsAsMacBookLanEvidence) {
+            logLine('주의: 이 측정은 MacBook 홈 LAN 지속 속도 목표 판정에서 제외한다.');
+        }
 
         for (let index = 0; index < sequence.length; index += 1) {
             if (state.stopAfterRun) break;
@@ -227,7 +234,7 @@ async function startDiagnostic() {
         }
 
         state.report.completedAt = new Date().toISOString();
-        state.report.summary = summarizeRuns(state.report.runs);
+        state.report.summary = summarizeRuns(state.report.runs, state.report.countsAsMacBookLanEvidence);
         renderResults();
         renderSummary();
         const stopped = state.stopAfterRun && state.report.runs.length < sequence.length;
@@ -238,7 +245,10 @@ async function startDiagnostic() {
     } catch (error) {
         if (state.report) {
             state.report.completedAt = new Date().toISOString();
-            state.report.summary = summarizeRuns(state.report.runs);
+            state.report.summary = summarizeRuns(
+                state.report.runs,
+                state.report.countsAsMacBookLanEvidence
+            );
         }
         renderSummary();
         setStatus(`진단 중단: ${error.message || error}`, true);
@@ -469,11 +479,15 @@ async function runVariant({ file, parallelUploads, chunkSize, runNumber, runCoun
 }
 
 async function getCapability() {
-    const result = await pb.send('/api/cwk/tus/status', {
+    const response = await fetch(pb.buildUrl('/api/cwk/tus/status'), {
         method: 'GET',
         cache: 'no-store',
-        requestKey: null
+        headers: {
+            Authorization: pb.authStore.token
+        }
     });
+    if (!response.ok) throw new Error(`운영 tus 상태 확인 실패 (${response.status}).`);
+    const result = await response.json();
     return {
         available: Boolean(result?.available),
         protocol: String(result?.protocol || ''),
@@ -482,7 +496,8 @@ async function getCapability() {
         availableBytes: Number(result?.available_bytes || 0),
         recommendedParallelUploads: Number(result?.parallel_uploads || 0),
         maxParallelUploads: Number(result?.max_parallel_uploads || 0),
-        chunkSize: normalizeChunkSize(result?.chunk_size)
+        chunkSize: normalizeChunkSize(result?.chunk_size),
+        clientIp: String(response.headers.get('X-CWK-Client-IP') || '')
     };
 }
 
@@ -633,7 +648,7 @@ function normalizeChunkSize(value) {
         : DEFAULT_CHUNK_BYTES;
 }
 
-function summarizeRuns(runs) {
+function summarizeRuns(runs, countsAsMacBookLanEvidence = false) {
     return PARALLEL_VARIANTS.map(parallelUploads => {
         const matching = runs.filter(run => run.parallelUploads === parallelUploads && run.outcome === 'complete');
         const speedsMB = matching.map(run => run.averageMBPerSecond).sort((a, b) => a - b);
@@ -646,7 +661,9 @@ function summarizeRuns(runs) {
             medianMiBPerSecond: medianValue(speedsMiB),
             minimumMBPerSecond: speedsMB[0] || 0,
             maximumMBPerSecond: speedsMB.at(-1) || 0,
-            target: targetForSpeed(medianMB)
+            target: countsAsMacBookLanEvidence
+                ? targetForSpeed(medianMB)
+                : 'MacBook 홈 LAN 목표 판정 제외'
         };
     });
 }
@@ -661,6 +678,43 @@ function medianValue(values) {
 
 function targetForSpeed(value) {
     return TARGETS_MB_PER_SECOND.find(target => value >= target.minimum)?.label || '보수적 성공 미달';
+}
+
+function classifyDiagnosticClient(value) {
+    const clientIp = String(value || '').trim().replace(/^::ffff:/i, '');
+    if (!clientIp) {
+        return {
+            id: 'unknown',
+            label: '경로 확인 불가',
+            countsAsMacBookLanEvidence: false
+        };
+    }
+    if (clientIp === '127.0.0.1' || clientIp === '::1' || clientIp === '192.168.0.11') {
+        return {
+            id: 'imac-local',
+            label: '아이맥 자체 측정',
+            countsAsMacBookLanEvidence: false
+        };
+    }
+    if (clientIp === '192.168.0.10') {
+        return {
+            id: 'macbook-home-lan',
+            label: 'MacBook 홈 LAN 실측',
+            countsAsMacBookLanEvidence: true
+        };
+    }
+    if (/^192\.168\.0\.\d{1,3}$/.test(clientIp)) {
+        return {
+            id: 'other-home-lan-client',
+            label: '다른 홈 LAN 기기',
+            countsAsMacBookLanEvidence: false
+        };
+    }
+    return {
+        id: 'external-or-other',
+        label: '홈 LAN 외부 또는 다른 경로',
+        countsAsMacBookLanEvidence: false
+    };
 }
 
 function connectionSnapshot() {
@@ -694,16 +748,23 @@ function renderResults() {
 }
 
 function renderSummary() {
-    const summary = state.report?.summary || summarizeRuns(state.report?.runs || []);
+    const summary = state.report?.summary || summarizeRuns(
+        state.report?.runs || [],
+        state.report?.countsAsMacBookLanEvidence || false
+    );
     const available = summary.filter(item => item.completedRuns > 0);
     if (!available.length) {
         elements.summary.textContent = '완료된 측정값이 아직 없어.';
         return;
     }
     const winner = [...available].sort((a, b) => b.medianMBPerSecond - a.medianMBPerSecond)[0];
-    elements.summary.textContent = available
+    const scopePrefix = state.report?.countsAsMacBookLanEvidence
+        ? `홈 LAN 실측 인정 (${state.report.serverSeenClientIp})`
+        : `참고 측정 · MacBook 목표 판정 제외 (${state.report?.serverSeenClientIp || 'IP 확인 불가'})`;
+    elements.summary.textContent = [scopePrefix]
+        .concat(available
         .map(item => `${item.parallelUploads}-way 중앙값 ${item.medianMBPerSecond.toFixed(3)}MB/s (${item.target})`)
-        .concat(`현재 우세: ${winner.parallelUploads}-way`)
+        .concat(`현재 우세: ${winner.parallelUploads}-way`))
         .join(' · ');
 }
 

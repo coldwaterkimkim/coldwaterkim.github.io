@@ -537,8 +537,7 @@ async function insertProgramBodyFiles(files, options = {}) {
     }
 
     let insertIndex = clampProgramBodyIndex(options.index);
-    formFields.bodyEditorWrap?.classList.add('is-image-uploading');
-    try {
+    await programBodyEditor.withUploadActivity(async () => {
         await programBodyUploadCoordinator.runBatch(editorFiles, {
             onFileStart: (file, index, total) => setProgramBodyImageStatus(`${editorUploadLabel(file)} 업로드 준비 중... (${index + 1}/${total}) ${file.name}`),
             onFileProgress: (file, progress, index, total) => setProgramBodyImageStatus(`${editorUploadLabel(file)} ${formatMediaUploadProgress(progress)} (${index + 1}/${total}) ${file.name}`),
@@ -553,9 +552,7 @@ async function insertProgramBodyFiles(files, options = {}) {
                 setTimeout(() => setProgramBodyImageStatus(), 2500);
             }
         });
-    } finally {
-        formFields.bodyEditorWrap?.classList.remove('is-image-uploading');
-    }
+    });
 }
 
 async function uploadProgramBodyFile(file) {

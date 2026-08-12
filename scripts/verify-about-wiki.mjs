@@ -30,6 +30,7 @@ check(aboutSource.includes('data-version-refresh-block="${state.hasUnsavedChange
 check(aboutSource.includes("window.addEventListener('beforeunload'"), 'leaving a dirty About editor requires confirmation');
 check(aboutSource.includes('confirmDiscardAboutDraft(state)'), 'internal editor navigation protects unsaved drafts');
 check(aboutSource.includes('state.isMediaUploading = true'), 'media uploads lock editor transitions until token insertion finishes');
+check(aboutSource.includes('observeEditorMediaDuringUploads(container'), 'About media uploads suspend same-origin previews until the transfer finishes');
 check(aboutSource.includes('state.sourceEditor !== textarea || !textarea.isConnected'), 'stale upload targets expose recoverable source tokens');
 check(siteSource.includes('data-version-refresh-block="true"'), 'site refresh respects an unsaved editor');
 check(aboutSource.includes('data-about-source-editor'), 'About uses a raw source textarea');

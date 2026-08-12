@@ -12,6 +12,12 @@ coldwaterkim.com, www.coldwaterkim.com {
 		max_size 8GiB
 	}
 
+	handle /api/cwk/tus/status {
+		reverse_proxy 127.0.0.1:8090 {
+			header_down X-CWK-Client-IP {client_ip}
+		}
+	}
+
 	handle /api/* {
 		reverse_proxy 127.0.0.1:8090
 	}

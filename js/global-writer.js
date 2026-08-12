@@ -386,8 +386,7 @@ async function insertEditorFiles(files, options = {}) {
     }
 
     let insertIndex = clampEditorIndex(options.index);
-    editorContainer.classList.add('is-image-uploading');
-    try {
+    await markdownEditor.withUploadActivity(async () => {
         await editorUploadCoordinator.runBatch(editorFiles, {
             onFileStart: (file, index, total) => setEditorImageStatus(`${editorUploadLabel(file)} 업로드 준비 중... (${index + 1}/${total}) ${file.name}`),
             onFileProgress: (file, progress, index, total) => setEditorImageStatus(`${editorUploadLabel(file)} ${formatMediaUploadProgress(progress)} (${index + 1}/${total}) ${file.name}`),
@@ -402,9 +401,7 @@ async function insertEditorFiles(files, options = {}) {
                 setTimeout(() => setEditorImageStatus(), 2500);
             }
         });
-    } finally {
-        editorContainer.classList.remove('is-image-uploading');
-    }
+    });
 }
 
 async function uploadEditorFile(file) {

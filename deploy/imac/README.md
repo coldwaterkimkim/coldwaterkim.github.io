@@ -100,7 +100,7 @@ npm run imac:install-split-dns
 
 롤백할 때는 소스 `deploy/imac/Caddyfile`에서 전역 `servers :443 { protocols h1 }` 블록을 제거하고 운영 런타임 `Caddyfile`도 같은 내용으로 동기화한다. 런타임 설정을 `caddy validate`/`caddy adapt`로 확인한 뒤 `caddy reload`하고, 공개·LAN health와 TLS가 다시 HTTP/2로 협상되는지 확인한다. 소스나 런타임 한쪽만 바꾸면 다음 배포 또는 현재 실행 상태가 서로 어긋나므로 둘을 항상 같이 변경한다.
 
-속도 A/B는 OWNER 브라우저의 단일 진단 세션에서만 `window.CWK_RESUMABLE_UPLOAD_DIAGNOSTICS = true`와 `window.CWK_RESUMABLE_UPLOAD_PARALLEL_UPLOADS = 3 | 6 | 8`을 설정해 수행한다. 진단 모드는 원본 앞 8MiB 읽기 속도, PATCH/결합/finalize 시간을 분리해 콘솔에 남기며 새 서버 status를 파일마다 다시 읽으므로 열린 탭에서도 즉시 3분할로 롤백할 수 있다. 일반 업로드에는 원본 사전 읽기나 콘솔 진단이 추가되지 않는다.
+속도 A/B는 OWNER 전용 `/admin/upload-diagnostics.html`에서 동일 파일 또는 브라우저 OPFS에 만든 640MiB 디스크 샘플을 3·6·8-way로 전송해 수행한다. Caddy가 status 응답에 서버가 실제로 본 클라이언트 IP를 넣고 진단 JSON도 이를 보존한다. `192.168.0.11`·loopback에서 실행한 아이맥 자체 값은 서버 sanity check일 뿐 MacBook 목표 달성으로 판정하지 않으며, 현재 기준 MacBook 주소 `192.168.0.10`이 기록된 결과만 최종 실측으로 인정한다. 일반 업로드에는 원본 사전 읽기나 콘솔 진단이 추가되지 않는다.
 
 영상 업로드는 원본 `media.file`을 바꾸지 않는다. 새 영상은 `video_status=pending`으로 저장되고, 사용자 LaunchAgent `com.coldwaterkim.video-processor`가 한 번에 하나씩 포스터와 필요한 웹 재생본을 만든다. 이미 H.264/AAC, 1080p·30fps 이하, Fast Start MP4인 원본은 중복 재생본을 만들지 않고 그대로 쓴다. 호환 H.264 MOV나 Fast Start가 아닌 MP4는 영상 재인코딩 없이 MP4 포장만 바꾸고, HEVC·4K·고프레임 등 변환이 필요한 영상만 `h264_videotoolbox`를 우선 사용한다. 비트레이트는 원본 크기·해상도·길이에 맞춰 최대 6Mbps 안에서 정하며, 하드웨어 변환 실패 시 `libx264`로 자동 복구한다. 모든 생성본은 H.264/AAC, 1080p·30fps 이하, Fast Start와 앞·뒤 디코딩을 검사한 뒤 저장한다. 처리 전/실패 시 공개 화면은 원본으로 자동 fallback한다.
 

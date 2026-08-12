@@ -2,6 +2,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { preferredTransferFiles, preferredTransferImageFiles, uniqueSupportedFiles, uniqueTransferFiles } from '../js/editor-file-transfer.mjs';
 import { createEditorUploadCoordinator, editorFileFingerprint } from '../js/editor-upload-coordinator.mjs';
+import {
+  isSameOriginMediaUrl,
+  observeEditorMediaDuringUploads,
+} from '../js/editor-media-quiescence.mjs';
 import { publishedEntryViewerUrl } from '../js/editor-publish-navigation.mjs';
 import {
   cropAspectFromRect,
@@ -179,6 +183,123 @@ assert.equal(publishedEntryViewerUrl('posts', { slug: 'hello world' }), '/posts/
 assert.equal(publishedEntryViewerUrl('daily', { day_key: '2026-08-03' }), '/daily/2026-08-03/');
 assert.equal(publishedEntryViewerUrl('programs', { slug: 'my-app' }), '/programs/view.html?slug=my-app');
 
+assert.equal(
+  isSameOriginMediaUrl('/api/files/media/record/preview.mp4', {
+    baseUrl: 'https://coldwaterkim.com/admin/write.html',
+    origin: 'https://coldwaterkim.com',
+  }),
+  true,
+  'relative editor previews must be recognized as same-origin network traffic',
+);
+assert.equal(
+  isSameOriginMediaUrl('https://example.com/external.mp4', {
+    baseUrl: 'https://coldwaterkim.com/admin/write.html',
+    origin: 'https://coldwaterkim.com',
+  }),
+  false,
+  'external media must not be detached by the editor upload guard',
+);
+assert.equal(
+  isSameOriginMediaUrl('blob:https://coldwaterkim.com/local-preview', {
+    baseUrl: 'https://coldwaterkim.com/admin/write.html',
+    origin: 'https://coldwaterkim.com',
+  }),
+  false,
+  'in-memory blob previews must not be treated as server traffic',
+);
+
+function fakeAttributeElement(initialAttributes = {}) {
+  const attributes = new Map(Object.entries(initialAttributes));
+  return {
+    isConnected: true,
+    getAttribute(name) {
+      return attributes.has(name) ? attributes.get(name) : null;
+    },
+    hasAttribute(name) {
+      return attributes.has(name);
+    },
+    setAttribute(name, value) {
+      attributes.set(name, String(value));
+    },
+    removeAttribute(name) {
+      attributes.delete(name);
+    },
+  };
+}
+
+const previewSource = fakeAttributeElement({ src: '/api/files/media/record/large.mp4' });
+const previewVideo = {
+  ...fakeAttributeElement({ preload: 'metadata' }),
+  isConnected: true,
+  currentSrc: 'https://coldwaterkim.com/api/files/media/record/large.mp4',
+  paused: false,
+  currentTime: 37,
+  playbackRate: 1.25,
+  muted: true,
+  volume: 0.4,
+  readyState: 1,
+  pauseCalls: 0,
+  loadCalls: 0,
+  playCalls: 0,
+  pause() {
+    this.paused = true;
+    this.pauseCalls += 1;
+  },
+  load() {
+    this.currentTime = 0;
+    this.loadCalls += 1;
+  },
+  play() {
+    this.paused = false;
+    this.playCalls += 1;
+    return Promise.resolve();
+  },
+  querySelectorAll(selector) {
+    return selector === 'source[src]' && previewSource.hasAttribute('src') ? [previewSource] : [];
+  },
+};
+const previewRoot = {
+  querySelectorAll(selector) {
+    return selector === 'video, audio' ? [previewVideo] : [];
+  },
+};
+const uploadClasses = new Set();
+const uploadContainer = {
+  classList: {
+    contains: value => uploadClasses.has(value),
+  },
+};
+const fakeObservers = [];
+class FakeMutationObserver {
+  constructor(callback) {
+    this.callback = callback;
+    fakeObservers.push(this);
+  }
+  observe() {}
+  disconnect() {}
+}
+const mediaQuiescence = observeEditorMediaDuringUploads(uploadContainer, {
+  mediaRoot: previewRoot,
+  MutationObserverClass: FakeMutationObserver,
+  baseUrl: 'https://coldwaterkim.com/admin/write.html',
+  origin: 'https://coldwaterkim.com',
+});
+uploadClasses.add('is-image-uploading');
+fakeObservers.forEach(observer => observer.callback());
+assert.equal(previewSource.hasAttribute('src'), false, 'upload start must detach the same-origin preview source');
+assert.equal(previewVideo.getAttribute('preload'), 'none', 'quiesced media must not preload another range');
+assert.equal(previewVideo.getAttribute('data-cwk-upload-quiesced'), 'true', 'the suspended preview state must be inspectable');
+assert.equal(previewVideo.pauseCalls, 1, 'a playing preview must pause exactly once during upload');
+
+uploadClasses.delete('is-image-uploading');
+fakeObservers.forEach(observer => observer.callback());
+assert.equal(previewSource.getAttribute('src'), '/api/files/media/record/large.mp4', 'upload end must restore the exact source URL');
+assert.equal(previewVideo.getAttribute('preload'), 'metadata', 'upload end must restore the prior preload policy');
+assert.equal(previewVideo.currentTime, 37, 'upload end must restore the previous playback position');
+assert.equal(previewVideo.playCalls, 1, 'a preview that was playing must resume after upload');
+assert.equal(previewVideo.hasAttribute('data-cwk-upload-quiesced'), false, 'the inspectable suspended marker must be cleared');
+mediaQuiescence.destroy();
+
 const { pocketBaseImageSources, pocketBaseVideoReference, videoDerivativeSources } = await import('../js/media-embeds.js');
 const optimizedImage = pocketBaseImageSources(
   'https://coldwaterkim.com/api/files/media/record/photo.jpeg?token=keep-me',
@@ -301,6 +422,7 @@ const adminPosts = fs.readFileSync(new URL('../admin/posts.html', import.meta.ur
 assert.match(adminPosts, /published_at'\)\.value = getKstDateKey\(\)/, 'new posts must default to the KST date');
 assert.match(adminPosts, /hasEditorFileTransfer\(event\.dataTransfer\)/, 'post editor drag and drop must detect supported media files');
 assert.match(adminPosts, /markdownEditor\.insertFiles\(insertIndex, uploadedFiles\)/, 'post editor must insert uploaded videos as media blocks');
+assert.match(adminPosts, /markdownEditor\.withUploadActivity\(async \(\) =>/, 'post batch uploads must share the editor upload activity guard');
 assert.match(adminPosts, /onFilesPaste: files => insertEditorFiles/, 'BlockNote must own post file paste handling');
 assert.doesNotMatch(adminPosts, /markdownEditor\.root\.addEventListener\('paste'/, 'post file paste must not have a second DOM owner');
 assert.match(adminPosts, /navigateToPublishedEntry\('posts', saved\)/, 'published posts must leave the editor for the public viewer');
@@ -309,15 +431,18 @@ const globalWriter = fs.readFileSync(new URL('../js/global-writer.js', import.me
 assert.match(globalWriter, /onFilesPaste: files => insertEditorFiles/, 'BlockNote must own global writer file paste handling');
 assert.doesNotMatch(globalWriter, /markdownEditor\.root\.addEventListener\('paste'/, 'global writer file paste must not have a second DOM owner');
 assert.match(globalWriter, /markdownEditor\.insertFiles\(insertIndex, uploadedFiles\)/, 'global writer must insert uploaded videos as media blocks');
+assert.match(globalWriter, /markdownEditor\.withUploadActivity\(async \(\) =>/, 'global writer batch uploads must share the editor upload activity guard');
 assert.match(globalWriter, /navigateToPublishedEntry\(category, saved\)/, 'global writer publish must leave the editor for the matching viewer');
 
 const adminDaily = fs.readFileSync(new URL('../admin/daily.html', import.meta.url), 'utf8');
 assert.match(adminDaily, /onFilesPaste: files => insertEditorFiles/, 'BlockNote must own daily file paste handling');
+assert.match(adminDaily, /markdownEditor\.withUploadActivity\(async \(\) =>/, 'daily batch uploads must share the editor upload activity guard');
 assert.doesNotMatch(adminDaily, /markdownEditor\.root\.addEventListener\('paste'/, 'daily file paste must not have a second DOM owner');
 assert.match(adminDaily, /navigateToPublishedEntry\('daily', saved\)/, 'published daily entries must leave the editor for the day viewer');
 
 const programs = fs.readFileSync(new URL('../js/programs.js', import.meta.url), 'utf8');
 assert.match(programs, /onFilesPaste: files => insertProgramBodyFiles/, 'BlockNote must own program file paste handling');
+assert.match(programs, /programBodyEditor\.withUploadActivity\(async \(\) =>/, 'program batch uploads must share the editor upload activity guard');
 assert.doesNotMatch(programs, /programBodyEditor\.root\.addEventListener\('paste'/, 'program file paste must not have a second DOM owner');
 assert.match(programs, /window\.location\.assign\(programDetailUrl\(saved\)\)/, 'published programs must leave the editor for the detail viewer');
 
@@ -341,6 +466,11 @@ assert.match(markdownEditorSource, /원본 전체로/, 'the crop dialog must pro
 assert.doesNotMatch(markdownEditorSource, /toBlob\(|drawImage\(|getContext\(['"]2d/, 'visual cropping must never create or overwrite a raster file');
 assert.doesNotMatch(markdownEditorSource, /markdown-editor-crop-button/, 'the crop action must not stay fixed at the top of the editor');
 assert.match(markdownEditorSource, /cwk-image-crop-toolbar-button/, 'the selected image toolbar must expose the crop action next to the image');
+assert.match(markdownEditorSource, /observeEditorMediaDuringUploads\(uploadContainer/, 'all shared BlockNote editors must suspend previews while their upload container is busy');
+assert.match(markdownEditorSource, /adapter\.withUploadActivity\(\(\) => adapter\.options\.uploadFile\(file\)\)/, 'BlockNote single-file uploads must use the same preview suspension guard');
+
+const aboutWikiSource = fs.readFileSync(new URL('../js/about-wiki.js', import.meta.url), 'utf8');
+assert.match(aboutWikiSource, /observeEditorMediaDuringUploads\(container, \{\s*mediaRoot: state\.root/, 'About uploads must also quiesce media rendered beside the source editor');
 
 const postsView = fs.readFileSync(new URL('../posts/view.html', import.meta.url), 'utf8');
 assert.match(postsView, /prepareEmbeddedMediaForDisplay\(post\.content/, 'post HTML must be optimized before it enters the live DOM');

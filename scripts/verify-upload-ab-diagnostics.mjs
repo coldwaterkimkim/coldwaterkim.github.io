@@ -22,6 +22,13 @@ assert.match(source, /DIAGNOSTIC_FIXTURE_CHUNK_BYTES = 8 \* MIB/, 'browser fixtu
 assert.match(source, /await removeBrowserFixture\(\)/, 'browser fixture must be removed after diagnostics');
 assert.match(source, /!state\.fixture\) return/, 'leaving with an unused OPFS fixture must trigger the unload warning');
 assert.match(source, /source: fixture \? 'browser-opfs-fixture'/, 'reports must distinguish generated disk fixtures from selected videos');
+assert.match(source, /serverSeenClientIp: capability\.clientIp/, 'reports must record the server-observed client address');
+assert.match(source, /response\.headers\.get\('X-CWK-Client-IP'\)/, 'client identity must come from the trusted production proxy response');
+assert.match(source, /countsAsMacBookLanEvidence: clientScope\.countsAsMacBookLanEvidence/, 'reports must distinguish MacBook LAN evidence from iMac-local probes');
+assert.match(source, /clientIp === '192\.168\.0\.11'/, 'iMac-local diagnostics must be excluded from the MacBook target verdict');
+assert.match(source, /clientIp === '192\.168\.0\.10'/, 'only the known MacBook LAN address may count toward the MacBook target');
+assert.match(source, /'MacBook 홈 LAN 목표 판정 제외'/, 'non-LAN results must not claim the throughput goal');
+assert.match(source, /summarizeRuns\(\s*state\.report\.runs,\s*state\.report\.countsAsMacBookLanEvidence\s*\)/, 'partial reports must preserve their client evidence verdict');
 assert.match(source, /chunkSize: capability\.chunkSize/, 'A/B must hold the server-advertised chunk size constant');
 assert.match(source, /'X-Request-ID': sessionId/, 'every diagnostic session must be correlatable in iMac logs');
 assert.match(source, /acceptedPatchBytes !== file\.size/, 'transport accounting must equal the original byte length');
