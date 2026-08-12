@@ -4,6 +4,7 @@ import { parseLog } from './summarize-upload-ab-log.mjs';
 
 const html = fs.readFileSync(new URL('../admin/upload-diagnostics.html', import.meta.url), 'utf8');
 const source = fs.readFileSync(new URL('../js/upload-diagnostics.js', import.meta.url), 'utf8');
+const cliSource = fs.readFileSync(new URL('./run-upload-ab-cli.mjs', import.meta.url), 'utf8');
 const summarySource = fs.readFileSync(new URL('./summarize-upload-ab-log.mjs', import.meta.url), 'utf8');
 
 assert.match(html, /id="diagnosticFile"[^>]+type="file"/, 'diagnostic page must select one local File');
@@ -28,6 +29,14 @@ assert.match(summarySource, /requestId=\(cwk-ab-/, 'server log summary must only
 assert.match(summarySource, /ChunkWriteComplete/, 'server log summary must count accepted tus chunks');
 assert.match(summarySource, /serverMiBPerSecond/, 'server log summary must calculate independent throughput');
 assert.match(summarySource, /serverMBPerSecond/, 'server log summary must also expose the user-facing decimal MB per second');
+assert.match(cliSource, /DEFAULT_VARIANTS = \[3, 6, 8\]/, 'the iMac CLI must exercise the same 3/6/8 variants');
+assert.match(cliSource, /originUrl\.protocol, 'https:'/, 'the iMac CLI must never transmit OWNER credentials over plain HTTP');
+assert.match(cliSource, /originUrl\.hostname, 'coldwaterkim\.com'/, 'the iMac CLI must restrict OWNER credentials to the production host');
+assert.match(cliSource, /acceptedBytes, fileBytes/, 'the iMac CLI must verify every accepted source byte');
+assert.match(cliSource, /finalOffset, fileBytes/, 'the iMac CLI must verify the concatenated tus offset');
+assert.match(cliSource, /method: 'DELETE'/, 'the iMac CLI must terminate its own staging resources');
+assert.match(cliSource, /deleteWithRetry/, 'the iMac CLI must retry bounded staging cleanup');
+assert.doesNotMatch(cliSource, /\/api\/collections\/media|\/api\/cwk\/tus\/finalize/, 'the iMac CLI must never create or finalize a media record');
 
 const syntheticSessions = parseLog(`
 2026/08/12 10:00:00 INFO UploadCreated method=POST path=/ requestId=cwk-ab-3w-fixture id=part-a size=100 url=https://coldwaterkim.com/api/cwk/tus/files/part-a

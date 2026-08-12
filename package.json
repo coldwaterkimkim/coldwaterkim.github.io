@@ -28,6 +28,7 @@
     "imac:video:process-one": "/usr/bin/python3 deploy/imac/process-video-media.py --run-once",
     "imac:video:retry-errors": "/usr/bin/python3 deploy/imac/process-video-media.py --retry-errors",
     "imac:upload-ab:summary": "node scripts/summarize-upload-ab-log.mjs",
+    "imac:upload-ab:run": "node scripts/run-upload-ab-cli.mjs",
     "imac:install-services": "bash deploy/imac/install-launchd-services.sh",
     "imac:install-services:dry-run": "bash deploy/imac/install-launchd-services.sh --dry-run",
     "pb:backup:production": "node scripts/pocketbase-remote-backup.mjs",
