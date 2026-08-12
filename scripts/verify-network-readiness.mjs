@@ -19,6 +19,9 @@ for (let index = 0; index < args.length; index += 1) {
 }
 
 const checks = [];
+const runtimeRoot = path.join(os.homedir(), '.local/share/coldwaterkim/home-server');
+const sourceCaddyfile = path.join(root, 'deploy/imac/Caddyfile');
+const runtimeCaddyfile = path.join(runtimeRoot, 'Caddyfile');
 const networkEnvFile = expandHome(
   optionValue('--network-env-file', process.env.HOME_SERVER_ENV_FILE || '~/.config/coldwaterkim/home-server.env'),
 );
@@ -266,7 +269,59 @@ function verifyLiveInputs() {
 
   requireCondition('production Caddy binary installed', isExecutable('/usr/local/bin/caddy'), '/usr/local/bin/caddy');
 
+  verifyLiveCaddyProtocol();
+
   verifyPublicHttpForwarding();
+}
+
+function verifyLiveCaddyProtocol() {
+  const runtimeExists = fs.existsSync(runtimeCaddyfile);
+  requireCondition('runtime Caddyfile exists', runtimeExists, runtimeCaddyfile);
+  if (!runtimeExists || !isExecutable('/usr/local/bin/caddy')) return;
+
+  const source = fs.readFileSync(sourceCaddyfile);
+  const runtime = fs.readFileSync(runtimeCaddyfile);
+  requireCondition('source and runtime Caddyfiles match', source.equals(runtime), runtimeCaddyfile);
+
+  try {
+    run('/usr/local/bin/caddy', ['validate', '--config', runtimeCaddyfile, '--adapter', 'caddyfile']);
+    record('runtime Caddyfile validates', true);
+  } catch (error) {
+    record('runtime Caddyfile validates', false, error.message);
+  }
+
+  try {
+    const adapted = JSON.parse(run('/usr/local/bin/caddy', ['adapt', '--config', runtimeCaddyfile, '--adapter', 'caddyfile']));
+    const protocols = adapted?.apps?.http?.servers?.srv0?.protocols;
+    requireCondition('adapted Caddy config enables only HTTP/1.1', JSON.stringify(protocols) === '["h1"]', JSON.stringify(protocols));
+  } catch (error) {
+    record('adapted Caddy config enables only HTTP/1.1', false, error.message);
+  }
+
+  const adminConfig = runAllowFailure('curl', [
+    '--silent',
+    '--show-error',
+    '--max-time',
+    '5',
+    'http://127.0.0.1:2019/config/apps/http/servers/srv0/protocols',
+  ]);
+  requireCondition('live Caddy config enables only HTTP/1.1', adminConfig.ok && adminConfig.output === '["h1"]', adminConfig.output || 'Caddy admin API unavailable');
+
+  const negotiated = runAllowFailure('curl', [
+    '--silent',
+    '--show-error',
+    '--output',
+    '/dev/null',
+    '--http2',
+    '--resolve',
+    `coldwaterkim.com:443:${expectedLanIp}`,
+    '--write-out',
+    '%{http_version}|%{http_code}',
+    '--max-time',
+    '10',
+    'https://coldwaterkim.com/api/health',
+  ]);
+  requireCondition('LAN HTTPS negotiates HTTP/1.1 when the client offers HTTP/2', negotiated.ok && negotiated.output === '1.1|200', negotiated.output || 'TLS probe failed');
 }
 
 function verifyPublicHttpForwarding() {

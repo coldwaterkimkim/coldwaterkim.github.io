@@ -96,7 +96,9 @@ npm run imac:install-split-dns
 
 64MB 이상 영상은 브라우저 Uppy가 `/api/cwk/tus/files/`로 전송한다. 256MB 미만은 기존 3분할을 유지하고, 256MB 이상은 서버 권장값 6분할과 32MiB PATCH 단위를 사용한다. 유한 PATCH 단위 덕분에 연결이 끊겨도 거대한 부분 전체가 아니라 마지막 미완료 chunk부터 다시 보낸다. 서버는 `tus-uploads`에 받은 바이트와 오프셋을 남기므로 네트워크 중단 뒤 같은 파일을 다시 선택하면 이어서 보낸다. 전송 시작 전 서버가 20GiB 안전 여유와 결합 중 최대 약 원본 2배의 임시 공간을 확인한다. 전송 완료 후 `/api/cwk/tus/finalize`는 부분 조각을 먼저 지워 디스크 피크를 낮추고, 결합본 하나만 `media.file`로 등록한 뒤 남은 임시 파일도 제거한다. 완료 전 조각은 운영 백업에 넣지 않으며 7일 이상 방치된 조각은 매일 자동 정리한다. tus 기능이 없으면 64MB 이상 영상은 불안정한 단순 업로드로 우회하지 않고 재개 서버 연결 오류를 명확히 보여준다.
 
-운영 HTTPS 리스너는 의도적으로 HTTP/1.1만 광고한다. 실제 MacBook Chrome에서 HTTP/2를 사용할 때 편집기의 기존 영상 Range 요청과 6개 tus PATCH가 단일 TCP 연결을 공유해 약 6~7MB/s에 머물렀지만, HTTP/1.1에서는 병렬 PATCH가 별도 연결로 분리되어 같은 운영 편집기에서 보수적으로 57MB/s 이상을 확인했다. 이 설정은 사이트 전체에서 HTTP/2·HTTP/3 멀티플렉싱을 사용하지 않는 대신 OWNER 대용량 업로드의 지속 처리량을 우선하는 운영 결정이다. 롤백할 때는 전역 `servers :443 { protocols h1 }` 블록을 제거하고 Caddy 설정을 validate한 뒤 무중단 reload한다.
+운영 HTTPS 리스너는 의도적으로 HTTP/1.1만 광고한다. 실제 MacBook Chrome에서 HTTP/2를 사용할 때 편집기의 기존 영상 Range 요청과 6개 tus PATCH가 단일 TCP 연결을 공유해 약 6~7MB/s에 머물렀다. HTTP/1.1에서는 병렬 PATCH가 별도 연결로 분리되어 172MB·3분할 단기 비교에서 보수적으로 57MB/s 이상을 확인했다. 이 설정은 사이트 전체에서 HTTP/2·HTTP/3 멀티플렉싱을 사용하지 않는 대신 OWNER 업로드 연결을 분리하는 운영 결정이다. 600MiB 이상·6분할 브라우저 전송의 지속 속도는 별도로 재검증한다.
+
+롤백할 때는 소스 `deploy/imac/Caddyfile`에서 전역 `servers :443 { protocols h1 }` 블록을 제거하고 운영 런타임 `Caddyfile`도 같은 내용으로 동기화한다. 런타임 설정을 `caddy validate`/`caddy adapt`로 확인한 뒤 `caddy reload`하고, 공개·LAN health와 TLS가 다시 HTTP/2로 협상되는지 확인한다. 소스나 런타임 한쪽만 바꾸면 다음 배포 또는 현재 실행 상태가 서로 어긋나므로 둘을 항상 같이 변경한다.
 
 속도 A/B는 OWNER 브라우저의 단일 진단 세션에서만 `window.CWK_RESUMABLE_UPLOAD_DIAGNOSTICS = true`와 `window.CWK_RESUMABLE_UPLOAD_PARALLEL_UPLOADS = 3 | 6 | 8`을 설정해 수행한다. 진단 모드는 원본 앞 8MiB 읽기 속도, PATCH/결합/finalize 시간을 분리해 콘솔에 남기며 새 서버 status를 파일마다 다시 읽으므로 열린 탭에서도 즉시 3분할로 롤백할 수 있다. 일반 업로드에는 원본 사전 읽기나 콘솔 진단이 추가되지 않는다.
 
