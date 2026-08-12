@@ -1,4 +1,4 @@
-import{J as e,R as t,S as n,a as r,at as i,b as a,ft as o,k as s,nt as c,v as l}from"../pb-CdR97qZZ.js";import"../site-KBb9-_yX.js";var u=1,d=10,f=c();window.goToPage=v,window.deleteOwnerPost=g,f&&(document.getElementById(`views-col-head`).style.display=``,document.getElementById(`owner-col-head`).style.display=``,document.getElementById(`posts-note`).textContent=`OWNER MODE: 초안까지 같이 보입니다.`,document.getElementById(`owner-tools`).innerHTML=`
+import{J as e,R as t,S as n,a as r,at as i,b as a,ft as o,k as s,nt as c,v as l}from"../pb-CdR97qZZ.js";import"../site-49qk07vs.js";var u=1,d=10,f=c();window.goToPage=v,window.deleteOwnerPost=g,f&&(document.getElementById(`views-col-head`).style.display=``,document.getElementById(`owner-col-head`).style.display=``,document.getElementById(`posts-note`).textContent=`OWNER MODE: 초안까지 같이 보입니다.`,document.getElementById(`owner-tools`).innerHTML=`
         <div class="owner-bar">
           <b>OWNER MODE</b> ·
           <a href="../admin/posts.html?new=1">새 글 쓰기</a> ·
