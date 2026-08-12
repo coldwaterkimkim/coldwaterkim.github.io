@@ -29,4 +29,4 @@ assert.match(robots, /User-agent: \*/);
 assert.match(robots, /Allow: \//);
 assert.match(robots, /Sitemap: https:\/\/coldwaterkim\.com\/sitemap\.xml/);
 
-console.log('SEO QA passed: 14 assertions');
+console.log('SEO QA passed: 19 assertions');
