@@ -27,6 +27,7 @@
     "imac:video:enqueue-referenced": "/usr/bin/python3 deploy/imac/process-video-media.py --enqueue-referenced",
     "imac:video:process-one": "/usr/bin/python3 deploy/imac/process-video-media.py --run-once",
     "imac:video:retry-errors": "/usr/bin/python3 deploy/imac/process-video-media.py --retry-errors",
+    "imac:upload-ab:summary": "node scripts/summarize-upload-ab-log.mjs",
     "imac:install-services": "bash deploy/imac/install-launchd-services.sh",
     "imac:install-services:dry-run": "bash deploy/imac/install-launchd-services.sh --dry-run",
     "pb:backup:production": "node scripts/pocketbase-remote-backup.mjs",
@@ -63,10 +64,14 @@
     "qa:guestbook-replies": "node scripts/verify-guestbook-replies.mjs",
     "qa:entry-gate": "node scripts/verify-entry-gate.mjs",
     "qa:album": "node scripts/verify-album.mjs",
+    "qa:webring": "node scripts/verify-webring.mjs",
+    "qa:seo": "node scripts/verify-seo.mjs",
+    "qa:analytics": "node scripts/verify-analytics.mjs",
     "qa:visitor-counter": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/verify-visitor-counter.mjs",
     "qa:writing": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/verify-writing-regressions.mjs",
     "qa:video-processor": "/usr/bin/python3 scripts/verify-video-processor.py",
     "qa:uppy-tus-client": "node scripts/verify-uppy-tus-client.mjs",
+    "qa:upload-ab": "node scripts/verify-upload-ab-diagnostics.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

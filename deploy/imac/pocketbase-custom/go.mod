@@ -3,6 +3,7 @@ module coldwaterkim.com/pocketbase-custom
 go 1.25.8
 
 require (
+	github.com/pocketbase/dbx v1.10.1
 	github.com/pocketbase/pocketbase v0.23.5
 	github.com/tus/tusd/v2 v2.10.0
 )
@@ -57,7 +58,6 @@ require (
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d // indirect
 	github.com/ncruces/go-strftime v0.1.9 // indirect
-	github.com/pocketbase/dbx v1.10.1 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/spf13/cast v1.7.0 // indirect
 	github.com/spf13/cobra v1.8.1 // indirect

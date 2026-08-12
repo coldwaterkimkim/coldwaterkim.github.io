@@ -29,9 +29,15 @@ export function albumMediaAnchorId(sourceId, mediaId, occurrence = 1) {
 }
 
 export function albumSourceUrl(item = {}) {
-  const section = item.source_kind === 'daily' ? 'daily' : 'posts';
   const anchor = albumMediaAnchorId(item.source_id, item.media);
-  return `/${section}/view.html?slug=${encodeURIComponent(item.source_slug || '')}#${anchor}`;
+  if (item.source_kind === 'daily') {
+    const dayKey = String(item.source_published_at || '').slice(0, 10);
+    const base = /^\d{4}-\d{2}-\d{2}$/.test(dayKey)
+      ? `/daily/${dayKey}/`
+      : `/daily/view.html?slug=${encodeURIComponent(item.source_slug || '')}`;
+    return `${base}#${anchor}`;
+  }
+  return `/posts/${encodeURIComponent(item.source_slug || '')}/#${anchor}`;
 }
 
 export function normalizeAlbumKind(value = '') {

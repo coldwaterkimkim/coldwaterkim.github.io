@@ -25,7 +25,9 @@ import (
 const (
 	resumableUploadBasePath = "/api/cwk/tus/files/"
 	mediaUploadMaxBytes     = int64(8589934592)
-	resumableParallelParts  = 3
+	resumableParallelParts  = 6
+	resumableMaxParallel    = 8
+	resumableChunkBytes     = int64(32 * 1024 * 1024)
 	minimumFreeDiskBytes    = int64(20 * 1024 * 1024 * 1024)
 	staleUploadMaxAge       = 7 * 24 * time.Hour
 )
@@ -97,6 +99,7 @@ func (service *resumableUploadService) registerRoutes(e *core.ServeEvent) {
 	}
 
 	e.Router.GET("/api/cwk/tus/status", func(event *core.RequestEvent) error {
+		event.Response.Header().Set("Cache-Control", "no-store")
 		availableBytes, err := availableDiskBytes(service.uploadDir)
 		if err != nil {
 			return event.InternalServerError("Failed to inspect upload capacity.", err)
@@ -109,13 +112,15 @@ func (service *resumableUploadService) registerRoutes(e *core.ServeEvent) {
 			safeUploadBytes = mediaUploadMaxBytes
 		}
 		return event.JSON(http.StatusOK, map[string]any{
-			"available":         true,
-			"protocol":          "tus-1.0.0",
-			"max_size":          mediaUploadMaxBytes,
-			"parallel_uploads":  resumableParallelParts,
-			"available_bytes":   availableBytes,
-			"reserve_bytes":     minimumFreeDiskBytes,
-			"safe_upload_bytes": safeUploadBytes,
+			"available":            true,
+			"protocol":             "tus-1.0.0",
+			"max_size":             mediaUploadMaxBytes,
+			"parallel_uploads":     resumableParallelParts,
+			"max_parallel_uploads": resumableMaxParallel,
+			"chunk_size":           resumableChunkBytes,
+			"available_bytes":      availableBytes,
+			"reserve_bytes":        minimumFreeDiskBytes,
+			"safe_upload_bytes":    safeUploadBytes,
 		})
 	}).Bind(apis.RequireAuth("users", core.CollectionNameSuperusers))
 

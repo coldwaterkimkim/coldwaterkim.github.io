@@ -245,6 +245,7 @@ function verifyStaticService(service) {
     requireCondition('PocketBase launchd uses resumable upload staging outside pb_data', plist.includes(`--tusUploadDir=${runtimeRoot}/tus-uploads`));
     requireCondition('PocketBase launchd uses runtime pb_data', plist.includes(`${runtimeRoot}/pb_data`));
     requireCondition('PocketBase launchd uses runtime migrations', plist.includes(`--migrationsDir=${runtimeRoot}/pb_migrations`));
+    requireCondition('PocketBase launchd uses runtime dist for SEO rendering', plist.includes(`--siteDir=${runtimeRoot}/dist`));
   }
 
   if (service.label === 'com.coldwaterkim.caddy') {

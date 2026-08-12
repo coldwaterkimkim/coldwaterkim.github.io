@@ -111,6 +111,8 @@ assert.deepEqual(videoItemsFallback, [videoA, videoB], 'video clipboard items mu
 let uploadCalls = 0;
 let completedBatches = 0;
 let coordinatorNow = 0;
+let markFirstPasteStarted;
+const firstPasteStarted = new Promise(resolve => { markFirstPasteStarted = resolve; });
 const uploadCoordinator = createEditorUploadCoordinator({
   now: () => coordinatorNow,
   async uploadFile(file) {
@@ -123,11 +125,15 @@ const photo1 = new File([new Uint8Array([11, 12, 13])], '1.png', { type: 'image/
 const photo2 = new File([new Uint8Array([21, 22, 23])], '2.png', { type: 'image/png', lastModified: 5001 });
 const insertedOrders = [];
 const firstPaste = uploadCoordinator.runBatch([photo1, photo2], {
+  onFileStart() {
+    markFirstPasteStarted();
+  },
   onComplete(items) {
     completedBatches += 1;
     insertedOrders.push(items.map(item => item.file.name));
   },
 });
+await firstPasteStarted;
 const repeatedPaste = uploadCoordinator.runBatch([photo2, photo1], {
   onComplete() {
     completedBatches += 1;
@@ -169,8 +175,8 @@ assert.notEqual(
   'image dedupe must use file content instead of filename alone',
 );
 
-assert.equal(publishedEntryViewerUrl('posts', { slug: 'hello world' }), '/posts/view.html?slug=hello%20world');
-assert.equal(publishedEntryViewerUrl('daily', { day_key: '2026-08-03' }), '/daily/view.html?day=2026-08-03');
+assert.equal(publishedEntryViewerUrl('posts', { slug: 'hello world' }), '/posts/hello%20world/');
+assert.equal(publishedEntryViewerUrl('daily', { day_key: '2026-08-03' }), '/daily/2026-08-03/');
 assert.equal(publishedEntryViewerUrl('programs', { slug: 'my-app' }), '/programs/view.html?slug=my-app');
 
 const { pocketBaseImageSources, pocketBaseVideoReference, videoDerivativeSources } = await import('../js/media-embeds.js');
@@ -374,16 +380,43 @@ assert.equal(pbModule.shouldUseResumableUpload({ name: 'day.mov', type: 'video/q
 assert.equal(pbModule.shouldUseResumableUpload({ name: 'short.mov', type: 'video/quicktime', size: 63 * 1024 * 1024 }), false, 'small videos must keep the simple PocketBase upload');
 assert.equal(pbModule.MEDIA_UPLOAD_MAX_BYTES, 8 * 1024 * 1024 * 1024, 'the client and media schema must share the 8GB limit');
 assert.match(pbModule.formatMediaUploadProgress({ resumable: true, percent: 42 }), /재개 업로드 42%/, 'resumable upload progress must be visible in the editor');
+assert.match(pbModule.formatMediaUploadProgress({ resumable: true, phase: 'preparing' }), /원본 파일 읽기 속도 확인 중/, 'large video uploads must disclose the source read probe');
+assert.deepEqual(
+  pbModule.resolveResumableUploadTuning(630 * 1024 * 1024, { parallelUploads: 6, maxParallelUploads: 8, chunkSize: 32 * 1024 * 1024 }),
+  { parallelUploads: 6, chunkSize: 32 * 1024 * 1024 },
+  'large videos must use the balanced six-part profile with finite chunks',
+);
+assert.deepEqual(
+  pbModule.resolveResumableUploadTuning(128 * 1024 * 1024, { parallelUploads: 6, maxParallelUploads: 8, chunkSize: 32 * 1024 * 1024 }),
+  { parallelUploads: 3, chunkSize: 32 * 1024 * 1024 },
+  'smaller resumable videos must avoid unnecessary parallel requests',
+);
+assert.deepEqual(
+  pbModule.resolveResumableUploadTuning(630 * 1024 * 1024, { parallelUploads: 6, maxParallelUploads: 8 }, 3),
+  { parallelUploads: 3, chunkSize: 32 * 1024 * 1024 },
+  'diagnostic A/B must be able to retain the three-part baseline without a redeploy',
+);
+assert.deepEqual(
+  pbModule.resolveResumableUploadTuning(630 * 1024 * 1024, { parallelUploads: 6, maxParallelUploads: 8 }, 99),
+  { parallelUploads: 8, chunkSize: 32 * 1024 * 1024 },
+  'diagnostic throughput profiles must remain capped by the server maximum',
+);
 
 const pbSource = fs.readFileSync(new URL('../js/pb.js', import.meta.url), 'utf8');
 assert.match(pbSource, /import\('@uppy\/core'\)/, 'the resumable client must lazy-load Uppy');
 assert.match(pbSource, /\/api\/cwk\/tus\/finalize/, 'completed tus files must be finalized as PocketBase media records');
 assert.match(pbSource, /getResumableMediaUploadCapability/, 'large video uploads must inspect the custom tus endpoint before starting');
 assert.match(pbSource, /64MB 이상 영상은 재개 업로드 서버가 연결되어야 올릴 수 있어/, 'large videos must not fall back to an unreliable direct upload');
-assert.match(pbSource, /parallelUploads:\s*Number\(capability\.parallelUploads/, 'large videos must use the server-advertised parallel tus capacity');
-assert.match(pbSource, /RESUMABLE_VIDEO_PARALLEL_UPLOADS\s*=\s*3/, 'parallel tus uploads must remain bounded');
+assert.match(pbSource, /parallelUploads:\s*tuning\.parallelUploads/, 'large videos must use the bounded server-advertised tus capacity');
+assert.match(pbSource, /RESUMABLE_VIDEO_MAX_PARALLEL_UPLOADS\s*=\s*8/, 'parallel tus uploads must remain bounded');
+assert.match(pbSource, /chunkSize:\s*tuning\.chunkSize/, 'resumable uploads must use finite retry chunks');
+assert.match(pbSource, /X-Request-ID/, 'browser and iMac upload measurements must share a CORS-safe session id');
+assert.match(pbSource, /cache:\s*'no-store'/, 'each upload must refresh server tuning so rollback applies immediately');
 const resumableServer = fs.readFileSync(new URL('../deploy/imac/pocketbase-custom/resumable_upload.go', import.meta.url), 'utf8');
 assert.match(resumableServer, /"parallel_uploads":\s*resumableParallelParts/, 'the tus status route must advertise the safe parallel capacity');
+assert.match(resumableServer, /resumableParallelParts\s*=\s*6/, 'the balanced server profile must advertise six parallel parts');
+assert.match(resumableServer, /"chunk_size":\s*resumableChunkBytes/, 'the tus status route must advertise finite chunks');
+assert.match(resumableServer, /Cache-Control",\s*"no-store"/, 'the tus status response must not cache rollback-sensitive tuning');
 assert.match(resumableServer, /DisableConcatenation:\s*false/, 'the tus server must accept parallel upload concatenation');
 assert.match(resumableServer, /mediaUploadMaxBytes\s*=\s*int64\(8589934592\)/, 'the tus server must accept an 8GB original');
 assert.match(resumableServer, /terminateTusPartialUploads/, 'parallel parts must be released before PocketBase copies the final original');

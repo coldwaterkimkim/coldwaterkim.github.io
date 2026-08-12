@@ -6,7 +6,7 @@ coldwaterkim.com, www.coldwaterkim.com {
 	encode zstd gzip
 
 	request_body {
-		max_size 8GB
+		max_size 8GiB
 	}
 
 	handle /api/* {
@@ -14,6 +14,18 @@ coldwaterkim.com, www.coldwaterkim.com {
 	}
 
 	handle /_/* {
+		reverse_proxy 127.0.0.1:8090
+	}
+
+	handle /sitemap.xml {
+		reverse_proxy 127.0.0.1:8090
+	}
+
+	handle /posts/*/ {
+		reverse_proxy 127.0.0.1:8090
+	}
+
+	handle /daily/*/ {
 		reverse_proxy 127.0.0.1:8090
 	}
 

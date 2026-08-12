@@ -12,6 +12,7 @@ import {
   getPublishedProgramSummaryTimeline,
   getPublishedNasajabSummaries,
   getPublishedNasajabSummaryTimeline,
+  getAlbumItemTimeline,
   getGuestbookEntries,
   addGuestbookEntry,
   saveGuestbookReply,
@@ -29,6 +30,9 @@ import {
   nasajabDisplayDate,
   getKstDateKey,
   recordVisitAndGetStats,
+  initAnonymousAnalytics,
+  trackAnalyticsEvent,
+  analyticsPageKey,
   excludeCurrentVisitorSession,
   getVisitorDisplayStats,
   setVisitorTodayMinimum,
@@ -61,6 +65,13 @@ import {
   scheduledBgmTrackIndexes,
 } from './bgm-playlist-logic.mjs';
 import { initHomeAlbumPreview } from './album.js';
+import { publicContentKeyFromLocation } from './content-urls.mjs';
+import {
+  buildWebRingCategories,
+  interleaveWebRingCategories,
+  randomWebRingItem,
+  webRingNeighbors,
+} from './webring-logic.mjs';
 
 const SITE_VERSION = typeof __SITE_VERSION__ !== 'undefined' ? __SITE_VERSION__ : 'dev';
 const VERSION_MANIFEST_PATH = '/site-version.json';
@@ -102,9 +113,12 @@ const entryGateController = initEntryGate();
 })();
 
 initSpaRouter();
+initWebRing();
+initContentContinuationTracking();
 initSiteVersionRefresh();
 initSharedProfileDetails();
 initDynamicContent();
+initAnonymousAnalytics().catch(error => console.warn('Anonymous analytics failed:', cmsErrorMessage(error)));
 
 window.addEventListener('coldwaterkim:profile-data-updated', (event) => {
   const doc = event.detail?.document;
@@ -366,7 +380,7 @@ async function initEntryGateUpdates(gate, lastAdmittedAt) {
         unit: '개',
         items: posts.map(post => ({
           title: post.title || '(제목 없음)',
-          href: `/posts/view.html?slug=${encodeURIComponent(post.slug || '')}`,
+          href: `/posts/${encodeURIComponent(post.slug || '')}/`,
           updatedAt: post.updated || postDisplayDate(post),
         })),
       },
@@ -375,7 +389,7 @@ async function initEntryGateUpdates(gate, lastAdmittedAt) {
         unit: '개',
         items: dailyEntries.map(entry => ({
           title: `${formatDate(dailyEntryDayKey(entry))}의 하루`,
-          href: `/daily/view.html?day=${encodeURIComponent(dailyEntryDayKey(entry))}`,
+          href: `/daily/${encodeURIComponent(dailyEntryDayKey(entry))}/`,
           updatedAt: entry.updated || dailyEntryDisplayDate(entry),
         })),
       },
@@ -1342,6 +1356,8 @@ async function navigateSpa(href, options = {}) {
     content.innerHTML = nextContent.innerHTML;
     await runPageModules(nextDoc, url);
     await initDynamicContent(content);
+    refreshWebRingLinks();
+    initAnonymousAnalytics(url).catch(error => console.warn('Anonymous analytics failed:', cmsErrorMessage(error)));
 
     if (!options.restoreScroll) {
       window.scrollTo(0, 0);
@@ -1352,6 +1368,106 @@ async function navigateSpa(href, options = {}) {
   } finally {
     content.classList.remove('is-spa-loading');
   }
+}
+
+// ─────────────────────────────────────────────────────────
+// My WebRing: 공개 콘텐츠 전체 탐험
+// ─────────────────────────────────────────────────────────
+let webRingDataPromise = null;
+
+function initWebRing() {
+  const links = Array.from(document.querySelectorAll('.webring a')).slice(0, 3);
+  if (links.length !== 3) return;
+  ['prev', 'random', 'next'].forEach((action, index) => {
+    links[index].dataset.webringAction = action;
+    links[index].setAttribute('aria-disabled', 'true');
+    links[index].removeAttribute('href');
+  });
+
+  document.addEventListener('click', event => {
+    const link = event.target.closest('[data-webring-action]');
+    if (!link?.href || link.getAttribute('aria-disabled') === 'true') {
+      if (link) event.preventDefault();
+      return;
+    }
+    trackAnalyticsEvent('webring_click', {
+      pageKey: analyticsPageKey(),
+      action: link.dataset.webringAction,
+      targetKey: link.dataset.webringTargetKey || ''
+    }).catch(error => console.warn('WebRing analytics failed:', cmsErrorMessage(error)));
+  }, true);
+
+  window.addEventListener('hashchange', refreshWebRingLinks);
+  refreshWebRingLinks();
+}
+
+async function loadWebRingData() {
+  if (!webRingDataPromise) {
+    webRingDataPromise = Promise.all([
+      getPublishedPostSummaryTimeline(),
+      getPublishedDailySummaryTimeline(),
+      getAlbumItemTimeline(),
+      getPublishedNasajabSummaryTimeline(),
+    ]).then(([posts, daily, album, nasajab]) => {
+      const categories = buildWebRingCategories({ posts, daily, album, nasajab });
+      return { categories, deck: interleaveWebRingCategories(categories) };
+    }).catch(error => {
+      webRingDataPromise = null;
+      throw error;
+    });
+  }
+  return await webRingDataPromise;
+}
+
+async function refreshWebRingLinks() {
+  const links = Array.from(document.querySelectorAll('[data-webring-action]'));
+  if (!links.length) return;
+  try {
+    const { categories, deck } = await loadWebRingData();
+    const currentKey = publicContentKeyFromLocation(window.location);
+    const neighbors = webRingNeighbors(deck, currentKey);
+    const targets = {
+      prev: neighbors.prev,
+      random: randomWebRingItem(categories, currentKey),
+      next: neighbors.next,
+    };
+    links.forEach(link => setWebRingTarget(link, targets[link.dataset.webringAction]));
+  } catch (error) {
+    links.forEach(link => setWebRingTarget(link, null));
+    console.warn('WebRing load failed:', cmsErrorMessage(error));
+  }
+}
+
+function setWebRingTarget(link, target) {
+  if (!target?.url) {
+    link.removeAttribute('href');
+    link.setAttribute('aria-disabled', 'true');
+    delete link.dataset.webringTargetKey;
+    return;
+  }
+  link.href = target.url;
+  link.title = target.label || '다른 공개 기록으로 이동';
+  link.setAttribute('aria-disabled', 'false');
+  link.dataset.webringTargetKey = target.key;
+}
+
+function initContentContinuationTracking() {
+  document.addEventListener('click', event => {
+    const link = event.target.closest('.content a[href]');
+    if (!link || link.hasAttribute('download')) return;
+    let targetUrl;
+    try {
+      targetUrl = new URL(link.href, location.href);
+    } catch (_error) {
+      return;
+    }
+    if (targetUrl.origin !== location.origin) return;
+    const pageKey = analyticsPageKey();
+    const targetKey = analyticsPageKey(targetUrl);
+    if (!/^(post|daily|album|nasajab):/.test(pageKey) || targetKey === pageKey) return;
+    trackAnalyticsEvent('content_continue', { pageKey, action: 'internal', targetKey })
+      .catch(error => console.warn('Continuation analytics failed:', cmsErrorMessage(error)));
+  }, true);
 }
 
 function updatePersistentShell(nextDoc) {
@@ -1612,7 +1728,7 @@ async function initRecentPosts(scope = document) {
       load: () => getPublishedPostSummaries(1, 3),
       toRow: post => ({
         title: post.title || '(제목 없음)',
-        url: `posts/view.html?slug=${encodeURIComponent(post.slug || '')}`,
+        url: `/posts/${encodeURIComponent(post.slug || '')}/`,
         date: postDisplayDate(post)
       })
     },
@@ -1625,7 +1741,7 @@ async function initRecentPosts(scope = document) {
       }),
       toRow: day => ({
         title: dailyPreviewTitle(day),
-        url: `daily/view.html?day=${encodeURIComponent(day.dayKey)}`,
+        url: `/daily/${encodeURIComponent(day.dayKey)}/`,
         date: day.dayKey
       })
     },
@@ -1798,6 +1914,10 @@ function initGuestbookPage(scope = document) {
 
     try {
       await addGuestbookEntry(name, message);
+      trackAnalyticsEvent('guestbook_complete', {
+        pageKey: analyticsPageKey(),
+        action: 'submit'
+      }).catch(error => console.warn('Anonymous analytics failed:', cmsErrorMessage(error)));
       guestbookForm.reset();
       loadGuestbook(guestbookEntries);
     } catch (e) {

@@ -9,7 +9,7 @@ coldwaterkim.com
   -> 집 공유기 80/443 포트포워딩
   -> iMac
       - Caddy: HTTPS, 정적 파일, /api 프록시
-      - PocketBase: 127.0.0.1:8090
+      - PocketBase: 127.0.0.1:8090, CMS/API와 공개 글·하루 SEO HTML 렌더링
       - ~/.local/share/coldwaterkim/home-server/pb_data: DB + 업로드 파일 원본
       - ~/.local/share/coldwaterkim/home-server/tus-uploads: 완료 전 대용량 업로드 조각
 ```
@@ -42,17 +42,19 @@ Rollback 기준:
 - `npm run build`는 기존 GitHub Pages용으로 계속 `api.coldwaterkim.com`을 본다.
 - `npm run build:imac`은 `coldwaterkim.com` 같은 origin의 `/api`를 본다.
 - 공개 dist 안에 `cdn.jsdelivr.net` 런타임 의존이 없다.
-- `media.file` 원본 업로드 한도는 8GB이고, `programs.download_files`는 별도 2GB 한도를 유지한다.
-- 느린 외부망에서도 8GB 원본을 재개 업로드할 수 있도록 PocketBase HTTP 읽기/쓰기 제한시간은 3시간이다.
+- `media.file` 원본 업로드 한도는 8GiB(8,589,934,592바이트)이고, `programs.download_files`는 별도 2GB 한도를 유지한다.
+- 느린 외부망에서도 8GiB 원본을 재개 업로드할 수 있도록 PocketBase HTTP 읽기/쓰기 제한시간은 3시간이다.
 - 64MB 이상 영상은 Uppy/tus로 중단 지점부터 재개하며, 완료 후에만 기존 `media.file` 원본으로 등록한다.
+- OWNER 전용 `/admin/upload-diagnostics.html`은 동일 영상을 3·6·8-way로 전송해 비교하고 미디어 레코드 없이 자신이 만든 tus 조각만 정리한다. `npm run imac:upload-ab:summary`로 `cwk-ab-*` 운영 로그를 독립 집계한다.
 
 ## Stage 2. iMac service rehearsal
 
 1. `deploy/imac/install-runtime.sh`로 3시간 HTTP 제한시간을 적용한 PocketBase와 아이맥 CPU에 맞는 Caddy 바이너리를 `.local-bin/`에 둔다. 영상 파생본 기능은 `npm run imac:install-ffmpeg`로 체크섬이 고정된 Intel용 FFmpeg/ffprobe도 설치한다.
    - Intel iMac은 `darwin_amd64`/`mac_amd64`가 필요하다.
    - 현재 핀: PocketBase `v0.23.5`, Caddy `v2.11.4`.
-   - PocketBase는 `deploy/imac/pocketbase-custom/`의 공식 v0.23.5 엔트리포인트에 `--httpRequestTimeout=3h`와 tusd v2.10.0 라우트를 추가한다. 완료 파일은 PocketBase 파일 API로 다시 등록되므로 `pb_data` 저장 구조와 JS migration 동작은 공식 v0.23.5와 같다.
-   - Go 1.25.12 Intel 공식 배포본의 SHA-256을 고정해 빌드하며, `deploy/imac/build-pocketbase-custom.sh`가 두 커스텀 플래그와 바이너리 버전을 확인한다.
+   - PocketBase는 `deploy/imac/pocketbase-custom/`의 공식 v0.23.5 엔트리포인트에 `--httpRequestTimeout=3h`, tusd v2.10.0 라우트, `--siteDir` 기반 SEO 렌더러를 추가한다. 완료 파일은 PocketBase 파일 API로 다시 등록되므로 `pb_data` 저장 구조와 JS migration 동작은 공식 v0.23.5와 같다.
+   - SEO 렌더러는 `/posts/{slug}/`, `/daily/{day}/`, `/sitemap.xml`만 처리하고 Caddy는 나머지 공개 파일을 `dist`에서 그대로 제공한다. DB를 요청 시 읽으므로 발행·수정·초안 전환 뒤 별도 정적 파일 생성 작업은 없다.
+   - Go 1.25.12 Intel 공식 배포본의 SHA-256을 고정해 빌드하며, `deploy/imac/build-pocketbase-custom.sh`가 세 커스텀 플래그와 바이너리 버전을 확인한다.
 2. `npm run build:imac`
 3. `npm run imac:install-services:dry-run`으로 운영 런타임 폴더 복사와 launchd 설치 계획 확인
 4. PocketBase를 `deploy/imac/com.coldwaterkim.pocketbase.plist`로 시스템 LaunchDaemon 실행
@@ -91,7 +93,9 @@ npm run imac:install-split-dns
 
 설치 직후 `dig @192.168.0.11 coldwaterkim.com`과 일반 외부 도메인 전달을 확인한 다음에만 공유기 DHCP DNS를 `192.168.0.11` 하나로 바꾼다. DNS 데몬 검증 전에 공유기 DHCP를 먼저 바꾸면 집 전체 이름 해석이 중단될 수 있으므로 순서를 바꾸지 않는다. 맥북 `/etc/hosts` 항목은 현장 속도 비교용일 뿐 영구 설정에 사용하지 않는다.
 
-64MB 이상 영상은 브라우저 Uppy가 `/api/cwk/tus/files/`로 전송한다. 서버는 `tus-uploads`에 받은 바이트와 오프셋을 남기므로 네트워크 중단 뒤 같은 파일을 다시 선택하면 이어서 보낸다. 전송 시작 전 서버가 20GiB 안전 여유와 결합 중 최대 약 원본 2배의 임시 공간을 확인한다. 전송 완료 후 `/api/cwk/tus/finalize`는 3개 부분 조각을 먼저 지워 디스크 피크를 낮추고, 결합본 하나만 `media.file`로 등록한 뒤 남은 임시 파일도 제거한다. 완료 전 조각은 운영 백업에 넣지 않으며 7일 이상 방치된 조각은 매일 자동 정리한다. tus 기능이 없으면 64MB 이상 영상은 불안정한 단순 업로드로 우회하지 않고 재개 서버 연결 오류를 명확히 보여준다.
+64MB 이상 영상은 브라우저 Uppy가 `/api/cwk/tus/files/`로 전송한다. 256MB 미만은 기존 3분할을 유지하고, 256MB 이상은 서버 권장값 6분할과 32MiB PATCH 단위를 사용한다. 유한 PATCH 단위 덕분에 연결이 끊겨도 거대한 부분 전체가 아니라 마지막 미완료 chunk부터 다시 보낸다. 서버는 `tus-uploads`에 받은 바이트와 오프셋을 남기므로 네트워크 중단 뒤 같은 파일을 다시 선택하면 이어서 보낸다. 전송 시작 전 서버가 20GiB 안전 여유와 결합 중 최대 약 원본 2배의 임시 공간을 확인한다. 전송 완료 후 `/api/cwk/tus/finalize`는 부분 조각을 먼저 지워 디스크 피크를 낮추고, 결합본 하나만 `media.file`로 등록한 뒤 남은 임시 파일도 제거한다. 완료 전 조각은 운영 백업에 넣지 않으며 7일 이상 방치된 조각은 매일 자동 정리한다. tus 기능이 없으면 64MB 이상 영상은 불안정한 단순 업로드로 우회하지 않고 재개 서버 연결 오류를 명확히 보여준다.
+
+속도 A/B는 OWNER 브라우저의 단일 진단 세션에서만 `window.CWK_RESUMABLE_UPLOAD_DIAGNOSTICS = true`와 `window.CWK_RESUMABLE_UPLOAD_PARALLEL_UPLOADS = 3 | 6 | 8`을 설정해 수행한다. 진단 모드는 원본 앞 8MiB 읽기 속도, PATCH/결합/finalize 시간을 분리해 콘솔에 남기며 새 서버 status를 파일마다 다시 읽으므로 열린 탭에서도 즉시 3분할로 롤백할 수 있다. 일반 업로드에는 원본 사전 읽기나 콘솔 진단이 추가되지 않는다.
 
 영상 업로드는 원본 `media.file`을 바꾸지 않는다. 새 영상은 `video_status=pending`으로 저장되고, 사용자 LaunchAgent `com.coldwaterkim.video-processor`가 한 번에 하나씩 포스터와 필요한 웹 재생본을 만든다. 이미 H.264/AAC, 1080p·30fps 이하, Fast Start MP4인 원본은 중복 재생본을 만들지 않고 그대로 쓴다. 호환 H.264 MOV나 Fast Start가 아닌 MP4는 영상 재인코딩 없이 MP4 포장만 바꾸고, HEVC·4K·고프레임 등 변환이 필요한 영상만 `h264_videotoolbox`를 우선 사용한다. 비트레이트는 원본 크기·해상도·길이에 맞춰 최대 6Mbps 안에서 정하며, 하드웨어 변환 실패 시 `libx264`로 자동 복구한다. 모든 생성본은 H.264/AAC, 1080p·30fps 이하, Fast Start와 앞·뒤 디코딩을 검사한 뒤 저장한다. 처리 전/실패 시 공개 화면은 원본으로 자동 fallback한다.
 

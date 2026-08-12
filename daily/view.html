@@ -3,6 +3,9 @@
 
 <head>
     <title>Loading... — coldwaterkim</title>
+    <base href="/daily/">
+    <!-- CWK:SEO_HEAD -->
+    <meta name="robots" content="noindex,follow" data-legacy-viewer>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="icon" href="/favicon.ico" sizes="any">
@@ -141,7 +144,9 @@
                     <p class="note" id="timeline-note">하루 흐름을 불러오고 있습니다...</p>
 
                     <div id="daily-timeline" class="post-timeline">
+                        <!-- CWK:SSR_CONTENT_START -->
                         <div class="timeline-loading">나으 하루를 불러오고 있습니다...</div>
+                        <!-- CWK:SSR_CONTENT_END -->
                     </div>
 
                     <hr>
@@ -175,7 +180,8 @@
         import { decorateAlbumMediaAnchors, enhanceEmbeddedMedia, prepareEmbeddedMediaForDisplay, scrollToAlbumMediaHash } from '../js/media-embeds.js';
 
         const params = new URLSearchParams(window.location.search);
-        const dayParam = params.get('day');
+        const prettyDay = window.location.pathname.match(/^\/daily\/(\d{4}-\d{2}-\d{2})\/?$/)?.[1] || '';
+        const dayParam = params.get('day') || prettyDay;
         const slug = params.get('slug');
         const ownerMode = isLoggedIn();
 
@@ -296,7 +302,7 @@
                     ${focusedBadge}
                     <div class="timeline-post-header">
                         <h2 class="timeline-post-title">
-                            <a href="view.html?day=${encodeURIComponent(dayKey)}">${escapeHtml(entry.title || `${dayKey} 나으 하루`)}</a>${status}
+                            <a href="/daily/${encodeURIComponent(dayKey)}/">${escapeHtml(entry.title || `${dayKey} 나으 하루`)}</a>${status}
                         </h2>
                         <div class="timeline-post-meta">
                             Time: ${escapeHtml(formatDailyEntryTime(entry))}

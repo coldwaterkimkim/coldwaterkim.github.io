@@ -1,11 +1,11 @@
 export function publishedEntryViewerUrl(category, record = {}) {
     if (category === 'posts') {
-        return record.slug ? `/posts/view.html?slug=${encodeURIComponent(record.slug)}` : '';
+        return record.slug ? `/posts/${encodeURIComponent(record.slug)}/` : '';
     }
 
     if (category === 'daily') {
         const dayKey = record.day_key || record.published_at;
-        if (dayKey) return `/daily/view.html?day=${encodeURIComponent(String(dayKey).slice(0, 10))}`;
+        if (dayKey) return `/daily/${encodeURIComponent(String(dayKey).slice(0, 10))}/`;
         return record.slug ? `/daily/view.html?slug=${encodeURIComponent(record.slug)}` : '';
     }
 

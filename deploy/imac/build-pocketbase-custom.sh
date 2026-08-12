@@ -53,3 +53,4 @@ chmod 755 "$OUTPUT_DIR/pocketbase"
 "$OUTPUT_DIR/pocketbase" --version
 "$OUTPUT_DIR/pocketbase" serve --help | grep -F -- "--httpRequestTimeout"
 "$OUTPUT_DIR/pocketbase" serve --help | grep -F -- "--tusUploadDir"
+"$OUTPUT_DIR/pocketbase" serve --help | grep -F -- "--siteDir"

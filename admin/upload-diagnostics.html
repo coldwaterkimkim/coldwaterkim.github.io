@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="utf-8">
+    <title>업로드 A/B 진단 — coldwaterkim OWNER MODE</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="/favicon.ico" sizes="any">
+    <link rel="stylesheet" href="../css/admin.css">
+    <style>
+        .upload-diagnostic-note {
+            padding: 10px;
+            border: 1px solid #777;
+            background: #fffde5;
+            font-size: 13px;
+            line-height: 1.55;
+        }
+
+        .upload-diagnostic-controls {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 180px;
+            gap: 12px;
+            align-items: end;
+        }
+
+        .upload-diagnostic-controls input,
+        .upload-diagnostic-controls select {
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .upload-diagnostic-status {
+            min-height: 1.6em;
+            padding: 8px;
+            border: 1px inset #ddd;
+            background: #fff;
+            white-space: pre-wrap;
+        }
+
+        .upload-diagnostic-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+
+        .upload-diagnostic-table th,
+        .upload-diagnostic-table td {
+            padding: 6px;
+            border: 1px solid #888;
+            text-align: right;
+        }
+
+        .upload-diagnostic-table th:first-child,
+        .upload-diagnostic-table td:first-child,
+        .upload-diagnostic-table td:last-child {
+            text-align: left;
+        }
+
+        .upload-diagnostic-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .upload-diagnostic-log {
+            max-height: 240px;
+            overflow: auto;
+            padding: 10px;
+            border: 1px inset #ddd;
+            background: #111;
+            color: #8cff8c;
+            font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+            white-space: pre-wrap;
+        }
+
+        @media (max-width: 680px) {
+            .upload-diagnostic-controls {
+                grid-template-columns: 1fr;
+            }
+
+            .upload-diagnostic-table {
+                display: block;
+                overflow-x: auto;
+            }
+        }
+    </style>
+</head>
+
+<body class="admin-body">
+    <div class="admin-container">
+        <div class="admin-header">
+            <h1>★ coldwaterkim OWNER MODE ★</h1>
+            <div>
+                <a href="/admin/write.html">✍️ 글쓰기로</a> |
+                <a href="#" id="logoutBtn">🚪 로그아웃</a>
+            </div>
+        </div>
+
+        <nav class="admin-nav">
+            <a href="/">🏠 사이트 보기</a>
+            <a href="/admin/write.html">✍️ 통합 글쓰기</a>
+            <a href="/admin/upload-diagnostics.html" class="active">📡 업로드 진단</a>
+        </nav>
+
+        <main class="admin-content">
+            <div class="admin-panel">
+                <h2>📡 MacBook → iMac 동일 파일 3·6·8-way A/B</h2>
+                <p class="upload-diagnostic-note">
+                    선택한 원본 영상 하나를 변환 없이 3-way, 6-way, 8-way 순서로 tus 전송해 비교한다.
+                    미디어 레코드를 만들거나 글에 첨부하지 않고, 각 회차가 만든 임시 조각만 즉시 정리한다.
+                    테스트 중에는 이 탭을 닫거나 맥북이 잠들지 않게 해줘.
+                </p>
+
+                <div class="upload-diagnostic-controls">
+                    <div class="form-group">
+                        <label for="diagnosticFile">동일하게 반복할 영상 (권장 600MiB 이상, 최대 8GiB)</label>
+                        <input id="diagnosticFile" type="file" accept="video/mp4,video/webm,video/quicktime,.m4v,.mov">
+                    </div>
+                    <div class="form-group">
+                        <label for="diagnosticRounds">반복 횟수</label>
+                        <select id="diagnosticRounds">
+                            <option value="1">각 1회 (빠른 비교)</option>
+                            <option value="2">각 2회 (권장 재현성)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="upload-diagnostic-actions">
+                    <button class="btn btn-primary" id="startDiagnostic" type="button">▶ 3·6·8-way 측정 시작</button>
+                    <button class="btn" id="stopDiagnostic" type="button" disabled>■ 현재 회차 뒤 중지</button>
+                </div>
+                <progress id="diagnosticProgress" value="0" max="100" style="width: 100%; margin-top: 12px;"></progress>
+                <p id="diagnosticStatus" class="upload-diagnostic-status" role="status" aria-live="polite">대기 중.</p>
+            </div>
+
+            <div class="admin-panel">
+                <h2>📊 결과</h2>
+                <div style="overflow-x: auto;">
+                    <table class="upload-diagnostic-table">
+                        <thead>
+                            <tr>
+                                <th>회차</th>
+                                <th>분할</th>
+                                <th>순수 전송</th>
+                                <th>벽시계</th>
+                                <th>청크</th>
+                                <th>재시도/재전송</th>
+                                <th>정리</th>
+                            </tr>
+                        </thead>
+                        <tbody id="diagnosticResults">
+                            <tr><td colspan="7">아직 측정값 없음.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p id="diagnosticSummary">동일 파일의 세 결과가 모이면 중앙값과 목표 구간을 표시한다.</p>
+                <div class="upload-diagnostic-actions">
+                    <button class="btn" id="copyDiagnostic" type="button" disabled>📋 JSON 복사</button>
+                    <button class="btn" id="downloadDiagnostic" type="button" disabled>💾 JSON 저장</button>
+                </div>
+            </div>
+
+            <div class="admin-panel">
+                <h2>🧾 진행 로그</h2>
+                <pre id="diagnosticLog" class="upload-diagnostic-log">진단 도구 준비 중...</pre>
+            </div>
+        </main>
+    </div>
+
+    <script type="module" src="../js/upload-diagnostics.js"></script>
+</body>
+
+</html>

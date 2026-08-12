@@ -49,6 +49,15 @@ pbModule.pb.collection = collectionName => {
     };
   }
 
+  if (collectionName === 'analytics_events') {
+    return {
+      async getFullList() {
+        return [];
+      },
+      async delete() {},
+    };
+  }
+
   if (collectionName === 'site_settings') {
     return {
       async getFirstListItem() {

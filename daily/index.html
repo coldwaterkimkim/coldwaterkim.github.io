@@ -271,7 +271,7 @@
           return `
             <tr>
               <td>
-                <a href="view.html?day=${encodeURIComponent(day.dayKey)}">${formatDate(day.dayKey)}의 하루</a>
+                <a href="/daily/${encodeURIComponent(day.dayKey)}/">${formatDate(day.dayKey)}의 하루</a>
                 <div class="daily-list-meta">기록 ${day.entries.length}개 · updated ${formatDate(day.latestDate)}</div>
               </td>
               <td align="center">${formatDate(day.dayKey)}</td>
@@ -349,7 +349,7 @@
         cells.push(`
           <td class="${classes}">
             ${entry
-              ? `<a href="view.html?day=${encodeURIComponent(dayKey)}"><b>${day}</b></a><br><span class="daily-calendar-mark">기록 ${entries.length}개</span>`
+              ? `<a href="/daily/${encodeURIComponent(dayKey)}/"><b>${day}</b></a><br><span class="daily-calendar-mark">기록 ${entries.length}개</span>`
               : `<span>${day}</span>`}
           </td>
         `);

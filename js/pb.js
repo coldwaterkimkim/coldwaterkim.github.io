@@ -54,12 +54,34 @@ pb.autoCancellation(false);
 export async function getAlbumItems(page = 1, perPage = 60, mediaKind = '') {
     const options = {
         sort: '-uploaded_at,-id',
-        fields: 'id,collectionId,collectionName,media,uploaded_at,file,video_poster,is_video,source_kind,source_id,source_slug'
+        fields: 'id,collectionId,collectionName,media,uploaded_at,file,video_poster,is_video,source_kind,source_id,source_slug,source_published_at'
     };
     if (mediaKind === 'image' || mediaKind === 'video') {
         options.filter = pb.filter('is_video = {:isVideo}', { isVideo: mediaKind === 'video' });
     }
     return await pb.collection('album_items').getList(page, perPage, options);
+}
+
+let albumTimelinePromise = null;
+
+export async function getAlbumItemTimeline(perPage = 200) {
+    if (!albumTimelinePromise) {
+        albumTimelinePromise = (async () => {
+            const items = [];
+            let page = 1;
+            while (true) {
+                const result = await getAlbumItems(page, perPage);
+                items.push(...(result.items || []));
+                if (!result.totalPages || page >= result.totalPages) break;
+                page += 1;
+            }
+            return items;
+        })().catch(error => {
+            albumTimelinePromise = null;
+            throw error;
+        });
+    }
+    return await albumTimelinePromise;
 }
 
 // ─────────────────────────────────────────────────────────
@@ -89,7 +111,13 @@ export function currentUser() {
  * @returns {Promise<object>}
  */
 export async function login(identity, password) {
-    return await pb.collection('users').authWithPassword(identity, password);
+    const auth = await pb.collection('users').authWithPassword(identity, password);
+    try {
+        await excludeCurrentVisitorSession();
+    } catch (error) {
+        console.warn('Owner analytics cleanup failed:', cmsErrorMessage(error));
+    }
+    return auth;
 }
 
 /**
@@ -377,7 +405,7 @@ export async function getPublishedDailyEntries(page = 1, perPage = 10) {
     });
 }
 
-const DAILY_SUMMARY_FIELDS = 'id,day_key,published_at,created,updated';
+const DAILY_SUMMARY_FIELDS = 'id,title,slug,day_key,published_at,created,updated';
 
 export async function getPublishedDailySummaries(page = 1, perPage = 20) {
     return await pb.collection(DAILY_COLLECTION).getList(page, perPage, {
@@ -973,6 +1001,9 @@ const VISITOR_ID_KEY = 'cwk_visitor_id';
 const VISITOR_SESSION_KEY = 'cwk_visitor_session';
 const VISITOR_SESSION_TIMEOUT_MS = 30 * 60 * 1000;
 const POST_VIEW_SESSION_KEY = 'cwk_post_view_sessions';
+const ANALYTICS_LAST_VISIT_KEY = 'cwk_analytics_last_visit_at';
+const ANALYTICS_DEDUPE_KEY = 'cwk_analytics_dedupe';
+const RETURNING_VISIT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 // 2026-05-30 운영 visitor_sessions 누적 23개를 공개 표시값 237의 기준점으로 삼는다.
 const VISITOR_TOTAL_DISPLAY_START = 237;
 const VISITOR_TOTAL_BASELINE_REAL_TOTAL = 23;
@@ -1119,13 +1150,25 @@ export async function getVisitorDisplayStats(dayKey = getKstDateKey()) {
  * @returns {Promise<{dayKey: string, realTotal: number, realToday: number, todayMinimum: number, total: number, today: number}>}
  */
 export async function recordVisitAndGetStats() {
+    const context = await ensureAnonymousSessionContext();
+    return await getVisitorDisplayStats(context.dayKey);
+}
+
+let anonymousSessionQueue = Promise.resolve();
+
+export async function ensureAnonymousSessionContext() {
+    anonymousSessionQueue = anonymousSessionQueue.catch(() => {}).then(createOrRefreshAnonymousSession);
+    return await anonymousSessionQueue;
+}
+
+async function createOrRefreshAnonymousSession() {
     const now = Date.now();
     const dayKey = getKstDateKey(new Date(now));
     const activeSession = readActiveSession(now);
 
     if (activeSession?.dayKey === dayKey) {
         saveActiveSession(activeSession.sessionKey, dayKey, now);
-        return await getVisitorDisplayStats(dayKey);
+        return { sessionKey: activeSession.sessionKey, dayKey, isNew: false, now };
     }
 
     const visitorId = getVisitorId();
@@ -1146,7 +1189,7 @@ export async function recordVisitAndGetStats() {
     }
 
     saveActiveSession(sessionKey, dayKey, now);
-    return await getVisitorDisplayStats(dayKey);
+    return { sessionKey, dayKey, isNew: true, now };
 }
 
 /**
@@ -1171,8 +1214,130 @@ export async function excludeCurrentVisitorSession() {
         if (e?.status !== 404) throw e;
     }
 
+    try {
+        const events = await pb.collection('analytics_events').getFullList({
+            filter: pb.filter('session_key = {:sessionKey}', { sessionKey: activeSession.sessionKey }),
+            fields: 'id',
+            requestKey: `analytics-owner-${activeSession.sessionKey}`
+        });
+        await Promise.all(events.map(event => pb.collection('analytics_events').delete(event.id)));
+    } catch (e) {
+        if (e?.status !== 404) throw e;
+    }
+
     storageRemove(VISITOR_SESSION_KEY);
+    storageRemove(ANALYTICS_DEDUPE_KEY);
     return true;
+}
+
+export function analyticsPageKey(locationLike = globalThis.location) {
+    const pathname = String(locationLike?.pathname || '/').replace(/\/{2,}/g, '/');
+    const params = new URLSearchParams(String(locationLike?.search || ''));
+    const hash = decodeURIComponent(String(locationLike?.hash || '').replace(/^#/, ''));
+    const albumMatch = hash.match(/^cwk-media-[a-zA-Z0-9_-]+-([a-zA-Z0-9_-]+)(?:-\d+)?$/);
+    if (albumMatch) return `album:${albumMatch[1]}`.slice(0, 240);
+    if (pathname === '/nasajab/index.html' && hash) return `nasajab:${hash}`.slice(0, 240);
+    const postSlug = pathname.match(/^\/posts\/([^/]+)\/?$/)?.[1] || params.get('slug');
+    if (pathname.startsWith('/posts/') && postSlug) return `post:${decodeURIComponent(postSlug)}`.slice(0, 240);
+    const dailyDay = pathname.match(/^\/daily\/(\d{4}-\d{2}-\d{2})\/?$/)?.[1] || params.get('day');
+    if (pathname.startsWith('/daily/') && dailyDay) return `daily:${String(dailyDay).slice(0, 10)}`;
+    return `path:${pathname}`.slice(0, 240);
+}
+
+export function classifyAnalyticsSource(referrer = document.referrer, locationLike = globalThis.location) {
+    const params = new URLSearchParams(String(locationLike?.search || ''));
+    const utmSource = String(params.get('utm_source') || '').toLowerCase();
+    if (utmSource === 'instagram') return 'instagram';
+    if (utmSource === 'chatgpt' || utmSource === 'chatgpt.com') return 'chatgpt';
+    if (!referrer) return 'direct';
+    try {
+        const source = new URL(referrer);
+        if (source.origin === String(locationLike?.origin || '')) return 'internal';
+        const host = source.hostname.toLowerCase();
+        if (/(^|\.)(google|bing|naver|daum)\./.test(host)) return 'search';
+        if (host === 'chatgpt.com' || host === 'chat.openai.com') return 'chatgpt';
+        if (host === 'instagram.com' || host.endsWith('.instagram.com')) return 'instagram';
+        if (/(^|\.)(x\.com|twitter\.com|facebook\.com|threads\.net|youtube\.com)$/.test(host)) return 'social';
+        return 'referral';
+    } catch (_error) {
+        return 'unknown';
+    }
+}
+
+export async function initAnonymousAnalytics(locationLike = globalThis.location) {
+    if (isLoggedIn()) return false;
+    const context = await ensureAnonymousSessionContext();
+    const pageKey = analyticsPageKey(locationLike);
+    const previousVisitAt = Number(storageGet(ANALYTICS_LAST_VISIT_KEY) || 0);
+    const returning7d = previousVisitAt > 0 && context.now - previousVisitAt <= RETURNING_VISIT_WINDOW_MS;
+    await createAnalyticsEvent('session_start', {
+        context,
+        pageKey,
+        sourceGroup: classifyAnalyticsSource(document.referrer, locationLike),
+        returning7d,
+        deterministic: true
+    });
+    storageSet(ANALYTICS_LAST_VISIT_KEY, String(context.now));
+    await createAnalyticsEvent('page_view', { context, pageKey, deterministic: true });
+    return true;
+}
+
+export async function trackAnalyticsEvent(eventType, { pageKey = '', action = '', targetKey = '' } = {}) {
+    if (isLoggedIn()) return false;
+    const allowedTypes = new Set(['webring_click', 'content_continue', 'guestbook_complete']);
+    if (!allowedTypes.has(eventType)) return false;
+    const context = await ensureAnonymousSessionContext();
+    return await createAnalyticsEvent(eventType, {
+        context,
+        pageKey: pageKey || analyticsPageKey(),
+        action,
+        targetKey,
+        deterministic: false
+    });
+}
+
+async function createAnalyticsEvent(eventType, options = {}) {
+    const context = options.context || await ensureAnonymousSessionContext();
+    const nonce = options.deterministic ? '' : `:${randomId()}`;
+    const identityPageKey = eventType === 'session_start' ? '' : options.pageKey || '';
+    const eventKey = await sha256(`cwk-analytics-v1:${context.sessionKey}:${eventType}:${identityPageKey}${nonce}`);
+    const dedupe = readAnalyticsDedupe();
+    if (dedupe[eventKey]) return false;
+
+    const payload = {
+        event_key: eventKey,
+        session_key: context.sessionKey,
+        day_key: context.dayKey,
+        event_type: eventType,
+        page_key: String(options.pageKey || '').slice(0, 240),
+        action: String(options.action || ''),
+        target_key: String(options.targetKey || '').slice(0, 240),
+        source_group: String(options.sourceGroup || ''),
+        returning_7d: Boolean(options.returning7d)
+    };
+
+    try {
+        await pb.collection('analytics_events').create(payload, { requestKey: `analytics-${eventKey}` });
+        dedupe[eventKey] = Date.now();
+        storageSet(ANALYTICS_DEDUPE_KEY, JSON.stringify(trimAnalyticsDedupe(dedupe)));
+        return true;
+    } catch (error) {
+        if (error?.status === 400 || error?.status === 404) return false;
+        throw error;
+    }
+}
+
+function readAnalyticsDedupe() {
+    try {
+        const value = JSON.parse(storageGet(ANALYTICS_DEDUPE_KEY) || '{}');
+        return value && typeof value === 'object' ? value : {};
+    } catch (_error) {
+        return {};
+    }
+}
+
+function trimAnalyticsDedupe(value) {
+    return Object.fromEntries(Object.entries(value).sort((a, b) => Number(b[1]) - Number(a[1])).slice(0, 200));
 }
 
 /**
@@ -1287,8 +1452,10 @@ export async function getPostViewCounts(postIds = []) {
 
 export const MEDIA_UPLOAD_MAX_BYTES = 8 * 1024 * 1024 * 1024;
 const RESUMABLE_VIDEO_MIN_BYTES = 64 * 1024 * 1024;
-const RESUMABLE_VIDEO_PARALLEL_UPLOADS = 3;
-let resumableUploadCapabilityPromise = null;
+const RESUMABLE_VIDEO_BALANCED_MIN_BYTES = 256 * 1024 * 1024;
+const RESUMABLE_VIDEO_MAX_PARALLEL_UPLOADS = 8;
+export const RESUMABLE_UPLOAD_CHUNK_BYTES = 32 * 1024 * 1024;
+const RESUMABLE_UPLOAD_READ_PROBE_BYTES = 8 * 1024 * 1024;
 
 /**
  * 미디어 업로드
@@ -1362,6 +1529,7 @@ export function shouldUseResumableUpload(file) {
 }
 
 export function formatMediaUploadProgress(progress = {}) {
+    if (progress.phase === 'preparing') return '원본 파일 읽기 속도 확인 중...';
     if (progress.phase === 'finalizing') return '업로드 완료 · 서버 미디어 등록 중...';
     if (progress.phase === 'complete') return '업로드 완료.';
 
@@ -1373,22 +1541,149 @@ export function formatMediaUploadProgress(progress = {}) {
 }
 
 async function getResumableMediaUploadCapability() {
-    if (!isLoggedIn()) return { available: false, parallelUploads: 1, maxSize: 0, safeUploadBytes: 0 };
-    if (!resumableUploadCapabilityPromise) {
-        resumableUploadCapabilityPromise = pb.send('/api/cwk/tus/status', {
-            method: 'GET',
-            requestKey: null
-        }).then(result => ({
+    if (!isLoggedIn()) return { available: false, parallelUploads: 1, maxParallelUploads: 1, chunkSize: RESUMABLE_UPLOAD_CHUNK_BYTES, maxSize: 0, safeUploadBytes: 0 };
+    return await pb.send('/api/cwk/tus/status', {
+        method: 'GET',
+        cache: 'no-store',
+        requestKey: null
+    }).then(result => {
+        const maxParallelUploads = normalizeResumableParallelUploads(
+            result?.max_parallel_uploads,
+            result?.parallel_uploads
+        );
+        return {
             available: Boolean(result?.available),
             maxSize: Math.min(MEDIA_UPLOAD_MAX_BYTES, Number(result?.max_size || 0)),
             safeUploadBytes: Math.max(0, Number(result?.safe_upload_bytes || 0)),
-            parallelUploads: Math.max(1, Math.min(
-                RESUMABLE_VIDEO_PARALLEL_UPLOADS,
-                Number(result?.parallel_uploads || 1)
-            ))
-        })).catch(() => ({ available: false, parallelUploads: 1, maxSize: 0, safeUploadBytes: 0 }));
+            parallelUploads: Math.min(
+                maxParallelUploads,
+                normalizeResumableParallelUploads(result?.parallel_uploads, 1)
+            ),
+            maxParallelUploads,
+            chunkSize: normalizeResumableChunkSize(result?.chunk_size)
+        };
+    }).catch(() => ({
+        available: false,
+        parallelUploads: 1,
+        maxParallelUploads: 1,
+        chunkSize: RESUMABLE_UPLOAD_CHUNK_BYTES,
+        maxSize: 0,
+        safeUploadBytes: 0
+    }));
+}
+
+function normalizeResumableParallelUploads(value, fallback = 1) {
+    const uploads = Number(value);
+    const fallbackUploads = Number(fallback);
+    const normalizedFallback = Number.isFinite(fallbackUploads) ? Math.floor(fallbackUploads) : 1;
+    return Math.max(1, Math.min(
+        RESUMABLE_VIDEO_MAX_PARALLEL_UPLOADS,
+        Number.isFinite(uploads) ? Math.floor(uploads) : normalizedFallback
+    ));
+}
+
+function normalizeResumableChunkSize(value) {
+    const bytes = Number(value || 0);
+    const minimum = 8 * 1024 * 1024;
+    const maximum = 128 * 1024 * 1024;
+    return Number.isFinite(bytes) && bytes >= minimum && bytes <= maximum
+        ? Math.round(bytes)
+        : RESUMABLE_UPLOAD_CHUNK_BYTES;
+}
+
+export function resolveResumableUploadTuning(fileSize, capability = {}, requestedParallelUploads = null) {
+    const maxParallelUploads = normalizeResumableParallelUploads(
+        capability.maxParallelUploads,
+        capability.parallelUploads
+    );
+    const recommendedParallelUploads = Math.min(
+        maxParallelUploads,
+        normalizeResumableParallelUploads(capability.parallelUploads, 1)
+    );
+    const requestedUploads = Number(requestedParallelUploads);
+    const hasRequestedUploads = requestedParallelUploads !== null
+        && requestedParallelUploads !== undefined
+        && String(requestedParallelUploads).trim() !== '';
+    const selectedParallelUploads = hasRequestedUploads && Number.isFinite(requestedUploads)
+        ? Math.min(maxParallelUploads, normalizeResumableParallelUploads(requestedUploads, recommendedParallelUploads))
+        : recommendedParallelUploads;
+    return {
+        parallelUploads: Number(fileSize || 0) >= RESUMABLE_VIDEO_BALANCED_MIN_BYTES
+            ? selectedParallelUploads
+            : Math.min(3, selectedParallelUploads),
+        chunkSize: normalizeResumableChunkSize(capability.chunkSize)
+    };
+}
+
+async function probeResumableSourceRead(file, sampleBytes = RESUMABLE_UPLOAD_READ_PROBE_BYTES) {
+    const fileSize = Number(file?.size || 0);
+    const totalSampleBytes = Math.min(fileSize, Math.max(0, Number(sampleBytes || 0)));
+    if (!file?.slice || totalSampleBytes <= 0) return null;
+
+    const startedAt = performance.now();
+    const sample = await file.slice(0, totalSampleBytes).arrayBuffer();
+    const bytesRead = sample.byteLength;
+    const elapsedSeconds = Math.max((performance.now() - startedAt) / 1000, 0.001);
+    return {
+        bytesRead,
+        elapsedSeconds,
+        speedBytesPerSecond: bytesRead / elapsedSeconds
+    };
+}
+
+function createResumableUploadSessionId() {
+    const uuid = globalThis.crypto?.randomUUID?.();
+    if (uuid) return uuid;
+    return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 14)}`;
+}
+
+function resumableRequestMethod(request) {
+    try {
+        return String(request?.getMethod?.() || 'UNKNOWN').toUpperCase();
+    } catch (_error) {
+        return 'UNKNOWN';
     }
-    return await resumableUploadCapabilityPromise;
+}
+
+function resumableRequestHeader(request, name) {
+    try {
+        return String(request?.getHeader?.(name) || '');
+    } catch (_error) {
+        return '';
+    }
+}
+
+function resumableRequestUrl(request) {
+    try {
+        return String(request?.getURL?.() || '');
+    } catch (_error) {
+        return '';
+    }
+}
+
+function resumableResponseHeader(response, name) {
+    try {
+        return String(response?.getHeader?.(name) || '');
+    } catch (_error) {
+        return '';
+    }
+}
+
+function resumableRequestKind(request) {
+    const method = resumableRequestMethod(request);
+    if (method !== 'POST') return method.toLowerCase();
+    const concat = resumableRequestHeader(request, 'Upload-Concat');
+    if (concat === 'partial') return 'partial-create';
+    if (concat.startsWith('final;')) return 'final-concat';
+    return 'create';
+}
+
+function resumableResponseStatus(response) {
+    try {
+        return Number(response?.getStatus?.() || 0);
+    } catch (_error) {
+        return 0;
+    }
 }
 
 async function uploadMediaResumable(file, altText, caption, options = {}, capability = {}) {
@@ -1400,7 +1695,40 @@ async function uploadMediaResumable(file, altText, caption, options = {}, capabi
         import('@uppy/core'),
         import('@uppy/tus')
     ]);
+    const diagnosticsEnabled = options.diagnostics === true
+        || typeof options.onDiagnostic === 'function'
+        || globalThis.CWK_RESUMABLE_UPLOAD_DIAGNOSTICS === true;
+    const tuning = resolveResumableUploadTuning(
+        file.size,
+        capability,
+        diagnosticsEnabled ? globalThis.CWK_RESUMABLE_UPLOAD_PARALLEL_UPLOADS : null
+    );
+    const uploadSessionId = createResumableUploadSessionId();
+    let sourceReadProbe = null;
+    if (diagnosticsEnabled) {
+        options.onProgress?.({
+            phase: 'preparing',
+            percent: 0,
+            bytesUploaded: 0,
+            bytesTotal: Number(file?.size || 0),
+            resumable: true
+        });
+        try {
+            sourceReadProbe = await probeResumableSourceRead(file);
+        } catch (error) {
+            console.warn('Resumable upload source read probe failed:', error?.name || 'unknown');
+        }
+    }
+
     const startedAt = performance.now();
+    const requestMetricByRequest = new WeakMap();
+    const requestMetrics = [];
+    const acceptedOffsetsByResource = new Map();
+    let completedChunkCount = 0;
+    let completedChunkCallbackBytes = 0;
+    let acceptedPatchBytes = 0;
+    let firstPatchStartedAt = 0;
+    let lastPatchCompletedAt = 0;
     const uppy = new Uppy({
         autoProceed: false,
         restrictions: {
@@ -1415,8 +1743,57 @@ async function uploadMediaResumable(file, altText, caption, options = {}, capabi
         retryDelays: [0, 1000, 3000, 5000, 10000, 20000],
         // PocketBase 미디어 등록까지 끝나기 전에 재개 정보를 지우지 않는다.
         removeFingerprintOnSuccess: false,
-        allowedMetaFields: ['name', 'type', 'alt_text', 'caption', 'owner_id'],
-        parallelUploads: Number(capability.parallelUploads || 1),
+        allowedMetaFields: ['name', 'type', 'alt_text', 'caption', 'owner_id', 'upload_session'],
+        parallelUploads: tuning.parallelUploads,
+        chunkSize: tuning.chunkSize,
+        onBeforeRequest(request) {
+            // tusd가 교차 출처 개발 환경에서도 기본 허용하는 상관관계 헤더다.
+            request.setHeader('X-Request-ID', uploadSessionId);
+            const requestStartedAt = performance.now();
+            const kind = resumableRequestKind(request);
+            const resourceUrl = resumableRequestUrl(request);
+            const uploadOffset = Number(resumableRequestHeader(request, 'Upload-Offset') || 0);
+            const metric = {
+                kind,
+                status: 0,
+                durationMs: null,
+                uploadOffset,
+                responseOffset: null
+            };
+            requestMetricByRequest.set(request, { metric, requestStartedAt, resourceUrl });
+            requestMetrics.push(metric);
+            if (kind === 'patch') {
+                if (!firstPatchStartedAt) firstPatchStartedAt = requestStartedAt;
+                const offsetState = acceptedOffsetsByResource.get(resourceUrl) || { hasPatch: false, initialOffset: null, lastObservedOffset: 0 };
+                if (offsetState.initialOffset === null) offsetState.initialOffset = uploadOffset;
+                offsetState.lastObservedOffset = Math.max(offsetState.lastObservedOffset, uploadOffset);
+                offsetState.hasPatch = true;
+                acceptedOffsetsByResource.set(resourceUrl, offsetState);
+            }
+        },
+        onAfterResponse(request, response) {
+            const completedAt = performance.now();
+            const requestMetric = requestMetricByRequest.get(request);
+            if (!requestMetric) return;
+            requestMetric.metric.status = resumableResponseStatus(response);
+            requestMetric.metric.durationMs = Math.max(0, completedAt - requestMetric.requestStartedAt);
+            const responseOffset = Number(resumableResponseHeader(response, 'Upload-Offset') || 0);
+            requestMetric.metric.responseOffset = responseOffset;
+            if ((requestMetric.metric.kind === 'patch' || requestMetric.metric.kind === 'head') && responseOffset >= 0) {
+                const offsetState = acceptedOffsetsByResource.get(requestMetric.resourceUrl) || { hasPatch: false, initialOffset: null, lastObservedOffset: 0 };
+                if (!offsetState.hasPatch && offsetState.initialOffset === null) offsetState.initialOffset = responseOffset;
+                if (offsetState.hasPatch && responseOffset > offsetState.lastObservedOffset) {
+                    acceptedPatchBytes += responseOffset - offsetState.lastObservedOffset;
+                }
+                offsetState.lastObservedOffset = Math.max(offsetState.lastObservedOffset, responseOffset);
+                acceptedOffsetsByResource.set(requestMetric.resourceUrl, offsetState);
+            }
+            if (requestMetric.metric.kind === 'patch') lastPatchCompletedAt = completedAt;
+        },
+        onChunkComplete(chunkSize) {
+            completedChunkCount += 1;
+            completedChunkCallbackBytes += Math.max(0, Number(chunkSize || 0));
+        },
         limit: 1
     });
 
@@ -1427,7 +1804,8 @@ async function uploadMediaResumable(file, altText, caption, options = {}, capabi
         meta: {
             alt_text: String(altText || '').slice(0, 200),
             caption: String(caption || '').slice(0, 500),
-            owner_id: String(pb.authStore.model?.id || '')
+            owner_id: String(pb.authStore.model?.id || ''),
+            upload_session: uploadSessionId
         }
     });
 
@@ -1435,8 +1813,14 @@ async function uploadMediaResumable(file, altText, caption, options = {}, capabi
         if (!uppyFile || uppyFile.id !== fileId) return;
         const bytesUploaded = Number(progress.bytesUploaded || 0);
         const bytesTotal = Number(progress.bytesTotal || file.size || 0);
-        const elapsedSeconds = Math.max((performance.now() - startedAt) / 1000, 0.001);
-        const speedBytesPerSecond = bytesUploaded / elapsedSeconds;
+        const now = performance.now();
+        const initialOffsetBytes = Array.from(acceptedOffsetsByResource.values())
+            .reduce((total, state) => total + Math.max(0, Number(state.initialOffset || 0)), 0);
+        const elapsedSeconds = firstPatchStartedAt
+            ? Math.max((now - firstPatchStartedAt) / 1000, 0.001)
+            : 0;
+        const transferredThisRun = Math.max(0, bytesUploaded - initialOffsetBytes);
+        const speedBytesPerSecond = elapsedSeconds > 0 ? transferredThisRun / elapsedSeconds : 0;
         const etaSeconds = speedBytesPerSecond > 0
             ? Math.max(0, (bytesTotal - bytesUploaded) / speedBytesPerSecond)
             : null;
@@ -1456,6 +1840,7 @@ async function uploadMediaResumable(file, altText, caption, options = {}, capabi
         const failed = result?.failed?.[0];
         if (failed) throw failed.error || new Error('재개 업로드가 실패했어.');
 
+        const transportCompletedAt = performance.now();
         const uploaded = result?.successful?.[0] || uppy.getFile(fileId);
         const uploadUrl = uploaded?.response?.uploadURL || uploaded?.uploadURL || uploaded?.tus?.uploadUrl;
         const uploadId = resumableUploadId(uploadUrl);
@@ -1469,7 +1854,32 @@ async function uploadMediaResumable(file, altText, caption, options = {}, capabi
             resumable: true
         });
 
+        const finalizeStartedAt = performance.now();
         const media = await finalizeResumableUpload(uploadId);
+        const completedAt = performance.now();
+        const uppyElapsedSeconds = Math.max((transportCompletedAt - startedAt) / 1000, 0.001);
+        const patchElapsedSeconds = firstPatchStartedAt && lastPatchCompletedAt
+            ? Math.max((lastPatchCompletedAt - firstPatchStartedAt) / 1000, 0.001)
+            : 0;
+        const diagnostics = {
+            outcome: 'complete',
+            sessionId: uploadSessionId,
+            fileBytes: Number(file.size || 0),
+            parallelUploads: tuning.parallelUploads,
+            chunkSize: tuning.chunkSize,
+            sourceReadBytesPerSecond: Number(sourceReadProbe?.speedBytesPerSecond || 0),
+            sourceReadSampleBytes: Number(sourceReadProbe?.bytesRead || 0),
+            uppyElapsedSeconds,
+            patchElapsedSeconds,
+            finalizeElapsedSeconds: Math.max(0, (completedAt - finalizeStartedAt) / 1000),
+            averageBytesPerSecond: patchElapsedSeconds > 0 ? acceptedPatchBytes / patchElapsedSeconds : 0,
+            completedChunkCount,
+            completedChunkCallbackBytes,
+            acceptedPatchBytes,
+            requests: requestMetrics
+        };
+        options.onDiagnostic?.(diagnostics);
+        if (diagnosticsEnabled) console.info('[CWK resumable upload]', diagnostics);
         options.onProgress?.({
             phase: 'complete',
             percent: 100,
@@ -1479,6 +1889,30 @@ async function uploadMediaResumable(file, altText, caption, options = {}, capabi
         });
         return media;
     } catch (error) {
+        const failedAt = performance.now();
+        const patchElapsedSeconds = firstPatchStartedAt
+            ? Math.max(((lastPatchCompletedAt || failedAt) - firstPatchStartedAt) / 1000, 0.001)
+            : 0;
+        const diagnostics = {
+            outcome: 'failed',
+            sessionId: uploadSessionId,
+            fileBytes: Number(file.size || 0),
+            parallelUploads: tuning.parallelUploads,
+            chunkSize: tuning.chunkSize,
+            sourceReadBytesPerSecond: Number(sourceReadProbe?.speedBytesPerSecond || 0),
+            sourceReadSampleBytes: Number(sourceReadProbe?.bytesRead || 0),
+            uppyElapsedSeconds: Math.max(0, (failedAt - startedAt) / 1000),
+            patchElapsedSeconds,
+            averageBytesPerSecond: patchElapsedSeconds > 0 ? acceptedPatchBytes / patchElapsedSeconds : 0,
+            completedChunkCount,
+            completedChunkCallbackBytes,
+            acceptedPatchBytes,
+            requests: requestMetrics,
+            errorName: String(error?.name || 'Error'),
+            errorStatus: Number(error?.status || error?.originalResponse?.getStatus?.() || 0)
+        };
+        options.onDiagnostic?.(diagnostics);
+        if (diagnosticsEnabled) console.warn('[CWK resumable upload]', diagnostics);
         if (isAuthExpiredLikeError(error)) pb.authStore.clear();
         throw error;
     } finally {

@@ -68,6 +68,14 @@ func main() {
 		"the directory to serve static files",
 	)
 
+	var siteDir string
+	app.RootCmd.PersistentFlags().StringVar(
+		&siteDir,
+		"siteDir",
+		"./dist",
+		"the built public site directory used by SEO routes",
+	)
+
 	var indexFallback bool
 	app.RootCmd.PersistentFlags().BoolVar(
 		&indexFallback,
@@ -100,6 +108,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	seoPages := newSEORenderer(app, siteDir)
 	app.Cron().MustAdd("cleanup-tus-uploads", "17 4 * * *", func() {
 		if err := resumableUploads.cleanupStaleUploads(time.Now()); err != nil {
 			app.Logger().Warn("Failed to clean stale tus uploads", "error", err.Error())
@@ -134,6 +143,7 @@ func main() {
 
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
 		resumableUploads.registerRoutes(e)
+		seoPages.registerRoutes(e)
 		return e.Next()
 	})
 

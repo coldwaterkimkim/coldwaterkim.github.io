@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="robots" content="noindex,follow">
+  <title>페이지 이동 중 — coldwaterkim</title>
+</head>
+<body>
+  <p>기록 페이지로 이동 중...</p>
+  <script>
+    (() => {
+      const post = location.pathname.match(/^\/posts\/([^/]+)\/?$/);
+      const daily = location.pathname.match(/^\/daily\/(\d{4}-\d{2}-\d{2})\/?$/);
+      if (post) location.replace(`/posts/view.html?slug=${encodeURIComponent(decodeURIComponent(post[1]))}${location.hash}`);
+      else if (daily) location.replace(`/daily/view.html?day=${daily[1]}${location.hash}`);
+      else location.replace('/');
+    })();
+  </script>
+</body>
+</html>

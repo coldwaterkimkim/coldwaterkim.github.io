@@ -3,6 +3,9 @@
 
 <head>
     <title>Loading... — coldwaterkim</title>
+    <base href="/posts/">
+    <!-- CWK:SEO_HEAD -->
+    <meta name="robots" content="noindex,follow" data-legacy-viewer>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="icon" href="/favicon.ico" sizes="any">
@@ -141,7 +144,9 @@
                     <p class="note" id="timeline-note">글 흐름을 불러오고 있습니다...</p>
 
                     <div id="post-timeline" class="post-timeline">
+                        <!-- CWK:SSR_CONTENT_START -->
                         <div class="timeline-loading">글을 불러오고 있습니다...</div>
+                        <!-- CWK:SSR_CONTENT_END -->
                     </div>
 
                     <hr>
@@ -162,7 +167,8 @@
         import { decorateAlbumMediaAnchors, enhanceEmbeddedMedia, prepareEmbeddedMediaForDisplay, scrollToAlbumMediaHash } from '../js/media-embeds.js';
 
         const params = new URLSearchParams(window.location.search);
-        const slug = params.get('slug');
+        const prettySlug = window.location.pathname.match(/^\/posts\/([^/]+)\/?$/)?.[1] || '';
+        const slug = params.get('slug') || decodeURIComponent(prettySlug);
         const ownerMode = isLoggedIn();
 
         if (!slug) {
@@ -270,7 +276,7 @@
                 <article class="timeline-post" data-post-id="${post.id}">
                     <div class="timeline-post-header">
                         <h2 class="timeline-post-title">
-                            <a href="view.html?slug=${encodeURIComponent(post.slug || '')}">${escapeHtml(post.title || 'Untitled')}</a>${status}
+                            <a href="/posts/${encodeURIComponent(post.slug || '')}/">${escapeHtml(post.title || 'Untitled')}</a>${status}
                         </h2>
                         <div class="timeline-post-meta">
                             Published: ${formatDate(date)}
