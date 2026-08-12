@@ -191,6 +191,7 @@ function verifyStaticConfig() {
   requireCondition('Caddyfile serves coldwaterkim.com', caddyfile.includes('coldwaterkim.com'));
   requireCondition('Caddyfile serves www.coldwaterkim.com', caddyfile.includes('www.coldwaterkim.com'));
   requireCondition('Caddyfile proxies /api locally', caddyfile.includes('handle /api/*') && caddyfile.includes('127.0.0.1:8090'));
+  requireCondition('Caddyfile keeps browser tus uploads on separate HTTP/1.1 connections', /servers\s+:443\s*\{[\s\S]*?protocols\s+h1[\s\S]*?\}/.test(caddyfile));
   requireCondition('Caddyfile allows exact 8GiB uploads', /request_body[\s\S]*max_size\s+8GiB/.test(caddyfile));
   requireCondition('Caddy LaunchDaemon uses production Caddy path', caddyPlist.includes('/usr/local/bin/caddy'));
   requireCondition('Caddy LaunchDaemon keeps service alive', caddyPlist.includes('<key>KeepAlive</key>'));

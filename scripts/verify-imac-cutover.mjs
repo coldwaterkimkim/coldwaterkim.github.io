@@ -129,6 +129,7 @@ function verifyCaddyfile() {
   requireCondition('Caddyfile includes www.coldwaterkim.com', caddyfile.includes('www.coldwaterkim.com'));
   requireCondition('Caddyfile proxies /api to local PocketBase', caddyfile.includes('handle /api/*') && caddyfile.includes('reverse_proxy 127.0.0.1:8090'));
   requireCondition('Caddyfile proxies /_ to local PocketBase admin', caddyfile.includes('handle /_/*') && caddyfile.includes('reverse_proxy 127.0.0.1:8090'));
+  requireCondition('Caddyfile isolates parallel browser uploads with HTTP/1.1 connections', /servers\s+:443\s*\{[\s\S]*?protocols\s+h1[\s\S]*?\}/.test(caddyfile));
   requireCondition('Caddyfile allows exact 8GiB request bodies', /request_body[\s\S]*max_size\s+8GiB/.test(caddyfile));
   requireCondition('Caddyfile serves runtime dist root', caddyfile.includes(runtimeDistPath));
   requireCondition('local Caddyfile binds rehearsal port', localCaddyfile.includes('http://127.0.0.1:18081'));

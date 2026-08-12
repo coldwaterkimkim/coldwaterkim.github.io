@@ -1,5 +1,8 @@
 {
 	email ckstn1112@gmail.com
+	servers :443 {
+		protocols h1
+	}
 }
 
 coldwaterkim.com, www.coldwaterkim.com {

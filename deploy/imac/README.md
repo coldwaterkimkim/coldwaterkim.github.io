@@ -96,6 +96,8 @@ npm run imac:install-split-dns
 
 64MB 이상 영상은 브라우저 Uppy가 `/api/cwk/tus/files/`로 전송한다. 256MB 미만은 기존 3분할을 유지하고, 256MB 이상은 서버 권장값 6분할과 32MiB PATCH 단위를 사용한다. 유한 PATCH 단위 덕분에 연결이 끊겨도 거대한 부분 전체가 아니라 마지막 미완료 chunk부터 다시 보낸다. 서버는 `tus-uploads`에 받은 바이트와 오프셋을 남기므로 네트워크 중단 뒤 같은 파일을 다시 선택하면 이어서 보낸다. 전송 시작 전 서버가 20GiB 안전 여유와 결합 중 최대 약 원본 2배의 임시 공간을 확인한다. 전송 완료 후 `/api/cwk/tus/finalize`는 부분 조각을 먼저 지워 디스크 피크를 낮추고, 결합본 하나만 `media.file`로 등록한 뒤 남은 임시 파일도 제거한다. 완료 전 조각은 운영 백업에 넣지 않으며 7일 이상 방치된 조각은 매일 자동 정리한다. tus 기능이 없으면 64MB 이상 영상은 불안정한 단순 업로드로 우회하지 않고 재개 서버 연결 오류를 명확히 보여준다.
 
+운영 HTTPS 리스너는 의도적으로 HTTP/1.1만 광고한다. 실제 MacBook Chrome에서 HTTP/2를 사용할 때 편집기의 기존 영상 Range 요청과 6개 tus PATCH가 단일 TCP 연결을 공유해 약 6~7MB/s에 머물렀지만, HTTP/1.1에서는 병렬 PATCH가 별도 연결로 분리되어 같은 운영 편집기에서 보수적으로 57MB/s 이상을 확인했다. 이 설정은 사이트 전체에서 HTTP/2·HTTP/3 멀티플렉싱을 사용하지 않는 대신 OWNER 대용량 업로드의 지속 처리량을 우선하는 운영 결정이다. 롤백할 때는 전역 `servers :443 { protocols h1 }` 블록을 제거하고 Caddy 설정을 validate한 뒤 무중단 reload한다.
+
 속도 A/B는 OWNER 브라우저의 단일 진단 세션에서만 `window.CWK_RESUMABLE_UPLOAD_DIAGNOSTICS = true`와 `window.CWK_RESUMABLE_UPLOAD_PARALLEL_UPLOADS = 3 | 6 | 8`을 설정해 수행한다. 진단 모드는 원본 앞 8MiB 읽기 속도, PATCH/결합/finalize 시간을 분리해 콘솔에 남기며 새 서버 status를 파일마다 다시 읽으므로 열린 탭에서도 즉시 3분할로 롤백할 수 있다. 일반 업로드에는 원본 사전 읽기나 콘솔 진단이 추가되지 않는다.
 
 영상 업로드는 원본 `media.file`을 바꾸지 않는다. 새 영상은 `video_status=pending`으로 저장되고, 사용자 LaunchAgent `com.coldwaterkim.video-processor`가 한 번에 하나씩 포스터와 필요한 웹 재생본을 만든다. 이미 H.264/AAC, 1080p·30fps 이하, Fast Start MP4인 원본은 중복 재생본을 만들지 않고 그대로 쓴다. 호환 H.264 MOV나 Fast Start가 아닌 MP4는 영상 재인코딩 없이 MP4 포장만 바꾸고, HEVC·4K·고프레임 등 변환이 필요한 영상만 `h264_videotoolbox`를 우선 사용한다. 비트레이트는 원본 크기·해상도·길이에 맞춰 최대 6Mbps 안에서 정하며, 하드웨어 변환 실패 시 `libx264`로 자동 복구한다. 모든 생성본은 H.264/AAC, 1080p·30fps 이하, Fast Start와 앞·뒤 디코딩을 검사한 뒤 저장한다. 처리 전/실패 시 공개 화면은 원본으로 자동 fallback한다.
@@ -168,6 +170,7 @@ QA:
 - launchd plist와 Caddyfile이 `Documents` 경로 대신 `~/.local/share/coldwaterkim/home-server`를 사용
 - PocketBase/Caddy/백업 job이 시스템 LaunchDaemon으로 등록
 - `/api/health`가 200
+- 공개 HTTPS와 LAN HTTPS가 실제 HTTP/1.1로 협상되고 Caddy adapted config의 `protocols`가 `["h1"]`
 - `/` 홈 렌더링
 - `/posts/`, `/daily/`, `/programs/`, `/nasajab/`, `/guestbook.html`, `/about.html` 직접 URL 200
 - 브라우저 콘솔 error 0개
