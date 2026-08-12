@@ -1,22 +1,25 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
+import { basename, extname } from 'node:path';
 import Uppy from '@uppy/core';
 import Tus from '@uppy/tus';
 
 const origin = String(process.env.CWK_TUS_QA_ORIGIN || '').replace(/\/+$/, '');
 const token = String(process.env.CWK_TUS_QA_TOKEN || '');
 const ownerId = String(process.env.CWK_TUS_QA_OWNER_ID || '');
+const sourceFilePath = String(process.env.CWK_TUS_QA_FILE || '').trim();
 
 assert.ok(origin, 'CWK_TUS_QA_ORIGIN is required');
 assert.ok(token, 'CWK_TUS_QA_TOKEN is required');
 assert.ok(ownerId, 'CWK_TUS_QA_OWNER_ID is required');
 
-const seed = fs.readFileSync(new URL('../assets/profile-crop.jpg', import.meta.url));
+const seed = sourceFilePath ? null : fs.readFileSync(new URL('../assets/profile-crop.jpg', import.meta.url));
 const size = (96 * 1024 * 1024) + 1024;
-const source = Buffer.concat([seed, Buffer.alloc(size - seed.byteLength)]);
-const fileName = 'uppy-resume-client-check.pdf';
-const fileType = 'application/pdf';
+const source = sourceFilePath ? fs.readFileSync(sourceFilePath) : Buffer.concat([seed, Buffer.alloc(size - seed.byteLength)]);
+const fileName = sourceFilePath ? basename(sourceFilePath) : 'uppy-resume-client-check.pdf';
+const fileType = sourceFilePath ? mediaTypeForFile(fileName) : 'application/pdf';
+assert.ok(fileType, 'CWK_TUS_QA_FILE must be a supported video file');
 
 const progress = [];
 const tusCreationRequests = [];
@@ -196,5 +199,15 @@ try {
       });
       assert.ok([204, 404].includes(cleanupResponse.status), `failed QA tus resource must be removed (${cleanupResponse.status})`);
     }
+  }
+}
+
+function mediaTypeForFile(value) {
+  switch (extname(value).toLowerCase()) {
+    case '.mp4': return 'video/mp4';
+    case '.mov': return 'video/quicktime';
+    case '.m4v': return 'video/x-m4v';
+    case '.webm': return 'video/webm';
+    default: return '';
   }
 }

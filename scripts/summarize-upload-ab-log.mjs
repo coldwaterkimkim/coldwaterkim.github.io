@@ -44,7 +44,7 @@ export function parseLog(source, requestedSession = '') {
         const requestIdMatch = line.match(/\brequestId=(cwk-ab-[^\s]+)/);
         if (!requestIdMatch) continue;
         const sessionId = stripQuotes(requestIdMatch[1]);
-        if (requestedSession && !sessionId.startsWith(requestedSession)) continue;
+        if (requestedSession && !sessionId.startsWith(requestedSession) && !requestedSession.startsWith(sessionId)) continue;
         const parsed = parseLine(line);
         if (!parsed) continue;
         const session = bySession.get(sessionId) || createSession(sessionId);

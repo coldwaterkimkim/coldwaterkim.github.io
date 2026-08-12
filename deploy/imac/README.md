@@ -46,6 +46,7 @@ Rollback 기준:
 - 느린 외부망에서도 8GiB 원본을 재개 업로드할 수 있도록 PocketBase HTTP 읽기/쓰기 제한시간은 3시간이다.
 - 64MB 이상 영상은 Uppy/tus로 중단 지점부터 재개하며, 완료 후에만 기존 `media.file` 원본으로 등록한다.
 - OWNER 전용 `/admin/upload-diagnostics.html`은 동일 영상을 3·6·8-way로 전송해 비교하고 미디어 레코드 없이 자신이 만든 tus 조각만 정리한다. `npm run imac:upload-ab:summary`로 `cwk-ab-*` 운영 로그를 독립 집계한다.
+- GUI 없이 실제 클라이언트 파일을 비교할 때는 `npm run imac:upload-ab:run`에 `CWK_TUS_AB_FILE=/절대/경로/영상.mp4`와 `CWK_TUS_AB_CLIENT=macbook`을 전달한다. 64MiB~1GiB의 MP4/MOV/M4V/WebM을 변형 없이 읽어 3·6·8-way를 비교하며, 인증값은 `CWK_TUS_QA_*` 환경변수로만 전달하고 결과 JSON에는 남기지 않는다.
 
 ## Stage 2. iMac service rehearsal
 

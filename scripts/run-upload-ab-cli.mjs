@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
+import { readFileSync, statSync } from 'node:fs';
+import { basename, extname } from 'node:path';
 import Uppy from '@uppy/core';
 import Tus from '@uppy/tus';
 
@@ -12,6 +14,8 @@ const DEFAULT_COOLDOWN_MS = 1500;
 const origin = String(process.env.CWK_TUS_QA_ORIGIN || '').replace(/\/+$/, '');
 const identity = String(process.env.CWK_TUS_QA_ID || '');
 const password = String(process.env.CWK_TUS_QA_PASSWORD || '');
+const sourceFilePath = String(process.env.CWK_TUS_AB_FILE || '').trim();
+const clientLabel = normalizeClientLabel(process.env.CWK_TUS_AB_CLIENT);
 let token = String(process.env.CWK_TUS_QA_TOKEN || '');
 let ownerId = String(process.env.CWK_TUS_QA_OWNER_ID || '');
 
@@ -37,12 +41,15 @@ if (!token) {
 assert.ok(token, 'OWNER token is required');
 assert.ok(ownerId, 'OWNER record id is required');
 
-const sizeMiB = boundedInteger(process.env.CWK_TUS_AB_SIZE_MIB, DEFAULT_SIZE_MIB, 64, 1024);
 const rounds = boundedInteger(process.env.CWK_TUS_AB_ROUNDS, DEFAULT_ROUNDS, 1, 2);
 const cooldownMs = boundedInteger(process.env.CWK_TUS_AB_COOLDOWN_MS, DEFAULT_COOLDOWN_MS, 0, 30_000);
 const variants = parseVariants(process.env.CWK_TUS_AB_VARIANTS);
 const sequence = rounds === 1 ? [...variants] : [...variants, ...[...variants].reverse()];
-const fileBytes = sizeMiB * MIB;
+const sourceFileName = sourceFilePath ? basename(sourceFilePath) : '';
+const sourceFileType = mediaTypeForFile(sourceFileName);
+const sizeMiB = sourceFilePath ? null : boundedInteger(process.env.CWK_TUS_AB_SIZE_MIB, DEFAULT_SIZE_MIB, 64, 1024);
+const fileBytes = sourceFilePath ? statSync(sourceFilePath).size : sizeMiB * MIB;
+assert.ok(fileBytes >= 64 * MIB && fileBytes <= 1024 * MIB, 'A/B source must be between 64MiB and 1024MiB');
 
 const statusResponse = await fetch(`${origin}/api/cwk/tus/status`, {
   headers: { Authorization: token },
@@ -57,7 +64,7 @@ assert.ok(Number(capability?.max_size || 0) >= fileBytes, 'file exceeds the serv
 assert.ok(Number(capability?.safe_upload_bytes || 0) >= fileBytes, 'file exceeds the current safe upload capacity');
 
 const chunkSize = normalizeChunkSize(capability?.chunk_size);
-const source = Buffer.alloc(fileBytes);
+const source = sourceFilePath ? readFileSync(sourceFilePath) : Buffer.alloc(fileBytes);
 Object.defineProperty(source, 'size', { value: source.byteLength });
 const report = {
   schemaVersion: 1,
@@ -65,6 +72,9 @@ const report = {
   origin,
   startedAt: new Date().toISOString(),
   completedAt: null,
+  clientLabel,
+  sourceKind: sourceFilePath ? 'file' : 'generated-buffer',
+  sourceFileName: sourceFileName || null,
   fileBytes,
   chunkBytes: chunkSize,
   rounds,
@@ -76,7 +86,14 @@ const report = {
 for (let index = 0; index < sequence.length; index += 1) {
   const parallelUploads = sequence[index];
   console.error(`[${index + 1}/${sequence.length}] ${parallelUploads}-way starting`);
-  const run = await runVariant({ source, parallelUploads, chunkSize, runNumber: index + 1 });
+  const run = await runVariant({
+    source,
+    parallelUploads,
+    chunkSize,
+    runNumber: index + 1,
+    fileName: sourceFileName || `cwk-imac-ab-${fileBytes}.bin`,
+    fileType: sourceFileType || 'application/octet-stream',
+  });
   report.runs.push(run);
   console.error(`[${index + 1}/${sequence.length}] ${parallelUploads}-way ${run.averageMBPerSecond.toFixed(3)}MB/s cleanup=${run.cleanupComplete}`);
   if (index < sequence.length - 1 && cooldownMs > 0) await delay(cooldownMs);
@@ -86,8 +103,8 @@ report.completedAt = new Date().toISOString();
 report.summary = summarizeRuns(report.runs, variants);
 console.log(JSON.stringify(report, null, 2));
 
-async function runVariant({ source, parallelUploads, chunkSize, runNumber }) {
-  const sessionId = `cwk-ab-${parallelUploads}w-imac-${randomUUID()}`;
+async function runVariant({ source, parallelUploads, chunkSize, runNumber, fileName, fileType }) {
+  const sessionId = `cwk-ab-${parallelUploads}w-${clientLabel}-${randomUUID().replaceAll('-', '').slice(0, 16)}`;
   const createdUrls = new Set();
   const requestState = new WeakMap();
   const offsets = new Map();
@@ -164,8 +181,8 @@ async function runVariant({ source, parallelUploads, chunkSize, runNumber }) {
   });
 
   const fileId = uppy.addFile({
-    name: `cwk-imac-ab-${fileBytes}.bin`,
-    type: 'application/octet-stream',
+    name: fileName,
+    type: fileType,
     data: source,
     meta: { owner_id: ownerId, upload_session: sessionId },
   });
@@ -307,6 +324,21 @@ function boundedInteger(value, fallback, minimum, maximum) {
   const parsed = Number(value || fallback);
   assert.equal(Number.isInteger(parsed) && parsed >= minimum && parsed <= maximum, true, `expected integer ${minimum}..${maximum}`);
   return parsed;
+}
+
+function normalizeClientLabel(value) {
+  const normalized = String(value || 'imac').trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '');
+  return normalized || 'client';
+}
+
+function mediaTypeForFile(fileName) {
+  switch (extname(fileName).toLowerCase()) {
+    case '.mp4': return 'video/mp4';
+    case '.mov': return 'video/quicktime';
+    case '.m4v': return 'video/x-m4v';
+    case '.webm': return 'video/webm';
+    default: return '';
+  }
 }
 
 function summarizeRuns(runs, requestedVariants) {
