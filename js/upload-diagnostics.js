@@ -6,6 +6,9 @@ const MIB = 1024 * 1024;
 const MIN_DIAGNOSTIC_BYTES = 256 * MIB;
 const MAX_UPLOAD_BYTES = 8 * 1024 * 1024 * 1024;
 const DEFAULT_CHUNK_BYTES = 32 * MIB;
+const DIAGNOSTIC_FIXTURE_BYTES = 640 * MIB;
+const DIAGNOSTIC_FIXTURE_CHUNK_BYTES = 8 * MIB;
+const DIAGNOSTIC_FIXTURE_NAME = 'cwk-upload-diagnostics-fixture-640m.mp4';
 const COOLDOWN_MS = 5000;
 const PARALLEL_VARIANTS = [3, 6, 8];
 const TARGETS_MB_PER_SECOND = [
@@ -23,6 +26,9 @@ if (!isLoggedIn()) {
 
 const elements = {
     file: document.getElementById('diagnosticFile'),
+    fixture: document.getElementById('createDiagnosticFixture'),
+    fixtureRemove: document.getElementById('removeDiagnosticFixture'),
+    fixtureStatus: document.getElementById('diagnosticFixtureStatus'),
     rounds: document.getElementById('diagnosticRounds'),
     start: document.getElementById('startDiagnostic'),
     stop: document.getElementById('stopDiagnostic'),
@@ -40,16 +46,28 @@ const state = {
     running: false,
     stopAfterRun: false,
     report: null,
-    activeUppy: null
+    activeUppy: null,
+    preparingFixture: false,
+    fixture: null
 };
 
 elements.logout.addEventListener('click', event => {
     event.preventDefault();
-    if (state.running) return;
+    if (state.running || state.preparingFixture) return;
     logout();
     window.location.href = '/admin/login.html';
 });
 elements.start.addEventListener('click', startDiagnostic);
+elements.fixture.addEventListener('click', createBrowserFixture);
+elements.fixtureRemove.addEventListener('click', async () => {
+    const removed = await removeBrowserFixture();
+    if (removed) setStatus('브라우저 디스크 임시 샘플을 삭제했어.');
+});
+elements.file.addEventListener('change', async () => {
+    if (!elements.file.files?.[0] || !state.fixture) return;
+    await removeBrowserFixture();
+    elements.fixtureStatus.textContent = '로컬 영상 선택됨 · 임시 샘플 삭제 완료';
+});
 elements.stop.addEventListener('click', () => {
     state.stopAfterRun = true;
     elements.stop.disabled = true;
@@ -58,17 +76,85 @@ elements.stop.addEventListener('click', () => {
 elements.copy.addEventListener('click', copyReport);
 elements.download.addEventListener('click', downloadReport);
 window.addEventListener('beforeunload', event => {
-    if (!state.running) return;
+    if (!state.running && !state.preparingFixture && !state.fixture) return;
     event.preventDefault();
     event.returnValue = '';
 });
 
-logLine('준비 완료. 영상 하나를 고르면 같은 File 객체로 모든 회차를 실행해.');
+logLine('준비 완료. 영상 하나를 고르거나 브라우저 디스크 샘플을 만들면 같은 File 객체로 모든 회차를 실행해.');
+
+async function createBrowserFixture() {
+    if (state.running || state.preparingFixture) return;
+    if (!navigator.storage?.getDirectory) {
+        setStatus('이 Chrome은 브라우저 디스크 샘플 생성을 지원하지 않아. 로컬 영상을 골라줘.', true);
+        return;
+    }
+
+    state.preparingFixture = true;
+    setControlsRunning(false);
+    setStatus('브라우저 디스크에 640MiB 샘플을 만드는 중...');
+    elements.fixtureStatus.textContent = '생성 중 · 탭을 닫지 마';
+    let root = null;
+    let writable = null;
+
+    try {
+        await removeBrowserFixture();
+        root = await navigator.storage.getDirectory();
+        await removeOpfsEntry(root, DIAGNOSTIC_FIXTURE_NAME);
+
+        const estimate = await navigator.storage.estimate?.();
+        const remaining = Number(estimate?.quota || 0) - Number(estimate?.usage || 0);
+        if (remaining > 0 && remaining < DIAGNOSTIC_FIXTURE_BYTES + (64 * MIB)) {
+            throw new Error(`브라우저 저장 공간이 부족해 (남은 공간 약 ${formatBytes(remaining)}).`);
+        }
+
+        const handle = await root.getFileHandle(DIAGNOSTIC_FIXTURE_NAME, { create: true });
+        writable = await handle.createWritable({ keepExistingData: false });
+        const chunk = createDeterministicFixtureChunk(DIAGNOSTIC_FIXTURE_CHUNK_BYTES);
+        for (let offset = 0; offset < DIAGNOSTIC_FIXTURE_BYTES; offset += chunk.byteLength) {
+            const bytes = Math.min(chunk.byteLength, DIAGNOSTIC_FIXTURE_BYTES - offset);
+            await writable.write(bytes === chunk.byteLength ? chunk : chunk.subarray(0, bytes));
+            const percent = ((offset + bytes) / DIAGNOSTIC_FIXTURE_BYTES) * 100;
+            setStatus(`브라우저 디스크 샘플 생성 중 · ${percent.toFixed(0)}%`);
+        }
+        await writable.close();
+        writable = null;
+
+        const file = await handle.getFile();
+        if (file.size !== DIAGNOSTIC_FIXTURE_BYTES) {
+            throw new Error(`임시 샘플 크기가 달라 (${file.size}/${DIAGNOSTIC_FIXTURE_BYTES}).`);
+        }
+        state.fixture = { root, name: DIAGNOSTIC_FIXTURE_NAME, file };
+        elements.fixtureRemove.disabled = false;
+        elements.file.value = '';
+        elements.fixtureStatus.textContent = `${formatBytes(file.size)} 준비됨 · 측정 뒤 자동 삭제`;
+        setStatus('640MiB 브라우저 디스크 샘플 준비 완료. 측정 시작을 누르면 돼.');
+        logLine(`브라우저 디스크 샘플 준비 완료 · ${formatBytes(file.size)} · ${file.name}`);
+    } catch (error) {
+        if (writable) {
+            try {
+                await writable.abort();
+            } catch {
+                // 실패한 임시 스트림은 아래 파일 삭제로 다시 정리한다.
+            }
+        }
+        if (root) await removeOpfsEntry(root, DIAGNOSTIC_FIXTURE_NAME);
+        state.fixture = null;
+        elements.fixtureRemove.disabled = true;
+        elements.fixtureStatus.textContent = '생성 실패 · 로컬 영상 선택 가능';
+        setStatus(`임시 샘플 생성 실패: ${error.message || error}`, true);
+        logLine(`브라우저 디스크 샘플 생성 실패: ${error.message || error}`);
+    } finally {
+        state.preparingFixture = false;
+        setControlsRunning(false);
+    }
+}
 
 async function startDiagnostic() {
     if (state.running) return;
 
-    const file = elements.file.files?.[0];
+    const fixture = state.fixture;
+    const file = fixture?.file || elements.file.files?.[0];
     const validationError = validateDiagnosticFile(file);
     if (validationError) {
         setStatus(validationError, true);
@@ -88,7 +174,7 @@ async function startDiagnostic() {
         const sourceProbe = await probeSourceRead(file);
         const startedAt = new Date().toISOString();
         state.report = {
-            schemaVersion: 1,
+            schemaVersion: 2,
             kind: 'coldwaterkim-owner-tus-ab',
             startedAt,
             completedAt: null,
@@ -101,6 +187,7 @@ async function startDiagnostic() {
                 type: file.type,
                 bytes: file.size,
                 lastModified: file.lastModified,
+                source: fixture ? 'browser-opfs-fixture' : 'local-file-picker',
                 sourceReadSampleBytes: sourceProbe.bytesRead,
                 sourceReadMiBPerSecond: bytesPerSecondToMib(sourceProbe.speedBytesPerSecond)
             },
@@ -157,6 +244,12 @@ async function startDiagnostic() {
         setStatus(`진단 중단: ${error.message || error}`, true);
         logLine(`오류: ${error.stack || error.message || error}`);
     } finally {
+        if (fixture) {
+            const removed = await removeBrowserFixture();
+            if (!removed) {
+                setStatus('전송은 끝났지만 브라우저 임시 샘플 삭제를 확인하지 못했어. 이 페이지에서 다시 샘플 만들기를 누르면 먼저 정리해.', true);
+            }
+        }
         state.running = false;
         state.activeUppy = null;
         setControlsRunning(false);
@@ -624,11 +717,50 @@ function clearResults() {
 }
 
 function setControlsRunning(running) {
-    elements.file.disabled = running;
-    elements.rounds.disabled = running;
-    elements.start.disabled = running;
+    const locked = running || state.preparingFixture;
+    elements.file.disabled = locked;
+    elements.fixture.disabled = locked;
+    elements.fixtureRemove.disabled = locked || !state.fixture;
+    elements.rounds.disabled = locked;
+    elements.start.disabled = locked;
     elements.stop.disabled = !running;
     elements.logout.setAttribute('aria-disabled', String(running));
+}
+
+function createDeterministicFixtureChunk(size) {
+    const bytes = new Uint8Array(size);
+    let value = 0x6d2b79f5;
+    for (let index = 0; index < bytes.length; index += 1) {
+        value ^= value << 13;
+        value ^= value >>> 17;
+        value ^= value << 5;
+        bytes[index] = value & 0xff;
+    }
+    return bytes;
+}
+
+async function removeBrowserFixture() {
+    const fixture = state.fixture;
+    if (!fixture) return true;
+    const removed = await removeOpfsEntry(fixture.root, fixture.name);
+    if (removed) {
+        state.fixture = null;
+        elements.fixtureRemove.disabled = true;
+        elements.fixtureStatus.textContent = '임시 샘플 삭제 완료';
+        logLine('브라우저 디스크 임시 샘플 삭제 완료.');
+    }
+    return removed;
+}
+
+async function removeOpfsEntry(root, name) {
+    try {
+        await root.removeEntry(name);
+        return true;
+    } catch (error) {
+        if (error?.name === 'NotFoundError') return true;
+        logLine(`브라우저 디스크 임시 샘플 삭제 실패: ${error.message || error}`);
+        return false;
+    }
 }
 
 function setStatus(message, isError = false) {

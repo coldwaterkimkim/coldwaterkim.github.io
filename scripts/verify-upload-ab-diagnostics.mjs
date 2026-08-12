@@ -9,9 +9,19 @@ const uppyQaSource = fs.readFileSync(new URL('./verify-uppy-tus-client.mjs', imp
 const summarySource = fs.readFileSync(new URL('./summarize-upload-ab-log.mjs', import.meta.url), 'utf8');
 
 assert.match(html, /id="diagnosticFile"[^>]+type="file"/, 'diagnostic page must select one local File');
+assert.match(html, /id="createDiagnosticFixture"/, 'diagnostic page must offer an explicit disk-backed browser fixture');
+assert.match(html, /id="removeDiagnosticFixture"/, 'an unused browser fixture must be explicitly removable');
+assert.match(html, /측정 뒤 자동 삭제/, 'diagnostic page must disclose fixture cleanup');
 assert.match(html, /id="startDiagnostic"/, 'diagnostic page must have an explicit start action');
 assert.match(html, /미디어 레코드를 만들거나 글에 첨부하지 않고/, 'diagnostic page must state its non-publishing boundary');
 assert.match(source, /const PARALLEL_VARIANTS = \[3, 6, 8\]/, 'A/B must cover 3, 6, and 8-way uploads');
+assert.match(source, /DIAGNOSTIC_FIXTURE_BYTES = 640 \* MIB/, 'browser fixture must cover a sustained 640MiB six-way transfer');
+assert.match(source, /navigator\.storage\.getDirectory\(\)/, 'browser fixture must use origin-private disk storage');
+assert.match(source, /handle\.createWritable\(\{ keepExistingData: false \}\)/, 'browser fixture must be written to disk without retaining stale bytes');
+assert.match(source, /DIAGNOSTIC_FIXTURE_CHUNK_BYTES = 8 \* MIB/, 'browser fixture generation must keep memory bounded');
+assert.match(source, /await removeBrowserFixture\(\)/, 'browser fixture must be removed after diagnostics');
+assert.match(source, /!state\.fixture\) return/, 'leaving with an unused OPFS fixture must trigger the unload warning');
+assert.match(source, /source: fixture \? 'browser-opfs-fixture'/, 'reports must distinguish generated disk fixtures from selected videos');
 assert.match(source, /chunkSize: capability\.chunkSize/, 'A/B must hold the server-advertised chunk size constant');
 assert.match(source, /'X-Request-ID': sessionId/, 'every diagnostic session must be correlatable in iMac logs');
 assert.match(source, /acceptedPatchBytes !== file\.size/, 'transport accounting must equal the original byte length');
