@@ -302,7 +302,7 @@
                     ${focusedBadge}
                     <div class="timeline-post-header">
                         <h2 class="timeline-post-title">
-                            <a href="/daily/${encodeURIComponent(dayKey)}/">${escapeHtml(entry.title || `${dayKey} 나으 하루`)}</a>${status}
+                            <a href="${dailyDayHref(dayKey)}">${escapeHtml(entry.title || `${dayKey} 나으 하루`)}</a>${status}
                         </h2>
                         <div class="timeline-post-meta">
                             Time: ${escapeHtml(formatDailyEntryTime(entry))}
@@ -314,6 +314,11 @@
                     </div>
                 </article>
             `;
+        }
+
+        function dailyDayHref(dayKey) {
+            const encodedDay = encodeURIComponent(dayKey);
+            return ownerMode ? `/daily/view.html?day=${encodedDay}` : `/daily/${encodedDay}/`;
         }
 
         function wireTimelineOwnerActions() {

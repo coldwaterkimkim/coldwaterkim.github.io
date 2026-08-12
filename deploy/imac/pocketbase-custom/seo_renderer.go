@@ -97,7 +97,7 @@ func (renderer *seoRenderer) serveDaily(event *core.RequestEvent) error {
 		dbx.Params{"day": day},
 	)
 	if err != nil || len(records) == 0 {
-		return event.NotFoundError("Published daily entry not found.", nil)
+		return renderer.serveDailyClientShell(event, day)
 	}
 
 	template, err := renderer.readTemplate("daily", "view.html")
@@ -142,6 +142,18 @@ func (renderer *seoRenderer) serveDaily(event *core.RequestEvent) error {
 	page := injectSEOPage(template, title+" — coldwaterkim", head, body.String())
 	event.Response.Header().Set("Cache-Control", "public, max-age=60")
 	return event.HTML(http.StatusOK, page)
+}
+
+func (renderer *seoRenderer) serveDailyClientShell(event *core.RequestEvent, day string) error {
+	template, err := renderer.readTemplate("daily", "view.html")
+	if err != nil {
+		return event.InternalServerError("Daily template is unavailable.", err)
+	}
+
+	page := injectClientShellTitle(template, day+"의 하루 — coldwaterkim")
+	event.Response.Header().Set("Cache-Control", "private, no-store")
+	event.Response.Header().Set("X-Robots-Tag", "noindex, follow")
+	return event.HTML(http.StatusNotFound, page)
 }
 
 func (renderer *seoRenderer) serveSitemap(event *core.RequestEvent) error {
@@ -234,6 +246,10 @@ func injectSEOPage(template, title, head, body string) string {
 		page = page[:start] + body + page[end:]
 	}
 	return page
+}
+
+func injectClientShellTitle(template, title string) string {
+	return strings.Replace(template, "<title>Loading... — coldwaterkim</title>", "<title>"+stdhtml.EscapeString(title)+"</title>", 1)
 }
 
 func buildArticleHead(title, description, canonical, published, updated, image string) string {

@@ -271,7 +271,7 @@
           return `
             <tr>
               <td>
-                <a href="/daily/${encodeURIComponent(day.dayKey)}/">${formatDate(day.dayKey)}의 하루</a>
+                <a href="${dailyDayHref(day.dayKey)}">${formatDate(day.dayKey)}의 하루</a>
                 <div class="daily-list-meta">기록 ${day.entries.length}개 · updated ${formatDate(day.latestDate)}</div>
               </td>
               <td align="center">${formatDate(day.dayKey)}</td>
@@ -314,6 +314,11 @@
       });
     }
 
+    function dailyDayHref(dayKey) {
+      const encodedDay = encodeURIComponent(dayKey);
+      return ownerMode ? `/daily/view.html?day=${encodedDay}` : `/daily/${encodedDay}/`;
+    }
+
     function renderCalendar() {
       const body = document.getElementById('daily-calendar-body');
       const label = document.getElementById('calendarMonthLabel');
@@ -349,7 +354,7 @@
         cells.push(`
           <td class="${classes}">
             ${entry
-              ? `<a href="/daily/${encodeURIComponent(dayKey)}/"><b>${day}</b></a><br><span class="daily-calendar-mark">기록 ${entries.length}개</span>`
+              ? `<a href="${dailyDayHref(dayKey)}"><b>${day}</b></a><br><span class="daily-calendar-mark">기록 ${entries.length}개</span>`
               : `<span>${day}</span>`}
           </td>
         `);

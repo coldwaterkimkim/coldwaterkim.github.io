@@ -18,6 +18,16 @@ func TestInjectSEOPage(t *testing.T) {
 	}
 }
 
+func TestInjectClientShellTitlePreservesDraftSafeShell(t *testing.T) {
+	template := `<head><title>Loading... — coldwaterkim</title><meta name="robots" content="noindex,follow" data-legacy-viewer></head><main><!-- CWK:SSR_CONTENT_START --><p>loading</p><!-- CWK:SSR_CONTENT_END --></main>`
+	result := injectClientShellTitle(template, `2026-08-12의 하루 — coldwaterkim`)
+	for _, expected := range []string{"2026-08-12의 하루 — coldwaterkim", "data-legacy-viewer", "CWK:SSR_CONTENT_START", "loading"} {
+		if !strings.Contains(result, expected) {
+			t.Fatalf("missing %q in client shell", expected)
+		}
+	}
+}
+
 func TestContentDescription(t *testing.T) {
 	result := contentDescription(`<p>안녕 <b>세상</b></p>`, "fallback")
 	if result != "안녕 세상" {
