@@ -62,6 +62,15 @@
             margin-top: 12px;
         }
 
+        .upload-diagnostic-fixture {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            margin-top: 10px;
+            font-size: 12px;
+        }
+
         .upload-diagnostic-log {
             max-height: 240px;
             overflow: auto;
@@ -85,7 +94,7 @@
         }
     </style>
   <meta name="robots" content="noindex,nofollow">
-  <script type="module" crossorigin src="/assets/admin/upload-diagnostics-4wQySCWj.js"></script>
+  <script type="module" crossorigin src="/assets/admin/upload-diagnostics-hT-kk6ic.js"></script>
   <link rel="modulepreload" crossorigin href="/assets/preload-helper-CZgWQFsJ.js">
   <link rel="modulepreload" crossorigin href="/assets/pb-CdR97qZZ.js">
   <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-BHe-jwch.js">
@@ -116,6 +125,7 @@
                 <p class="upload-diagnostic-note">
                     선택한 원본 영상 하나를 변환 없이 3-way, 6-way, 8-way 순서로 tus 전송해 비교한다.
                     미디어 레코드를 만들거나 글에 첨부하지 않고, 각 회차가 만든 임시 조각만 즉시 정리한다.
+                    파일 선택이 어려우면 브라우저 디스크에 640MiB 임시 샘플을 만들어 같은 경로를 측정할 수 있다.
                     테스트 중에는 이 탭을 닫거나 맥북이 잠들지 않게 해줘.
                 </p>
 
@@ -131,6 +141,12 @@
                             <option value="2">각 2회 (권장 재현성)</option>
                         </select>
                     </div>
+                </div>
+
+                <div class="upload-diagnostic-fixture">
+                    <button class="btn" id="createDiagnosticFixture" type="button">🧪 브라우저 디스크 640MiB 샘플 만들기</button>
+                    <button class="btn" id="removeDiagnosticFixture" type="button" disabled>🗑️ 샘플 삭제</button>
+                    <span id="diagnosticFixtureStatus">선택 사항 · 측정 뒤 자동 삭제</span>
                 </div>
 
                 <div class="upload-diagnostic-actions">
