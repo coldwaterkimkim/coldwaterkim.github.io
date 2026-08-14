@@ -158,6 +158,19 @@ npm run imac:sync-runtime
 npm run qa:service-smoke
 ```
 
+공사 화면은 공개 HTML의 `/api/health` 검사와 Caddy `handle_errors`를 함께 사용한다. PocketBase/DB 장애만으로는 정적 `dist`와 Caddy가 계속 살아 있으므로 `maintenance.html`을 제공할 수 있고, 5초 간격 복구 확인 뒤 원래 URL로 자동 복귀한다. Caddy 자체·iMac 전원·회선·DNS 장애는 같은 서버의 화면으로 대신할 수 없다.
+
+`deploy/imac/Caddyfile`도 변경한 배포에서는 `imac:sync-runtime` 후 운영 설정을 검증하고 Caddy admin API로 reload한다. launchd 재등록은 필요 없다.
+
+```bash
+~/.local/share/coldwaterkim/home-server/bin/caddy validate \
+  --config ~/.local/share/coldwaterkim/home-server/Caddyfile \
+  --adapter caddyfile
+~/.local/share/coldwaterkim/home-server/bin/caddy reload \
+  --config ~/.local/share/coldwaterkim/home-server/Caddyfile \
+  --adapter caddyfile
+```
+
 launchd 설정 파일만 먼저 점검:
 
 ```bash

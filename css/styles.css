@@ -58,6 +58,10 @@ body {
   color: var(--cwk-ink);
 }
 
+html.maintenance-health-pending body {
+  visibility: hidden;
+}
+
 html.entry-gate-pending body > center {
   visibility: hidden;
 }

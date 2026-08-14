@@ -14,6 +14,8 @@
 
 필수 BGM 입장 게이트 구현과 디자인은 보존하되 현재 공개 사이트에서는 잠시 비활성화한다. 모든 공개 HTML은 `entry-gate-disabled` 표시를 사용해 기존 홈페이지를 바로 열고, 방향을 확정해 다시 살릴 때만 이를 `entry-gate-pending`으로 되돌린다. 게이트 코드, 날짜별 `WEBMASTER SAYS`, 브라우저별 업데이트 계산, 스피커 자산은 삭제하지 않는다.
 
+공개 페이지는 로드 초기에 같은 origin의 `/api/health`를 확인한다. PocketBase 또는 DB가 응답하지 않으면 독립형 `maintenance.html`로 이동하고, Caddy가 동적 글·하루 URL에서 502/503/504를 받은 경우에도 같은 공사 화면을 직접 제공한다. 화면은 5초 간격으로 자동 복구를 확인해 원래 URL로 돌아가며, 수동 `새로고침` 버튼은 횟수별 대사와 주인장 반응 애니메이션만 담당한다. 이 fallback은 Caddy와 정적 `dist`가 살아 있을 때만 동작하고 iMac·전원·회선·DNS·Caddy 전체 장애는 포함하지 않는다.
+
 공개 메인 IA 페이지(`Home`, `글방`, `글 상세`, `나으 하루`, `앨범`, `프로그램실`, `나사잡`, `Guestbook`, `About / Contact`)는 모두 홈의 2-column shell을 기본 레이아웃으로 쓴다. 즉 상단 marquee, 노란 construction banner, 왼쪽 프로필/sidebar, 나무위키식 PROFILE DATA 표, 오른쪽 content 상단 navigation은 유지하고, 페이지별 내용만 오른쪽 content 영역에서 바뀌게 한다.
 
 공개 사이트 내부 이동은 `js/site.js`의 SPA-like router가 처리한다. 같은 origin의 공개 HTML 링크를 클릭하면 전체 문서를 새로고침하지 않고 새 페이지의 `.content`만 fetch해서 교체하며, profile/sidebar/BGM은 유지한다. 따라서 BGM은 메뉴 이동 중 끊기지 않는다. 직접 URL 접근과 새로고침은 기존 정적 HTML 진입을 그대로 지원한다.

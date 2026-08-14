@@ -36,4 +36,15 @@ http://127.0.0.1:18081 {
         X-Content-Type-Options "nosniff"
         Referrer-Policy "strict-origin-when-cross-origin"
     }
+
+    handle_errors {
+        @maintenance expression `{err.status_code} >= 502 && {err.status_code} <= 504`
+        handle @maintenance {
+            root * "/Users/kimchansu/Code/coldwaterkim.github.io/dist"
+            rewrite * /maintenance.html
+            header Cache-Control "no-store"
+            header Retry-After "5"
+            file_server
+        }
+    }
 }

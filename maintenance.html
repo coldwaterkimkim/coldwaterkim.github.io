@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+  <title>잠시 공사중입니다 — coldwaterkim</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="stylesheet" href="/css/maintenance.css">
+  <script type="module" src="/js/maintenance-page.js"></script>
+</head>
+
+<body class="maintenance-page-body" bgcolor="#e0e0e0">
+  <main class="maintenance-page">
+    <section class="maintenance-window" aria-labelledby="maintenanceTitle">
+      <div class="maintenance-banner">
+        <span aria-hidden="true">▲</span>
+        <span>COLDWATERKIM'S HOME PAGE IS UNDER CONSTRUCTION</span>
+        <span aria-hidden="true">▲</span>
+      </div>
+
+      <a class="maintenance-code" href="#statusTable">UNDER CONSTRUCTION · ERROR 503</a>
+
+      <div class="maintenance-hero">
+        <div class="maintenance-message">
+          <h1 id="maintenanceTitle">잠시 공사중입니다!</h1>
+          <p>이 나사만 조이면 됨!</p>
+        </div>
+
+        <figure class="maintenance-art">
+          <img
+            class="maintenance-animation"
+            data-maintenance-worker
+            src="/assets/maintenance-worker.gif"
+            width="512"
+            height="392"
+            alt="안전모를 쓴 주인장이 서버를 바라보며 망치로 수리하는 16비트 픽셀 애니메이션">
+          <img
+            class="maintenance-animation-fallback"
+            data-maintenance-worker-fallback
+            src="/assets/maintenance-worker-still.png"
+            width="512"
+            height="392"
+            alt="안전모를 쓴 주인장이 서버를 바라보며 수리하는 16비트 픽셀 그림">
+        </figure>
+      </div>
+
+      <table id="statusTable" class="maintenance-status">
+        <tbody>
+          <tr>
+            <th scope="row">WEB SERVER</th>
+            <td class="status-online">ONLINE</td>
+          </tr>
+          <tr>
+            <th scope="row">DATABASE</th>
+            <td><a href="#maintenanceTitle">공사중</a></td>
+          </tr>
+          <tr>
+            <th scope="row">주인장</th>
+            <td><a href="#maintenanceTitle">뚝딱뚝딱하는 중</a></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <button type="button" class="maintenance-refresh" data-maintenance-refresh>새로고침</button>
+
+      <dialog class="maintenance-dialog" data-maintenance-dialog aria-labelledby="maintenanceDialogTitle">
+        <div class="maintenance-dialog-titlebar">
+          <strong id="maintenanceDialogTitle">COLDWATERKIM.EXE</strong>
+          <button type="button" aria-label="닫기" data-maintenance-dialog-close>×</button>
+        </div>
+        <div class="maintenance-dialog-body">
+          <span class="maintenance-dialog-icon" aria-hidden="true">!</span>
+          <p data-maintenance-dialog-message></p>
+        </div>
+        <button type="button" class="maintenance-dialog-confirm" data-maintenance-dialog-confirm>
+          알겠어여...
+        </button>
+      </dialog>
+    </section>
+  </main>
+</body>
+
+</html>

@@ -1,0 +1,422 @@
+:root {
+  font-family: "Comic Sans MS", Tahoma, Arial, sans-serif;
+  color: #000;
+  background: #e0e0e0;
+  font-synthesis: none;
+  --cwk-bg-stripe-dark: #d8d8d8;
+  --cwk-bg-stripe-light: #e9e9e9;
+  --cwk-surface-page: #fff;
+  --cwk-surface-banner: #ffe97a;
+  --cwk-ink: #000;
+  --cwk-link: #0000ee;
+  --cwk-link-visited: #551a8b;
+  --cwk-link-hover-bg: #ffff00;
+  --cwk-font-main: "Comic Sans MS", Tahoma, Arial, sans-serif;
+  --cwk-font-mono: "Courier New", monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.maintenance-page-body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background: repeating-linear-gradient(
+    45deg,
+    var(--cwk-bg-stripe-dark),
+    var(--cwk-bg-stripe-dark) 8px,
+    var(--cwk-bg-stripe-light) 8px,
+    var(--cwk-bg-stripe-light) 16px
+  );
+}
+
+.maintenance-page {
+  min-height: 100vh;
+  min-height: 100svh;
+  padding: clamp(18px, 4vw, 42px) 18px 44px;
+}
+
+.maintenance-window {
+  width: min(910px, 100%);
+  margin: 0 auto;
+  border: 2px solid var(--cwk-ink);
+  background: var(--cwk-surface-page);
+  text-align: center;
+}
+
+.maintenance-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  min-height: 47px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--cwk-ink);
+  background: var(--cwk-surface-banner);
+  font-family: var(--cwk-font-mono);
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.maintenance-banner span:first-child,
+.maintenance-banner span:last-child {
+  font-size: 15px;
+}
+
+.maintenance-code {
+  display: block;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--cwk-ink);
+  color: var(--cwk-link);
+  font-family: var(--cwk-font-mono);
+  font-size: 20px;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+.maintenance-code:visited,
+.maintenance-status a:visited {
+  color: var(--cwk-link-visited);
+}
+
+.maintenance-code:hover,
+.maintenance-status a:hover {
+  background: var(--cwk-link-hover-bg);
+}
+
+.maintenance-hero {
+  position: relative;
+  width: min(760px, calc(100% - 48px));
+  margin: 14px auto 4px;
+  padding-top: 88px;
+}
+
+.maintenance-art {
+  width: min(620px, 100%);
+  margin: 0 auto;
+}
+
+.maintenance-art img {
+  display: block;
+  width: 100%;
+  height: auto;
+  image-rendering: pixelated;
+}
+
+.maintenance-animation-fallback {
+  display: none !important;
+}
+
+.maintenance-message {
+  position: absolute;
+  top: 0;
+  right: 24px;
+  width: 280px;
+  padding: 13px 15px 12px;
+  border: 3px solid var(--cwk-ink);
+  background: var(--cwk-surface-page);
+  text-align: left;
+  z-index: 1;
+}
+
+.maintenance-message h1,
+.maintenance-message p {
+  margin: 0;
+  font-family: serif;
+  font-size: 22px;
+  line-height: 1.45;
+}
+
+.maintenance-message h1 {
+  font-weight: 400;
+}
+
+.maintenance-status {
+  width: min(730px, calc(100% - 48px));
+  margin: 0 auto 20px;
+  border-collapse: collapse;
+  font-family: var(--cwk-font-mono);
+  font-size: 18px;
+  text-align: left;
+}
+
+.maintenance-status th,
+.maintenance-status td {
+  padding: 16px 26px;
+  border: 1px dotted #888;
+}
+
+.maintenance-status th {
+  width: 48%;
+  font-weight: 400;
+}
+
+.maintenance-status a {
+  color: var(--cwk-link);
+}
+
+.status-online {
+  color: #00b83e;
+  font-weight: 700;
+}
+
+.maintenance-refresh {
+  min-width: 164px;
+  min-height: 42px;
+  margin: 0 auto 20px;
+  padding: 7px 18px;
+  border: 1px solid #555;
+  border-radius: 0;
+  background: #e6e6e6;
+  box-shadow: inset 1px 1px #fff, inset -1px -1px #999;
+  color: var(--cwk-ink);
+  font: 20px serif;
+  cursor: pointer;
+}
+
+.maintenance-refresh:hover {
+  background: var(--cwk-link-hover-bg);
+}
+
+.maintenance-refresh:focus-visible {
+  outline: 2px dotted #000;
+  outline-offset: 3px;
+}
+
+.maintenance-refresh:active {
+  box-shadow: inset 1px 1px #777;
+  transform: translate(1px, 1px);
+}
+
+.maintenance-dialog {
+  width: min(440px, calc(100vw - 28px));
+  margin: auto auto 10vh;
+  padding: 3px;
+  border: 2px solid #000;
+  border-radius: 0;
+  background: #c0c0c0;
+  box-shadow: inset 1px 1px #fff, inset -1px -1px #555, 5px 5px 0 rgb(0 0 0 / 24%);
+  color: #000;
+  font-family: var(--cwk-font-main);
+  text-align: left;
+}
+
+.maintenance-dialog::backdrop {
+  background: rgb(255 255 255 / 12%);
+}
+
+.maintenance-dialog-titlebar {
+  display: flex;
+  min-height: 32px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 3px 4px 3px 8px;
+  background: #000080;
+  color: #fff;
+  font-family: var(--cwk-font-mono);
+  font-size: 15px;
+  letter-spacing: .4px;
+}
+
+.maintenance-dialog-titlebar button {
+  width: 25px;
+  height: 25px;
+  padding: 0 0 2px;
+  border: 1px solid #000;
+  border-radius: 0;
+  background: #c0c0c0;
+  box-shadow: inset 1px 1px #fff, inset -1px -1px #555;
+  color: #000;
+  font: 700 19px/1 Arial, sans-serif;
+  cursor: pointer;
+}
+
+.maintenance-dialog-body {
+  display: flex;
+  min-height: 112px;
+  align-items: center;
+  gap: 18px;
+  padding: 22px 24px 14px;
+}
+
+.maintenance-dialog-body p {
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+
+.maintenance-dialog-icon {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  place-items: center;
+  border: 3px solid #000;
+  border-radius: 50%;
+  background: #ffe97a;
+  font: 700 27px/1 var(--cwk-font-mono);
+}
+
+.maintenance-dialog-confirm {
+  display: block;
+  min-width: 132px;
+  min-height: 38px;
+  margin: 0 auto 15px;
+  padding: 6px 14px;
+  border: 1px solid #000;
+  border-radius: 0;
+  background: #c0c0c0;
+  box-shadow: inset 1px 1px #fff, inset -1px -1px #555;
+  color: #000;
+  font: 16px var(--cwk-font-main);
+  cursor: pointer;
+}
+
+.maintenance-dialog-confirm:focus-visible,
+.maintenance-dialog-titlebar button:focus-visible {
+  outline: 2px dotted #000;
+  outline-offset: 2px;
+}
+
+.maintenance-dialog-confirm:active,
+.maintenance-dialog-titlebar button:active {
+  box-shadow: inset 1px 1px #555;
+  transform: translate(1px, 1px);
+}
+
+@media (max-width: 640px) {
+  .maintenance-page {
+    padding: 10px 8px 24px;
+  }
+
+  .maintenance-window {
+    width: 100%;
+  }
+
+  .maintenance-banner {
+    gap: 8px;
+    min-height: 42px;
+    padding: 8px 10px;
+    font-size: 15px;
+    line-height: 1.25;
+  }
+
+  .maintenance-banner span:first-child,
+  .maintenance-banner span:last-child {
+    display: none;
+  }
+
+  .maintenance-code {
+    padding: 10px 5px;
+    font-size: 14px;
+    overflow-wrap: anywhere;
+  }
+
+  .maintenance-hero {
+    display: flex;
+    width: 100%;
+    margin: 0 auto 4px;
+    padding: 0 10px;
+    flex-direction: column;
+  }
+
+  .maintenance-message {
+    position: static;
+    order: 1;
+    width: 100%;
+    margin: 12px auto 6px;
+    padding: 9px 12px;
+    border-width: 2px;
+    text-align: center;
+  }
+
+  .maintenance-art {
+    order: 2;
+    width: min(100%, 430px);
+  }
+
+  .maintenance-message h1,
+  .maintenance-message p {
+    font-size: 17px;
+    line-height: 1.35;
+  }
+
+  .maintenance-status {
+    width: calc(100% - 20px);
+    margin: 4px auto 16px;
+    table-layout: fixed;
+    font-size: 13.5px;
+  }
+
+  .maintenance-status th,
+  .maintenance-status td {
+    min-height: 44px;
+    padding: 10px 9px;
+    overflow-wrap: anywhere;
+  }
+
+  .maintenance-status th {
+    width: 46%;
+  }
+
+  .maintenance-refresh {
+    min-width: 146px;
+    min-height: 44px;
+    margin-bottom: 16px;
+    font-size: 17px;
+  }
+
+  .maintenance-dialog {
+    margin-bottom: 18px;
+  }
+
+  .maintenance-dialog-body {
+    gap: 12px;
+    min-height: 104px;
+    padding: 18px 16px 12px;
+  }
+
+  .maintenance-dialog-body p {
+    font-size: 15px;
+  }
+}
+
+@media (max-width: 360px) {
+  .maintenance-banner {
+    font-size: 13px;
+  }
+
+  .maintenance-code {
+    font-size: 12.5px;
+  }
+
+  .maintenance-message h1,
+  .maintenance-message p {
+    font-size: 16px;
+  }
+
+  .maintenance-status {
+    font-size: 12.5px;
+  }
+
+  .maintenance-status th,
+  .maintenance-status td {
+    padding-inline: 7px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .maintenance-animation {
+    display: none;
+  }
+
+  .maintenance-animation-fallback {
+    display: block !important;
+  }
+}
