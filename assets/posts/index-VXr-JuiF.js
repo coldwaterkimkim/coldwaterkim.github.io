@@ -1,4 +1,4 @@
-import{J as e,R as t,S as n,a as r,at as i,b as a,ft as o,k as s,nt as c,v as l}from"../pb-CdR97qZZ.js";import"../site-B04uceTf.js";import{n as u}from"../editor-publish-navigation-C4m2O0q3.js";var d=1,f=10,p=c();window.goToPage=y,window.deleteOwnerPost=_,p&&(document.getElementById(`views-col-head`).style.display=``,document.getElementById(`owner-col-head`).style.display=``,document.getElementById(`posts-note`).textContent=`OWNER MODE: 초안까지 같이 보입니다.`,document.getElementById(`owner-tools`).innerHTML=`
+import"../modulepreload-polyfill-Dezn_h7o.js";import"../site-BLJJiQKp.js";import{J as e,R as t,S as n,a as r,at as i,b as a,ft as o,k as s,nt as c,v as l}from"../pb-HiFyZz0m.js";import{n as u}from"../editor-publish-navigation-C4m2O0q3.js";var d=1,f=10,p=c();window.goToPage=y,window.deleteOwnerPost=_,p&&(document.getElementById(`views-col-head`).style.display=``,document.getElementById(`owner-col-head`).style.display=``,document.getElementById(`posts-note`).textContent=`OWNER MODE: 초안까지 같이 보입니다.`,document.getElementById(`owner-tools`).innerHTML=`
         <div class="owner-bar">
           <b>OWNER MODE</b> ·
           <a href="../admin/posts.html?new=1">새 글 쓰기</a> ·
