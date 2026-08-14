@@ -16,6 +16,14 @@ export function publishedEntryViewerUrl(category, record = {}) {
     return '';
 }
 
+export function postListEntryUrl(record = {}, { ownerMode = false } = {}) {
+    if (ownerMode && record.status !== 'published' && record.id) {
+        return `/admin/posts.html?id=${encodeURIComponent(record.id)}`;
+    }
+
+    return publishedEntryViewerUrl('posts', record);
+}
+
 export function navigateToPublishedEntry(category, record, locationObject = globalThis.window?.location) {
     const url = publishedEntryViewerUrl(category, record);
     if (!url) throw new Error('발행된 글의 공개 주소를 만들 수 없어.');

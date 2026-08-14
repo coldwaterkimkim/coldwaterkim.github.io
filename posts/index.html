@@ -167,6 +167,7 @@
 
   <script type="module">
     import { getPublishedPosts, getAllPosts, deletePost, isLoggedIn, logout, postDisplayDate, formatDate, escapeHtml, cmsErrorMessage, getPostViewCounts } from '../js/pb.js';
+    import { postListEntryUrl } from '../js/editor-publish-navigation.mjs';
 
     let currentPage = 1;
     const perPage = 10;
@@ -216,6 +217,7 @@
         tbody.innerHTML = result.items.map(post => {
           const date = postDisplayDate(post);
           const status = post.status === 'published' ? '' : ' <small class="note">[초안]</small>';
+          const entryUrl = postListEntryUrl(post, { ownerMode });
           const ownerViewCell = ownerMode
             ? `<td align="center" class="post-view-count">${formatOwnerViewCount(viewCounts[post.id])}</td>`
             : '';
@@ -227,7 +229,7 @@
             : '';
           return `
             <tr>
-              <td><a href="/posts/${encodeURIComponent(post.slug || '')}/">${escapeHtml(post.title)}</a>${status}</td>
+              <td><a href="${entryUrl}">${escapeHtml(post.title)}</a>${status}</td>
               <td align="center">${formatDate(date)}</td>
               ${ownerViewCell}
               ${ownerActions}

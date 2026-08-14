@@ -6,7 +6,7 @@ import {
   isSameOriginMediaUrl,
   observeEditorMediaDuringUploads,
 } from '../js/editor-media-quiescence.mjs';
-import { publishedEntryViewerUrl } from '../js/editor-publish-navigation.mjs';
+import { postListEntryUrl, publishedEntryViewerUrl } from '../js/editor-publish-navigation.mjs';
 import {
   cropAspectFromRect,
   fitImageCropToAspect,
@@ -182,6 +182,21 @@ assert.notEqual(
 assert.equal(publishedEntryViewerUrl('posts', { slug: 'hello world' }), '/posts/hello%20world/');
 assert.equal(publishedEntryViewerUrl('daily', { day_key: '2026-08-03' }), '/daily/2026-08-03/');
 assert.equal(publishedEntryViewerUrl('programs', { slug: 'my-app' }), '/programs/view.html?slug=my-app');
+assert.equal(
+  postListEntryUrl({ id: 'draft id', slug: 'draft-slug', status: 'draft' }, { ownerMode: true }),
+  '/admin/posts.html?id=draft%20id',
+  'owner draft titles must reopen the editor instead of the published-only route',
+);
+assert.equal(
+  postListEntryUrl({ id: 'published-id', slug: 'hello world', status: 'published' }, { ownerMode: true }),
+  '/posts/hello%20world/',
+  'owner published titles must keep opening the public viewer',
+);
+assert.equal(
+  postListEntryUrl({ id: 'draft-id', slug: 'hidden-draft', status: 'draft' }),
+  '/posts/hidden-draft/',
+  'non-owner URL resolution must never expose an admin editor link',
+);
 
 assert.equal(
   isSameOriginMediaUrl('/api/files/media/record/preview.mp4', {
@@ -426,6 +441,9 @@ assert.match(adminPosts, /markdownEditor\.withUploadActivity\(async \(\) =>/, 'p
 assert.match(adminPosts, /onFilesPaste: files => insertEditorFiles/, 'BlockNote must own post file paste handling');
 assert.doesNotMatch(adminPosts, /markdownEditor\.root\.addEventListener\('paste'/, 'post file paste must not have a second DOM owner');
 assert.match(adminPosts, /navigateToPublishedEntry\('posts', saved\)/, 'published posts must leave the editor for the public viewer');
+
+const postsIndex = fs.readFileSync(new URL('../posts/index.html', import.meta.url), 'utf8');
+assert.match(postsIndex, /postListEntryUrl\(post, \{ ownerMode \}\)/, 'post list titles must resolve draft and published destinations by status');
 
 const globalWriter = fs.readFileSync(new URL('../js/global-writer.js', import.meta.url), 'utf8');
 assert.match(globalWriter, /onFilesPaste: files => insertEditorFiles/, 'BlockNote must own global writer file paste handling');
