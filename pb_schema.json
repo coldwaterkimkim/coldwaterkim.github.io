@@ -10,6 +10,7 @@
         { "name": "excerpt", "type": "text", "required": false, "max": 500 },
         { "name": "status", "type": "select", "required": true, "values": ["draft", "published"], "maxSelect": 1 },
         { "name": "published_at", "type": "date", "required": false },
+        { "name": "pending_media_ids", "type": "text", "required": false, "max": 10000 },
         { "name": "created", "type": "autodate", "onCreate": true, "onUpdate": false },
         { "name": "updated", "type": "autodate", "onCreate": true, "onUpdate": true }
       ],
@@ -35,6 +36,7 @@
         { "name": "excerpt", "type": "text", "required": false, "max": 500 },
         { "name": "status", "type": "select", "required": true, "values": ["draft", "published"], "maxSelect": 1 },
         { "name": "published_at", "type": "date", "required": false },
+        { "name": "pending_media_ids", "type": "text", "required": false, "max": 10000 },
         { "name": "created", "type": "autodate", "onCreate": true, "onUpdate": false },
         { "name": "updated", "type": "autodate", "onCreate": true, "onUpdate": true }
       ],
@@ -187,6 +189,7 @@
         { "name": "primary_link_label", "type": "text", "required": false, "max": 80 },
         { "name": "primary_link_url", "type": "url", "required": false, "max": 1000 },
         { "name": "is_public", "type": "bool", "required": true },
+        { "name": "pending_media_ids", "type": "text", "required": false, "max": 10000 },
         { "name": "created", "type": "autodate", "onCreate": true, "onUpdate": false },
         { "name": "updated", "type": "autodate", "onCreate": true, "onUpdate": true }
       ],

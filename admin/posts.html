@@ -113,7 +113,7 @@
     </div>
 
     <script type="module">
-        import { pb, isLoggedIn, logout, getAllPosts, deletePost, formatDate, slugify, cmsErrorMessage, uploadMedia, getMediaUrl, getPostViewCounts, escapeHtml, getKstDateKey, formatMediaUploadProgress } from '../js/pb.js';
+        import { pb, isLoggedIn, logout, getAllPosts, deletePost, formatDate, slugify, cmsErrorMessage, uploadMedia, getMediaUrl, getPostViewCounts, escapeHtml, getKstDateKey, formatMediaUploadProgress, finalizePublishedEditorMedia } from '../js/pb.js';
         import {
             createEditorUploadCoordinator,
             createMarkdownEditor,
@@ -125,6 +125,7 @@
             stopEditorTransferEvent
         } from '../js/markdown-editor.js';
         import { navigateToPublishedEntry } from '../js/editor-publish-navigation.mjs';
+        import { createPendingMediaTracker } from '../js/editor-pending-media.mjs';
 
         // 인증 체크
         if (!isLoggedIn()) {
@@ -141,6 +142,7 @@
 
         // Markdown 에디터 초기화
         let pendingEditorImageIndex = null;
+        const pendingMediaTracker = createPendingMediaTracker();
         const editorUploadCoordinator = createEditorUploadCoordinator({
             uploadFile: uploadEditorRecord
         });
@@ -307,6 +309,7 @@
 
         async function uploadEditorRecord(file, options = {}) {
             const media = await uploadMedia(file, file.name, 'Post editor media', options);
+            pendingMediaTracker.add(media.id);
             return {
                 url: getMediaUrl(media, media.file),
                 name: file.name,
@@ -328,6 +331,7 @@
             document.getElementById('editorView').style.display = 'block';
 
             if (post) {
+                pendingMediaTracker.reset(post.pending_media_ids);
                 // 수정 모드
                 document.getElementById('editorTitle').textContent = '✏️ 글 수정';
                 document.getElementById('postId').value = post.id;
@@ -339,6 +343,7 @@
                 document.getElementById('deleteBtn').style.display = 'inline-block';
                 editingPostId = post.id;
             } else {
+                pendingMediaTracker.reset();
                 // 새 글 모드
                 document.getElementById('editorTitle').textContent = '✍️ 새 글 쓰기';
                 document.getElementById('postForm').reset();
@@ -461,7 +466,19 @@
         async function saveAndPublish() {
             document.getElementById('status').value = 'published';
             const saved = await savePost();
-            if (saved) navigateToPublishedEntry('posts', saved);
+            if (!saved) return;
+
+            const cleanup = await finalizePublishedEditorMedia({
+                collectionName: 'posts',
+                recordId: saved.id,
+                content: markdownEditor.root.innerHTML,
+                pendingMediaIds: pendingMediaTracker.values()
+            });
+            pendingMediaTracker.reset(cleanup.remaining);
+            if (cleanup.failures.length || cleanup.metadataError) {
+                console.warn('Published post media cleanup needs retry', cleanup);
+            }
+            navigateToPublishedEntry('posts', saved);
         }
 
         // 글 저장
@@ -485,6 +502,7 @@
             formData.append('slug', slug);
             formData.append('status', status);
             formData.append('content', content);
+            formData.append('pending_media_ids', pendingMediaTracker.serialize());
             if (published_at) formData.append('published_at', published_at);
 
             try {

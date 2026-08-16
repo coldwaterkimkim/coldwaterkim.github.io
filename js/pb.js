@@ -12,6 +12,11 @@
  */
 
 import PocketBase from '../vendor/pocketbase.es.mjs';
+import {
+    normalizePendingMediaIds,
+    planPublishedMediaCleanup,
+    serializePendingMediaIds
+} from './editor-pending-media.mjs';
 
 // PocketBase API 경로
 // - 로컬 Vite: PocketBase 서버를 127.0.0.1:8090에서 따로 실행
@@ -2016,6 +2021,85 @@ export async function getMediaList(page = 1, perPage = 20) {
  */
 export async function deleteMedia(id) {
     return await pb.collection('media').delete(id);
+}
+
+const EDITOR_MEDIA_REFERENCE_FIELDS = [
+    ['posts', 'content'],
+    ['daily_entries', 'content'],
+    ['programs', 'story_detail'],
+    ['site_settings', 'value']
+];
+
+async function isEditorMediaReferencedElsewhere(mediaId, currentCollection, currentRecordId) {
+    for (const [collectionName, fieldName] of EDITOR_MEDIA_REFERENCE_FIELDS) {
+        const excludeCurrent = collectionName === currentCollection && currentRecordId
+            ? 'id != {:currentRecordId} && '
+            : '';
+        const filter = pb.filter(
+            `${excludeCurrent}${fieldName} ~ {:mediaId}`,
+            { currentRecordId, mediaId }
+        );
+        const result = await pb.collection(collectionName).getList(1, 1, {
+            filter,
+            fields: 'id'
+        });
+        if (result.items.length > 0) return true;
+    }
+
+    return false;
+}
+
+/**
+ * 명시적인 최종 발행이 성공한 뒤, 해당 초안에서 새로 올린 미디어만 정리한다.
+ * 기존 레코드는 pending_media_ids가 비어 있으므로 소급 삭제되지 않는다.
+ */
+export async function finalizePublishedEditorMedia({
+    collectionName,
+    recordId,
+    content,
+    pendingMediaIds
+}) {
+    const plan = planPublishedMediaCleanup(pendingMediaIds, content);
+    const deleted = [];
+    const keptElsewhere = [];
+    const failures = [];
+
+    for (const mediaId of plan.removable) {
+        try {
+            if (await isEditorMediaReferencedElsewhere(mediaId, collectionName, recordId)) {
+                keptElsewhere.push(mediaId);
+                continue;
+            }
+            await deleteMedia(mediaId);
+            deleted.push(mediaId);
+        } catch (error) {
+            if (isNotFoundError(error)) {
+                deleted.push(mediaId);
+            } else {
+                failures.push({ mediaId, error });
+            }
+        }
+    }
+
+    const remaining = normalizePendingMediaIds(failures.map(item => item.mediaId));
+    let metadataError = null;
+    try {
+        await pb.collection(collectionName).update(recordId, {
+            pending_media_ids: serializePendingMediaIds(remaining)
+        });
+    } catch (error) {
+        metadataError = error;
+    }
+
+    return {
+        checked: plan.pending.length,
+        keptInPublishedContent: plan.kept,
+        keptElsewhere,
+        deleted,
+        remaining,
+        failures,
+        metadataError
+    };
 }
 
 // ─────────────────────────────────────────────────────────

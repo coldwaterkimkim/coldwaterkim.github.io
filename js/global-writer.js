@@ -14,7 +14,8 @@ import {
     cmsErrorMessage,
     uploadMedia,
     getMediaUrl,
-    formatMediaUploadProgress
+    formatMediaUploadProgress,
+    finalizePublishedEditorMedia
 } from './pb.js';
 import {
     createEditorUploadCoordinator,
@@ -28,6 +29,7 @@ import {
 } from './markdown-editor.js';
 import { navigateToPublishedEntry, publishedEntryViewerUrl } from './editor-publish-navigation.mjs';
 import { findAutomaticProgramCoverFile } from './program-cover.js';
+import { createPendingMediaTracker } from './editor-pending-media.mjs';
 
 const categorySelect = document.getElementById('category');
 const form = document.getElementById('globalWriteForm');
@@ -52,6 +54,7 @@ const programPrimaryLinkUrl = document.getElementById('programPrimaryLinkUrl');
 let pendingEditorImageIndex = null;
 let lastAutoTitle = '';
 let isSaving = false;
+const pendingMediaTracker = createPendingMediaTracker();
 
 if (!isLoggedIn()) {
     const next = `${window.location.pathname}${window.location.search}`;
@@ -231,6 +234,17 @@ async function saveEntry(mode) {
         }
 
         if (mode === 'publish') {
+            const collectionName = category === 'daily' ? 'daily_entries' : category;
+            const cleanup = await finalizePublishedEditorMedia({
+                collectionName,
+                recordId: saved.id,
+                content,
+                pendingMediaIds: pendingMediaTracker.values()
+            });
+            pendingMediaTracker.reset(cleanup.remaining);
+            if (cleanup.failures.length || cleanup.metadataError) {
+                console.warn('Published global-writer media cleanup needs retry', cleanup);
+            }
             navigateToPublishedEntry(category, saved);
             return;
         }
@@ -254,6 +268,7 @@ async function savePostEntry({ title, content, mode }) {
     formData.append('status', mode === 'publish' ? 'published' : 'draft');
     formData.append('content', content);
     formData.append('published_at', day);
+    formData.append('pending_media_ids', pendingMediaTracker.serialize());
 
     return await createPost(formData);
 }
@@ -263,13 +278,15 @@ async function saveDailyEntry({ title, content, mode }) {
     const status = mode === 'publish' ? 'published' : 'draft';
     const slug = newDailyEntrySlug(dayKey);
 
-    return await createDailyEntry(dailyFormData({
+    const formData = dailyFormData({
         title: title || newDailyEntryTitle(dayKey),
         slug,
         dayKey,
         status,
         content
-    }));
+    });
+    formData.append('pending_media_ids', pendingMediaTracker.serialize());
+    return await createDailyEntry(formData);
 }
 
 function dailyFormData({ title, slug, dayKey, status, content, publishedAt = null }) {
@@ -295,6 +312,7 @@ async function saveProgramEntry({ title, content, mode }) {
     formData.append('story_detail', content);
     formData.append('why', legacyRequiredText);
     formData.append('pain_point', legacyRequiredText);
+    formData.append('pending_media_ids', pendingMediaTracker.serialize());
 
     appendOptionalText(formData, 'platform', programPlatform.value);
     appendOptionalText(formData, 'story_intro', intro);
@@ -426,6 +444,7 @@ async function uploadEditorFile(file) {
 
 async function uploadEditorRecord(file, options = {}) {
     const media = await uploadMedia(file, file.name, 'Global writer media', options);
+    pendingMediaTracker.add(media.id);
     return {
         url: getMediaUrl(media, media.file),
         name: file.name,

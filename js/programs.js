@@ -16,9 +16,11 @@ import {
     cmsErrorMessage,
     uploadMedia,
     getMediaUrl,
-    formatMediaUploadProgress
+    formatMediaUploadProgress,
+    finalizePublishedEditorMedia
 } from './pb.js';
 import { findAutomaticProgramCoverFile } from './program-cover.js';
+import { createPendingMediaTracker } from './editor-pending-media.mjs';
 
 const ownerMode = isLoggedIn();
 let programs = [];
@@ -36,6 +38,7 @@ let isSupportedEditorUpload = null;
 let normalizeEditorFiles = null;
 let stopEditorTransferEvent = null;
 let programBodyUploadCoordinator = null;
+const pendingProgramMediaTracker = createPendingMediaTracker();
 
 const fallbackPrograms = [
     {
@@ -301,6 +304,7 @@ async function saveProgram() {
     formData.set('story_detail', programBodyHtml());
     formData.set('why', legacyRequiredText);
     formData.set('pain_point', legacyRequiredText);
+    formData.set('pending_media_ids', pendingProgramMediaTracker.serialize());
 
     if (!formFields.coverImage.files.length) {
         formData.delete('cover_image');
@@ -322,6 +326,16 @@ async function saveProgram() {
         const saved = editingProgramId
             ? await updateProgram(editingProgramId, formData)
             : await createProgram(formData);
+        const cleanup = await finalizePublishedEditorMedia({
+            collectionName: 'programs',
+            recordId: saved.id,
+            content: programBodyHtml(),
+            pendingMediaIds: pendingProgramMediaTracker.values()
+        });
+        pendingProgramMediaTracker.reset(cleanup.remaining);
+        if (cleanup.failures.length || cleanup.metadataError) {
+            console.warn('Published program media cleanup needs retry', cleanup);
+        }
         setOwnerStatus(`${saved.title || '프로그램'} 저장 완료.`, 'success');
         window.location.assign(programDetailUrl(saved));
     } catch (error) {
@@ -336,6 +350,7 @@ async function editProgram(id) {
     try {
         const cached = programs.find(program => program.id === id);
         const program = cached || await getProgramBySlug(id, true);
+        pendingProgramMediaTracker.reset(program.pending_media_ids);
         editingProgramId = program.id;
         programForm.hidden = false;
         formTitle.textContent = `✎ 프로그램 수정: ${program.title || '(이름 없음)'}`;
@@ -376,6 +391,7 @@ async function removeProgram(id) {
 function resetProgramForm(options = {}) {
     if (!programForm) return;
     editingProgramId = '';
+    pendingProgramMediaTracker.reset();
     programForm.reset();
     formTitle.textContent = '✚ 새 프로그램 올리기';
     formFields.status.value = 'prototype';
@@ -577,6 +593,7 @@ async function uploadProgramBodyFile(file) {
 
 async function uploadProgramBodyRecord(file, options = {}) {
     const media = await uploadMedia(file, file.name, 'Program editor media', options);
+    pendingProgramMediaTracker.add(media.id);
     return {
         url: getMediaUrl(media, media.file),
         name: file.name,

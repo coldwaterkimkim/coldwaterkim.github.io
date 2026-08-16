@@ -3,6 +3,11 @@ import fs from 'node:fs';
 import { preferredTransferFiles, preferredTransferImageFiles, uniqueSupportedFiles, uniqueTransferFiles } from '../js/editor-file-transfer.mjs';
 import { createEditorUploadCoordinator, editorFileFingerprint } from '../js/editor-upload-coordinator.mjs';
 import {
+  createPendingMediaTracker,
+  normalizePendingMediaIds,
+  planPublishedMediaCleanup,
+} from '../js/editor-pending-media.mjs';
+import {
   isSameOriginMediaUrl,
   observeEditorMediaDuringUploads,
 } from '../js/editor-media-quiescence.mjs';
@@ -178,6 +183,27 @@ assert.notEqual(
   await editorFileFingerprint(sameNameDifferentImage),
   'image dedupe must use file content instead of filename alone',
 );
+
+const pendingTracker = createPendingMediaTracker('["newmedia0000001"]');
+pendingTracker.add('newmedia0000002');
+pendingTracker.add('newmedia0000002');
+assert.deepEqual(
+  pendingTracker.values(),
+  ['newmedia0000001', 'newmedia0000002'],
+  'draft media candidates must survive reload and remain deduplicated',
+);
+assert.deepEqual(
+  normalizePendingMediaIds(pendingTracker.serialize()),
+  ['newmedia0000001', 'newmedia0000002'],
+  'draft media candidates must round-trip through the PocketBase text field',
+);
+const publishedCleanupPlan = planPublishedMediaCleanup(
+  pendingTracker.values(),
+  '<p>keep</p><video src="https://coldwaterkim.com/api/files/media/newmedia0000001/clip.mov?token=x"></video>',
+);
+assert.deepEqual(publishedCleanupPlan.kept, ['newmedia0000001'], 'final published content must keep its referenced new upload');
+assert.deepEqual(publishedCleanupPlan.removable, ['newmedia0000002'], 'only a new upload removed from final content may be cleaned');
+assert.deepEqual(planPublishedMediaCleanup('', '<p>legacy content</p>').removable, [], 'legacy records without candidates must never enter cleanup');
 
 assert.equal(publishedEntryViewerUrl('posts', { slug: 'hello world' }), '/posts/hello%20world/');
 assert.equal(publishedEntryViewerUrl('daily', { day_key: '2026-08-03' }), '/daily/2026-08-03/');
@@ -441,6 +467,8 @@ assert.match(adminPosts, /markdownEditor\.withUploadActivity\(async \(\) =>/, 'p
 assert.match(adminPosts, /onFilesPaste: files => insertEditorFiles/, 'BlockNote must own post file paste handling');
 assert.doesNotMatch(adminPosts, /markdownEditor\.root\.addEventListener\('paste'/, 'post file paste must not have a second DOM owner');
 assert.match(adminPosts, /navigateToPublishedEntry\('posts', saved\)/, 'published posts must leave the editor for the public viewer');
+assert.match(adminPosts, /formData\.append\('pending_media_ids', pendingMediaTracker\.serialize\(\)\)/, 'post drafts must persist newly uploaded media candidates');
+assert.match(adminPosts, /finalizePublishedEditorMedia\(\{\s*collectionName: 'posts'/, 'post cleanup must run only from the explicit publish path');
 
 const postsIndex = fs.readFileSync(new URL('../posts/index.html', import.meta.url), 'utf8');
 assert.match(postsIndex, /postListEntryUrl\(post, \{ ownerMode \}\)/, 'post list titles must resolve draft and published destinations by status');
@@ -451,18 +479,22 @@ assert.doesNotMatch(globalWriter, /markdownEditor\.root\.addEventListener\('past
 assert.match(globalWriter, /markdownEditor\.insertFiles\(insertIndex, uploadedFiles\)/, 'global writer must insert uploaded videos as media blocks');
 assert.match(globalWriter, /markdownEditor\.withUploadActivity\(async \(\) =>/, 'global writer batch uploads must share the editor upload activity guard');
 assert.match(globalWriter, /navigateToPublishedEntry\(category, saved\)/, 'global writer publish must leave the editor for the matching viewer');
+assert.match(globalWriter, /if \(mode === 'publish'\) \{\s*const collectionName[\s\S]*finalizePublishedEditorMedia/, 'global writer cleanup must wait for explicit publish');
 
 const adminDaily = fs.readFileSync(new URL('../admin/daily.html', import.meta.url), 'utf8');
 assert.match(adminDaily, /onFilesPaste: files => insertEditorFiles/, 'BlockNote must own daily file paste handling');
 assert.match(adminDaily, /markdownEditor\.withUploadActivity\(async \(\) =>/, 'daily batch uploads must share the editor upload activity guard');
 assert.doesNotMatch(adminDaily, /markdownEditor\.root\.addEventListener\('paste'/, 'daily file paste must not have a second DOM owner');
 assert.match(adminDaily, /navigateToPublishedEntry\('daily', saved\)/, 'published daily entries must leave the editor for the day viewer');
+assert.match(adminDaily, /formData\.append\('pending_media_ids', pendingMediaTracker\.serialize\(\)\)/, 'daily drafts must persist newly uploaded media candidates');
+assert.match(adminDaily, /finalizePublishedEditorMedia\(\{\s*collectionName: 'daily_entries'/, 'daily cleanup must run only from the explicit publish path');
 
 const programs = fs.readFileSync(new URL('../js/programs.js', import.meta.url), 'utf8');
 assert.match(programs, /onFilesPaste: files => insertProgramBodyFiles/, 'BlockNote must own program file paste handling');
 assert.match(programs, /programBodyEditor\.withUploadActivity\(async \(\) =>/, 'program batch uploads must share the editor upload activity guard');
 assert.doesNotMatch(programs, /programBodyEditor\.root\.addEventListener\('paste'/, 'program file paste must not have a second DOM owner');
 assert.match(programs, /window\.location\.assign\(programDetailUrl\(saved\)\)/, 'published programs must leave the editor for the detail viewer');
+assert.match(programs, /pendingProgramMediaTracker\.reset\(program\.pending_media_ids\)/, 'program drafts must restore pending media candidates after reopening');
 
 const mediaEmbeds = fs.readFileSync(new URL('../js/media-embeds.js', import.meta.url), 'utf8');
 assert.match(mediaEmbeds, /img\.setAttribute\('loading', 'lazy'\)/, 'rendered images must use native lazy loading');
@@ -500,6 +532,10 @@ assert.deepEqual(mediaFileField.thumbs, ['400x400', '800x0', '1600x0'], 'media s
 assert.equal(mediaFileField.maxSize, 8 * 1024 * 1024 * 1024, 'media originals must allow one 8GB file');
 const programsCollection = schema.collections.find(collection => collection.name === 'programs');
 assert.equal(programsCollection.fields.find(field => field.name === 'download_files').maxSize, 2 * 1024 * 1024 * 1024, 'program downloads must keep their separate 2GB limit');
+for (const collectionName of ['posts', 'daily_entries', 'programs']) {
+  const collection = schema.collections.find(item => item.name === collectionName);
+  assert.equal(collection.fields.find(field => field.name === 'pending_media_ids')?.max, 10000, `${collectionName} must persist only future editor-upload cleanup candidates`);
+}
 const webVideoField = mediaCollection.fields.find(field => field.name === 'web_video');
 const videoPosterField = mediaCollection.fields.find(field => field.name === 'video_poster');
 const videoStatusField = mediaCollection.fields.find(field => field.name === 'video_status');
@@ -523,6 +559,10 @@ assert.match(videoMigration, /new FileField\(\{\s*name: "video_poster"/, 'produc
 const resumableMigration = fs.readFileSync(new URL('../pb_migrations/1785769200_add_media_resumable_upload_id.js', import.meta.url), 'utf8');
 assert.match(resumableMigration, /name: "resumable_upload_id"/, 'production migration must add the tus idempotency field');
 assert.match(resumableMigration, /CREATE UNIQUE INDEX/, 'production migration must prevent duplicate tus finalization');
+
+const pendingMediaMigration = fs.readFileSync(new URL('../pb_migrations/1786885200_add_pending_media_ids.js', import.meta.url), 'utf8');
+assert.match(pendingMediaMigration, /\["posts", "daily_entries", "programs"\]/, 'production migration must cover every draft-capable shared editor');
+assert.match(pendingMediaMigration, /name: "pending_media_ids"/, 'production migration must add the future-only cleanup candidate field');
 
 assert.equal(pbModule.shouldUseResumableUpload({ name: 'day.mov', type: 'video/quicktime', size: 64 * 1024 * 1024 }), true, 'large videos must use tus');
 assert.equal(pbModule.shouldUseResumableUpload({ name: 'short.mov', type: 'video/quicktime', size: 63 * 1024 * 1024 }), false, 'small videos must keep the simple PocketBase upload');

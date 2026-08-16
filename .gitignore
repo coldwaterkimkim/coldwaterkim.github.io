@@ -26,3 +26,4 @@ pb_migrations/*
 !pb_migrations/1785855600_create_album_view.js
 !pb_migrations/1785942000_add_guestbook_owner_reply.js
 !pb_migrations/1786453200_create_analytics_events.js
+!pb_migrations/1786885200_add_pending_media_ids.js
