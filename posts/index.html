@@ -184,8 +184,8 @@
       document.getElementById('owner-tools').innerHTML = `
         <div class="owner-bar">
           <b>OWNER MODE</b> ·
-          <a href="../admin/posts.html?new=1">새 글 쓰기</a> ·
-          <a href="../admin/media.html">미디어</a> ·
+          <a href="/admin/posts.html?new=1">새 글 쓰기</a> ·
+          <a href="/admin/media.html">미디어</a> ·
           <a href="#" id="logoutLink">로그아웃</a>
         </div>
       `;
@@ -224,7 +224,7 @@
             : '';
           const ownerActions = ownerMode
             ? `<td class="owner-actions">
-                <a class="owner-btn" href="../admin/posts.html?id=${post.id}">수정</a>
+                <a class="owner-btn" href="/admin/posts.html?id=${post.id}">수정</a>
                 <button class="owner-btn owner-btn-danger" type="button" onclick="deleteOwnerPost('${post.id}')">삭제</button>
               </td>`
             : '';

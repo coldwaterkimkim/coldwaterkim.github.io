@@ -477,6 +477,8 @@ assert.match(adminPosts, /finalizePublishedEditorMedia\(\{\s*collectionName: 'po
 
 const postsIndex = fs.readFileSync(new URL('../posts/index.html', import.meta.url), 'utf8');
 assert.match(postsIndex, /postListEntryUrl\(post, \{ ownerMode \}\)/, 'post list titles must resolve draft and published destinations by status');
+assert.match(postsIndex, /href="\/admin\/posts\.html\?id=\$\{post\.id\}"/, 'post list owner edit links must be root-relative');
+assert.doesNotMatch(postsIndex, /href="\.\.\/admin\//, 'post list must not resolve owner links relative to its public route');
 
 const globalWriter = fs.readFileSync(new URL('../js/global-writer.js', import.meta.url), 'utf8');
 assert.match(globalWriter, /onFilesPaste: files => insertEditorFiles/, 'BlockNote must own global writer file paste handling');
@@ -532,6 +534,14 @@ assert.match(aboutWikiSource, /observeEditorMediaDuringUploads\(container, \{\s*
 
 const postsView = fs.readFileSync(new URL('../posts/view.html', import.meta.url), 'utf8');
 assert.match(postsView, /prepareEmbeddedMediaForDisplay\(post\.content/, 'post HTML must be optimized before it enters the live DOM');
+assert.match(postsView, /href="\/admin\/posts\.html\?id=\$\{targetPost\.id\}"/, 'pretty post owner edit links must target the root admin route');
+assert.doesNotMatch(postsView, /href="\.\.\/admin\//, 'pretty post pages must not create nested /posts/admin routes');
+
+const dailyIndexSource = fs.readFileSync(new URL('../daily/index.html', import.meta.url), 'utf8');
+const dailyViewSource = fs.readFileSync(new URL('../daily/view.html', import.meta.url), 'utf8');
+assert.doesNotMatch(dailyIndexSource, /href="\.\.\/admin\//, 'daily list owner links must not depend on the current public path');
+assert.doesNotMatch(dailyViewSource, /href="\.\.\/admin\//, 'pretty daily pages must not create nested /daily/admin routes');
+assert.match(dailyViewSource, /href="\/admin\/daily\.html\?id=\$\{encodeURIComponent\(entry\.id\)\}"/, 'pretty daily owner edit links must target the root admin route');
 
 const schema = JSON.parse(fs.readFileSync(new URL('../pb_schema.json', import.meta.url), 'utf8'));
 const mediaCollection = schema.collections.find(collection => collection.name === 'media');
