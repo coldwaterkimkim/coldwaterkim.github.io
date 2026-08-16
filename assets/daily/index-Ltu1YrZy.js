@@ -1,13 +1,13 @@
-import"../modulepreload-polyfill-Dezn_h7o.js";import"../site-IJTF5x52.js";import{C as e,O as t,U as n,a as r,b as i,d as a,ot as o,rt as s,u as c,ut as l}from"../pb-yXaCmYDJ.js";var u=null,d=[],f=10,p=s();window.goToDailyPage=b,p&&(document.getElementById(`owner-col-head`).style.display=``,document.getElementById(`daily-note`).textContent=`OWNER MODE: 초안까지 같이 보입니다.`,document.getElementById(`owner-tools`).innerHTML=`
+import"../modulepreload-polyfill-Dezn_h7o.js";import"../site-CemPa5_g.js";import{C as e,O as t,U as n,a as r,b as i,d as a,ot as o,rt as s,u as c,ut as l}from"../pb-yXaCmYDJ.js";var u=null,d=[],f=10,p=s();window.goToDailyPage=b,p&&(document.getElementById(`owner-col-head`).style.display=``,document.getElementById(`daily-note`).textContent=`OWNER MODE: 초안까지 같이 보입니다.`,document.getElementById(`owner-tools`).innerHTML=`
         <div class="owner-bar">
           <b>OWNER MODE</b> ·
-          <a href="../admin/daily.html?new=1">새 나으 하루 쓰기</a> ·
-          <a href="../admin/media.html">미디어</a> ·
+          <a href="/admin/daily.html?new=1">새 나으 하루 쓰기</a> ·
+          <a href="/admin/media.html">미디어</a> ·
           <a href="#" id="logoutLink">로그아웃</a>
         </div>
       `,document.getElementById(`logoutLink`).addEventListener(`click`,e=>{e.preventDefault(),o(),window.location.reload()})),document.getElementById(`prevMonthButton`).addEventListener(`click`,()=>{u=S(u,-1),_()}),document.getElementById(`nextMonthButton`).addEventListener(`click`,()=>{u=S(u,1),_()});async function m(a=1){let o=document.getElementById(`daily-list`);o.innerHTML=`<tr><td colspan="${v()}">불러오는 중...</td></tr>`;try{let r=p?await t():await n(),i=h(r),s=Math.ceil(i.length/f),m=i.slice((a-1)*f,a*f);if(d=r,u||=x(c(r[0])||l(new Date)),_(),m.length===0){o.innerHTML=`<tr><td colspan="${v()}">아직 나으 하루가 없습니다.</td></tr>`,y(0,a);return}o.innerHTML=m.map(t=>{let n=p?`<td class="owner-actions">
                 <a class="owner-btn" href="view.html?day=${encodeURIComponent(t.dayKey)}">보기</a>
-                <a class="owner-btn" href="../admin/daily.html?new=1">추가</a>
+                <a class="owner-btn" href="/admin/daily.html?new=1">추가</a>
               </td>`:``;return`
             <tr>
               <td>

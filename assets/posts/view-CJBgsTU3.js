@@ -1,9 +1,9 @@
-import"../modulepreload-polyfill-Dezn_h7o.js";import"../site-IJTF5x52.js";import{C as e,R as t,a as n,b as r,ot as i,pt as a,rt as o,v as s,vt as c,z as l}from"../pb-yXaCmYDJ.js";import{a as u,n as d,s as f,t as p}from"../media-embeds-CiE3Skum.js";var m=new URLSearchParams(window.location.search),h=window.location.pathname.match(/^\/posts\/([^/]+)\/?$/)?.[1]||``,g=m.get(`slug`)||decodeURIComponent(h),_=o();g?v(g):w(`글을 찾을 수 없습니다.`,`Post not found`);async function v(e){try{C(e);let a=await t(e,_);if(a.status!==`published`&&!_){w(`이 글은 아직 발행되지 않았습니다.`,`Not published`);return}document.title=`${a.title} — coldwaterkim`,document.getElementById(`timeline-title`).textContent=`글방`,document.getElementById(`timeline-note`).innerHTML=`<b>${r(a.title)}</b> · 단일 글 페이지`;let o=_?await l([a.id]):{};_&&(document.getElementById(`owner-tools`).innerHTML=`
+import"../modulepreload-polyfill-Dezn_h7o.js";import"../site-CemPa5_g.js";import{C as e,R as t,a as n,b as r,ot as i,pt as a,rt as o,v as s,vt as c,z as l}from"../pb-yXaCmYDJ.js";import{a as u,n as d,s as f,t as p}from"../media-embeds-CiE3Skum.js";var m=new URLSearchParams(window.location.search),h=window.location.pathname.match(/^\/posts\/([^/]+)\/?$/)?.[1]||``,g=m.get(`slug`)||decodeURIComponent(h),_=o();g?v(g):w(`글을 찾을 수 없습니다.`,`Post not found`);async function v(e){try{C(e);let a=await t(e,_);if(a.status!==`published`&&!_){w(`이 글은 아직 발행되지 않았습니다.`,`Not published`);return}document.title=`${a.title} — coldwaterkim`,document.getElementById(`timeline-title`).textContent=`글방`,document.getElementById(`timeline-note`).innerHTML=`<b>${r(a.title)}</b> · 단일 글 페이지`;let o=_?await l([a.id]):{};_&&(document.getElementById(`owner-tools`).innerHTML=`
                         <div class="owner-bar">
                             <b>OWNER MODE</b> ·
                             현재 글 조회수 <span class="post-view-count">${S(o[a.id])}</span> ·
-                            <a href="../admin/posts.html?id=${a.id}">현재 글 수정</a> ·
-                            <a href="../admin/posts.html?new=1">새 글</a> ·
+                            <a href="/admin/posts.html?id=${a.id}">현재 글 수정</a> ·
+                            <a href="/admin/posts.html?new=1">새 글</a> ·
                             <a href="#" id="deletePostLink">현재 글 삭제</a> ·
                             <a href="#" id="logoutLink">로그아웃</a>
                         </div>
