@@ -350,6 +350,11 @@ assert.equal(
   'https://coldwaterkim.com/api/files/media/record/photo.jpeg?token=keep-me&thumb=1600x0',
   'public article images must use the large display thumbnail while preserving existing query params',
 );
+assert.equal(
+  optimizedImage.editorPreviewUrl,
+  'https://coldwaterkim.com/api/files/media/record/photo.jpeg?token=keep-me&thumb=800x0',
+  'media-heavy editors must use a bounded preview instead of loading every original image',
+);
 assert.match(optimizedImage.srcset, /thumb=800x0.*800w/, 'responsive image sources must include an 800px thumbnail');
 assert.match(optimizedImage.srcset, /thumb=1600x0.*1600w/, 'responsive image sources must include a 1600px thumbnail');
 assert.equal(
@@ -516,6 +521,9 @@ assert.match(markdownEditorSource, /원본 전체로/, 'the crop dialog must pro
 assert.doesNotMatch(markdownEditorSource, /toBlob\(|drawImage\(|getContext\(['"]2d/, 'visual cropping must never create or overwrite a raster file');
 assert.doesNotMatch(markdownEditorSource, /markdown-editor-crop-button/, 'the crop action must not stay fixed at the top of the editor');
 assert.match(markdownEditorSource, /cwk-image-crop-toolbar-button/, 'the selected image toolbar must expose the crop action next to the image');
+assert.match(markdownEditorSource, /pocketBaseImageSources\(originalImageUrl\)\?\.editorPreviewUrl/, 'the editor must render PocketBase images from bounded previews');
+assert.match(markdownEditorSource, /loading: 'lazy'/, 'the editor must defer offscreen image loading');
+assert.match(markdownEditorSource, /decoding: 'async'/, 'the editor must decode image previews asynchronously');
 assert.match(markdownEditorSource, /observeEditorMediaDuringUploads\(uploadContainer/, 'all shared BlockNote editors must suspend previews while their upload container is busy');
 assert.match(markdownEditorSource, /adapter\.withUploadActivity\(\(\) => adapter\.options\.uploadFile\(file\)\)/, 'BlockNote single-file uploads must use the same preview suspension guard');
 

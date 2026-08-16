@@ -147,6 +147,7 @@ export function pocketBaseImageSources(value = '', baseHref = globalThis.locatio
 
     return {
         originalUrl: original.href,
+        editorPreviewUrl: small.href,
         displayUrl: large.href,
         srcset: `${small.href} 800w, ${large.href} 1600w`,
         sizes: MEDIA_IMAGE_SIZES,

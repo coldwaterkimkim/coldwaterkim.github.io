@@ -27,7 +27,7 @@ import '@blocknote/core/fonts/inter.css';
 import '@blocknote/mantine/style.css';
 import '../css/editor-crop.css';
 import { observeEditorMediaDuringUploads } from './editor-media-quiescence.mjs';
-import { isYouTubeUrl, prepareRichContentHtml } from './media-embeds.js';
+import { isYouTubeUrl, pocketBaseImageSources, prepareRichContentHtml } from './media-embeds.js';
 import { preferredTransferFiles, preferredTransferImageFiles, uniqueSupportedFiles, uniqueTransferFiles } from './editor-file-transfer.mjs';
 import {
     cropAspectFromRect,
@@ -536,29 +536,40 @@ function CroppableImageBlock(props) {
     const crop = imageCropFromBlockProps(props.block.props);
     const resolved = useResolveUrl(props.block.props.url);
     const cropStyles = imageCropStyle(crop);
-    if (!crop.enabled || !cropStyles || !props.block.props.showPreview) return h(ImageBlock, props);
+    if (!props.block.props.showPreview) return h(ImageBlock, props);
 
-    const imageUrl = resolved.loadingState === 'loading'
+    const originalImageUrl = resolved.loadingState === 'loading'
         ? props.block.props.url
         : resolved.downloadUrl;
+    const imageUrl = pocketBaseImageSources(originalImageUrl)?.editorPreviewUrl || originalImageUrl;
+
+    const image = h('img', {
+        className: crop.enabled && cropStyles
+            ? 'bn-visual-media cwk-image-crop-source'
+            : 'bn-visual-media',
+        src: imageUrl,
+        alt: props.block.props.name || '',
+        loading: 'lazy',
+        decoding: 'async',
+        contentEditable: false,
+        draggable: false,
+        style: crop.enabled && cropStyles ? cropStyles.image : undefined
+    });
+
+    const preview = crop.enabled && cropStyles
+        ? h('span', {
+            className: 'cwk-editor-image-crop-frame',
+            style: {
+                aspectRatio: cropStyles.frame.aspectRatio,
+                width: '100%'
+            }
+        }, image)
+        : image;
 
     return h(ResizableFileBlockWrapper, {
         ...props,
         buttonIcon: h('span', { 'aria-hidden': 'true' }, '🖼️')
-    }, h('span', {
-        className: 'cwk-editor-image-crop-frame',
-        style: {
-            aspectRatio: cropStyles.frame.aspectRatio,
-            width: '100%'
-        }
-    }, h('img', {
-        className: 'bn-visual-media cwk-image-crop-source',
-        src: imageUrl,
-        alt: props.block.props.name || '',
-        contentEditable: false,
-        draggable: false,
-        style: cropStyles.image
-    })));
+    }, preview);
 }
 
 function CroppableImageToExternalHTML(props) {
