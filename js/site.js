@@ -78,6 +78,7 @@ const VERSION_MANIFEST_PATH = '/site-version.json';
 const VERSION_CHECK_INTERVAL_MS = 60 * 1000;
 const VERSION_CHECK_THROTTLE_MS = 10 * 1000;
 let lastVersionCheckAt = 0;
+let webRingDataPromise = null;
 
 // ─────────────────────────────────────────────────────────
 // 프로필 사진 + BGM 설정
@@ -1349,6 +1350,7 @@ async function navigateSpa(href, options = {}) {
       history.pushState({}, '', url.href);
     }
 
+    syncDocumentBase(nextDoc);
     document.title = nextDoc.title || document.title;
     document.body.className = nextDoc.body.className;
     updatePersistentShell(nextDoc);
@@ -1370,11 +1372,29 @@ async function navigateSpa(href, options = {}) {
   }
 }
 
+function syncDocumentBase(nextDoc) {
+  const nextBase = nextDoc.querySelector('base[href]');
+  const currentBase = document.querySelector('base[href]');
+
+  if (!nextBase) {
+    currentBase?.remove();
+    return;
+  }
+
+  const href = nextBase.getAttribute('href');
+  if (currentBase) {
+    currentBase.setAttribute('href', href);
+    return;
+  }
+
+  const base = document.createElement('base');
+  base.setAttribute('href', href);
+  document.head.prepend(base);
+}
+
 // ─────────────────────────────────────────────────────────
 // My WebRing: 공개 콘텐츠 전체 탐험
 // ─────────────────────────────────────────────────────────
-let webRingDataPromise = null;
-
 function initWebRing() {
   const links = Array.from(document.querySelectorAll('.webring a')).slice(0, 3);
   if (links.length !== 3) return;

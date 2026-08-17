@@ -536,12 +536,20 @@ const postsView = fs.readFileSync(new URL('../posts/view.html', import.meta.url)
 assert.match(postsView, /prepareEmbeddedMediaForDisplay\(post\.content/, 'post HTML must be optimized before it enters the live DOM');
 assert.match(postsView, /href="\/admin\/posts\.html\?id=\$\{targetPost\.id\}"/, 'pretty post owner edit links must target the root admin route');
 assert.doesNotMatch(postsView, /href="\.\.\/admin\//, 'pretty post pages must not create nested /posts/admin routes');
+for (const route of ['/index.html', '/posts/index.html', '/daily/index.html', '/album/index.html', '/programs/index.html', '/nasajab/index.html', '/guestbook.html', '/about.html']) {
+  assert.match(postsView, new RegExp(`href="${route.replaceAll('.', '\\.')}"`), `pretty post navigation must use root route ${route}`);
+}
+assert.doesNotMatch(postsView, /<div class="top-nav">[\s\S]*?href="(?:\.\.\/|index\.html)/, 'pretty post public navigation must not depend on a missing SPA base');
 
 const dailyIndexSource = fs.readFileSync(new URL('../daily/index.html', import.meta.url), 'utf8');
 const dailyViewSource = fs.readFileSync(new URL('../daily/view.html', import.meta.url), 'utf8');
 assert.doesNotMatch(dailyIndexSource, /href="\.\.\/admin\//, 'daily list owner links must not depend on the current public path');
 assert.doesNotMatch(dailyViewSource, /href="\.\.\/admin\//, 'pretty daily pages must not create nested /daily/admin routes');
 assert.match(dailyViewSource, /href="\/admin\/daily\.html\?id=\$\{encodeURIComponent\(entry\.id\)\}"/, 'pretty daily owner edit links must target the root admin route');
+for (const route of ['/index.html', '/posts/index.html', '/daily/index.html', '/album/index.html', '/programs/index.html', '/nasajab/index.html', '/guestbook.html', '/about.html']) {
+  assert.match(dailyViewSource, new RegExp(`href="${route.replaceAll('.', '\\.')}"`), `pretty daily navigation must use root route ${route}`);
+}
+assert.doesNotMatch(dailyViewSource, /<div class="top-nav">[\s\S]*?href="(?:\.\.\/|index\.html)/, 'pretty daily public navigation must not depend on a missing SPA base');
 
 const schema = JSON.parse(fs.readFileSync(new URL('../pb_schema.json', import.meta.url), 'utf8'));
 const mediaCollection = schema.collections.find(collection => collection.name === 'media');
@@ -581,6 +589,13 @@ assert.match(resumableMigration, /CREATE UNIQUE INDEX/, 'production migration mu
 const pendingMediaMigration = fs.readFileSync(new URL('../pb_migrations/1786885200_add_pending_media_ids.js', import.meta.url), 'utf8');
 assert.match(pendingMediaMigration, /\["posts", "daily_entries", "programs"\]/, 'production migration must cover every draft-capable shared editor');
 assert.match(pendingMediaMigration, /name: "pending_media_ids"/, 'production migration must add the future-only cleanup candidate field');
+
+const siteSource = fs.readFileSync(new URL('../js/site.js', import.meta.url), 'utf8');
+assert.match(siteSource, /history\.(?:push|replace)State[\s\S]*syncDocumentBase\(nextDoc\)[\s\S]*content\.innerHTML = nextContent\.innerHTML/, 'SPA navigation must apply the fetched page base before inserting relative links');
+assert.match(siteSource, /if \(!nextBase\) \{\s*currentBase\?\.remove\(\)/, 'SPA navigation must remove a stale base when the next page has none');
+assert.match(siteSource, /document\.head\.prepend\(base\)/, 'SPA navigation must install the fetched base for pretty post and daily routes');
+assert.equal(new URL('../album/index.html', 'https://coldwaterkim.com/posts/').pathname, '/album/index.html', 'post detail base must resolve album navigation at the site root');
+assert.equal(new URL('../guestbook.html', 'https://coldwaterkim.com/daily/').pathname, '/guestbook.html', 'daily detail base must resolve root page navigation at the site root');
 
 assert.equal(pbModule.shouldUseResumableUpload({ name: 'day.mov', type: 'video/quicktime', size: 64 * 1024 * 1024 }), true, 'large videos must use tus');
 assert.equal(pbModule.shouldUseResumableUpload({ name: 'short.mov', type: 'video/quicktime', size: 63 * 1024 * 1024 }), false, 'small videos must keep the simple PocketBase upload');

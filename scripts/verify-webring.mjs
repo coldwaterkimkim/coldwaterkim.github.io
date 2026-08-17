@@ -34,6 +34,7 @@ check(publicContentKeyFromLocation({ pathname: '/posts/hello/', search: '', hash
 
 const siteSource = fs.readFileSync(new URL('../js/site.js', import.meta.url), 'utf8');
 const migration = fs.readFileSync(new URL('../pb_migrations/1785855600_create_album_view.js', import.meta.url), 'utf8');
+check(siteSource.indexOf('let webRingDataPromise = null;') < siteSource.indexOf('initWebRing();'), 'WebRing cache must be initialized before startup calls it');
 check(siteSource.includes('getPublishedPostSummaryTimeline') && siteSource.includes('getPublishedNasajabSummaryTimeline'), 'WebRing must use public loaders');
 check(!siteSource.includes('getAllPostTimeline()') && !siteSource.includes('getAllNasajabTimeline()'), 'WebRing must not use owner timelines');
 check(migration.includes("p.status = 'published'") && migration.includes("d.status = 'published'"), 'album source must remain published-only');
