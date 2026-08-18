@@ -581,9 +581,24 @@ body > center > table[width="1140"] > tbody > tr > td {
   font-weight: normal;
 }
 
+.bgm-track-actions {
+  display: inline-flex;
+  gap: 3px;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
 .bgm-preview-btn {
   min-width: 24px;
   margin-right: 4px;
+  padding: 1px 4px;
+}
+
+.bgm-track-actions .bgm-preview-btn {
+  margin-right: 0;
+}
+
+.bgm-delete-btn {
   padding: 1px 4px;
 }
 

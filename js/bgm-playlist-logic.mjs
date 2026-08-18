@@ -111,6 +111,29 @@ export function bgmSlotEndMinute(slots, slotIndex) {
   return normalized[(slotIndex + 1) % normalized.length].startMinute;
 }
 
+export function bgmMediaRecordId(value) {
+  try {
+    const url = new URL(String(value || ''), 'https://coldwaterkim.com/');
+    const hostname = url.hostname.toLowerCase();
+    const trustedHost = hostname === 'coldwaterkim.com'
+      || hostname.endsWith('.coldwaterkim.com')
+      || hostname === 'localhost'
+      || hostname === '127.0.0.1';
+    if (!trustedHost) return '';
+    const parts = url.pathname.split('/').filter(Boolean);
+    if (
+      parts[0] !== 'api'
+      || parts[1] !== 'files'
+      || !/^(?:media|pbc_\d+)$/i.test(parts[2] || '')
+      || !parts[4]
+    ) return '';
+    const recordId = decodeURIComponent(parts[3] || '');
+    return /^[a-z0-9]{15}$/i.test(recordId) ? recordId : '';
+  } catch (error) {
+    return '';
+  }
+}
+
 function parseSchedule(rawSchedule) {
   if (!rawSchedule) return null;
   if (typeof rawSchedule === 'object') return rawSchedule;

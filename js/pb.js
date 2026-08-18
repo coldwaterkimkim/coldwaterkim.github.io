@@ -2023,6 +2023,17 @@ export async function deleteMedia(id) {
     return await pb.collection('media').delete(id);
 }
 
+/**
+ * 다른 공개 콘텐츠에서 쓰지 않는 미디어만 삭제한다.
+ * @param {string} id
+ * @returns {Promise<boolean>} 실제 레코드를 삭제했으면 true
+ */
+export async function deleteMediaIfUnreferenced(id) {
+    if (!id || await isEditorMediaReferencedElsewhere(id, '', '')) return false;
+    await deleteMedia(id);
+    return true;
+}
+
 const EDITOR_MEDIA_REFERENCE_FIELDS = [
     ['posts', 'content'],
     ['daily_entries', 'content'],
@@ -2135,6 +2146,21 @@ function isNotFoundError(e) {
 function isUniqueConstraintError(e) {
     return e?.status === 400 && Object.values(e?.data?.data || {})
         .some(field => field?.code === 'validation_not_unique');
+}
+
+/**
+ * 롤백용 설정 조회. 없는 키만 null로 보고 연결/권한 오류는 호출자에게 전달한다.
+ * @param {string} key
+ * @returns {Promise<string|null>}
+ */
+export async function getSettingStrict(key) {
+    try {
+        const record = await getSettingRecord(key);
+        return record?.value || null;
+    } catch (e) {
+        if (isNotFoundError(e)) return null;
+        throw e;
+    }
 }
 
 /**

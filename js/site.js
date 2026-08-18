@@ -18,6 +18,7 @@ import {
   saveGuestbookReply,
   clearGuestbookReply,
   getSetting,
+  getSettingStrict,
   setSetting,
   isLoggedIn,
   deleteGuestbookEntry,
@@ -40,7 +41,8 @@ import {
   escapeHtml,
   cmsErrorMessage,
   uploadMedia,
-  getMediaUrl
+  getMediaUrl,
+  deleteMediaIfUnreferenced
 } from './pb.js';
 import {
   defaultSidebarProfileRows,
@@ -57,6 +59,7 @@ import {
 import {
   BGM_TIME_ZONE,
   activeBgmTimeSlot,
+  bgmMediaRecordId,
   bgmMinuteInTimeZone,
   bgmSlotEndMinute,
   formatBgmMinute,
@@ -775,6 +778,7 @@ function normalizeBgmTrack(value) {
     url,
     title: String(value.title || fileNameFromUrl(url) || 'bgm.mp3').trim(),
     uploadedAt: String(value.uploadedAt || value.created || '').trim(),
+    mediaId: bgmMediaRecordId(url),
   };
 }
 
@@ -793,10 +797,12 @@ function dedupeBgmTracks(tracks = []) {
 }
 
 function bgmTrackKey(track) {
+  const value = String(track?.url || '').trim();
+  if (!value) return '';
   try {
-    return new URL(track?.url || '', window.location.href).href;
+    return new URL(value, window.location.href).href;
   } catch (e) {
-    return String(track?.url || '');
+    return value;
   }
 }
 
@@ -847,9 +853,11 @@ function setBgmPlaylist(audio, trackTitle, playlist, startIndex = 0) {
     return;
   }
 
-  if (trackTitle) {
-    trackTitle.textContent = defaultBgmTitle(audio);
-  }
+  audio.pause();
+  audio.removeAttribute('src');
+  audio.load();
+  audio._bgmTrackIndex = -1;
+  if (trackTitle) trackTitle.textContent = '등록된 BGM 없음';
 }
 
 function bindBgmPlaylist(audio) {
@@ -899,8 +907,58 @@ async function advanceBgmTrack(audio) {
   }
 }
 
-function prependBgmTrack(track, playlist) {
-  return dedupeBgmTracks([track, ...normalizeBgmTracks(playlist)]);
+function prependBgmTracks(tracks, playlist) {
+  return dedupeBgmTracks([...normalizeBgmTracks(tracks), ...normalizeBgmTracks(playlist)]);
+}
+
+async function getBgmLibrarySettingSnapshot() {
+  const values = await Promise.all([
+    getSettingStrict(BGM_URL_SETTING_KEY),
+    getSettingStrict(BGM_TITLE_SETTING_KEY),
+    getSettingStrict(BGM_SCHEDULE_SETTING_KEY),
+    getSettingStrict(BGM_PLAYLIST_SETTING_KEY),
+  ]);
+  return values.map(value => value || '');
+}
+
+async function restoreBgmLibrarySettings(snapshot) {
+  const keys = [
+    BGM_URL_SETTING_KEY,
+    BGM_TITLE_SETTING_KEY,
+    BGM_SCHEDULE_SETTING_KEY,
+    BGM_PLAYLIST_SETTING_KEY,
+  ];
+  const results = await Promise.allSettled(keys.map((key, index) => setSetting(key, snapshot[index] || '')));
+  return results.every(result => result.status === 'fulfilled');
+}
+
+async function saveBgmLibrarySettings(playlist, schedule) {
+  const snapshot = await getBgmLibrarySettingSnapshot();
+  const latestTrack = playlist[0] || null;
+  const values = [
+    latestTrack?.url || '',
+    latestTrack?.title || '',
+    JSON.stringify(schedule),
+    JSON.stringify(playlist),
+  ];
+  const keys = [
+    BGM_URL_SETTING_KEY,
+    BGM_TITLE_SETTING_KEY,
+    BGM_SCHEDULE_SETTING_KEY,
+    BGM_PLAYLIST_SETTING_KEY,
+  ];
+
+  try {
+    for (let index = 0; index < keys.length; index += 1) {
+      await setSetting(keys[index], values[index]);
+    }
+  } catch (error) {
+    const restored = await restoreBgmLibrarySettings(snapshot);
+    if (!restored) error.bgmRollbackFailed = true;
+    throw error;
+  }
+
+  return snapshot;
 }
 
 function initProfilePhotoUpload(photo) {
@@ -955,6 +1013,7 @@ function initBgmOwnerTools(player, audio, trackTitle) {
   const input = document.createElement('input');
   input.type = 'file';
   input.accept = 'audio/mpeg,.mp3';
+  input.multiple = true;
   input.hidden = true;
   document.body.appendChild(input);
 
@@ -983,54 +1042,80 @@ function initBgmOwnerTools(player, audio, trackTitle) {
   scheduleButton.addEventListener('click', () => toggleBgmScheduleEditor(audio, button));
 
   input.addEventListener('change', async () => {
-    const file = input.files?.[0];
+    const files = Array.from(input.files || []);
     input.value = '';
-    if (!file) return;
+    if (files.length === 0) return;
 
-    if (!isMp3(file)) {
-      alert('MP3 파일만 올릴 수 있어요.');
+    const openEditor = document.querySelector('[data-bgm-schedule-editor]');
+    if (isBgmScheduleEditorDirty(openEditor)) {
+      alert('먼저 편성 저장을 눌러 변경 내용을 저장한 뒤 MP3를 추가해줘.');
+      return;
+    }
+
+    const invalidFiles = files.filter(file => !isMp3(file));
+    if (invalidFiles.length > 0) {
+      alert(`MP3 파일만 올릴 수 있어요.\n\n확인할 파일: ${invalidFiles.map(file => file.name).join(', ')}`);
       return;
     }
 
     button.disabled = true;
-    status.textContent = '업로드 중...';
+    setBgmScheduleEditorBusy(openEditor, true);
+    status.textContent = `업로드 준비 중 (총 ${files.length}곡)`;
+    const uploadedTracks = [];
+    const failedFiles = [];
 
     try {
-      const media = await uploadMedia(file, file.name, 'Home BGM');
-      const url = getMediaUrl(media, media.file);
-      const newTrack = {
-        url,
-        title: file.name,
-        uploadedAt: new Date().toISOString(),
-      };
+      for (let index = 0; index < files.length; index += 1) {
+        const file = files[index];
+        status.textContent = `업로드 중 (${index + 1}/${files.length}) ${file.name}`;
+        try {
+          const media = await uploadMedia(file, file.name, 'Home BGM');
+          uploadedTracks.push({
+            url: getMediaUrl(media, media.file),
+            title: file.name,
+            uploadedAt: new Date().toISOString(),
+            mediaId: media.id,
+          });
+        } catch (error) {
+          failedFiles.push({ file, error });
+        }
+      }
+
+      if (uploadedTracks.length === 0) {
+        throw failedFiles[0]?.error || new Error('올라간 MP3가 없음');
+      }
+
       const savedPlaylist = await getSavedBgmPlaylist(audio);
-      const nextPlaylist = prependBgmTrack(newTrack, savedPlaylist.length > 0 ? savedPlaylist : getBgmPlaylist(audio));
+      const nextPlaylist = prependBgmTracks(uploadedTracks, savedPlaylist.length > 0 ? savedPlaylist : getBgmPlaylist(audio));
       const nextSchedule = normalizeBgmSchedule(getBgmSchedule(audio), bgmTrackKeys(nextPlaylist));
 
-      await Promise.all([
-        setSetting(BGM_PLAYLIST_SETTING_KEY, JSON.stringify(nextPlaylist)),
-        setSetting(BGM_SCHEDULE_SETTING_KEY, JSON.stringify(nextSchedule)),
-        setSetting(BGM_URL_SETTING_KEY, url),
-        setSetting(BGM_TITLE_SETTING_KEY, newTrack.title),
-      ]);
+      await saveBgmLibrarySettings(nextPlaylist, nextSchedule);
 
       setBgmSchedule(audio, nextSchedule, nextPlaylist);
       setBgmPlaylist(audio, trackTitle, nextPlaylist, 0);
       initBgmAutoplay(audio);
-      status.textContent = `추가됨 (${nextPlaylist.length}곡)`;
+      status.textContent = failedFiles.length > 0
+        ? `${uploadedTracks.length}곡 추가 / ${failedFiles.length}곡 실패`
+        : `${uploadedTracks.length}곡 추가됨 (총 ${nextPlaylist.length}곡)`;
       const editor = document.querySelector('[data-bgm-schedule-editor]');
       if (editor) {
         openBgmScheduleEditor(audio, button, {
           replace: true,
-          message: '새 곡을 모든 시간대에 추가했음. 원하는 시간대만 남기시오.',
+          message: `새 MP3 ${uploadedTracks.length}곡을 모든 시간대에 추가했음. 원하는 시간대만 남기시오.`,
         });
+      }
+      if (failedFiles.length > 0) {
+        alert(`일부 MP3 업로드 실패 (${failedFiles.length}곡)\n\n${failedFiles.map(item => `${item.file.name}: ${cmsErrorMessage(item.error)}`).join('\n')}`);
       }
       setTimeout(() => status.textContent = '', 1600);
     } catch (e) {
+      await Promise.allSettled(uploadedTracks.map(track => deleteMediaIfUnreferenced(track.mediaId)));
       status.textContent = '실패';
-      alert('MP3 저장 실패: ' + cmsErrorMessage(e));
+      const rollbackNote = e.bgmRollbackFailed ? '\n설정 복구도 끝나지 않았으니 다시 열어 상태를 확인해줘.' : '';
+      alert('MP3 묶음 저장 실패: ' + cmsErrorMessage(e) + rollbackNote);
     } finally {
       button.disabled = false;
+      setBgmScheduleEditorBusy(openEditor, false);
     }
   });
 }
@@ -1088,7 +1173,11 @@ function openBgmScheduleEditor(audio, uploadButton, options = {}) {
     return `
       <tr>
         <th scope="row" class="bgm-schedule-track">
-          <button type="button" class="owner-btn bgm-preview-btn" data-bgm-preview="${trackIndex}" title="이 곡 미리듣기">▶</button>
+          <span class="bgm-track-actions">
+            <button type="button" class="owner-btn bgm-preview-btn" data-bgm-preview="${trackIndex}" title="이 곡 미리듣기">▶</button>
+            <button type="button" class="owner-btn owner-btn-danger bgm-delete-btn" data-bgm-delete="${trackIndex}"
+              ${track.mediaId || bgmMediaRecordId(track.url) ? '' : 'disabled title="PocketBase에 올린 MP3만 삭제할 수 있음"'}>삭제</button>
+          </span>
           <span>${escapeHtml(track.title || defaultBgmTitle(audio))}</span>
           ${unassigned}
         </th>
@@ -1173,6 +1262,59 @@ function bindBgmScheduleEditor(panel, audio, uploadButton) {
     });
   });
 
+  panel.querySelectorAll('[data-bgm-delete]').forEach(button => {
+    button.addEventListener('click', async () => {
+      if (isBgmScheduleEditorDirty(panel)) {
+        alert('먼저 편성 저장을 눌러 변경 내용을 저장한 뒤 삭제해줘.');
+        return;
+      }
+
+      const playlist = getBgmPlaylist(audio);
+      const trackIndex = Number(button.dataset.bgmDelete);
+      const track = playlist[trackIndex];
+      const mediaId = track?.mediaId || bgmMediaRecordId(track?.url);
+      if (!track || !mediaId) return;
+      if (!confirm(`“${track.title || defaultBgmTitle(audio)}” MP3를 BGM에서 삭제할까?\n\n다른 글에서 쓰지 않는 파일이면 서버에서도 영구 삭제됨.`)) return;
+
+      setBgmScheduleEditorBusy(panel, true);
+      status.classList.remove('is-error');
+      status.textContent = 'MP3 삭제 중...';
+      const currentTrackKey = bgmTrackKey(playlist[audio._bgmTrackIndex]);
+      const nextPlaylist = playlist.filter((_, index) => index !== trackIndex);
+      const nextSchedule = normalizeBgmSchedule(getBgmSchedule(audio), bgmTrackKeys(nextPlaylist));
+
+      try {
+        await saveBgmLibrarySettings(nextPlaylist, nextSchedule);
+        let deleted = false;
+        let cleanupFailed = false;
+        try {
+          deleted = await deleteMediaIfUnreferenced(mediaId);
+        } catch (error) {
+          cleanupFailed = true;
+          console.warn('BGM media cleanup failed:', cmsErrorMessage(error));
+        }
+
+        setBgmSchedule(audio, nextSchedule, nextPlaylist);
+        const retainedIndex = nextPlaylist.findIndex(item => bgmTrackKey(item) === currentTrackKey);
+        setBgmPlaylist(audio, audio._bgmTrackTitle, nextPlaylist, Math.max(0, retainedIndex));
+        if (nextPlaylist.length > 0 && currentTrackKey === bgmTrackKey(track)) initBgmAutoplay(audio);
+        openBgmScheduleEditor(audio, uploadButton, {
+          replace: true,
+          message: cleanupFailed
+            ? `“${track.title}”을 BGM에서 제거함. 서버 파일 정리 여부는 확인하지 못했음.`
+            : deleted
+            ? `“${track.title}” 삭제 완료.`
+            : `“${track.title}”을 BGM에서 제거함. 다른 콘텐츠에서 사용 중인 원본 파일은 보존했음.`,
+        });
+      } catch (error) {
+        status.textContent = `삭제 실패: ${cmsErrorMessage(error)}`;
+        if (error.bgmRollbackFailed) status.textContent += ' · 설정 복구 상태 확인 필요';
+        status.classList.add('is-error');
+        setBgmScheduleEditorBusy(panel, false);
+      }
+    });
+  });
+
   panel.addEventListener('input', event => {
     if (!event.target.matches('[data-bgm-assignment], [data-bgm-slot-label], [data-bgm-slot-start]')) return;
     setBgmScheduleEditorDirty(panel, true);
@@ -1235,6 +1377,21 @@ function collectBgmScheduleEditorValue(panel, audio, playlist) {
 function setBgmScheduleEditorDirty(panel, isDirty) {
   panel.dataset.bgmEditorDirty = isDirty ? 'true' : 'false';
   panel.setAttribute('data-version-refresh-block', isDirty ? 'true' : 'false');
+}
+
+function setBgmScheduleEditorBusy(panel, isBusy) {
+  if (!panel) return;
+  panel.setAttribute('aria-busy', isBusy ? 'true' : 'false');
+  panel.querySelectorAll('button, input').forEach(control => {
+    if (isBusy) {
+      control.dataset.bgmWasDisabled = control.disabled ? 'true' : 'false';
+      control.disabled = true;
+      return;
+    }
+
+    control.disabled = control.dataset.bgmWasDisabled === 'true';
+    delete control.dataset.bgmWasDisabled;
+  });
 }
 
 function isBgmScheduleEditorDirty(panel) {

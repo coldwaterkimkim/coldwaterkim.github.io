@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import {
   DEFAULT_BGM_TIME_SLOTS,
   activeBgmTimeSlot,
+  bgmMediaRecordId,
   bgmMinuteInTimeZone,
   normalizeBgmSchedule,
   randomBgmCandidateIndex,
@@ -34,6 +35,11 @@ check(
 check(siteSource.includes("const BGM_SCHEDULE_SETTING_KEY = 'bgm_schedule'"), 'the BGM schedule must have its own site setting');
 check(siteSource.includes("scheduleButton.textContent = 'BGM 편성표'"), 'OWNER MODE must expose the BGM schedule editor');
 check(siteSource.includes('data-bgm-assignment'), 'the schedule editor must render track/time assignment checkboxes');
+check(siteSource.includes('input.multiple = true'), 'OWNER MODE must accept multiple MP3 files in one selection');
+check(siteSource.includes('data-bgm-delete'), 'the schedule editor must expose per-track deletion');
+check(siteSource.includes('deleteMediaIfUnreferenced(mediaId)'), 'BGM deletion must preserve media referenced by other content');
+check(siteSource.includes('getSettingStrict(BGM_PLAYLIST_SETTING_KEY)'), 'BGM rollback snapshots must not turn read failures into empty settings');
+check(siteSource.includes('setBgmScheduleEditorBusy(panel, true)'), 'schedule controls must lock during track deletion');
 check(siteSource.includes("BGM_TIME_ZONE"), 'the site must select BGM using the configured Korean time zone');
 check(randomBgmTrackIndex(0, -1, () => 0.5) === -1, 'an empty playlist has no track');
 check(randomBgmTrackIndex(1, 0, () => 0.5) === 0, 'a one-track playlist keeps its only track');
@@ -106,5 +112,19 @@ check(randomBgmCandidateIndex([], 0, () => 0.5) === -1, 'an empty candidate pool
 
 const knownKstMinute = bgmMinuteInTimeZone(new Date('2026-08-03T21:30:00.000Z'));
 check(knownKstMinute === 390, 'Korean time conversion handles the next calendar day');
+check(
+  bgmMediaRecordId('https://coldwaterkim.com/api/files/media/abcdefghijklmno/song.mp3?token=x') === 'abcdefghijklmno',
+  'PocketBase media record ids can be recovered from saved BGM URLs',
+);
+check(
+  bgmMediaRecordId('https://coldwaterkim.com/api/files/pbc_2708086759/aio9h6rgv687rmm/song.mp3') === 'aio9h6rgv687rmm',
+  'PocketBase collection-id file URLs expose the BGM media record id',
+);
+check(bgmMediaRecordId('/api/files/media/too-short/song.mp3') === '', 'invalid media record ids cannot be deleted');
+check(
+  bgmMediaRecordId('https://example.com/api/files/media/abcdefghijklmno/song.mp3') === '',
+  'external file URLs cannot select a local media record for deletion',
+);
+check(bgmMediaRecordId('/assets/bgm/local.mp3') === '', 'local fallback MP3 files are not treated as deletable media records');
 
 console.log(`Home/BGM QA passed (${assertions} assertions).`);
