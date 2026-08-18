@@ -2178,11 +2178,15 @@ export function slugify(text) {
     return text
         .toString()
         .normalize('NFKD')
+        .replace(/\p{M}/gu, '')
+        .normalize('NFC')
         .toLowerCase()
-        .replace(/[^\w\s-]/g, '')
-        .replace(/[\s_]+/g, '-')
+        .replace(/[.\u00b7'\u2019]/g, '')
+        .replace(/[^a-z0-9\uac00-\ud7a3\s-]+/g, '-')
+        .replace(/[\s_-]+/g, '-')
         .replace(/^-+|-+$/g, '')
-        .substring(0, 100);
+        .substring(0, 100)
+        .replace(/-+$/g, '');
 }
 
 /**

@@ -29,6 +29,7 @@ const neighbors = webRingNeighbors(deck, deck[0].key);
 check(neighbors.prev === deck.at(-1) && neighbors.next === deck[1], 'neighbors must wrap');
 check(randomWebRingItem(categories, 'post:hello', () => 0)?.key === 'post:second', 'random must exclude the current item');
 check(publicContentKeyFromLocation({ pathname: '/posts/hello/', search: '', hash: '' }) === 'post:hello', 'pretty post location');
+check(publicContentKeyFromLocation({ pathname: '/posts/%EB%B2%A0%ED%8A%B8%EB%82%A8-%EC%82%AC%ED%8C%8C/', search: '', hash: '' }) === 'post:\ubca0\ud2b8\ub0a8-\uc0ac\ud30c', 'Korean pretty post location');
 check(publicContentKeyFromLocation({ pathname: '/daily/2026-08-12/', search: '', hash: '' }) === 'daily:2026-08-12', 'pretty daily location');
 check(publicContentKeyFromLocation({ pathname: '/posts/hello/', search: '', hash: '#cwk-media-p1-m1' }) === 'album:m1', 'album hash has location priority');
 

@@ -5,7 +5,7 @@
       "type": "base",
       "fields": [
         { "name": "title", "type": "text", "required": true, "min": 1, "max": 200 },
-        { "name": "slug", "type": "text", "required": true, "min": 1, "max": 200, "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+        { "name": "slug", "type": "text", "required": true, "min": 1, "max": 200, "pattern": "^[a-z0-9\uac00-\ud7a3]+(?:-[a-z0-9\uac00-\ud7a3]+)*$" },
         { "name": "content", "type": "editor", "required": false },
         { "name": "excerpt", "type": "text", "required": false, "max": 500 },
         { "name": "status", "type": "select", "required": true, "values": ["draft", "published"], "maxSelect": 1 },
@@ -162,7 +162,7 @@
       "type": "base",
       "fields": [
         { "name": "title", "type": "text", "required": true, "min": 1, "max": 160 },
-        { "name": "slug", "type": "text", "required": true, "min": 1, "max": 120, "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+        { "name": "slug", "type": "text", "required": true, "min": 1, "max": 120, "pattern": "^[a-z0-9\uac00-\ud7a3]+(?:-[a-z0-9\uac00-\ud7a3]+)*$" },
         { "name": "status", "type": "select", "required": true, "values": ["released", "beta", "prototype", "unreleased", "archived"], "maxSelect": 1 },
         { "name": "platform", "type": "text", "required": false, "max": 160 },
         { "name": "tagline", "type": "text", "required": false, "max": 200 },

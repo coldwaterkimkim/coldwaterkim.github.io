@@ -206,6 +206,11 @@ assert.deepEqual(publishedCleanupPlan.removable, ['newmedia0000002'], 'only a ne
 assert.deepEqual(planPublishedMediaCleanup('', '<p>legacy content</p>').removable, [], 'legacy records without candidates must never enter cleanup');
 
 assert.equal(publishedEntryViewerUrl('posts', { slug: 'hello world' }), '/posts/hello%20world/');
+assert.equal(
+  publishedEntryViewerUrl('posts', { slug: '\ubca0\ud2b8\ub0a8-\uc0ac\ud30c' }),
+  '/posts/%EB%B2%A0%ED%8A%B8%EB%82%A8-%EC%82%AC%ED%8C%8C/',
+  'Korean post slugs must be encoded safely in public links',
+);
 assert.equal(publishedEntryViewerUrl('daily', { day_key: '2026-08-03' }), '/daily/2026-08-03/');
 assert.equal(publishedEntryViewerUrl('programs', { slug: 'my-app' }), '/programs/view.html?slug=my-app');
 assert.equal(
@@ -406,6 +411,12 @@ globalThis.window = {
 };
 
 const pbModule = await import('../js/pb.js');
+assert.equal(
+  pbModule.slugify('(26.02.24-26.03.06)\ubca0\ud2b8\ub0a8 \ud138: \uc0ac\ud30c'),
+  '260224-260306-\ubca0\ud2b8\ub0a8-\ud138-\uc0ac\ud30c',
+  'post slugs must preserve Korean title words while normalizing punctuation',
+);
+assert.equal(pbModule.slugify('Caf\u00e9 \uc5ec\ud589\uae30'), 'cafe-\uc5ec\ud589\uae30', 'Latin accent folding must remain stable alongside Korean slugs');
 let requestedPostSort = '';
 pbModule.pb.collection = collectionName => {
   assert.equal(collectionName, 'posts');
@@ -558,6 +569,10 @@ assert.deepEqual(mediaFileField.thumbs, ['400x400', '800x0', '1600x0'], 'media s
 assert.equal(mediaFileField.maxSize, 8 * 1024 * 1024 * 1024, 'media originals must allow one 8GB file');
 const programsCollection = schema.collections.find(collection => collection.name === 'programs');
 assert.equal(programsCollection.fields.find(field => field.name === 'download_files').maxSize, 2 * 1024 * 1024 * 1024, 'program downloads must keep their separate 2GB limit');
+for (const collectionName of ['posts', 'programs']) {
+  const collection = schema.collections.find(item => item.name === collectionName);
+  assert.match(collection.fields.find(field => field.name === 'slug').pattern, /\uac00-\ud7a3/, `${collectionName} schema must accept generated Korean slugs`);
+}
 for (const collectionName of ['posts', 'daily_entries', 'programs']) {
   const collection = schema.collections.find(item => item.name === collectionName);
   assert.equal(collection.fields.find(field => field.name === 'pending_media_ids')?.max, 10000, `${collectionName} must persist only future editor-upload cleanup candidates`);
@@ -589,6 +604,10 @@ assert.match(resumableMigration, /CREATE UNIQUE INDEX/, 'production migration mu
 const pendingMediaMigration = fs.readFileSync(new URL('../pb_migrations/1786885200_add_pending_media_ids.js', import.meta.url), 'utf8');
 assert.match(pendingMediaMigration, /\["posts", "daily_entries", "programs"\]/, 'production migration must cover every draft-capable shared editor');
 assert.match(pendingMediaMigration, /name: "pending_media_ids"/, 'production migration must add the future-only cleanup candidate field');
+
+const koreanSlugMigration = fs.readFileSync(new URL('../pb_migrations/1787065200_allow_korean_content_slugs.js', import.meta.url), 'utf8');
+assert.match(koreanSlugMigration, /\["posts", "programs"\]/, 'Korean slug migration must cover every collection using the shared title slugger');
+assert.match(koreanSlugMigration, /\\uac00-\\ud7a3/, 'Korean slug migration must widen the live PocketBase validation pattern');
 
 const siteSource = fs.readFileSync(new URL('../js/site.js', import.meta.url), 'utf8');
 assert.match(siteSource, /history\.(?:push|replace)State[\s\S]*syncDocumentBase\(nextDoc\)[\s\S]*content\.innerHTML = nextContent\.innerHTML/, 'SPA navigation must apply the fetched page base before inserting relative links');

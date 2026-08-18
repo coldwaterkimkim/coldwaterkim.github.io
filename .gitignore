@@ -27,3 +27,4 @@ pb_migrations/*
 !pb_migrations/1785942000_add_guestbook_owner_reply.js
 !pb_migrations/1786453200_create_analytics_events.js
 !pb_migrations/1786885200_add_pending_media_ids.js
+!pb_migrations/1787065200_allow_korean_content_slugs.js
