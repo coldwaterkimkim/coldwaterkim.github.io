@@ -41,6 +41,7 @@ import {
   escapeHtml,
   cmsErrorMessage,
   uploadMedia,
+  trimBgmMedia,
   getMediaUrl,
   deleteMediaIfUnreferenced
 } from './pb.js';
@@ -64,6 +65,7 @@ import {
   bgmSlotEndMinute,
   formatBgmMinute,
   normalizeBgmSchedule,
+  remapBgmScheduleTrack,
   randomBgmCandidateIndex,
   scheduledBgmTrackIndexes,
 } from './bgm-playlist-logic.mjs';
@@ -1124,7 +1126,7 @@ function toggleBgmScheduleEditor(audio, uploadButton) {
   const existing = document.querySelector('[data-bgm-schedule-editor]');
   if (existing) {
     if (isBgmScheduleEditorDirty(existing) && !confirm('저장하지 않은 BGM 편성이 있어. 닫을까?')) return;
-    existing.remove();
+		removeBgmScheduleEditor(existing, audio);
     return;
   }
 
@@ -1138,7 +1140,7 @@ function openBgmScheduleEditor(audio, uploadButton, options = {}) {
   const existing = document.querySelector('[data-bgm-schedule-editor]');
   if (existing) {
     if (!options.replace && isBgmScheduleEditorDirty(existing)) return;
-    existing.remove();
+		removeBgmScheduleEditor(existing, audio);
   }
 
   const playlist = getBgmPlaylist(audio);
@@ -1169,20 +1171,27 @@ function openBgmScheduleEditor(audio, uploadButton, options = {}) {
       </td>
     `).join('');
     const unassigned = assignedSlotIds.length === 0 ? '<small class="bgm-unassigned">미배정</small>' : '';
+	const mediaId = track.mediaId || bgmMediaRecordId(track.url);
 
     return `
       <tr>
         <th scope="row" class="bgm-schedule-track">
           <span class="bgm-track-actions">
             <button type="button" class="owner-btn bgm-preview-btn" data-bgm-preview="${trackIndex}" title="이 곡 미리듣기">▶</button>
+			<button type="button" class="owner-btn bgm-trim-btn" data-bgm-trim="${trackIndex}"
+			  aria-label="${escapeHtml(track.title)} 자르기"
+			  ${mediaId ? '' : 'disabled title="PocketBase에 올린 MP3만 자를 수 있음"'}>자르기</button>
             <button type="button" class="owner-btn owner-btn-danger bgm-delete-btn" data-bgm-delete="${trackIndex}"
-              ${track.mediaId || bgmMediaRecordId(track.url) ? '' : 'disabled title="PocketBase에 올린 MP3만 삭제할 수 있음"'}>삭제</button>
+			  ${mediaId ? '' : 'disabled title="PocketBase에 올린 MP3만 삭제할 수 있음"'}>삭제</button>
           </span>
           <span>${escapeHtml(track.title || defaultBgmTitle(audio))}</span>
           ${unassigned}
         </th>
         ${assignmentCells}
       </tr>
+	  <tr class="bgm-trim-row" data-bgm-trim-row="${trackIndex}" hidden>
+		<td colspan="${schedule.slots.length + 1}"></td>
+	  </tr>
     `;
   }).join('');
 
@@ -1240,7 +1249,7 @@ function bindBgmScheduleEditor(panel, audio, uploadButton) {
 
   panel.querySelector('[data-bgm-editor-close]')?.addEventListener('click', () => {
     if (isBgmScheduleEditorDirty(panel) && !confirm('저장하지 않은 BGM 편성이 있어. 닫을까?')) return;
-    panel.remove();
+		removeBgmScheduleEditor(panel, audio);
   });
   panel.querySelector('[data-bgm-editor-upload]')?.addEventListener('click', () => uploadButton?.click());
   panel.querySelector('[data-bgm-time-toggle]')?.addEventListener('click', event => {
@@ -1261,6 +1270,10 @@ function bindBgmScheduleEditor(panel, audio, uploadButton) {
       }
     });
   });
+
+	panel.querySelectorAll('[data-bgm-trim]').forEach(button => {
+		button.addEventListener('click', () => openBgmTrimEditor(panel, audio, uploadButton, button));
+	});
 
   panel.querySelectorAll('[data-bgm-delete]').forEach(button => {
     button.addEventListener('click', async () => {
@@ -1345,6 +1358,249 @@ function bindBgmScheduleEditor(panel, audio, uploadButton) {
       saveButton.disabled = false;
     }
   });
+}
+
+async function openBgmTrimEditor(panel, audio, uploadButton, triggerButton) {
+	const trackIndex = Number(triggerButton.dataset.bgmTrim);
+	const playlist = getBgmPlaylist(audio);
+	const track = playlist[trackIndex];
+	const mediaId = track?.mediaId || bgmMediaRecordId(track?.url);
+	const row = panel.querySelector(`[data-bgm-trim-row="${trackIndex}"]`);
+	const cell = row?.querySelector('td');
+	if (!track || !mediaId || !row || !cell) return;
+
+	const openRow = panel.querySelector('[data-bgm-trim-row]:not([hidden])');
+	if (openRow && openRow !== row) closeBgmTrimEditor(openRow, audio, false);
+	if (!row.hidden) {
+		closeBgmTrimEditor(row, audio, true);
+		return;
+	}
+
+	row.hidden = false;
+	cell.innerHTML = `
+		<div class="bgm-trim-editor" data-bgm-trim-editor>
+			<div class="bgm-trim-heading">
+				<b>✂ ${escapeHtml(track.title)} 자르기</b>
+				<button type="button" class="owner-btn" data-bgm-trim-close>닫기</button>
+			</div>
+			<div class="bgm-trim-waveform" data-bgm-trim-waveform aria-label="${escapeHtml(track.title)} 파형"></div>
+			<div class="bgm-trim-fields">
+				<label>시작(초) <input type="number" min="0" step="0.01" value="0" data-bgm-trim-start></label>
+				<label>끝(초) <input type="number" min="0.25" step="0.01" value="" data-bgm-trim-end></label>
+				<span class="note" data-bgm-trim-length>파형 불러오는 중...</span>
+			</div>
+			<div class="bgm-trim-actions">
+				<button type="button" class="owner-btn" data-bgm-trim-preview disabled>▶ 선택 구간</button>
+				<button type="button" class="owner-btn" data-bgm-trim-replace disabled>이 구간으로 교체</button>
+				<span class="bgm-schedule-status" data-bgm-trim-status aria-live="polite">곡 하나만 불러오는 중...</span>
+			</div>
+		</div>
+	`;
+	const editor = cell.querySelector('[data-bgm-trim-editor]');
+	const waveform = editor.querySelector('[data-bgm-trim-waveform]');
+	const startInput = editor.querySelector('[data-bgm-trim-start]');
+	const endInput = editor.querySelector('[data-bgm-trim-end]');
+	const length = editor.querySelector('[data-bgm-trim-length]');
+	const previewButton = editor.querySelector('[data-bgm-trim-preview]');
+	const replaceButton = editor.querySelector('[data-bgm-trim-replace]');
+	const trimStatus = editor.querySelector('[data-bgm-trim-status]');
+	let region = null;
+	let duration = 0;
+	let resumeMainAudio = false;
+	let trimRequestId = '';
+
+	const updateFields = (start, end, updateInputs = true) => {
+		const safeStart = Math.max(0, Math.min(Number(start) || 0, duration));
+		const safeEnd = Math.max(safeStart, Math.min(Number(end) || 0, duration));
+		if (updateInputs) {
+			startInput.value = safeStart.toFixed(2);
+			endInput.value = safeEnd.toFixed(2);
+		}
+		length.textContent = `전체 ${formatBgmDuration(duration)} · 선택 ${formatBgmDuration(safeEnd - safeStart)}`;
+	};
+
+	try {
+		const [{ default: WaveSurfer }, { default: RegionsPlugin }] = await Promise.all([
+			import('wavesurfer.js'),
+			import('wavesurfer.js/dist/plugins/regions.esm.js'),
+		]);
+		if (!row.isConnected || row.hidden) return;
+		const regions = RegionsPlugin.create();
+		const waveSurfer = WaveSurfer.create({
+			container: waveform,
+			url: track.url,
+			height: 72,
+			waveColor: '#777777',
+			progressColor: '#000080',
+			cursorColor: '#cc0000',
+			barWidth: 2,
+			barGap: 1,
+			plugins: [regions],
+		});
+		row._bgmWaveSurfer = waveSurfer;
+		row._bgmResumeMainAudio = () => resumeMainAudio;
+
+		waveSurfer.on('decode', decodedDuration => {
+			duration = decodedDuration;
+			endInput.max = duration.toFixed(3);
+			startInput.max = Math.max(0, duration - 0.25).toFixed(3);
+			region = regions.addRegion({
+				start: 0,
+				end: duration,
+				drag: true,
+				resize: true,
+				minLength: 0.25,
+				color: 'rgba(255, 233, 122, 0.45)',
+			});
+			updateFields(0, duration);
+			previewButton.disabled = false;
+			replaceButton.disabled = false;
+			trimStatus.textContent = '노란 구간 양끝을 끌거나 초 단위 값을 입력하시오.';
+		});
+		waveSurfer.on('error', error => {
+			trimStatus.textContent = `파형 로딩 실패: ${cmsErrorMessage(error)}`;
+			trimStatus.classList.add('is-error');
+		});
+		regions.on('region-updated', nextRegion => {
+			if (nextRegion !== region) return;
+			updateFields(region.start, region.end);
+		});
+		regions.on('region-out', activeRegion => {
+			if (activeRegion === region) waveSurfer.pause();
+		});
+
+		const applyInputsToRegion = () => {
+			if (!region || duration <= 0) return;
+			const start = Number(startInput.value);
+			const end = Number(endInput.value);
+			if (!Number.isFinite(start) || !Number.isFinite(end) || start < 0 || end - start < 0.25 || end > duration + 0.01) {
+				trimStatus.textContent = '시작보다 최소 0.25초 뒤의 끝 지점을 골라줘.';
+				trimStatus.classList.add('is-error');
+				previewButton.disabled = true;
+				replaceButton.disabled = true;
+				return false;
+			}
+			trimStatus.classList.remove('is-error');
+			region.setOptions({ start, end });
+			updateFields(start, end);
+			previewButton.disabled = false;
+			replaceButton.disabled = false;
+			return true;
+		};
+		startInput.addEventListener('input', applyInputsToRegion);
+		endInput.addEventListener('input', applyInputsToRegion);
+
+		previewButton.addEventListener('click', () => {
+			if (!region) return;
+			if (!audio.paused) {
+				resumeMainAudio = true;
+				audio.pause();
+			}
+			region.play();
+		});
+
+		replaceButton.addEventListener('click', async () => {
+			if (isBgmScheduleEditorDirty(panel)) {
+				alert('먼저 편성 저장을 눌러 변경 내용을 저장한 뒤 MP3를 잘라줘.');
+				return;
+			}
+			if (!region || duration <= 0 || applyInputsToRegion() === false || region.end - region.start < 0.25) return;
+			if (region.start < 0.01 && Math.abs(region.end - duration) < 0.01) {
+				alert('곡 전체가 선택되어 있어. 앞이나 뒤를 줄인 다음 교체해줘.');
+				return;
+			}
+			if (!confirm(`“${track.title}”을 ${formatBgmDuration(region.start)} ~ ${formatBgmDuration(region.end)} 구간으로 교체할까?\n\n교체 성공 뒤 이전 파일은 다른 콘텐츠에서 쓰지 않을 때 서버에서도 삭제됨.`)) return;
+
+			waveSurfer.pause();
+			setBgmScheduleEditorBusy(panel, true);
+			trimStatus.classList.remove('is-error');
+			trimStatus.textContent = 'iMac에서 MP3 자르는 중...';
+			let newMediaId = '';
+			try {
+				trimRequestId ||= crypto.randomUUID();
+				const result = await trimBgmMedia(mediaId, region.start, region.end, trimRequestId);
+				const media = result.media;
+				newMediaId = media.id;
+				const replacement = {
+					url: getMediaUrl(media, media.file),
+					title: track.title,
+					uploadedAt: new Date().toISOString(),
+					mediaId: media.id,
+				};
+				const currentPlaylist = getBgmPlaylist(audio);
+				const oldKey = bgmTrackKey(track);
+				const currentKey = bgmTrackKey(currentPlaylist[audio._bgmTrackIndex]);
+				const wasPlaying = !audio.paused || resumeMainAudio;
+				const nextPlaylist = currentPlaylist.map((item, index) => index === trackIndex ? replacement : item);
+				const nextSchedule = remapBgmScheduleTrack(
+					getBgmSchedule(audio),
+					oldKey,
+					bgmTrackKey(replacement),
+					bgmTrackKeys(nextPlaylist),
+				);
+				await saveBgmLibrarySettings(nextPlaylist, nextSchedule);
+
+				setBgmSchedule(audio, nextSchedule, nextPlaylist);
+				const nextIndex = currentKey === oldKey
+					? trackIndex
+					: Math.max(0, nextPlaylist.findIndex(item => bgmTrackKey(item) === currentKey));
+				setBgmPlaylist(audio, audio._bgmTrackTitle, nextPlaylist, nextIndex);
+				if (wasPlaying) audio.play().catch(() => setBgmPromptVisible(ensureBgmPrompt(audio.closest('.mini-player'), audio), true));
+
+				let cleanupFailed = false;
+				try {
+					await deleteMediaIfUnreferenced(mediaId);
+				} catch (error) {
+					cleanupFailed = true;
+					console.warn('Previous BGM cleanup failed:', cmsErrorMessage(error));
+				}
+				closeBgmTrimEditor(row, audio, false);
+				openBgmScheduleEditor(audio, uploadButton, {
+					replace: true,
+					message: cleanupFailed
+						? `“${track.title}” 교체 완료. 이전 파일 정리 여부는 확인하지 못했음.`
+						: `“${track.title}”을 ${formatBgmDuration(result.duration_seconds || (region.end - region.start))} 길이로 교체 완료.`,
+				});
+			} catch (error) {
+				if (newMediaId) await deleteMediaIfUnreferenced(newMediaId).catch(() => {});
+				trimStatus.textContent = `교체 실패: ${cmsErrorMessage(error)}`;
+				if (error.bgmRollbackFailed) trimStatus.textContent += ' · 설정 복구 상태 확인 필요';
+				trimStatus.classList.add('is-error');
+				setBgmScheduleEditorBusy(panel, false);
+			}
+		});
+	} catch (error) {
+		trimStatus.textContent = `파형 준비 실패: ${cmsErrorMessage(error)}`;
+		trimStatus.classList.add('is-error');
+	}
+
+	editor.querySelector('[data-bgm-trim-close]')?.addEventListener('click', () => closeBgmTrimEditor(row, audio, true));
+	row.scrollIntoView({ block: 'nearest' });
+}
+
+function removeBgmScheduleEditor(panel, audio) {
+	const openTrimRow = panel.querySelector('[data-bgm-trim-row]:not([hidden])');
+	if (openTrimRow) closeBgmTrimEditor(openTrimRow, audio, false);
+	panel.remove();
+}
+
+function closeBgmTrimEditor(row, audio, restoreFocus) {
+	const triggerIndex = row.dataset.bgmTrimRow;
+	const shouldResume = row._bgmResumeMainAudio?.() === true;
+	row._bgmWaveSurfer?.destroy();
+	delete row._bgmWaveSurfer;
+	delete row._bgmResumeMainAudio;
+	row.hidden = true;
+	row.querySelector('td')?.replaceChildren();
+	if (shouldResume) audio.play().catch(() => {});
+	if (restoreFocus) row.closest('[data-bgm-schedule-editor]')?.querySelector(`[data-bgm-trim="${triggerIndex}"]`)?.focus();
+}
+
+function formatBgmDuration(value) {
+	const total = Math.max(0, Number(value) || 0);
+	const minutes = Math.floor(total / 60);
+	const seconds = total - (minutes * 60);
+	return `${minutes}:${seconds.toFixed(2).padStart(5, '0')}`;
 }
 
 function collectBgmScheduleEditorValue(panel, audio, playlist) {

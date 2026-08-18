@@ -1491,6 +1491,22 @@ export async function uploadMedia(file, altText = '', caption = '', options = {}
     return await uploadMediaDirect(file, altText, caption, options);
 }
 
+export async function trimBgmMedia(mediaId, startSecond, endSecond, requestId) {
+    const result = await pb.send('/api/cwk/bgm/trim', {
+        method: 'POST',
+        body: {
+            media_id: mediaId,
+            start_second: startSecond,
+            end_second: endSecond,
+            request_id: requestId
+        }
+    });
+    if (!result?.media?.id || !result.media.file) {
+        throw new Error('잘라낸 MP3 응답이 올바르지 않아.');
+    }
+    return result;
+}
+
 async function uploadMediaDirect(file, altText = '', caption = '', options = {}) {
     const formData = new FormData();
     formData.append('file', file);

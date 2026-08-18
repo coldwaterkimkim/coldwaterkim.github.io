@@ -111,6 +111,21 @@ export function bgmSlotEndMinute(slots, slotIndex) {
   return normalized[(slotIndex + 1) % normalized.length].startMinute;
 }
 
+export function remapBgmScheduleTrack(schedule, oldTrackKey, newTrackKey, trackKeys) {
+  const keys = normalizeTrackKeys(trackKeys);
+  const oldKey = String(oldTrackKey || '').trim();
+  const newKey = String(newTrackKey || '').trim();
+  const normalized = normalizeBgmSchedule(schedule, oldKey && !keys.includes(oldKey) ? [oldKey, ...keys] : keys);
+  const assignments = { ...normalized.assignments };
+
+  if (oldKey && newKey && oldKey !== newKey) {
+    assignments[newKey] = Array.isArray(assignments[oldKey]) ? [...assignments[oldKey]] : [];
+    delete assignments[oldKey];
+  }
+
+  return normalizeBgmSchedule({ ...normalized, assignments }, keys);
+}
+
 export function bgmMediaRecordId(value) {
   try {
     const url = new URL(String(value || ''), 'https://coldwaterkim.com/');

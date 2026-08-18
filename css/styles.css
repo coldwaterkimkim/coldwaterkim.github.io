@@ -602,6 +602,54 @@ body > center > table[width="1140"] > tbody > tr > td {
   padding: 1px 4px;
 }
 
+.bgm-trim-btn {
+  padding: 1px 4px;
+}
+
+.bgm-trim-row > td {
+  padding: 7px !important;
+  background: var(--cwk-surface-preview);
+  text-align: left !important;
+}
+
+.bgm-trim-editor {
+  box-sizing: border-box;
+  min-width: 480px;
+}
+
+.bgm-trim-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.bgm-trim-waveform {
+  height: 72px;
+  border: 1px inset var(--cwk-border-dashed);
+  background: var(--cwk-surface-page);
+}
+
+.bgm-trim-fields,
+.bgm-trim-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px 9px;
+  margin-top: 6px;
+}
+
+.bgm-trim-fields input[type="number"] {
+  box-sizing: border-box;
+  width: 92px;
+  font: inherit;
+}
+
+.bgm-trim-actions .bgm-schedule-status {
+  margin-left: 0;
+}
+
 .bgm-unassigned {
   margin-left: 5px;
   color: var(--cwk-danger, #cc0000);
@@ -2852,6 +2900,10 @@ body > center > table[width="1140"] > tbody > tr > td {
 
   .bgm-schedule-slot {
     min-width: 64px;
+  }
+
+  .bgm-trim-editor {
+    min-width: 430px;
   }
 
   input,

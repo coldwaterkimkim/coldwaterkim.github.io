@@ -8,6 +8,7 @@ import {
   bgmMediaRecordId,
   bgmMinuteInTimeZone,
   normalizeBgmSchedule,
+  remapBgmScheduleTrack,
   randomBgmCandidateIndex,
   randomBgmTrackIndex,
   scheduledBgmTrackIndexes,
@@ -37,6 +38,11 @@ check(siteSource.includes("scheduleButton.textContent = 'BGM 편성표'"), 'OWNE
 check(siteSource.includes('data-bgm-assignment'), 'the schedule editor must render track/time assignment checkboxes');
 check(siteSource.includes('input.multiple = true'), 'OWNER MODE must accept multiple MP3 files in one selection');
 check(siteSource.includes('data-bgm-delete'), 'the schedule editor must expose per-track deletion');
+check(siteSource.includes('data-bgm-trim'), 'the schedule editor must expose per-track MP3 trimming');
+check(siteSource.includes("import('wavesurfer.js')"), 'the waveform editor must load only when a track is selected');
+check(siteSource.includes('trimBgmMedia(mediaId, region.start, region.end, trimRequestId)'), 'BGM trimming must use an idempotent authenticated server request');
+check(siteSource.includes('await saveBgmLibrarySettings(nextPlaylist, nextSchedule)'), 'the trimmed playlist and schedule must save before old media cleanup');
+check(siteSource.includes('removeBgmScheduleEditor(existing, audio)'), 'closing or redrawing the schedule must destroy an open waveform editor');
 check(siteSource.includes('deleteMediaIfUnreferenced(mediaId)'), 'BGM deletion must preserve media referenced by other content');
 check(siteSource.includes('getSettingStrict(BGM_PLAYLIST_SETTING_KEY)'), 'BGM rollback snapshots must not turn read failures into empty settings');
 check(siteSource.includes('setBgmScheduleEditorBusy(panel, true)'), 'schedule controls must lock during track deletion');
@@ -126,5 +132,25 @@ check(
   'external file URLs cannot select a local media record for deletion',
 );
 check(bgmMediaRecordId('/assets/bgm/local.mp3') === '', 'local fallback MP3 files are not treated as deletable media records');
+
+const trimmedKey = 'track-a-trimmed';
+const remappedSchedule = remapBgmScheduleTrack(
+  customSchedule,
+  'track-a',
+  trimmedKey,
+  [trimmedKey, 'track-b', 'track-c'],
+);
+check(!('track-a' in remappedSchedule.assignments), 'trim replacement removes the old URL assignment key');
+check(
+  remappedSchedule.assignments[trimmedKey].join(',') === 'dawn,night',
+  'trim replacement preserves the old track time assignments',
+);
+const unassignedRemap = remapBgmScheduleTrack(
+  customSchedule,
+  'track-c',
+  'track-c-trimmed',
+  ['track-a', 'track-b', 'track-c-trimmed'],
+);
+check(unassignedRemap.assignments['track-c-trimmed'].length === 0, 'trim replacement preserves an explicit unassigned track');
 
 console.log(`Home/BGM QA passed (${assertions} assertions).`);

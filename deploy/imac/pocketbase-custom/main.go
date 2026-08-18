@@ -109,6 +109,7 @@ func main() {
 		log.Fatal(err)
 	}
 	seoPages := newSEORenderer(app, siteDir)
+	bgmTrimmer := newBGMTrimService(app)
 	app.Cron().MustAdd("cleanup-tus-uploads", "17 4 * * *", func() {
 		if err := resumableUploads.cleanupStaleUploads(time.Now()); err != nil {
 			app.Logger().Warn("Failed to clean stale tus uploads", "error", err.Error())
@@ -143,6 +144,7 @@ func main() {
 
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
 		resumableUploads.registerRoutes(e)
+		bgmTrimmer.registerRoutes(e)
 		seoPages.registerRoutes(e)
 		return e.Next()
 	})
