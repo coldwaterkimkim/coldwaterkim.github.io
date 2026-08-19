@@ -534,6 +534,7 @@ assert.match(markdownEditorSource, /원본 전체로/, 'the crop dialog must pro
 assert.doesNotMatch(markdownEditorSource, /toBlob\(|drawImage\(|getContext\(['"]2d/, 'visual cropping must never create or overwrite a raster file');
 assert.doesNotMatch(markdownEditorSource, /markdown-editor-crop-button/, 'the crop action must not stay fixed at the top of the editor');
 assert.match(markdownEditorSource, /cwk-image-crop-toolbar-button/, 'the selected image toolbar must expose the crop action next to the image');
+assert.match(markdownEditorSource, /key: crop\.enabled \? 'cwk-cropped' : 'cwk-full'/, 'enabling a crop must remount the BlockNote image wrapper with its new preview width');
 assert.match(markdownEditorSource, /pocketBaseImageSources\(originalImageUrl\)\?\.editorPreviewUrl/, 'the editor must render PocketBase images from bounded previews');
 assert.match(markdownEditorSource, /loading: 'lazy'/, 'the editor must defer offscreen image loading');
 assert.match(markdownEditorSource, /decoding: 'async'/, 'the editor must decode image previews asynchronously');

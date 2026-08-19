@@ -568,6 +568,7 @@ function CroppableImageBlock(props) {
 
     return h(ResizableFileBlockWrapper, {
         ...props,
+        key: crop.enabled ? 'cwk-cropped' : 'cwk-full',
         buttonIcon: h('span', { 'aria-hidden': 'true' }, '🖼️')
     }, preview);
 }
