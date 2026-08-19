@@ -40,6 +40,8 @@ check(siteSource.includes('input.multiple = true'), 'OWNER MODE must accept mult
 check(siteSource.includes('data-bgm-delete'), 'the schedule editor must expose per-track deletion');
 check(siteSource.includes('data-bgm-trim'), 'the schedule editor must expose per-track MP3 trimming');
 check(siteSource.includes("import('wavesurfer.js')"), 'the waveform editor must load only when a track is selected');
+check(siteSource.includes('region.play(true)'), 'trim preview must play the latest selected region through its end');
+check(!siteSource.includes("regions.on('region-out'"), 'trim preview must not race region playback with manual region-out pausing');
 check(siteSource.includes('trimBgmMedia(mediaId, region.start, region.end, trimRequestId)'), 'BGM trimming must use an idempotent authenticated server request');
 check(siteSource.includes('await saveBgmLibrarySettings(nextPlaylist, nextSchedule)'), 'the trimmed playlist and schedule must save before old media cleanup');
 check(siteSource.includes('removeBgmScheduleEditor(existing, audio)'), 'closing or redrawing the schedule must destroy an open waveform editor');

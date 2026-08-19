@@ -1465,10 +1465,6 @@ async function openBgmTrimEditor(panel, audio, uploadButton, triggerButton) {
 			if (nextRegion !== region) return;
 			updateFields(region.start, region.end);
 		});
-		regions.on('region-out', activeRegion => {
-			if (activeRegion === region) waveSurfer.pause();
-		});
-
 		const applyInputsToRegion = () => {
 			if (!region || duration <= 0) return;
 			const start = Number(startInput.value);
@@ -1496,7 +1492,7 @@ async function openBgmTrimEditor(panel, audio, uploadButton, triggerButton) {
 				resumeMainAudio = true;
 				audio.pause();
 			}
-			region.play();
+			region.play(true);
 		});
 
 		replaceButton.addEventListener('click', async () => {
