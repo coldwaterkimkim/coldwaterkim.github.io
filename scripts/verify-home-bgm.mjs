@@ -24,10 +24,8 @@ function check(condition, message) {
   assertions += 1;
 }
 
-check(
-  homeSource.indexOf('id="recent-daily-table"') < homeSource.indexOf('id="recent-posts-table"'),
-  'the daily table must appear before the posts table on Home',
-);
+check(homeSource.includes('id="recent-all-table"'), 'Home must expose the unified recent five table');
+check(!homeSource.includes('id="recent-daily-table"'), 'the retired per-category recent tables must stay removed');
 check(siteSource.includes('randomBgmCandidateIndex(scheduledBgmTrackIndexes('), 'initial BGM selection must use the active time slot');
 check(
   siteSource.includes('randomScheduledBgmTrackIndex(audio, audio._bgmTrackIndex)'),

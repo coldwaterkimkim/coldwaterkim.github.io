@@ -16,7 +16,7 @@
 
 공개 페이지는 로드 초기에 같은 origin의 `/api/health`를 확인한다. PocketBase 또는 DB가 응답하지 않으면 독립형 `maintenance.html`로 이동하고, Caddy가 동적 글·하루 URL에서 502/503/504를 받은 경우에도 같은 공사 화면을 직접 제공한다. 화면은 5초 간격으로 자동 복구를 확인해 원래 URL로 돌아가며, 수동 `새로고침` 버튼은 횟수별 대사와 주인장 반응 애니메이션만 담당한다. 이 fallback은 Caddy와 정적 `dist`가 살아 있을 때만 동작하고 iMac·전원·회선·DNS·Caddy 전체 장애는 포함하지 않는다.
 
-공개 메인 IA 페이지(`Home`, `글방`, `글 상세`, `나으 하루`, `앨범`, `프로그램실`, `나사잡`, `Guestbook`, `About / Contact`)는 모두 홈의 2-column shell을 기본 레이아웃으로 쓴다. 즉 상단 marquee, 노란 construction banner, 왼쪽 프로필/sidebar, 나무위키식 PROFILE DATA 표, 오른쪽 content 상단 navigation은 유지하고, 페이지별 내용만 오른쪽 content 영역에서 바뀌게 한다.
+공개 메인 IA 페이지(`Home`, `모아보기`, `글방`, `글 상세`, `나으 하루`, `앨범`, `프로그램실`, `나사잡`, `Guestbook`, `About / Contact`)는 모두 홈의 2-column shell을 기본 레이아웃으로 쓴다. 즉 상단 marquee, 노란 construction banner, 왼쪽 프로필/sidebar, 나무위키식 PROFILE DATA 표, 오른쪽 content 상단 navigation은 유지하고, 페이지별 내용만 오른쪽 content 영역에서 바뀌게 한다.
 
 공개 사이트 내부 이동은 `js/site.js`의 SPA-like router가 처리한다. 같은 origin의 공개 HTML 링크를 클릭하면 전체 문서를 새로고침하지 않고 새 페이지의 `.content`만 fetch해서 교체하며, profile/sidebar/BGM은 유지한다. 따라서 BGM은 메뉴 이동 중 끊기지 않는다. 직접 URL 접근과 새로고침은 기존 정적 HTML 진입을 그대로 지원한다.
 
@@ -36,7 +36,8 @@
 
 - 입장 게이트가 활성화된 경우에만 `localStorage.cwk_entry_last_admitted_at`, `sessionStorage.cwk_entry_admitted`, 날짜별 `site_settings.entry_webmaster_line_YYYY-MM-DD`를 사용한다. 현재 비활성 상태에서는 이 값을 지우지 않고 그대로 보존한다.
 - 글 상세 `post_views`는 게이트가 활성화된 동안에는 `coldwaterkim:entry-admitted` 이후로 미루고, 현재처럼 게이트가 비활성화된 동안에는 기존 방식대로 글 상세 렌더링 직후 기록한다. 전체 방문자 세션은 공개 페이지 도착을 기준으로 유지한다.
-- 공개 홈은 PocketBase에서 `나으 하루`의 최신 날짜 3일을 먼저 보여주고, 이어서 `글방`, `프로그램실`, `나사잡`의 최신 공개 항목 3개씩을 별도 table로 보여준다.
+- 공개 홈은 `모아보기`와 같은 통합 정렬을 사용해 글방·날짜별 나으 하루·프로그램실·나사잡·답글 있는 방명록 중 최근 5개만 table 하나로 보여준다. 앨범 최신 업로드와 방명록 Preview는 글 모음과 별도 영역으로 유지한다.
+- `모아보기`는 글방·날짜별 나으 하루·프로그램실·나사잡·답글 있는 방명록을 최신순으로 합친다. 앨범과 About / Contact는 제외한다. 방명록 행 제목은 `닉네임: 방명록`이고 전용 상세에는 방문자 원문 대신 주인장 답글만 표시한다.
 - 앨범은 발행된 글방/나으 하루 본문에 실제 첨부된 PocketBase 사진과 영상을 업로드 시각 최신순으로 모은다. 미사용 업로드와 초안 미디어는 제외하며 같은 미디어가 여러 글에 쓰이면 한 번만 보인다. 본문 변경을 SQL view `album_items`가 즉시 반영하므로 별도 색인 작업은 없다. 본문은 60개씩 PC 5열·중간 화면 4열·모바일 3열로, 홈은 최신 10개·8개·6개로 보여준다. 타일은 설명 없이 정방형 crop만 사용하고 영상은 포스터와 작은 `VIDEO` 표지만 보인다. 타일을 누르면 해당 글의 미디어 위치로 이동하며 뒤로가기는 기존 앨범 위치를 복원한다.
 - 글 목록은 홈과 같은 shell 안에서 PocketBase `posts` 컬렉션의 `published` 글만 보여주며, 홈의 글방 최근 3개 table과 같이 사용자가 지정한 `published_at` 최신순으로 정렬한다. OWNER MODE와 관리자 목록도 같은 기준을 쓰고, 같은 발행일에서만 `created` 최신순으로 풀어준다.
 - 글 상세 URL은 홈과 같은 shell 안에서 `slug`로 PocketBase 글을 조회하고 해당 글 하나만 렌더링한다. 글방 목록은 여러 글 table이고, 상세는 단일 글 페이지다.
@@ -85,7 +86,7 @@
 
 PocketBase 서버가 꺼져 있으면 공개 사이트는 렌더링되지만 글/방명록 영역은 CMS 연결 실패 메시지를 보여준다.
 
-PocketBase `v0.23.5` 기본 HTTP 읽기/쓰기 제한시간 3분은 느린 외부망의 대용량 영상에서 실패하게 한다. 아이맥 운영 바이너리는 같은 `v0.23.5`를 기반으로 `--httpRequestTimeout=3h`과 tusd `v2.10.0` 재개 업로드 라우트를 함께 넣는다. `media.file` 원본은 최대 8GiB(8,589,934,592바이트)이며, 64MB 이상 영상은 Uppy가 tus 결합 확장으로 원본을 만든다. 256MB 미만은 3개 부분, 그 이상은 서버 권장 6개 부분으로 병렬 전송하고 각 부분은 32MiB PATCH 단위로 재시도한다. OWNER 전용 `/admin/upload-diagnostics.html`은 같은 파일을 3·6·8-way로 A/B하고, 미디어 레코드를 만들지 않은 채 자신이 만든 tus 조각만 정리한다. 연결이 끊기거나 탭을 다시 열어도 서버 오프셋부터 이어서 보내며, 결합 완료 뒤 부분 조각을 먼저 정리해 디스크 사용량을 줄인 다음 `media.file`로 등록한다. 시작 전 20GiB 여유와 결합 피크를 반영한 안전 용량을 검사하고, tus 라우트가 없을 때 대용량 영상을 단순 업로드로 우회하지 않는다. 64MB 미만 파일은 기존 단순 업로드를 쓰고, 임시 조각은 `pb_data` 밖의 `tus-uploads`에서 7일 뒤 정리하며 최종 등록은 숨김 고유키로 중복 실행을 막는다.
+PocketBase `v0.23.5` 기본 HTTP 읽기/쓰기 제한시간 3분은 느린 외부망의 대용량 영상에서 실패하게 한다. 아이맥 운영 바이너리는 같은 `v0.23.5`를 기반으로 `--httpRequestTimeout=3h`과 tusd `v2.10.0` 재개 업로드 라우트를 함께 넣는다. `media.file` 원본은 최대 20GiB(21,474,836,480바이트)이며, 64MB 이상 영상은 Uppy가 tus 결합 확장으로 원본을 만든다. 256MB 미만은 3개 부분, 그 이상은 서버 권장 6개 부분으로 병렬 전송하고 각 부분은 32MiB PATCH 단위로 재시도한다. OWNER 전용 `/admin/upload-diagnostics.html`은 같은 파일을 3·6·8-way로 A/B하고, 미디어 레코드를 만들지 않은 채 자신이 만든 tus 조각만 정리한다. 연결이 끊기거나 탭을 다시 열어도 서버 오프셋부터 이어서 보내며, 결합 완료 뒤 부분 조각을 먼저 정리해 디스크 사용량을 줄인 다음 `media.file`로 등록한다. 시작 전 20GiB 여유와 결합 피크를 반영한 안전 용량을 검사하고, tus 라우트가 없을 때 대용량 영상을 단순 업로드로 우회하지 않는다. 64MB 미만 파일은 기존 단순 업로드를 쓰고, 임시 조각은 `pb_data` 밖의 `tus-uploads`에서 7일 뒤 정리하며 최종 등록은 숨김 고유키로 중복 실행을 막는다.
 
 `api.coldwaterkim.com`은 Cloudflare DNS 전용 A record로 Oracle VM에 연결되어 있으며, 현재는 롤백용으로 유지한다.
 
@@ -105,6 +106,8 @@ PocketBase `v0.23.5` 기본 HTTP 읽기/쓰기 제한시간 3분은 느린 외�
 운영 프론트엔드는 GitHub Pages 자동 배포 대상으로 정리했다. 운영 PocketBase API 서버는 아직 연결 전이라, CMS 데이터의 live 반영은 `api.coldwaterkim.com` 서버 세팅 후 완료된다.
 
 ## 배포 준비 기록
+
+- 2026-08-20 모아보기와 홈 통합 최근 글 5개, 방명록 답글 전용 상세, 미디어 원본 20GiB 업로드 계약을 소스에 반영했다. 기존 8GiB migration은 역사로 보존하고 새 additive migration이 `media.file`을 21,474,836,480바이트로 올리며 rollback은 8GiB로 되돌린다. 이 항목은 구현 기록이며 운영 배포·migration 적용·20GiB 실파일 업로드 검증은 별도 승인 후 진행한다.
 
 - GitHub Actions 배포 워크플로를 PocketBase 기준으로 정리했다.
 - Supabase secret 의존성을 제거했다.

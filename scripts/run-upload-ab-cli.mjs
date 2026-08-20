@@ -122,7 +122,7 @@ async function runVariant({ source, parallelUploads, chunkSize, runNumber, fileN
 
   const uppy = new Uppy({
     autoProceed: false,
-    restrictions: { maxNumberOfFiles: 1, maxFileSize: 8 * 1024 * MIB },
+    restrictions: { maxNumberOfFiles: 1, maxFileSize: 20 * 1024 * MIB },
   });
 
   uppy.use(Tus, {

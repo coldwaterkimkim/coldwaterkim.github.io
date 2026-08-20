@@ -42,8 +42,8 @@ Rollback 기준:
 - `npm run build`는 기존 GitHub Pages용으로 계속 `api.coldwaterkim.com`을 본다.
 - `npm run build:imac`은 `coldwaterkim.com` 같은 origin의 `/api`를 본다.
 - 공개 dist 안에 `cdn.jsdelivr.net` 런타임 의존이 없다.
-- `media.file` 원본 업로드 한도는 8GiB(8,589,934,592바이트)이고, `programs.download_files`는 별도 2GB 한도를 유지한다.
-- 느린 외부망에서도 8GiB 원본을 재개 업로드할 수 있도록 PocketBase HTTP 읽기/쓰기 제한시간은 3시간이다.
+- `media.file` 원본 업로드 한도는 20GiB(21,474,836,480바이트)이고, `programs.download_files`는 별도 2GB 한도를 유지한다.
+- 느린 외부망에서도 20GiB 원본을 재개 업로드할 수 있도록 PocketBase HTTP 읽기/쓰기 제한시간은 3시간이다.
 - 64MB 이상 영상은 Uppy/tus로 중단 지점부터 재개하며, 완료 후에만 기존 `media.file` 원본으로 등록한다.
 - OWNER 전용 `/admin/upload-diagnostics.html`은 동일 영상을 3·6·8-way로 전송해 비교하고 미디어 레코드 없이 자신이 만든 tus 조각만 정리한다. `npm run imac:upload-ab:summary`로 `cwk-ab-*` 운영 로그를 독립 집계한다.
 - GUI 없이 실제 클라이언트 파일을 비교할 때는 `npm run imac:upload-ab:run`에 `CWK_TUS_AB_FILE=/절대/경로/영상.mp4`와 `CWK_TUS_AB_CLIENT=macbook`을 전달한다. 64MiB~1GiB의 MP4/MOV/M4V/WebM을 변형 없이 읽어 3·6·8-way를 비교하며, 인증값은 `CWK_TUS_QA_*` 환경변수로만 전달하고 결과 JSON에는 남기지 않는다.
@@ -190,7 +190,7 @@ QA:
 - `/` 홈 렌더링
 - `/posts/`, `/daily/`, `/programs/`, `/nasajab/`, `/guestbook.html`, `/about.html` 직접 URL 200
 - 브라우저 콘솔 error 0개
-- `media.file` maxSize가 `8589934592`, `programs.download_files`가 `2147483648`
+- `media.file` maxSize가 `21474836480`, `programs.download_files`가 `2147483648`
 - launchd PocketBase 설정이 운영 런타임 폴더의 `pb_data`와 `pb_migrations`를 함께 사용
 - 관리자 로그인
 - 테스트 글 작성/수정/삭제
@@ -285,7 +285,7 @@ npm run pb:rehearse:backup -- migration_backups/pocketbase/<backup-name>.zip --s
 - 리허설 `pb_data`로 PocketBase가 기동
 - `/api/health` 200
 - 운영 글/방명록/미디어 샘플이 리허설 DB에서 일치
-- `media.file` maxSize가 `8589934592`, `programs.download_files`가 `2147483648`
+- `media.file` maxSize가 `21474836480`, `programs.download_files`가 `2147483648`
 
 ## Stage 4. DNS cutover
 

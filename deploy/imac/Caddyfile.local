@@ -2,7 +2,7 @@ http://127.0.0.1:18081 {
     encode zstd gzip
 
     request_body {
-        max_size 8GiB
+        max_size 20GiB
     }
 
     handle /api/* {

@@ -929,6 +929,35 @@ export async function getGuestbookEntries(page = 1, perPage = 50) {
     });
 }
 
+export async function getAnsweredGuestbookSummaries(page = 1, perPage = 50) {
+    return await pb.collection('guestbook').getList(page, perPage, {
+        filter: "owner_reply != ''",
+        sort: '-owner_replied_at,-created',
+        fields: 'id,name,owner_reply,owner_replied_at,display_date,created,updated'
+    });
+}
+
+export async function getAnsweredGuestbookSummaryTimeline(perPage = 100) {
+    const items = [];
+    let page = 1;
+
+    while (true) {
+        const result = await getAnsweredGuestbookSummaries(page, perPage);
+        items.push(...(result.items || []));
+        if (!result.totalPages || page >= result.totalPages) break;
+        page += 1;
+    }
+
+    return items;
+}
+
+export async function getAnsweredGuestbookEntry(id) {
+    const entry = await pb.collection('guestbook').getOne(id, {
+        fields: 'id,name,owner_reply,owner_replied_at,display_date,created'
+    });
+    return String(entry?.owner_reply || '').trim() ? entry : null;
+}
+
 export function guestbookDisplayDate(entry) {
     return entry?.display_date || entry?.created || '';
 }
@@ -1455,7 +1484,7 @@ export async function getPostViewCounts(postIds = []) {
 // Media 헬퍼 함수들
 // ─────────────────────────────────────────────────────────
 
-export const MEDIA_UPLOAD_MAX_BYTES = 8 * 1024 * 1024 * 1024;
+export const MEDIA_UPLOAD_MAX_BYTES = 20 * 1024 * 1024 * 1024;
 const RESUMABLE_VIDEO_MIN_BYTES = 64 * 1024 * 1024;
 const RESUMABLE_VIDEO_BALANCED_MIN_BYTES = 256 * 1024 * 1024;
 const RESUMABLE_VIDEO_MAX_PARALLEL_UPLOADS = 8;
@@ -1472,7 +1501,7 @@ const RESUMABLE_UPLOAD_READ_PROBE_BYTES = 8 * 1024 * 1024;
  */
 export async function uploadMedia(file, altText = '', caption = '', options = {}) {
     if (Number(file?.size || 0) > MEDIA_UPLOAD_MAX_BYTES) {
-        throw new Error('파일 하나는 8GB까지 올릴 수 있어.');
+        throw new Error('파일 하나는 20GB까지 올릴 수 있어.');
     }
     if (shouldUseResumableUpload(file)) {
         const capability = await getResumableMediaUploadCapability();
@@ -1709,7 +1738,7 @@ function resumableResponseStatus(response) {
 
 async function uploadMediaResumable(file, altText, caption, options = {}, capability = {}) {
     if (Number(file?.size || 0) > MEDIA_UPLOAD_MAX_BYTES) {
-        throw new Error('파일 하나는 8GB까지 올릴 수 있어.');
+        throw new Error('파일 하나는 20GB까지 올릴 수 있어.');
     }
 
     const [{ default: Uppy }, { default: Tus }] = await Promise.all([

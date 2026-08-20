@@ -8,6 +8,8 @@ const dailyIndex = read('daily/index.html');
 const server = read('deploy/imac/pocketbase-custom/seo_renderer.go');
 const caddy = read('deploy/imac/Caddyfile');
 const robots = read('public/robots.txt');
+const archiveIndex = read('all/index.html');
+const archiveView = read('all/view.html');
 
 assert.match(post, /data-legacy-viewer/);
 assert.match(daily, /data-legacy-viewer/);
@@ -28,5 +30,8 @@ assert.match(caddy, /handle \/daily\/\*\//);
 assert.match(robots, /User-agent: \*/);
 assert.match(robots, /Allow: \//);
 assert.match(robots, /Sitemap: https:\/\/coldwaterkim\.com\/sitemap\.xml/);
+assert.match(server, /siteOrigin \+ "\/all\/index\.html"/);
+assert.match(archiveIndex, /id="archive-list"/);
+assert.match(archiveView, /name="robots" content="noindex,follow"/);
 
-console.log('SEO QA passed: 19 assertions');
+console.log('SEO QA passed: 22 assertions');

@@ -131,12 +131,12 @@ function verifyCaddyfile() {
   requireCondition('OWNER upload status exposes the server-seen client IP', /handle\s+\/api\/cwk\/tus\/status[\s\S]*?header_down\s+X-CWK-Client-IP\s+\{client_ip\}/.test(caddyfile));
   requireCondition('Caddyfile proxies /_ to local PocketBase admin', caddyfile.includes('handle /_/*') && caddyfile.includes('reverse_proxy 127.0.0.1:8090'));
   requireCondition('Caddyfile isolates parallel browser uploads with HTTP/1.1 connections', /servers\s+:443\s*\{[\s\S]*?protocols\s+h1[\s\S]*?\}/.test(caddyfile));
-  requireCondition('Caddyfile allows exact 8GiB request bodies', /request_body[\s\S]*max_size\s+8GiB/.test(caddyfile));
+  requireCondition('Caddyfile allows exact 20GiB request bodies', /request_body[\s\S]*max_size\s+20GiB/.test(caddyfile));
   requireCondition('Caddyfile serves runtime dist root', caddyfile.includes(runtimeDistPath));
   requireCondition('local Caddyfile binds rehearsal port', localCaddyfile.includes('http://127.0.0.1:18081'));
   requireCondition('local Caddyfile proxies /api to local PocketBase', localCaddyfile.includes('handle /api/*') && localCaddyfile.includes('reverse_proxy 127.0.0.1:8090'));
   requireCondition('local Caddyfile proxies /_ to local PocketBase admin', localCaddyfile.includes('handle /_/*') && localCaddyfile.includes('reverse_proxy 127.0.0.1:8090'));
-  requireCondition('local Caddyfile allows exact 8GiB request bodies', /request_body[\s\S]*max_size\s+8GiB/.test(localCaddyfile));
+  requireCondition('local Caddyfile allows exact 20GiB request bodies', /request_body[\s\S]*max_size\s+20GiB/.test(localCaddyfile));
   requireCondition('local Caddyfile serves dist root', localCaddyfile.includes(rootPath));
 }
 
@@ -231,7 +231,7 @@ async function verifyNetwork() {
     }
   }
 
-  for (const route of ['/api/health', '/', '/posts/', '/daily/', '/album/', '/programs/', '/nasajab/', '/guestbook.html', '/about.html']) {
+  for (const route of ['/api/health', '/', '/all/', '/posts/', '/daily/', '/album/', '/programs/', '/nasajab/', '/guestbook.html', '/about.html']) {
     try {
       await fetchOk(`${origin}${route}`);
       record(`public route ${route}`, true);

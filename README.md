@@ -41,7 +41,7 @@
 - HTML, CSS, JavaScript
 - PocketBase
 - BlockNote 기반 WYSIWYG Markdown 작성기
-- Uppy + tus/tusd 기반 최대 8GiB(8,589,934,592바이트) 영상 적응형 3/6분할·32MiB 단위 재개 업로드
+- Uppy + tus/tusd 기반 최대 20GiB(21,474,836,480바이트) 영상 적응형 3/6분할·32MiB 단위 재개 업로드
 - GitHub Pages
 - Caddy / PocketBase 서버 운영 스크립트
 

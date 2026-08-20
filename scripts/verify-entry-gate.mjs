@@ -15,6 +15,8 @@ const publicHtml = [
   'index.html',
   'about.html',
   'guestbook.html',
+  'all/index.html',
+  'all/view.html',
   'posts/index.html',
   'posts/view.html',
   'daily/index.html',

@@ -712,6 +712,27 @@ body > center > table[width="1140"] > tbody > tr > td {
   white-space: nowrap;
 }
 
+.archive-table {
+  table-layout: fixed;
+}
+
+.archive-category-cell {
+  width: 94px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.archive-guestbook-reply {
+  min-height: 7em;
+  padding: 14px;
+  background: var(--cwk-surface-entry);
+  border: 1px dashed var(--cwk-border-dashed);
+  border-left: 4px solid var(--cwk-owner-reply-accent);
+  font-family: var(--cwk-font-mono);
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
 .blink { animation: blinker var(--cwk-blink-duration) steps(2, start) infinite; }
 @keyframes blinker { to { visibility: hidden; } }
 
@@ -2864,6 +2885,12 @@ body > center > table[width="1140"] > tbody > tr > td {
     line-height: 1.25;
     white-space: normal;
     text-align: center;
+  }
+
+  .archive-category-cell {
+    width: 66px !important;
+    font-size: 11px;
+    white-space: normal;
   }
 
   .owner-actions {

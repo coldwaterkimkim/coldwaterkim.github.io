@@ -168,6 +168,7 @@ func (renderer *seoRenderer) serveSitemap(event *core.RequestEvent) error {
 
 	entries := []sitemapEntry{
 		{Location: siteOrigin + "/"},
+		{Location: siteOrigin + "/all/index.html"},
 		{Location: siteOrigin + "/posts/index.html"},
 		{Location: siteOrigin + "/daily/index.html"},
 		{Location: siteOrigin + "/album/index.html"},

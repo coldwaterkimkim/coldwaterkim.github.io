@@ -3,7 +3,7 @@ import { execSync } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 
-const htmlDirs = ['.', 'posts', 'daily', 'album', 'programs', 'nasajab', 'admin']
+const htmlDirs = ['.', 'all', 'posts', 'daily', 'album', 'programs', 'nasajab', 'admin']
 const liveCmsUrl = 'https://coldwaterkim.com'
 const cmsTarget = String(process.env.VITE_CMS_TARGET || '').toLowerCase()
 const useLiveCmsProxy = cmsTarget === 'live'
@@ -84,6 +84,7 @@ function localEmojiMartDataPlugin() {
 
 function staticSeoPlugin() {
     const pages = {
+        '/all/index.html': ['모아보기 — coldwaterkim', '글방, 나으 하루, 프로그램실, 나사잡과 방명록 답글을 최신순으로 모아봅니다.'],
         '/posts/index.html': ['글방 — coldwaterkim', '김찬수가 쓴 생각과 긴 기록을 모은 글방입니다.'],
         '/daily/index.html': ['나으 하루 — coldwaterkim', '김찬수의 날짜별 일상과 사진, 영상을 모은 생활 기록입니다.'],
         '/album/index.html': ['앨범 — coldwaterkim', '공개된 글과 하루 기록에 담긴 사진과 영상을 한곳에서 둘러보는 앨범입니다.'],
@@ -102,6 +103,11 @@ function staticSeoPlugin() {
                 }
                 if (pagePath === '/guestbook.html') {
                     return html.replace('</head>', '  <meta name="robots" content="noindex,follow">\n</head>')
+                }
+                if (pagePath === '/all/view.html') {
+                    return html.includes('name="robots"')
+                        ? html
+                        : html.replace('</head>', '  <meta name="robots" content="noindex,follow">\n</head>')
                 }
                 const meta = pages[pagePath]
                 if (!meta || html.includes('rel="canonical"')) return html

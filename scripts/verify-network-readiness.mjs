@@ -196,7 +196,7 @@ function verifyStaticConfig() {
   requireCondition('Caddyfile proxies /api locally', caddyfile.includes('handle /api/*') && caddyfile.includes('127.0.0.1:8090'));
   requireCondition('Caddyfile identifies the upload diagnostic client', /handle\s+\/api\/cwk\/tus\/status[\s\S]*?header_down\s+X-CWK-Client-IP\s+\{client_ip\}/.test(caddyfile));
   requireCondition('Caddyfile keeps browser tus uploads on separate HTTP/1.1 connections', /servers\s+:443\s*\{[\s\S]*?protocols\s+h1[\s\S]*?\}/.test(caddyfile));
-  requireCondition('Caddyfile allows exact 8GiB uploads', /request_body[\s\S]*max_size\s+8GiB/.test(caddyfile));
+  requireCondition('Caddyfile allows exact 20GiB uploads', /request_body[\s\S]*max_size\s+20GiB/.test(caddyfile));
   requireCondition('Caddy LaunchDaemon uses production Caddy path', caddyPlist.includes('/usr/local/bin/caddy'));
   requireCondition('Caddy LaunchDaemon keeps service alive', caddyPlist.includes('<key>KeepAlive</key>'));
   requireCondition('PocketBase binds localhost only', pocketbasePlist.includes('--http=127.0.0.1:8090'));

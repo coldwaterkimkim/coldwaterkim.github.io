@@ -66,6 +66,7 @@
     "qa:entry-gate": "node scripts/verify-entry-gate.mjs",
     "qa:maintenance": "node scripts/verify-maintenance-page.mjs",
     "qa:album": "node scripts/verify-album.mjs",
+    "qa:archive": "node scripts/verify-archive.mjs",
     "qa:webring": "node scripts/verify-webring.mjs",
     "qa:seo": "node scripts/verify-seo.mjs",
     "qa:analytics": "node scripts/verify-analytics.mjs",

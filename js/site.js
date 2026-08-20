@@ -4,14 +4,11 @@
  */
 
 import {
-  getPublishedPostSummaries,
   getPublishedPostSummaryTimeline,
-  getPublishedDailySummariesThroughDays,
   getPublishedDailySummaryTimeline,
-  getPublishedProgramSummaries,
   getPublishedProgramSummaryTimeline,
-  getPublishedNasajabSummaries,
   getPublishedNasajabSummaryTimeline,
+  getAnsweredGuestbookSummaryTimeline,
   getAlbumItemTimeline,
   getGuestbookEntries,
   addGuestbookEntry,
@@ -45,6 +42,7 @@ import {
   getMediaUrl,
   deleteMediaIfUnreferenced
 } from './pb.js';
+import { buildArchiveEntries } from './archive-logic.mjs';
 import {
   defaultSidebarProfileRows,
   renderProfileDetailTables,
@@ -2149,129 +2147,49 @@ async function initSettings(scope = document) {
 // 최근 글 목록 (index.html)
 // ─────────────────────────────────────────────────────────
 async function initRecentPosts(scope = document) {
-  const tables = [
-    {
-      selector: '#recent-posts-table',
-      readyKey: 'recentPostsReady',
-      empty: '아직 글방 글이 없습니다.',
-      load: () => getPublishedPostSummaries(1, 3),
-      toRow: post => ({
-        title: post.title || '(제목 없음)',
-        url: `/posts/${encodeURIComponent(post.slug || '')}/`,
-        date: postDisplayDate(post)
-      })
-    },
-    {
-      selector: '#recent-daily-table',
-      readyKey: 'recentDailyReady',
-      empty: '아직 나으 하루가 없습니다.',
-      load: async () => ({
-        items: groupDailyEntriesByDay(await getPublishedDailySummariesThroughDays(3)).slice(0, 3)
-      }),
-      toRow: day => ({
-        title: dailyPreviewTitle(day),
-        url: `/daily/${encodeURIComponent(day.dayKey)}/`,
-        date: day.dayKey
-      })
-    },
-    {
-      selector: '#recent-programs-table',
-      readyKey: 'recentProgramsReady',
-      empty: '아직 프로그램이 없습니다.',
-      load: () => getPublishedProgramSummaries(1, 3),
-      toRow: program => ({
-        title: program.title || '(이름 없음)',
-        url: `programs/view.html?slug=${encodeURIComponent(program.slug || '')}`,
-        date: programDisplayDate(program)
-      })
-    },
-    {
-      selector: '#recent-nasajab-table',
-      readyKey: 'recentNasajabReady',
-      empty: '아직 나사잡 항목이 없습니다.',
-      load: () => getPublishedNasajabSummaries(1, 3),
-      toRow: item => ({
-        title: item.title || item.caption || item.memo || '(제목 없음)',
-        url: item.id ? `nasajab/index.html#${encodeURIComponent(item.id)}` : 'nasajab/index.html',
-        date: nasajabDisplayDate(item)
-      })
-    }
-  ];
+  const table = scope.querySelector('#recent-all-table');
+  if (!table || table.dataset.recentAllReady === 'true') return;
+  table.dataset.recentAllReady = 'true';
 
-  await Promise.all(tables.map(config => initRecentTable(scope, config)));
-}
+  const tbody = table.querySelector('tbody') || table.createTBody();
+  tbody.innerHTML = '<tr><td colspan="3">불러오는 중...</td></tr>';
 
-function groupDailyEntriesByDay(entries = []) {
-  const groups = new Map();
+  try {
+    const [posts, daily, programs, nasajab, guestbook] = await Promise.all([
+      getPublishedPostSummaryTimeline(),
+      getPublishedDailySummaryTimeline(),
+      getPublishedProgramSummaryTimeline(),
+      getPublishedNasajabSummaryTimeline(),
+      getAnsweredGuestbookSummaryTimeline(),
+    ]);
+    const entries = buildArchiveEntries({
+      posts,
+      daily,
+      programs,
+      nasajab,
+      guestbook,
+    }).slice(0, 5);
 
-  entries.forEach(entry => {
-    const dayKey = dailyEntryDayKey(entry);
-    if (!groups.has(dayKey)) {
-      groups.set(dayKey, {
-        dayKey,
-        entries: [],
-        latestDate: dailyEntryDisplayDate(entry)
-      });
+    if (!entries.length) {
+      tbody.innerHTML = '<tr><td colspan="3">아직 공개된 글이 없습니다.</td></tr>';
+      return;
     }
 
-    const group = groups.get(dayKey);
-    group.entries.push(entry);
-    if (dateTimestamp(dailyEntryDisplayDate(entry)) > dateTimestamp(group.latestDate)) {
-      group.latestDate = dailyEntryDisplayDate(entry);
-    }
-  });
-
-  return Array.from(groups.values()).sort((a, b) => {
-    const byDay = String(b.dayKey).localeCompare(String(a.dayKey));
-    if (byDay !== 0) return byDay;
-    return dateTimestamp(b.latestDate) - dateTimestamp(a.latestDate);
-  });
-}
-
-function dailyPreviewTitle(day) {
-  const count = day.entries.length;
-  return `${formatDate(day.dayKey)}의 하루${count > 1 ? ` (${count}개)` : ''}`;
+    tbody.innerHTML = entries.map(entry => `
+      <tr>
+        <td><a href="${escapeAttribute(entry.url)}">${escapeHtml(entry.title)}</a></td>
+        <td class="archive-category-cell">${escapeHtml(entry.categoryLabel)}</td>
+        <td class="date-cell" align="right">${formatDate(entry.date)}</td>
+      </tr>
+    `).join('');
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="3">${escapeHtml(cmsErrorMessage(e))}</td></tr>`;
+  }
 }
 
 function dateTimestamp(value) {
   const n = Date.parse(value || '');
   return Number.isFinite(n) ? n : 0;
-}
-
-async function initRecentTable(scope, config) {
-  const table = scope.querySelector(config.selector);
-  if (!table) return;
-  if (table.dataset[config.readyKey] === 'true') return;
-  table.dataset[config.readyKey] = 'true';
-
-  const rows = Array.from(table.querySelectorAll('tr')).slice(1);
-  rows.forEach(row => row.remove());
-
-  try {
-    const result = await config.load();
-    const items = result.items || [];
-
-    if (items.length === 0) {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `<td colspan="2">${escapeHtml(config.empty)}</td>`;
-      table.appendChild(tr);
-      return;
-    }
-
-    items.slice(0, 3).forEach(item => {
-      const row = config.toRow(item);
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td><a href="${escapeAttribute(row.url)}">${escapeHtml(row.title)}</a></td>
-        <td class="date-cell" align="right">${formatDate(row.date)}</td>
-      `;
-      table.appendChild(tr);
-    });
-  } catch (e) {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `<td colspan="2">${escapeHtml(cmsErrorMessage(e))}</td>`;
-    table.appendChild(tr);
-  }
 }
 
 // ─────────────────────────────────────────────────────────

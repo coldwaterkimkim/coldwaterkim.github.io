@@ -26,6 +26,12 @@ func TestResumableUploadIDValidation(t *testing.T) {
 	}
 }
 
+func TestMediaUploadLimitIsTwentyGiB(t *testing.T) {
+	if mediaUploadMaxBytes != int64(20*1024*1024*1024) {
+		t.Fatalf("unexpected media upload limit: %d", mediaUploadMaxBytes)
+	}
+}
+
 func TestSafeOriginalFilename(t *testing.T) {
 	if got := safeOriginalFilename("../../day-review.mov", "video/quicktime", "upload12345"); got != "day-review.mov" {
 		t.Fatalf("unexpected sanitized filename: %q", got)

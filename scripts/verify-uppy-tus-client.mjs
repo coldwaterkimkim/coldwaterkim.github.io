@@ -44,7 +44,7 @@ const uppy = new Uppy({
   autoProceed: false,
   restrictions: {
     maxNumberOfFiles: 1,
-    maxFileSize: 8_589_934_592,
+    maxFileSize: 21_474_836_480,
   },
 });
 

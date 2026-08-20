@@ -567,7 +567,7 @@ const schema = JSON.parse(fs.readFileSync(new URL('../pb_schema.json', import.me
 const mediaCollection = schema.collections.find(collection => collection.name === 'media');
 const mediaFileField = mediaCollection.fields.find(field => field.name === 'file');
 assert.deepEqual(mediaFileField.thumbs, ['400x400', '800x0', '1600x0'], 'media schema must allow album and responsive thumbnail sizes');
-assert.equal(mediaFileField.maxSize, 8 * 1024 * 1024 * 1024, 'media originals must allow one 8GB file');
+assert.equal(mediaFileField.maxSize, 20 * 1024 * 1024 * 1024, 'media originals must allow one 20GB file');
 const programsCollection = schema.collections.find(collection => collection.name === 'programs');
 assert.equal(programsCollection.fields.find(field => field.name === 'download_files').maxSize, 2 * 1024 * 1024 * 1024, 'program downloads must keep their separate 2GB limit');
 for (const collectionName of ['posts', 'programs']) {
@@ -610,6 +610,10 @@ const koreanSlugMigration = fs.readFileSync(new URL('../pb_migrations/1787065200
 assert.match(koreanSlugMigration, /\["posts", "programs"\]/, 'Korean slug migration must cover every collection using the shared title slugger');
 assert.match(koreanSlugMigration, /\\uac00-\\ud7a3/, 'Korean slug migration must widen the live PocketBase validation pattern');
 
+const upload20GbMigration = fs.readFileSync(new URL('../pb_migrations/1787224751_raise_media_upload_to_20gb.js', import.meta.url), 'utf8');
+assert.match(upload20GbMigration, /mediaFile\.maxSize = 21474836480/, 'forward migration must raise media originals to 20GiB');
+assert.match(upload20GbMigration, /mediaFile\.maxSize = 8589934592/, 'rollback migration must restore the former 8GiB limit');
+
 const siteSource = fs.readFileSync(new URL('../js/site.js', import.meta.url), 'utf8');
 assert.match(siteSource, /history\.(?:push|replace)State[\s\S]*syncDocumentBase\(nextDoc\)[\s\S]*content\.innerHTML = nextContent\.innerHTML/, 'SPA navigation must apply the fetched page base before inserting relative links');
 assert.match(siteSource, /if \(!nextBase\) \{\s*currentBase\?\.remove\(\)/, 'SPA navigation must remove a stale base when the next page has none');
@@ -619,7 +623,7 @@ assert.equal(new URL('../guestbook.html', 'https://coldwaterkim.com/daily/').pat
 
 assert.equal(pbModule.shouldUseResumableUpload({ name: 'day.mov', type: 'video/quicktime', size: 64 * 1024 * 1024 }), true, 'large videos must use tus');
 assert.equal(pbModule.shouldUseResumableUpload({ name: 'short.mov', type: 'video/quicktime', size: 63 * 1024 * 1024 }), false, 'small videos must keep the simple PocketBase upload');
-assert.equal(pbModule.MEDIA_UPLOAD_MAX_BYTES, 8 * 1024 * 1024 * 1024, 'the client and media schema must share the 8GB limit');
+assert.equal(pbModule.MEDIA_UPLOAD_MAX_BYTES, 20 * 1024 * 1024 * 1024, 'the client and media schema must share the 20GB limit');
 assert.match(pbModule.formatMediaUploadProgress({ resumable: true, percent: 42 }), /재개 업로드 42%/, 'resumable upload progress must be visible in the editor');
 assert.match(pbModule.formatMediaUploadProgress({ resumable: true, phase: 'preparing' }), /원본 파일 읽기 속도 확인 중/, 'large video uploads must disclose the source read probe');
 assert.deepEqual(
@@ -659,7 +663,7 @@ assert.match(resumableServer, /resumableParallelParts\s*=\s*6/, 'the balanced se
 assert.match(resumableServer, /"chunk_size":\s*resumableChunkBytes/, 'the tus status route must advertise finite chunks');
 assert.match(resumableServer, /Cache-Control",\s*"no-store"/, 'the tus status response must not cache rollback-sensitive tuning');
 assert.match(resumableServer, /DisableConcatenation:\s*false/, 'the tus server must accept parallel upload concatenation');
-assert.match(resumableServer, /mediaUploadMaxBytes\s*=\s*int64\(8589934592\)/, 'the tus server must accept an 8GB original');
+assert.match(resumableServer, /mediaUploadMaxBytes\s*=\s*int64\(21474836480\)/, 'the tus server must accept a 20GB original');
 assert.match(resumableServer, /terminateTusPartialUploads/, 'parallel parts must be released before PocketBase copies the final original');
 assert.match(resumableServer, /safe_upload_bytes/, 'the client must receive a disk-aware safe upload capacity');
 

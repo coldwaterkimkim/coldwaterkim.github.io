@@ -4,7 +4,7 @@ import { isLoggedIn, logout, pb } from './pb.js';
 
 const MIB = 1024 * 1024;
 const MIN_DIAGNOSTIC_BYTES = 256 * MIB;
-const MAX_UPLOAD_BYTES = 8 * 1024 * 1024 * 1024;
+const MAX_UPLOAD_BYTES = 20 * 1024 * 1024 * 1024;
 const DEFAULT_CHUNK_BYTES = 32 * MIB;
 const DIAGNOSTIC_FIXTURE_BYTES = 640 * MIB;
 const DIAGNOSTIC_FIXTURE_CHUNK_BYTES = 8 * MIB;
@@ -518,7 +518,7 @@ function validateDiagnosticFile(file) {
     const isVideo = String(file.type || '').startsWith('video/') || /\.(?:mp4|mov|m4v|webm)$/i.test(file.name || '');
     if (!isVideo) return '영상 파일만 측정할 수 있어.';
     if (file.size < MIN_DIAGNOSTIC_BYTES) return '3·6·8-way 비교가 의미 있도록 256MiB 이상 영상을 골라줘.';
-    if (file.size > MAX_UPLOAD_BYTES) return '파일 하나는 8GiB까지 측정할 수 있어.';
+    if (file.size > MAX_UPLOAD_BYTES) return '파일 하나는 20GiB까지 측정할 수 있어.';
     return '';
 }
 

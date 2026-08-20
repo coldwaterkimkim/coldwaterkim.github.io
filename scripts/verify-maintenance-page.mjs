@@ -50,6 +50,8 @@ const publicHtmlFiles = [
   'nasajab/index.html',
   'guestbook.html',
   'about.html',
+  'all/index.html',
+  'all/view.html',
 ];
 
 for (const file of publicHtmlFiles) {

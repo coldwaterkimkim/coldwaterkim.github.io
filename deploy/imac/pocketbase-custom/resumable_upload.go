@@ -24,7 +24,7 @@ import (
 
 const (
 	resumableUploadBasePath = "/api/cwk/tus/files/"
-	mediaUploadMaxBytes     = int64(8589934592)
+	mediaUploadMaxBytes     = int64(21474836480)
 	resumableParallelParts  = 6
 	resumableMaxParallel    = 8
 	resumableChunkBytes     = int64(32 * 1024 * 1024)
@@ -177,7 +177,7 @@ func (service *resumableUploadService) finalizeUpload(e *core.RequestEvent) erro
 		return e.BadRequestError("The resumable upload is not complete yet.", nil)
 	}
 	if info.Size > mediaUploadMaxBytes {
-		return e.BadRequestError("The uploaded file exceeds the 8GB limit.", nil)
+		return e.BadRequestError("The uploaded file exceeds the 20GB limit.", nil)
 	}
 	ownerID := strings.TrimSpace(info.MetaData["owner_id"])
 	if !e.HasSuperuserAuth() && (ownerID == "" || ownerID != e.Auth.Id) {
