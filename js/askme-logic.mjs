@@ -1,5 +1,6 @@
-export const ASK_ME_PENDING_COPY = '아이스크림 먹는 중이라 아직 답변을 못 달았습니다. 조금만 기다려주세여.';
+export const ASK_ME_PENDING_COPY = '답변을 기다리고 있는 질문입니다. 답변 후 공개 예정입니다.';
 export const ASK_ME_PRIVATE_COPY = '질문자가 질문을 공개하고 싶지 않아하네염. 간이 작은가 봐염. 이해해주세염.';
+export const ASK_ME_DELETED_COPY = '주인장이 삭제한 질문입니다. 뭔가 마음에 안들었나보죠?';
 
 export function askMeEntryBody(entry = {}) {
   if (entry.status === 'private') return ASK_ME_PRIVATE_COPY;

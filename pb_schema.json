@@ -76,22 +76,27 @@
       "fields": [
         { "name": "sequence", "type": "number", "required": true, "min": 1, "onlyInt": true },
         { "name": "asker_name", "type": "text", "required": true, "min": 1, "max": 100 },
-        { "name": "question", "type": "text", "required": true, "min": 1, "max": 1000 },
+        { "name": "question", "type": "text", "required": false, "max": 1000 },
         { "name": "is_private", "type": "bool", "required": false },
         { "name": "answer", "type": "text", "required": false, "max": 3000 },
         { "name": "answered_at", "type": "date", "required": false },
+        { "name": "receipt_token_hash", "type": "text", "required": false, "max": 64, "pattern": "^[a-f0-9]{64}$", "hidden": true },
+        { "name": "private_password_hash", "type": "text", "required": false, "max": 255, "hidden": true },
+        { "name": "deleted", "type": "bool", "required": false },
+        { "name": "deleted_at", "type": "date", "required": false },
         { "name": "created", "type": "autodate", "onCreate": true, "onUpdate": false },
         { "name": "updated", "type": "autodate", "onCreate": true, "onUpdate": true }
       ],
       "indexes": [
         "CREATE UNIQUE INDEX `idx_ask_questions_sequence` ON `ask_questions` (`sequence`)",
-        "CREATE INDEX `idx_ask_questions_created` ON `ask_questions` (`created`)"
+        "CREATE INDEX `idx_ask_questions_created` ON `ask_questions` (`created`)",
+        "CREATE UNIQUE INDEX `idx_ask_questions_receipt_token_hash` ON `ask_questions` (`receipt_token_hash`) WHERE `receipt_token_hash` != ''"
       ],
       "listRule": "@request.auth.id != ''",
       "viewRule": "@request.auth.id != ''",
       "createRule": null,
       "updateRule": "@request.auth.id != ''",
-      "deleteRule": "@request.auth.id != ''"
+      "deleteRule": null
     },
     {
       "name": "ask_question_counters",
@@ -129,7 +134,7 @@
       "createRule": null,
       "updateRule": null,
       "deleteRule": null,
-      "viewQuery": "SELECT q.id AS id, q.sequence AS sequence, q.asker_name AS asker_name, q.created AS created, iif(q.is_private=TRUE,'private',iif(trim(COALESCE(q.answer,''))!='','answered','pending')) AS status, iif(q.is_private=FALSE AND trim(COALESCE(q.answer,''))!='',q.question,'') AS question, iif(q.is_private=FALSE AND trim(COALESCE(q.answer,''))!='',q.answer,'') AS answer, iif(q.is_private=FALSE AND trim(COALESCE(q.answer,''))!='',q.answered_at,'') AS answered_at FROM ask_questions q"
+      "viewQuery": "SELECT q.id AS id, q.sequence AS sequence, q.asker_name AS asker_name, q.created AS created, iif(q.is_private=TRUE,'private',iif(trim(COALESCE(q.answer,''))!='','answered','pending')) AS status, iif(q.is_private=FALSE AND trim(COALESCE(q.answer,''))!='',q.question,'') AS question, iif(q.is_private=FALSE AND trim(COALESCE(q.answer,''))!='',q.answer,'') AS answer, iif(q.is_private=FALSE AND trim(COALESCE(q.answer,''))!='',q.answered_at,'') AS answered_at FROM ask_questions q WHERE q.deleted = FALSE"
     },
     {
       "name": "site_settings",
