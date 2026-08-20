@@ -41,8 +41,10 @@ check(html.includes('id="askMePrivate"'), 'optional private checkbox is missing'
 check(!/닉네임|이메일|카테고리|첨부파일/.test(html), 'minimal form must not add optional visitor fields');
 check(!html.includes('>궁금한 것<'), 'question field must not have a visible label');
 check(html.includes('aria-label="질문"'), 'unlabelled textarea still needs an accessible name');
-check(html.includes('placeholder="평소 궁금했지만 물어보지 못한 것"'), 'Ask Me page question placeholder is missing');
-check(homeHtml.includes('placeholder="평소 궁금했지만 물어보지 못한 것"'), 'home question placeholder is missing');
+check(html.includes('<h1>???</h1>'), 'Ask Me page heading must use the agreed question-mark copy');
+check(html.includes('placeholder="질문이 있다면"'), 'Ask Me page question placeholder is missing');
+check(homeHtml.includes('placeholder="질문이 있다면"'), 'home question placeholder is missing');
+check(!`${homeHtml}\n${html}`.includes('평소 궁금했지만 물어보지 못한 것'), 'retired question placeholder must not remain');
 const recentTableAt = homeHtml.indexOf('id="recent-all-table"');
 const homeAskMeAt = homeHtml.indexOf('class="home-recent-table home-askme-table"');
 const albumTableAt = homeHtml.indexOf('id="recent-album-table"');
