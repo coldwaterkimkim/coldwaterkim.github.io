@@ -10,14 +10,14 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <meta name="robots" content="noindex,follow">
-  <script type="module" crossorigin src="/assets/askme-Lq5t70oB.js"></script>
-  <link rel="modulepreload" crossorigin href="/assets/modulepreload-polyfill-Dezn_h7o.js">
-  <link rel="modulepreload" crossorigin href="/assets/preload-helper-CZgWQFsJ.js">
-  <link rel="modulepreload" crossorigin href="/assets/pb-DloG9kIw.js">
-  <link rel="modulepreload" crossorigin href="/assets/album-logic-Bcqam8lE.js">
-  <link rel="modulepreload" crossorigin href="/assets/site-D-aGY1gA.js">
+  <script type="module" crossorigin src="/assets/modulepreload-polyfill-Dezn_h7o.js"></script>
+  <script type="module" crossorigin src="/assets/preload-helper-CZgWQFsJ.js"></script>
+  <script type="module" crossorigin src="/assets/pb-DloG9kIw.js"></script>
+  <script type="module" crossorigin src="/assets/album-logic-Bcqam8lE.js"></script>
+  <script type="module" crossorigin src="/assets/site-DkQHB99n.js"></script>
+  <script type="module" crossorigin src="/assets/askme-D3SDyWoq.js"></script>
   <link rel="stylesheet" crossorigin href="/assets/site-DDqcsI4f.css">
-  <link rel="stylesheet" crossorigin href="/assets/askme-oZuvdMXZ.css">
+  <link rel="stylesheet" crossorigin href="/assets/askme-PHi5-iwW.css">
 </head>
 
 <body class="page-subpage page-askme" background="" bgcolor="#e0e0e0">
@@ -126,17 +126,32 @@
           <h1>📮 Ask Me</h1>
           <p>궁금한 게 있다면 남겨주세요. 답변은 제가 하고 싶은 것만 할겁니다ㅋ</p>
 
-          <form id="askMeForm" class="askme-form">
-            <textarea id="askMeQuestion" rows="5" maxlength="1000" aria-label="질문" required></textarea>
-            <input class="askme-honeypot" id="askMeWebsite" name="website" type="text" tabindex="-1" autocomplete="off" aria-hidden="true">
+          <form id="askMeForm" class="askme-form" data-askme-form>
+            <textarea id="askMeQuestion" rows="5" maxlength="1000" aria-label="질문" placeholder="평소 궁금했지만 물어보지 못한 것" data-askme-question required></textarea>
+            <input class="askme-honeypot" id="askMeWebsite" name="website" type="text" tabindex="-1" autocomplete="off" aria-hidden="true" data-askme-honeypot>
+            <div class="askme-character-count" data-askme-count hidden></div>
+            <div class="askme-password-fields" data-askme-password-fields hidden>
+              <label>비밀번호 <input type="password" autocomplete="new-password" data-askme-password></label>
+              <label>비밀번호 확인 <input type="password" autocomplete="new-password" data-askme-password-confirm></label>
+              <span class="note">비밀번호를 잊으면 이 질문을 다시 열어볼 수 없습니다.</span>
+            </div>
             <div class="askme-form-controls">
-              <label><input id="askMePrivate" type="checkbox"> 이 질문은 공개하지 않기</label>
+              <label><input id="askMePrivate" type="checkbox" data-askme-private> 이 질문은 공개하지 않기</label>
               <button type="submit">[ 질문 보내기 ]</button>
             </div>
-            <p id="askMeFormStatus" class="askme-status" role="status" aria-live="polite"></p>
+            <p id="askMeFormStatus" class="askme-status" role="status" aria-live="polite" data-askme-status></p>
           </form>
 
           <h2 class="visitor-heading">질문 목록</h2>
+          <details class="askme-private-lookup">
+            <summary>비공개 질문 다시 보기</summary>
+            <form id="askMePrivateLookupForm">
+              <label>질문 번호 <input id="askMeLookupSequence" type="number" min="1" inputmode="numeric" required></label>
+              <label>비밀번호 <input id="askMeLookupPassword" type="password" autocomplete="current-password" required></label>
+              <button type="submit">[ 열기 ]</button>
+              <p id="askMeLookupStatus" class="askme-status" role="status" aria-live="polite"></p>
+            </form>
+          </details>
           <div id="askMeEntries"><p>불러오는 중...</p></div>
           <nav id="askMePagination" class="askme-pagination" aria-label="질문 목록 페이지"></nav>
 
