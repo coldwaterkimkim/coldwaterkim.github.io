@@ -44,9 +44,11 @@ check(html.includes('aria-label="질문"'), 'unlabelled textarea still needs an 
 check(html.includes('placeholder="평소 궁금했지만 물어보지 못한 것"'), 'Ask Me page question placeholder is missing');
 check(homeHtml.includes('placeholder="평소 궁금했지만 물어보지 못한 것"'), 'home question placeholder is missing');
 const recentTableAt = homeHtml.indexOf('id="recent-all-table"');
-const homeAskMeAt = homeHtml.indexOf('class="home-askme"');
+const homeAskMeAt = homeHtml.indexOf('class="home-recent-table home-askme-table"');
 const albumTableAt = homeHtml.indexOf('id="recent-album-table"');
 check(recentTableAt >= 0 && recentTableAt < homeAskMeAt && homeAskMeAt < albumTableAt, 'home Ask Me form must sit between the recent-post and album tables');
+check(homeHtml.includes('<th align="left">Ask Me</th>'), 'home Ask Me table heading is missing');
+check(homeHtml.includes('<a href="askme.html">질문 목록</a>'), 'home Ask Me list link is missing');
 for (const [name, source] of [['Ask Me page', html], ['home', homeHtml]]) {
   check(source.includes('data-askme-password-fields hidden'), `${name} private password fields must start hidden`);
   check(source.includes('data-askme-password-confirm'), `${name} private form needs password confirmation`);
@@ -61,6 +63,11 @@ check(html.includes('/js/maintenance-gate.js'), 'Ask Me must participate in main
 check(html.includes('class="entry-gate-disabled"'), 'Ask Me must preserve the disabled entry gate contract');
 check(css.includes('.askme-form-controls'), 'minimal Ask Me form styles are missing');
 check(css.includes('@media (max-width: 640px)'), 'Ask Me mobile styles are missing');
+check(css.includes('.home-askme-table td'), 'home Ask Me must use the same table-cell grammar as adjacent sections');
+check(!css.includes('.home-askme {'), 'home Ask Me must not regress to a standalone card wrapper');
+check(css.includes('border: 2px outset var(--cwk-border-soft);'), 'home submit button must keep its legacy bevel');
+check(css.includes('.askme-form--home input[type="checkbox"]'), 'home private checkbox must use the compact legacy treatment');
+check(css.includes('.askme-form--home .askme-status:empty'), 'empty home status must not reserve card-like whitespace');
 
 check(ASK_ME_PENDING_COPY === '답변을 기다리고 있는 질문입니다. 답변 후 공개 예정입니다.', 'pending copy changed unexpectedly');
 check(ASK_ME_DELETED_COPY === '주인장이 삭제한 질문입니다. 뭔가 마음에 안들었나보죠?', 'deleted copy changed unexpectedly');
