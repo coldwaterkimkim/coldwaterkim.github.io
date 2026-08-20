@@ -49,6 +49,7 @@ const publicHtmlFiles = [
   'programs/view.html',
   'nasajab/index.html',
   'guestbook.html',
+  'askme.html',
   'about.html',
 ];
 

@@ -2,7 +2,7 @@
 <html class="entry-gate-disabled">
 
 <head>
-  <title>Guestbook — coldwaterkim</title>
+  <title>Ask Me — coldwaterkim</title>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" href="/favicon.ico" sizes="any">
@@ -10,14 +10,16 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/askme.css">
   <script type="module" src="/js/maintenance-gate.js"></script>
   <script type="module" src="js/site.js"></script>
+  <script type="module" src="js/askme.js"></script>
 </head>
 
-<body class="page-subpage" background="" bgcolor="#e0e0e0">
+<body class="page-subpage page-askme" background="" bgcolor="#e0e0e0">
   <center>
     <marquee behavior="alternate" scrollamount="4" width="1140">
-      <span class="marquee-text">★ WELCOME TO <a href="/admin/login.html?next=/guestbook.html" class="secret-login"><b>coldwaterkim</b></a>'s HOME PAGE ★</span>
+      <span class="marquee-text">★ WELCOME TO <a href="/admin/login.html?next=/askme.html" class="secret-login"><b>coldwaterkim</b></a>'s HOME PAGE ★</span>
     </marquee>
 
     <table width="1140" border="1" cellspacing="0" cellpadding="8" bgcolor="#ffffff">
@@ -59,22 +61,10 @@
 
           <div class="profile-details">
             <table class="profile-detail-table" border="1" cellspacing="0" cellpadding="3" width="100%">
-              <tr>
-                <th>본명</th>
-                <td>김찬수</td>
-              </tr>
-              <tr>
-                <th>출생</th>
-                <td>2000년 11월 12일 08:51</td>
-              </tr>
-              <tr>
-                <th>국적</th>
-                <td>대한민국</td>
-              </tr>
-              <tr>
-                <th>신체</th>
-                <td>178cm 73kg</td>
-              </tr>
+              <tr><th>본명</th><td>김찬수</td></tr>
+              <tr><th>출생</th><td>2000년 11월 12일 08:51</td></tr>
+              <tr><th>국적</th><td>대한민국</td></tr>
+              <tr><th>신체</th><td>178cm 73kg</td></tr>
               <tr>
                 <th>학력</th>
                 <td>
@@ -87,25 +77,15 @@
               </tr>
               <tr>
                 <th>병역</th>
-                <td>
-                  <a class="profile-service-link" href="https://namu.wiki/w/%EC%A0%9C3%EB%B3%B4%EB%B3%91%EC%82%AC%EB%8B%A8" target="_blank" rel="noopener noreferrer">육군 만기전역</a>
-                </td>
+                <td><a class="profile-service-link" href="https://namu.wiki/w/%EC%A0%9C3%EB%B3%B4%EB%B3%91%EC%82%AC%EB%8B%A8" target="_blank" rel="noopener noreferrer">육군 만기전역</a></td>
               </tr>
               <tr>
                 <th>Social<br>Media</th>
                 <td>
-                  <a class="profile-social-link" href="https://www.instagram.com/coldwater.kim/" target="_blank" rel="noopener noreferrer" title="Instagram" aria-label="Instagram">
-                    <img class="profile-social-icon" src="https://www.google.com/s2/favicons?sz=32&amp;domain=instagram.com" alt="Instagram">
-                  </a>
-                  <a class="profile-social-link" href="https://x.com/coldwater_kimi" target="_blank" rel="noopener noreferrer" title="X" aria-label="X">
-                    <img class="profile-social-icon" src="https://x.com/favicon.ico" alt="X">
-                  </a>
-                  <a class="profile-social-link" href="https://open.spotify.com/user/31trg7txlc52iyxoypybf4bljdeu" target="_blank" rel="noopener noreferrer" title="Spotify" aria-label="Spotify">
-                    <img class="profile-social-icon" src="https://www.google.com/s2/favicons?sz=32&amp;domain=spotify.com" alt="Spotify">
-                  </a>
-                  <a class="profile-social-link" href="https://github.com/coldwaterkimkim" target="_blank" rel="noopener noreferrer" title="GitHub" aria-label="GitHub">
-                    <img class="profile-social-icon" src="https://github.com/favicon.ico" alt="GitHub">
-                  </a>
+                  <a class="profile-social-link" href="https://www.instagram.com/coldwater.kim/" target="_blank" rel="noopener noreferrer" title="Instagram" aria-label="Instagram"><img class="profile-social-icon" src="https://www.google.com/s2/favicons?sz=32&amp;domain=instagram.com" alt="Instagram"></a>
+                  <a class="profile-social-link" href="https://x.com/coldwater_kimi" target="_blank" rel="noopener noreferrer" title="X" aria-label="X"><img class="profile-social-icon" src="https://x.com/favicon.ico" alt="X"></a>
+                  <a class="profile-social-link" href="https://open.spotify.com/user/31trg7txlc52iyxoypybf4bljdeu" target="_blank" rel="noopener noreferrer" title="Spotify" aria-label="Spotify"><img class="profile-social-icon" src="https://www.google.com/s2/favicons?sz=32&amp;domain=spotify.com" alt="Spotify"></a>
+                  <a class="profile-social-link" href="https://github.com/coldwaterkimkim" target="_blank" rel="noopener noreferrer" title="GitHub" aria-label="GitHub"><img class="profile-social-icon" src="https://github.com/favicon.ico" alt="GitHub"></a>
                 </td>
               </tr>
             </table>
@@ -138,45 +118,25 @@
             </div>
           </center>
 
-          <h1>💬 Guestbook 방명록</h1>
-          <p class="note">
-            📌 방명록은 누구나 작성할 수 있습니다.
-            💌 주인장의 답글도 여기서 확인할 수 있습니다.
-            🚫 부적절한 내용은 내 마음대로 삭제할꼬얌.ㅋ
-          </p>
+          <h1>📮 Ask Me</h1>
+          <p>궁금한 게 있다면 남겨주세요. 답변은 제가 하고 싶은 것만 할겁니다ㅋ</p>
 
-          <form id="guestbookForm">
-            <table border="1" cellspacing="0" cellpadding="6" width="100%">
-              <tr bgcolor="#f0f0f0">
-                <th align="left">방명록에 한 줄 남기기</th>
-              </tr>
-              <tr>
-                <td>
-                  <label for="guestName"><b>닉네임</b></label><br>
-                  <input id="guestName" type="text" maxlength="50" placeholder="익명의 누군가" style="width: 220px;">
-                  <p style="margin: 6px 0 8px;">
-                    <small>비워두면 자동으로 익명 이름이 붙습니다.</small>
-                  </p>
-                  <textarea id="message" rows="4" style="width: 100%;" maxlength="1000" required></textarea>
-                  <p>
-                    <button type="submit" style="padding: 8px; font-weight: bold; cursor: pointer;">
-                      ✏️ 남기기
-                    </button>
-                  </p>
-                </td>
-              </tr>
-            </table>
+          <form id="askMeForm" class="askme-form">
+            <textarea id="askMeQuestion" rows="5" maxlength="1000" aria-label="질문" required></textarea>
+            <input class="askme-honeypot" id="askMeWebsite" name="website" type="text" tabindex="-1" autocomplete="off" aria-hidden="true">
+            <div class="askme-form-controls">
+              <label><input id="askMePrivate" type="checkbox"> 이 질문은 공개하지 않기</label>
+              <button type="submit">[ 질문 보내기 ]</button>
+            </div>
+            <p id="askMeFormStatus" class="askme-status" role="status" aria-live="polite"></p>
           </form>
 
-          <h2 class="visitor-heading">방명록 목록</h2>
-          <div id="guestbookEntries">
-            <p>불러오는 중...</p>
-          </div>
+          <h2 class="visitor-heading">질문 목록</h2>
+          <div id="askMeEntries"><p>불러오는 중...</p></div>
+          <nav id="askMePagination" class="askme-pagination" aria-label="질문 목록 페이지"></nav>
 
           <hr>
-          <center>
-            <small>© coldwaterkim — powered by me</small>
-          </center>
+          <center><small>© coldwaterkim — powered by me</small></center>
         </td>
       </tr>
     </table>
