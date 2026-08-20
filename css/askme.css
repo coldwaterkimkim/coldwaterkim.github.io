@@ -1,0 +1,105 @@
+.askme-form {
+  margin: 14px 0 20px;
+}
+
+.askme-form textarea {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  resize: vertical;
+}
+
+.askme-form-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 7px;
+  font-size: var(--cwk-note-size);
+}
+
+.askme-form-controls button {
+  padding: 5px 8px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.askme-honeypot {
+  position: absolute;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+.askme-status {
+  min-height: 1.2em;
+  margin: 5px 0 0;
+  color: var(--cwk-muted);
+  font-size: var(--cwk-note-size);
+}
+
+.askme-status.is-error {
+  color: var(--cwk-hot-red);
+}
+
+#askMeEntries {
+  font-family: var(--cwk-font-mono);
+}
+
+.askme-question {
+  margin-top: 4px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.askme-placeholder {
+  color: var(--cwk-muted);
+}
+
+.askme-answer {
+  overflow-wrap: anywhere;
+}
+
+.askme-answer > div:first-child {
+  white-space: pre-wrap;
+}
+
+.askme-answer .guestbook-owner-reply-meta {
+  margin: 5px 0 0;
+}
+
+.askme-answer-clear {
+  color: var(--cwk-hot-red);
+}
+
+.askme-pagination {
+  margin: 14px 0 18px;
+  text-align: center;
+}
+
+.askme-pagination button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--cwk-link);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+@media (max-width: 640px) {
+  .askme-form-controls {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .askme-form-controls button {
+    align-self: flex-end;
+  }
+
+  .askme-entry .guestbook-owner-reply,
+  .askme-entry .guestbook-reply-form {
+    margin-left: 10px;
+  }
+}

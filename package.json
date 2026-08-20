@@ -63,6 +63,7 @@
     "qa:home-bgm": "node scripts/verify-home-bgm.mjs",
     "qa:about-wiki": "node scripts/verify-about-wiki.mjs && node scripts/verify-about-wiki-markup.mjs",
     "qa:guestbook-replies": "node scripts/verify-guestbook-replies.mjs",
+    "qa:askme": "node scripts/verify-askme.mjs",
     "qa:entry-gate": "node scripts/verify-entry-gate.mjs",
     "qa:maintenance": "node scripts/verify-maintenance-page.mjs",
     "qa:album": "node scripts/verify-album.mjs",

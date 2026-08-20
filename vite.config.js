@@ -101,7 +101,7 @@ function staticSeoPlugin() {
                 if (pagePath.startsWith('/admin/')) {
                     return html.replace('</head>', '  <meta name="robots" content="noindex,nofollow">\n</head>')
                 }
-                if (pagePath === '/guestbook.html') {
+                if (pagePath === '/guestbook.html' || pagePath === '/askme.html') {
                     return html.replace('</head>', '  <meta name="robots" content="noindex,follow">\n</head>')
                 }
                 if (pagePath === '/all/view.html') {

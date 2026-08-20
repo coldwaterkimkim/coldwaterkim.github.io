@@ -166,7 +166,7 @@ async function main() {
   if (!/^https?:\/\//.test(origin)) throw new Error(`Invalid --origin: ${origin}`);
   if (!/^https?:\/\//.test(apiOrigin)) throw new Error(`Invalid --api-origin: ${apiOrigin}`);
 
-  for (const route of ['/', '/all/', '/posts/', '/daily/', '/album/', '/programs/', '/nasajab/', '/guestbook.html', '/about.html']) {
+  for (const route of ['/', '/all/', '/posts/', '/daily/', '/album/', '/programs/', '/nasajab/', '/guestbook.html', '/askme.html', '/about.html']) {
     await checkHtmlRoute(route);
   }
   await checkApiHealth();

@@ -29,3 +29,4 @@ pb_migrations/*
 !pb_migrations/1786885200_add_pending_media_ids.js
 !pb_migrations/1787065200_allow_korean_content_slugs.js
 !pb_migrations/1787224751_raise_media_upload_to_20gb.js
+!pb_migrations/1787238000_create_ask_questions.js

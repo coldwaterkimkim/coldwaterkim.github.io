@@ -548,7 +548,7 @@ const postsView = fs.readFileSync(new URL('../posts/view.html', import.meta.url)
 assert.match(postsView, /prepareEmbeddedMediaForDisplay\(post\.content/, 'post HTML must be optimized before it enters the live DOM');
 assert.match(postsView, /href="\/admin\/posts\.html\?id=\$\{targetPost\.id\}"/, 'pretty post owner edit links must target the root admin route');
 assert.doesNotMatch(postsView, /href="\.\.\/admin\//, 'pretty post pages must not create nested /posts/admin routes');
-for (const route of ['/index.html', '/posts/index.html', '/daily/index.html', '/album/index.html', '/programs/index.html', '/nasajab/index.html', '/guestbook.html', '/about.html']) {
+for (const route of ['/index.html', '/posts/index.html', '/daily/index.html', '/album/index.html', '/programs/index.html', '/nasajab/index.html', '/guestbook.html', '/askme.html', '/about.html']) {
   assert.match(postsView, new RegExp(`href="${route.replaceAll('.', '\\.')}"`), `pretty post navigation must use root route ${route}`);
 }
 assert.doesNotMatch(postsView, /<div class="top-nav">[\s\S]*?href="(?:\.\.\/|index\.html)/, 'pretty post public navigation must not depend on a missing SPA base');
@@ -558,7 +558,7 @@ const dailyViewSource = fs.readFileSync(new URL('../daily/view.html', import.met
 assert.doesNotMatch(dailyIndexSource, /href="\.\.\/admin\//, 'daily list owner links must not depend on the current public path');
 assert.doesNotMatch(dailyViewSource, /href="\.\.\/admin\//, 'pretty daily pages must not create nested /daily/admin routes');
 assert.match(dailyViewSource, /href="\/admin\/daily\.html\?id=\$\{encodeURIComponent\(entry\.id\)\}"/, 'pretty daily owner edit links must target the root admin route');
-for (const route of ['/index.html', '/posts/index.html', '/daily/index.html', '/album/index.html', '/programs/index.html', '/nasajab/index.html', '/guestbook.html', '/about.html']) {
+for (const route of ['/index.html', '/posts/index.html', '/daily/index.html', '/album/index.html', '/programs/index.html', '/nasajab/index.html', '/guestbook.html', '/askme.html', '/about.html']) {
   assert.match(dailyViewSource, new RegExp(`href="${route.replaceAll('.', '\\.')}"`), `pretty daily navigation must use root route ${route}`);
 }
 assert.doesNotMatch(dailyViewSource, /<div class="top-nav">[\s\S]*?href="(?:\.\.\/|index\.html)/, 'pretty daily public navigation must not depend on a missing SPA base');
