@@ -8,6 +8,7 @@ import {
 import {
   ASK_ME_DELETED_COPY,
   askMeEntryBody,
+  askMeExcerpt,
   askMePageItems,
 } from './askme-logic.mjs';
 
@@ -18,6 +19,7 @@ const COUNT_REVEAL_AT = 850;
 
 const forms = Array.from(document.querySelectorAll('[data-askme-form]'));
 const entries = document.getElementById('askMeEntries');
+const homePreview = document.getElementById('homeAskMePreview');
 const pagination = document.getElementById('askMePagination');
 const privateLookupForm = document.getElementById('askMePrivateLookupForm');
 const lookupStatus = document.getElementById('askMeLookupStatus');
@@ -31,6 +33,10 @@ bindPrivateLookup();
 
 if (entries) {
   initializeAskMePage();
+}
+
+if (homePreview) {
+  loadHomeAskMePreview();
 }
 
 function bindQuestionForm(form) {
@@ -187,6 +193,47 @@ async function loadAskMeEntries() {
     entries.innerHTML = `<p>${escapeHtml(cmsErrorMessage(error))}</p>`;
     if (pagination) pagination.innerHTML = '';
   }
+}
+
+async function loadHomeAskMePreview() {
+  homePreview.innerHTML = '<tr><td colspan="2">불러오는 중...</td></tr>';
+
+  try {
+    const result = await pb.collection('ask_question_feed').getList(1, 3, { sort: '-sequence' });
+    homePreview.innerHTML = result.items.length
+      ? result.items.map(renderHomePreviewEntry).join('')
+      : '<tr><td colspan="2">아직 질문이 없습니다.</td></tr>';
+  } catch {
+    homePreview.innerHTML = '<tr><td colspan="2">질문 목록을 불러오지 못했습니다.</td></tr>';
+  }
+}
+
+function renderHomePreviewEntry(entry) {
+  const sequence = Number(entry.sequence) || 0;
+  const body = askMeEntryBody(entry);
+  const answered = entry.status === 'answered' && body && String(entry.answer || '').trim();
+  const status = entry.status === 'pending'
+    ? ' · 답변 대기'
+    : entry.status === 'private' ? ' · 비공개' : '';
+  const mine = getReceipt(entry.id) ? ' <span class="askme-mine-mark">[내 질문]</span>' : '';
+  const href = `askme.html#question=${encodeURIComponent(sequence)}`;
+
+  return `
+    <tr class="home-askme-preview-row">
+      <td colspan="2">
+        <a class="home-askme-preview-link" href="${href}" aria-label="${sequence}번째 질문 보기">
+          <span class="meta"><b>${escapeHtml(questionLabel(entry))}</b>${mine} · ${escapeHtml(formatDate(entry.created))}${status}</span>
+          <span class="home-askme-preview-question${answered ? '' : ' askme-placeholder'}">${answered ? '<b>Q.</b> ' : ''}${escapeHtml(askMeExcerpt(body, 80))}</span>
+          ${answered ? `
+            <span class="guestbook-owner-reply askme-answer home-askme-preview-answer">
+              <span><b>A.</b> ${escapeHtml(askMeExcerpt(entry.answer, 120))}</span>
+              <span class="guestbook-owner-reply-meta">— coldwaterkim${entry.answered_at ? ` · ${escapeHtml(formatDate(entry.answered_at))}` : ''}</span>
+            </span>
+          ` : ''}
+        </a>
+      </td>
+    </tr>
+  `;
 }
 
 function renderPublicEntry(entry) {

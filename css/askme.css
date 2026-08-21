@@ -6,6 +6,52 @@
   padding: 6px;
 }
 
+.home-askme-preview-heading th {
+  border-top: 1px solid var(--cwk-ink);
+}
+
+.home-askme-preview-row td {
+  padding: 0;
+}
+
+.home-askme-preview-link {
+  display: block;
+  padding: 6px;
+  color: var(--cwk-ink);
+  text-decoration: none;
+}
+
+.home-askme-preview-link:visited {
+  color: var(--cwk-ink);
+}
+
+.home-askme-preview-link:hover,
+.home-askme-preview-link:focus-visible {
+  background: var(--cwk-link-hover-bg);
+}
+
+.home-askme-preview-link:focus-visible {
+  outline: 2px solid var(--cwk-link);
+  outline-offset: -2px;
+}
+
+.home-askme-preview-link .meta,
+.home-askme-preview-question,
+.home-askme-preview-answer,
+.home-askme-preview-answer > span {
+  display: block;
+}
+
+.home-askme-preview-question {
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+}
+
+.home-askme-preview-answer {
+  margin: 6px 0 0 18px;
+  color: var(--cwk-ink);
+}
+
 .askme-form--home {
   margin: 0;
 }

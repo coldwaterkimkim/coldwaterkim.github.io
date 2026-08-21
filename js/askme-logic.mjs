@@ -8,6 +8,15 @@ export function askMeEntryBody(entry = {}) {
   return String(entry.question || '').trim();
 }
 
+export function askMeExcerpt(value, limit) {
+  const text = String(value || '').replace(/\s+/g, ' ').trim();
+  const characters = Array.from(text);
+  const maximum = Math.max(1, Number(limit) || 1);
+  return characters.length > maximum
+    ? `${characters.slice(0, maximum).join('').trimEnd()}…`
+    : text;
+}
+
 export function askMePageItems(currentPage, totalPages, radius = 2) {
   const current = Math.max(1, Number(currentPage) || 1);
   const total = Math.max(0, Number(totalPages) || 0);
