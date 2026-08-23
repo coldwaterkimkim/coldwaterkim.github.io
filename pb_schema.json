@@ -283,6 +283,7 @@
           "required": true,
           "maxSelect": 1,
           "maxSize": 20971520,
+          "thumbs": ["400x400"],
           "mimeTypes": ["image/jpeg", "image/png", "image/gif", "image/webp"]
         },
         { "name": "is_public", "type": "bool", "required": true },

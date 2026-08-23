@@ -2168,7 +2168,7 @@ async function initRecentPosts(scope = document) {
       programs,
       nasajab,
       guestbook,
-    }).slice(0, 5);
+    }).slice(0, 8);
 
     if (!entries.length) {
       tbody.innerHTML = '<tr><td colspan="3">아직 공개된 글이 없습니다.</td></tr>';

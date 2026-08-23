@@ -29,6 +29,10 @@ export function albumMediaAnchorId(sourceId, mediaId, occurrence = 1) {
 }
 
 export function albumSourceUrl(item = {}) {
+  if (item.source_kind === 'nasajab') {
+    return `/nasajab/index.html#${encodeURIComponent(item.source_id || '')}`;
+  }
+
   const anchor = albumMediaAnchorId(item.source_id, item.media);
   if (item.source_kind === 'daily') {
     const dayKey = String(item.source_published_at || '').slice(0, 10);

@@ -59,7 +59,7 @@ pb.autoCancellation(false);
 export async function getAlbumItems(page = 1, perPage = 60, mediaKind = '') {
     const options = {
         sort: '-uploaded_at,-id',
-        fields: 'id,collectionId,collectionName,media,uploaded_at,file,video_poster,is_video,source_kind,source_id,source_slug,source_published_at'
+        fields: 'id,collectionId,collectionName,media,file_collection,uploaded_at,file,video_poster,is_video,source_kind,source_id,source_slug,source_published_at'
     };
     if (mediaKind === 'image' || mediaKind === 'video') {
         options.filter = pb.filter('is_video = {:isVideo}', { isVideo: mediaKind === 'video' });

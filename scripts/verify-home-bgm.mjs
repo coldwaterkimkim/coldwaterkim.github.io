@@ -24,7 +24,7 @@ function check(condition, message) {
   assertions += 1;
 }
 
-check(homeSource.includes('id="recent-all-table"'), 'Home must expose the unified recent five table');
+check(homeSource.includes('id="recent-all-table"'), 'Home must expose the unified recent table');
 check(!homeSource.includes('id="recent-daily-table"'), 'the retired per-category recent tables must stay removed');
 check(siteSource.includes('randomBgmCandidateIndex(scheduledBgmTrackIndexes('), 'initial BGM selection must use the active time slot');
 check(

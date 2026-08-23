@@ -50,10 +50,15 @@ function renderGrid(grid, items, compact = false) {
   grid.innerHTML = items.map(item => {
     const previewFile = item.is_video ? item.video_poster : item.file;
     if (!previewFile) return '';
-    const previewUrl = new URL(getMediaUrl(item, previewFile), location.href);
+    const fileRecord = {
+      id: item.media,
+      collectionName: item.file_collection || 'media',
+    };
+    const previewUrl = new URL(getMediaUrl(fileRecord, previewFile), location.href);
     previewUrl.searchParams.set('thumb', '400x400');
     const label = item.is_video ? '영상' : '사진';
-    return `<a class="album-tile" href="${albumSourceUrl(item)}" aria-label="${label}이 있는 글로 이동" data-album-source>
+    const sourceLabel = item.source_kind === 'nasajab' ? '나사잡 항목' : '원문 글';
+    return `<a class="album-tile" href="${albumSourceUrl(item)}" aria-label="${label}이 있는 ${sourceLabel}으로 이동" data-album-source>
       <img src="${previewUrl.href}" alt="" loading="lazy" decoding="async">
       ${item.is_video ? '<span class="album-video-badge" aria-hidden="true">VIDEO</span>' : ''}
     </a>`;

@@ -15,6 +15,7 @@ check(normalizeAlbumKind('video') === 'video' && normalizeAlbumKind('other') ===
 check(albumMediaAnchorId('source1', 'media1') === 'cwk-media-source1-media1', 'stable first-media anchor');
 check(albumMediaAnchorId('source1', 'media1', 2).endsWith('-2'), 'repeated-media anchor');
 check(albumSourceUrl({ source_kind: 'daily', source_id: 'source1', source_slug: 'a b', media: 'media1' }) === '/daily/view.html?slug=a%20b#cwk-media-source1-media1', 'daily deep link');
+check(albumSourceUrl({ source_kind: 'nasajab', source_id: 'nasa item', media: 'nasa item' }) === '/nasajab/index.html#nasa%20item', 'nasajab deep link');
 check(pocketBaseMediaReference('https://coldwaterkim.com/api/files/pbc/abc123/photo.JPG')?.kind === 'image', 'image reference');
 check(pocketBaseMediaReference('/api/files/pbc/abc123/movie.mov')?.kind === 'video', 'video reference');
 check(pocketBaseMediaReference('https://youtube.com/watch?v=x') === null, 'external media excluded');
@@ -22,19 +23,22 @@ check(pocketBaseMediaReference('https://youtube.com/watch?v=x') === null, 'exter
 const albumHtml = read('album/index.html');
 const albumJs = read('js/album.js');
 const styles = read('css/styles.css');
-const migration = read('pb_migrations/1785855600_create_album_view.js');
+const migration = read('pb_migrations/1787490000_include_nasajab_in_album.js');
 check(albumHtml.includes('id="album-grid"'), 'album page grid');
 check(!albumJs.includes('album-tile-title') && !albumJs.includes('album-tile-meta'), 'tiles have no visible metadata rows');
 check(styles.includes('aspect-ratio: 1') && styles.includes('object-fit: cover'), 'square cropped previews');
 check(styles.includes('repeat(5,') && styles.includes('repeat(4,') && styles.includes('repeat(3,'), 'responsive 5/4/3 columns');
 check(albumJs.includes('return 5') && !albumJs.includes("return 10"), 'home preview stays at five thumbnails');
-check(read('js/pb.js').includes('collectionId,collectionName,media,uploaded_at,file,video_poster'), 'album API requests only render fields');
+check(read('js/pb.js').includes('collectionId,collectionName,media,file_collection,uploaded_at,file,video_poster'), 'album API requests only render fields');
 check(read('js/site.js').includes('requestIdleCallback(load, { timeout: 1200 })'), 'home album waits for the core content');
 check(albumJs.includes("item.is_video ? item.video_poster : item.file"), 'videos use poster previews');
 check(!albumJs.includes('<video'), 'album never embeds playable video');
-check(migration.includes("p.status = 'published'") && migration.includes("d.status = 'published'"), 'only published sources are indexed');
+check(migration.includes("p.status = 'published'") && migration.includes("d.status = 'published'") && migration.includes("n.is_public = TRUE"), 'only published sources are indexed');
 check(migration.includes('m.created AS uploaded_at'), 'upload time drives ordering');
 check(migration.includes('ROW_NUMBER() OVER'), 'duplicate media are collapsed');
+check(migration.includes("'nasajab' AS source_kind") && migration.includes('n.image AS file'), 'public nasajab images join the album');
+check(migration.includes("'media' AS file_collection") && migration.includes("'nasajab' AS file_collection"), 'album keeps each file storage collection');
+check(migration.includes('image.thumbs = ["400x400"]'), 'nasajab album thumbnails are enabled');
 check(read('posts/view.html').includes('scrollToAlbumMediaHash') && read('daily/view.html').includes('scrollToAlbumMediaHash'), 'source pages scroll to media anchors');
 
 console.log(`Album QA passed: ${assertions} assertions`);

@@ -31,3 +31,4 @@ pb_migrations/*
 !pb_migrations/1787224751_raise_media_upload_to_20gb.js
 !pb_migrations/1787238000_create_ask_questions.js
 !pb_migrations/1787241600_extend_ask_question_receipts.js
+!pb_migrations/1787490000_include_nasajab_in_album.js

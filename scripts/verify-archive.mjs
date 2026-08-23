@@ -32,11 +32,12 @@ const archiveView = fs.readFileSync(new URL('../all/view.html', import.meta.url)
 const archiveScript = fs.readFileSync(new URL('../js/archive.js', import.meta.url), 'utf8');
 
 assert.match(home, /id="recent-all-table"/);
+assert.match(home, /최근 글 8개/, 'home heading must describe the eight rendered recent rows');
 for (const removed of ['recent-daily-table', 'recent-posts-table', 'recent-programs-table', 'recent-nasajab-table']) {
   assert.ok(!home.includes(removed), `${removed} must be removed from home`);
 }
 assert.match(home, /id="recent-album-table"/, 'album preview remains separate from written-content aggregation');
-assert.match(site, /buildArchiveEntries[\s\S]*\.slice\(0, 5\)/, 'home must use the shared archive ordering and take its first five rows');
+assert.match(site, /buildArchiveEntries[\s\S]*\.slice\(0, 8\)/, 'home must use the shared archive ordering and take its first eight rows');
 assert.match(archivePage, /id="archive-list"/);
 assert.match(
   archivePage,
