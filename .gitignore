@@ -33,3 +33,4 @@ pb_migrations/*
 !pb_migrations/1787241600_extend_ask_question_receipts.js
 !pb_migrations/1787490000_include_nasajab_in_album.js
 !pb_migrations/1787493000_add_daily_first_published_at.js
+!pb_migrations/1787495700_add_content_first_published_at.js

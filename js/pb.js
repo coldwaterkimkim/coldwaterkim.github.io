@@ -177,7 +177,7 @@ export function requireAuth() {
 // ─────────────────────────────────────────────────────────
 
 const POST_DISPLAY_SORT = '-published_at,-created';
-const POST_SUMMARY_FIELDS = 'id,title,slug,published_at,created,updated';
+const POST_SUMMARY_FIELDS = 'id,title,slug,published_at,first_published_at,created,updated';
 
 /**
  * 발행된 글 목록 가져오기
@@ -642,7 +642,7 @@ export async function getPublishedProgramSummaries(page = 1, perPage = 50) {
     return await pb.collection('programs').getList(page, perPage, {
         filter: pb.filter('is_public = {:isPublic}', { isPublic: true }),
         sort: '-created',
-        fields: 'id,title,slug,created,updated'
+        fields: 'id,title,slug,first_published_at,created,updated'
     });
 }
 
@@ -847,7 +847,7 @@ export async function getPublishedNasajabSummaries(page = 1, perPage = 50) {
     return await pb.collection('nasajab').getList(page, perPage, {
         filter: pb.filter('is_public = {:isPublic}', { isPublic: true }),
         sort: '-display_at,-created',
-        fields: 'id,title,caption,memo,display_at,created,updated'
+        fields: 'id,title,caption,memo,display_at,first_published_at,created,updated'
     });
 }
 
@@ -933,7 +933,7 @@ export async function getAnsweredGuestbookSummaries(page = 1, perPage = 50) {
     return await pb.collection('guestbook').getList(page, perPage, {
         filter: "owner_reply != ''",
         sort: '-owner_replied_at,-created',
-        fields: 'id,name,owner_reply,owner_replied_at,display_date,created,updated'
+        fields: 'id,name,owner_reply,owner_replied_at,display_date,first_published_at,created,updated'
     });
 }
 

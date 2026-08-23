@@ -51,7 +51,7 @@ export function buildArchiveEntries({
       category: 'post',
       categoryLabel: CATEGORY_LABELS.post,
       title: post.title || '(제목 없음)',
-      date: post.published_at || post.created || '',
+      date: post.first_published_at || post.published_at || post.created || '',
       url: `/posts/${encode(post.slug)}/`,
     })),
     ...groupDailyEntries(daily).map(day => ({
@@ -67,7 +67,7 @@ export function buildArchiveEntries({
       category: 'program',
       categoryLabel: CATEGORY_LABELS.program,
       title: program.title || '(이름 없음)',
-      date: program.created || program.published_at || '',
+      date: program.first_published_at || program.created || program.published_at || '',
       url: `/programs/view.html?slug=${encode(program.slug)}`,
     })),
     ...nasajab.map(item => ({
@@ -75,7 +75,7 @@ export function buildArchiveEntries({
       category: 'nasajab',
       categoryLabel: CATEGORY_LABELS.nasajab,
       title: item.title || item.caption || item.memo || '(제목 없음)',
-      date: item.display_at || item.created || '',
+      date: item.first_published_at || item.display_at || item.created || '',
       url: item.id ? `/nasajab/index.html#${encode(item.id)}` : '/nasajab/index.html',
     })),
     ...guestbook
@@ -85,7 +85,7 @@ export function buildArchiveEntries({
         category: 'guestbook',
         categoryLabel: CATEGORY_LABELS.guestbook,
         title: `${String(entry.name || '').trim() || '익명의 누군가'}: 방명록`,
-        date: entry.display_date || entry.created || '',
+        date: entry.first_published_at || entry.owner_replied_at || entry.display_date || entry.created || '',
         url: `/all/view.html?id=${encode(entry.id)}`,
       })),
   ];

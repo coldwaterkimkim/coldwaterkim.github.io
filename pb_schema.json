@@ -10,6 +10,7 @@
         { "name": "excerpt", "type": "text", "required": false, "max": 500 },
         { "name": "status", "type": "select", "required": true, "values": ["draft", "published"], "maxSelect": 1 },
         { "name": "published_at", "type": "date", "required": false },
+        { "name": "first_published_at", "type": "date", "required": false },
         { "name": "pending_media_ids", "type": "text", "required": false, "max": 10000 },
         { "name": "created", "type": "autodate", "onCreate": true, "onUpdate": false },
         { "name": "updated", "type": "autodate", "onCreate": true, "onUpdate": true }
@@ -62,6 +63,7 @@
         { "name": "display_date", "type": "date", "required": false },
         { "name": "owner_reply", "type": "text", "required": false, "max": 1000 },
         { "name": "owner_replied_at", "type": "date", "required": false },
+        { "name": "first_published_at", "type": "date", "required": false },
         { "name": "created", "type": "autodate", "onCreate": true, "onUpdate": false },
         { "name": "updated", "type": "autodate", "onCreate": true, "onUpdate": true }
       ],
@@ -256,6 +258,7 @@
         { "name": "primary_link_label", "type": "text", "required": false, "max": 80 },
         { "name": "primary_link_url", "type": "url", "required": false, "max": 1000 },
         { "name": "is_public", "type": "bool", "required": true },
+        { "name": "first_published_at", "type": "date", "required": false },
         { "name": "pending_media_ids", "type": "text", "required": false, "max": 10000 },
         { "name": "created", "type": "autodate", "onCreate": true, "onUpdate": false },
         { "name": "updated", "type": "autodate", "onCreate": true, "onUpdate": true }
@@ -288,6 +291,7 @@
           "mimeTypes": ["image/jpeg", "image/png", "image/gif", "image/webp"]
         },
         { "name": "is_public", "type": "bool", "required": true },
+        { "name": "first_published_at", "type": "date", "required": false },
         { "name": "created", "type": "autodate", "onCreate": true, "onUpdate": false },
         { "name": "updated", "type": "autodate", "onCreate": true, "onUpdate": true }
       ],
