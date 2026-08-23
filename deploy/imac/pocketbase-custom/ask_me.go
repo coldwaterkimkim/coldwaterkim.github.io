@@ -128,6 +128,12 @@ func (service *askQuestionService) createQuestion(e *core.RequestEvent) error {
 
 	var response map[string]any
 	err = service.app.RunInTransaction(func(txApp core.App) error {
+		activeQuestions, err := findActiveAskQuestions(txApp)
+		if err != nil {
+			return fmt.Errorf("find active ask questions: %w", err)
+		}
+		displaySequence := len(activeQuestions) + 1
+
 		counter, err := txApp.FindFirstRecordByData("ask_question_counters", "key", "global")
 		if err != nil {
 			return fmt.Errorf("find ask question counter: %w", err)
@@ -146,7 +152,7 @@ func (service *askQuestionService) createQuestion(e *core.RequestEvent) error {
 
 		record := core.NewRecord(collection)
 		record.Set("sequence", sequence)
-		record.Set("asker_name", askQuestionAskerName(sequence))
+		record.Set("asker_name", askQuestionAskerName(displaySequence))
 		record.Set("question", question)
 		record.Set("is_private", request.IsPrivate)
 		record.Set("receipt_token_hash", receiptHash)
@@ -161,13 +167,14 @@ func (service *askQuestionService) createQuestion(e *core.RequestEvent) error {
 			status = "private"
 		}
 		response = map[string]any{
-			"accepted":      true,
-			"id":            record.Id,
-			"sequence":      sequence,
-			"asker_name":    record.GetString("asker_name"),
-			"receipt_token": receiptToken,
-			"status":        status,
-			"created":       record.GetDateTime("created"),
+			"accepted":         true,
+			"id":               record.Id,
+			"sequence":         sequence,
+			"display_sequence": displaySequence,
+			"asker_name":       record.GetString("asker_name"),
+			"receipt_token":    receiptToken,
+			"status":           status,
+			"created":          record.GetDateTime("created"),
 		}
 
 		return nil
@@ -250,7 +257,7 @@ func (service *askQuestionService) authenticateQuestionRead(request askQuestionR
 	if isPocketBaseRecordID(id) {
 		record, err = service.app.FindRecordById("ask_questions", id)
 	} else if request.Sequence > 0 {
-		record, err = service.app.FindFirstRecordByData("ask_questions", "sequence", request.Sequence)
+		record, err = findActiveAskQuestionByDisplaySequence(service.app, request.Sequence)
 	} else {
 		verifyAskQuestionPassword(service.dummyPasswordHash, request.Password)
 		return nil, false
@@ -280,25 +287,72 @@ func (service *askQuestionService) softDeleteQuestion(e *core.RequestEvent) erro
 		return e.NotFoundError("질문을 찾지 못했습니다.", nil)
 	}
 
-	record, err := service.app.FindRecordById("ask_questions", id)
-	if err != nil {
-		return e.NotFoundError("질문을 찾지 못했습니다.", nil)
-	}
-	if !record.GetBool("deleted") {
+	err := service.app.RunInTransaction(func(txApp core.App) error {
+		record, err := txApp.FindRecordById("ask_questions", id)
+		if err != nil {
+			return err
+		}
+		if record.GetBool("deleted") {
+			return nil
+		}
+
 		record.Set("question", "")
 		record.Set("answer", "")
 		record.Set("answered_at", "")
 		record.Set("deleted", true)
 		record.Set("deleted_at", types.NowDateTime())
-		if err := service.app.Save(record); err != nil {
-			return e.InternalServerError("질문을 삭제하지 못했습니다.", err)
+		if err := txApp.Save(record); err != nil {
+			return fmt.Errorf("save deleted ask question: %w", err)
 		}
+		if err := renumberActiveAskQuestionNames(txApp); err != nil {
+			return fmt.Errorf("renumber active ask questions: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return e.InternalServerError("질문을 삭제하지 못했습니다.", err)
 	}
 
 	return e.JSON(http.StatusOK, map[string]any{
-		"id":      record.Id,
+		"id":      id,
 		"deleted": true,
 	})
+}
+
+func findActiveAskQuestions(app core.App) ([]*core.Record, error) {
+	return app.FindRecordsByFilter("ask_questions", "deleted = false", "sequence", 0, 0)
+}
+
+func findActiveAskQuestionByDisplaySequence(app core.App, displaySequence int) (*core.Record, error) {
+	if displaySequence < 1 {
+		return nil, fmt.Errorf("invalid display sequence")
+	}
+	records, err := findActiveAskQuestions(app)
+	if err != nil {
+		return nil, err
+	}
+	if displaySequence > len(records) {
+		return nil, fmt.Errorf("display sequence not found")
+	}
+	return records[displaySequence-1], nil
+}
+
+func renumberActiveAskQuestionNames(app core.App) error {
+	records, err := findActiveAskQuestions(app)
+	if err != nil {
+		return err
+	}
+	for index, record := range records {
+		name := askQuestionAskerName(index + 1)
+		if record.GetString("asker_name") == name {
+			continue
+		}
+		record.Set("asker_name", name)
+		if err := app.Save(record); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func askQuestionAskerName(sequence int) string {

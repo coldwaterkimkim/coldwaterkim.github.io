@@ -92,6 +92,7 @@ check(pageScript.includes("sort: '-sequence'"), 'question feed must stay in newe
 check(!/sort:\s*['"]-answered_at/.test(pageScript), 'answer time must never reorder questions');
 check(pageScript.includes('const PAGE_SIZE = 10'), 'question pagination must keep ten entries per page');
 check(pageScript.includes("pb.send('/api/cwk/ask/questions'"), 'visitor submission must use the protected custom endpoint');
+check(pageScript.includes('result.asker_name || `${result.sequence}번째 질문`'), 'submission notice must use the active-question display number');
 check(pageScript.includes("pb.collection('ask_question_feed')"), 'visitors must read only the redacted public view');
 check(pageScript.includes("pb.collection('ask_question_feed').getList(1, 3, { sort: '-sequence' })"), 'home preview must fetch exactly the latest three public-feed entries');
 check(pageScript.includes('result.items.map(renderHomePreviewEntry)'), 'home preview must render every returned status');
@@ -137,6 +138,11 @@ check(pageScript.includes("document.getElementById('askMeLookupPassword')"), 'pr
 check(pageScript.includes('readOwnedQuestion({ sequence, password })'), 'private lookup must submit sequence and password together');
 check(pageScript.includes('class="askme-delete"'), 'OWNER question delete button is missing');
 check(pageScript.includes('pb.send(`/api/cwk/ask/questions/${encodeURIComponent(entry.dataset.askMeId)}`'), 'OWNER delete must use the custom delete endpoint');
+check(pageScript.includes('class="askme-question-edit-toggle"'), 'OWNER question edit button is missing');
+check(pageScript.includes('class="guestbook-reply-form askme-question-edit-form" hidden'), 'OWNER question edit form is missing');
+check(pageScript.includes('maxlength="1000" aria-label="질문 수정" required'), 'OWNER question edit must keep the question length limit and accessible label');
+check(pageScript.includes("pb.collection('ask_questions').update(entry.dataset.askMeId, { question })"), 'OWNER question edit must update only the question text');
+check(pageScript.includes('질문 수정 실패:'), 'OWNER question edit needs an error message');
 check(serverSource.includes('e.Router.DELETE(askQuestionDeletePath, service.softDeleteQuestion)'), 'OWNER delete route is missing');
 check(serverSource.includes('Bind(apis.RequireAuth("users", core.CollectionNameSuperusers))'), 'OWNER delete route must require authentication');
 
@@ -167,6 +173,9 @@ check(!/record\.Set\("(?:password|receipt_token)"/.test(serverSource), 'raw pass
 check(serverSource.includes('record.Set("question", "")') && serverSource.includes('record.Set("answer", "")'), 'deletion must erase raw question and answer text');
 check(serverSource.includes('/api/cwk/ask/questions'), 'custom Ask Me POST route is missing');
 check(serverSource.includes('RunInTransaction'), 'sequence allocation and question save must be transactional');
+check(serverSource.includes('displaySequence := len(activeQuestions) + 1'), 'new question labels must exclude deleted questions');
+check(serverSource.includes('findActiveAskQuestionByDisplaySequence(service.app, request.Sequence)'), 'private lookup must use the visible active-question number');
+check(serverSource.includes('renumberActiveAskQuestionNames(txApp)'), 'deletion must close visible question-number gaps');
 
 const navFiles = [
   'index.html',

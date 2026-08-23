@@ -120,7 +120,7 @@ function bindQuestionForm(form) {
         sequence: result.sequence,
         token: result.receipt_token,
       });
-      writeSessionValue(SUBMIT_NOTICE_KEY, `${result.sequence}번째 질문으로 남겼습니다.`);
+      writeSessionValue(SUBMIT_NOTICE_KEY, `${result.asker_name || `${result.sequence}번째 질문`}으로 남겼습니다.`);
       window.location.assign(buildReceiptUrl(result));
     } catch (error) {
       setFormStatus(form, `질문을 남기지 못했습니다: ${cmsErrorMessage(error)}`, true);
@@ -263,7 +263,11 @@ function renderOwnerEntry(entry) {
       <div class="meta"><b>${escapeHtml(questionLabel(entry))}</b> · ${escapeHtml(formatDate(entry.created))}${privacy}</div>
       <div class="askme-question"><b>Q.</b> ${escapeHtml(entry.question || '')}</div>
       ${answer ? renderAnswer(answer, entry.answered_at) : ''}
-      <div class="guestbook-reply-actions"><button type="button" class="askme-answer-toggle">[${answer ? '답변 수정' : '답변하기'}]</button>${answer ? ' <button type="button" class="askme-answer-clear">[답변 지우기]</button>' : ''} <button type="button" class="askme-delete">[질문 삭제]</button></div>
+      <div class="guestbook-reply-actions"><button type="button" class="askme-question-edit-toggle">[질문 수정]</button> <button type="button" class="askme-answer-toggle">[${answer ? '답변 수정' : '답변하기'}]</button>${answer ? ' <button type="button" class="askme-answer-clear">[답변 지우기]</button>' : ''} <button type="button" class="askme-delete">[질문 삭제]</button></div>
+      <form class="guestbook-reply-form askme-question-edit-form" hidden>
+        <textarea rows="4" maxlength="1000" aria-label="질문 수정" required>${escapeHtml(entry.question || '')}</textarea>
+        <div><button type="submit">[저장]</button> <button type="button" class="askme-question-edit-cancel">[취소]</button></div>
+      </form>
       <form class="guestbook-reply-form askme-answer-form" hidden>
         <textarea rows="4" maxlength="3000" aria-label="답변" required>${escapeHtml(answer)}</textarea>
         <div><button type="submit">[저장]</button> <button type="button" class="askme-answer-cancel">[취소]</button></div>
@@ -316,6 +320,40 @@ function renderAnswer(answer, answeredAt) {
 
 function bindOwnerActions() {
   if (!isLoggedIn() || !entries) return;
+
+  entries.querySelectorAll('.askme-question-edit-toggle').forEach(button => {
+    button.addEventListener('click', () => {
+      const questionForm = button.closest('.askme-entry')?.querySelector('.askme-question-edit-form');
+      if (!questionForm) return;
+      questionForm.hidden = !questionForm.hidden;
+      if (!questionForm.hidden) questionForm.querySelector('textarea')?.focus();
+    });
+  });
+
+  entries.querySelectorAll('.askme-question-edit-cancel').forEach(button => {
+    button.addEventListener('click', () => {
+      const questionForm = button.closest('.askme-question-edit-form');
+      if (questionForm) questionForm.hidden = true;
+    });
+  });
+
+  entries.querySelectorAll('.askme-question-edit-form').forEach(questionForm => {
+    questionForm.addEventListener('submit', async event => {
+      event.preventDefault();
+      const entry = questionForm.closest('.askme-entry');
+      const question = questionForm.querySelector('textarea')?.value.trim() || '';
+      const submitButton = questionForm.querySelector('button[type="submit"]');
+      if (!entry || !question) return;
+      if (submitButton) submitButton.disabled = true;
+      try {
+        await pb.collection('ask_questions').update(entry.dataset.askMeId, { question });
+        await loadAskMeEntries();
+      } catch (error) {
+        alert(`질문 수정 실패: ${cmsErrorMessage(error)}`);
+        if (submitButton) submitButton.disabled = false;
+      }
+    });
+  });
 
   entries.querySelectorAll('.askme-answer-toggle').forEach(button => {
     button.addEventListener('click', () => {

@@ -221,31 +221,38 @@ func TestAskQuestionAuthorWorkflow(t *testing.T) {
 	}
 
 	ownerToken := createAskQuestionOwnerToken(t, app)
-	deleted := askQuestionTestRequest(t, mux, http.MethodDelete, askQuestionPath+"/"+privateReceipt.ID, nil, "198.51.100.7:1008", ownerToken)
+	deleted := askQuestionTestRequest(t, mux, http.MethodDelete, askQuestionPath+"/"+publicReceipt.ID, nil, "198.51.100.7:1008", ownerToken)
 	if deleted.Code != http.StatusOK {
 		t.Fatalf("soft delete status=%d body=%s", deleted.Code, deleted.Body.String())
 	}
-	deletedRecord, err := app.FindRecordById("ask_questions", privateReceipt.ID)
+	deletedRecord, err := app.FindRecordById("ask_questions", publicReceipt.ID)
 	if err != nil {
 		t.Fatal("soft delete hard-deleted the record")
 	}
 	if !deletedRecord.GetBool("deleted") || deletedRecord.GetString("question") != "" || deletedRecord.GetString("answer") != "" {
 		t.Fatal("soft delete did not wipe raw question and answer")
 	}
-	if _, err := app.FindRecordById("ask_question_feed", privateReceipt.ID); err == nil {
+	if _, err := app.FindRecordById("ask_question_feed", publicReceipt.ID); err == nil {
 		t.Fatal("deleted question remained in public feed")
 	}
-
-	tombstone := askQuestionTestRequest(t, mux, http.MethodPost, askQuestionReadPath, map[string]any{
-		"id":            privateReceipt.ID,
-		"receipt_token": privateReceipt.ReceiptToken,
-	}, "198.51.100.8:1009", "")
-	assertAskQuestionResponse(t, tombstone, http.StatusOK, "", true, true)
-	tombstoneByPassword := askQuestionTestRequest(t, mux, http.MethodPost, askQuestionReadPath, map[string]any{
-		"sequence": privateReceipt.Sequence,
+	renumberedPrivate, err := app.FindRecordById("ask_questions", privateReceipt.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := renumberedPrivate.GetString("asker_name"); got != "1번째 질문" {
+		t.Fatalf("remaining question name=%q want=%q", got, "1번째 질문")
+	}
+	privateReadAfterRenumber := askQuestionTestRequest(t, mux, http.MethodPost, askQuestionReadPath, map[string]any{
+		"sequence": 1,
 		"password": privatePassword,
 	}, "198.51.100.9:1010", "")
-	assertAskQuestionResponse(t, tombstoneByPassword, http.StatusOK, "", true, true)
+	assertAskQuestionResponse(t, privateReadAfterRenumber, http.StatusOK, "비공개 질문 원문", true, false)
+
+	tombstone := askQuestionTestRequest(t, mux, http.MethodPost, askQuestionReadPath, map[string]any{
+		"id":            publicReceipt.ID,
+		"receipt_token": publicReceipt.ReceiptToken,
+	}, "198.51.100.8:1009", "")
+	assertAskQuestionResponse(t, tombstone, http.StatusOK, "", false, true)
 }
 
 type askQuestionCreateResponse struct {
