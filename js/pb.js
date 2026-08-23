@@ -410,7 +410,7 @@ export async function getPublishedDailyEntries(page = 1, perPage = 10) {
     });
 }
 
-const DAILY_SUMMARY_FIELDS = 'id,title,slug,day_key,published_at,created,updated';
+const DAILY_SUMMARY_FIELDS = 'id,title,slug,day_key,published_at,first_published_at,created,updated';
 
 export async function getPublishedDailySummaries(page = 1, perPage = 20) {
     return await pb.collection(DAILY_COLLECTION).getList(page, perPage, {

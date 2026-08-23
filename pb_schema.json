@@ -36,6 +36,7 @@
         { "name": "excerpt", "type": "text", "required": false, "max": 500 },
         { "name": "status", "type": "select", "required": true, "values": ["draft", "published"], "maxSelect": 1 },
         { "name": "published_at", "type": "date", "required": false },
+        { "name": "first_published_at", "type": "date", "required": false },
         { "name": "pending_media_ids", "type": "text", "required": false, "max": 10000 },
         { "name": "created", "type": "autodate", "onCreate": true, "onUpdate": false },
         { "name": "updated", "type": "autodate", "onCreate": true, "onUpdate": true }

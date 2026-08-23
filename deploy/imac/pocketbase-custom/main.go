@@ -19,6 +19,7 @@ import (
 
 func main() {
 	app := pocketbase.New()
+	registerDailyPublicationHooks(app)
 
 	var hooksDir string
 	app.RootCmd.PersistentFlags().StringVar(

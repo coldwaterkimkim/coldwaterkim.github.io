@@ -5,8 +5,20 @@ import { buildArchiveEntries } from '../js/archive-logic.mjs';
 const sources = {
   posts: [{ id: 'p1', title: '글방 글', slug: 'post', published_at: '2026-08-20T10:00:00Z' }],
   daily: [
-    { id: 'd1', day_key: '2026-08-19', published_at: '2026-08-19T11:00:00Z' },
-    { id: 'd2', day_key: '2026-08-19', published_at: '2026-08-19T12:00:00Z' },
+    {
+      id: 'd1',
+      day_key: '2026-08-19',
+      published_at: '2026-08-19T00:00:00Z',
+      first_published_at: '2026-08-19T11:00:00Z',
+      updated: '2026-08-23T15:00:00Z',
+    },
+    {
+      id: 'd2',
+      day_key: '2026-08-19',
+      published_at: '2026-08-19T00:00:00Z',
+      first_published_at: '2026-08-19T12:00:00Z',
+      updated: '2026-08-24T15:00:00Z',
+    },
   ],
   programs: [{ id: 'r1', title: '프로그램', slug: 'program', created: '2026-08-18T10:00:00Z' }],
   nasajab: [{ id: 'n1', memo: '나사잡', display_at: '2026-08-17T10:00:00Z' }],
@@ -22,6 +34,8 @@ assert.equal(entries[0].title, '방문자: 방명록');
 assert.equal(entries[0].date, '2026-08-21T10:00:00Z', 'guestbook ordering must follow its display date, not a later bulk reply date');
 assert.equal(entries.filter(entry => entry.category === 'daily').length, 1, 'same-day daily records must share one canonical row');
 assert.match(entries.find(entry => entry.category === 'daily').title, /\(2개\)$/);
+assert.equal(entries.find(entry => entry.category === 'daily').date, '2026-08-19T12:00:00Z', 'daily ordering must use the latest first publication in its day group');
+assert.notEqual(entries.find(entry => entry.category === 'daily').date, sources.daily[1].updated, 'later edits must not reorder an already-published daily entry');
 assert.deepEqual(entries.map(entry => entry.category), ['guestbook', 'post', 'daily', 'program', 'nasajab']);
 assert.ok(!entries.some(entry => entry.category === 'album' || entry.category === 'about'));
 

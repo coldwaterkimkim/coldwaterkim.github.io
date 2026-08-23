@@ -25,7 +25,7 @@ function groupDailyEntries(entries = []) {
   entries.forEach(entry => {
     const dayKey = dailyDayKey(entry);
     if (!dayKey) return;
-    const date = entry.published_at || `${dayKey}T00:00:00+09:00`;
+    const date = entry.first_published_at || entry.published_at || `${dayKey}T00:00:00+09:00`;
     const current = groups.get(dayKey);
     if (!current) {
       groups.set(dayKey, { dayKey, date, count: 1, id: entry.id || dayKey });
