@@ -306,6 +306,88 @@
       "deleteRule": "@request.auth.id != ''"
     },
     {
+      "name": "album_tags",
+      "type": "base",
+      "fields": [
+        { "name": "name", "type": "text", "required": true, "min": 1, "max": 30 },
+        { "name": "position", "type": "number", "required": true, "min": 1, "onlyInt": true },
+        { "name": "created", "type": "autodate", "onCreate": true, "onUpdate": false },
+        { "name": "updated", "type": "autodate", "onCreate": true, "onUpdate": true }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX `idx_album_tags_name` ON `album_tags` (`name`)",
+        "CREATE INDEX `idx_album_tags_position` ON `album_tags` (`position`, `created`)"
+      ],
+      "listRule": "",
+      "viewRule": "",
+      "createRule": null,
+      "updateRule": null,
+      "deleteRule": null
+    },
+    {
+      "name": "album_media_tags",
+      "type": "base",
+      "fields": [
+        { "name": "media_key", "type": "text", "required": true, "min": 17, "max": 40, "pattern": "^(media|nasajab):[a-z0-9]{15}$" },
+        { "name": "tag_id", "type": "text", "required": true, "min": 15, "max": 15, "pattern": "^[a-z0-9]{15}$" },
+        { "name": "created", "type": "autodate", "onCreate": true, "onUpdate": false },
+        { "name": "updated", "type": "autodate", "onCreate": true, "onUpdate": true }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX `idx_album_media_tags_key_tag` ON `album_media_tags` (`media_key`, `tag_id`)",
+        "CREATE INDEX `idx_album_media_tags_tag` ON `album_media_tags` (`tag_id`, `created`)"
+      ],
+      "listRule": null,
+      "viewRule": null,
+      "createRule": null,
+      "updateRule": null,
+      "deleteRule": null
+    },
+    {
+      "name": "album_tag_summary",
+      "type": "view",
+      "fields": [
+        { "name": "name", "type": "text", "required": false },
+        { "name": "position", "type": "number", "required": false, "onlyInt": true },
+        { "name": "created", "type": "text", "required": false },
+        { "name": "assignment_count", "type": "number", "required": false, "onlyInt": true }
+      ],
+      "indexes": [],
+      "listRule": "",
+      "viewRule": "",
+      "createRule": null,
+      "updateRule": null,
+      "deleteRule": null,
+      "viewQuery": "SELECT t.id AS id, t.name AS name, t.position AS position, t.created AS created, COUNT(mt.id) AS assignment_count FROM album_tags t LEFT JOIN album_media_tags mt ON mt.tag_id = t.id GROUP BY t.id, t.name, t.position, t.created"
+    },
+    {
+      "name": "album_tagged_items",
+      "type": "view",
+      "fields": [
+        { "name": "media", "type": "text", "required": false },
+        { "name": "file_collection", "type": "text", "required": false },
+        { "name": "uploaded_at", "type": "text", "required": false },
+        { "name": "file", "type": "text", "required": false },
+        { "name": "video_poster", "type": "text", "required": false },
+        { "name": "video_status", "type": "text", "required": false },
+        { "name": "alt_text", "type": "text", "required": false },
+        { "name": "is_video", "type": "bool", "required": false },
+        { "name": "source_kind", "type": "text", "required": false },
+        { "name": "source_id", "type": "text", "required": false },
+        { "name": "source_slug", "type": "text", "required": false },
+        { "name": "source_title", "type": "text", "required": false },
+        { "name": "source_published_at", "type": "text", "required": false },
+        { "name": "tag_id", "type": "text", "required": false }
+      ],
+      "indexes": [],
+      "listRule": "",
+      "viewRule": "",
+      "createRule": null,
+      "updateRule": null,
+      "deleteRule": null,
+      "viewQuery": "SELECT mt.id AS id, ai.media AS media, ai.file_collection AS file_collection, ai.uploaded_at AS uploaded_at, ai.file AS file, ai.video_poster AS video_poster, ai.video_status AS video_status, ai.alt_text AS alt_text, ai.is_video AS is_video, ai.source_kind AS source_kind, ai.source_id AS source_id, ai.source_slug AS source_slug, ai.source_title AS source_title, ai.source_published_at AS source_published_at, mt.tag_id AS tag_id FROM album_media_tags mt JOIN album_items ai ON mt.media_key = (ai.file_collection || ':' || ai.media)"
+    },
+    {
       "name": "media",
       "type": "base",
       "fields": [

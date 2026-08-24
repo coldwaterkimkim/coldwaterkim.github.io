@@ -56,15 +56,79 @@ const API_URL = CONFIGURED_API_URL
 export const pb = new PocketBase(API_URL);
 pb.autoCancellation(false);
 
-export async function getAlbumItems(page = 1, perPage = 60, mediaKind = '') {
+const ALBUM_RENDER_FIELDS = 'id,collectionId,collectionName,media,file_collection,uploaded_at,file,video_poster,is_video,source_kind,source_id,source_slug,source_published_at';
+
+export async function getAlbumItems(page = 1, perPage = 60, mediaKind = '', tagId = '') {
     const options = {
         sort: '-uploaded_at,-id',
-        fields: 'id,collectionId,collectionName,media,file_collection,uploaded_at,file,video_poster,is_video,source_kind,source_id,source_slug,source_published_at'
+        fields: `${ALBUM_RENDER_FIELDS}${tagId ? ',tag_id' : ''}`
     };
+    const filters = [];
+    if (tagId) filters.push(pb.filter('tag_id = {:tagId}', { tagId }));
     if (mediaKind === 'image' || mediaKind === 'video') {
-        options.filter = pb.filter('is_video = {:isVideo}', { isVideo: mediaKind === 'video' });
+        filters.push(pb.filter('is_video = {:isVideo}', { isVideo: mediaKind === 'video' }));
     }
-    return await pb.collection('album_items').getList(page, perPage, options);
+    if (filters.length) options.filter = filters.map(filter => `(${filter})`).join(' && ');
+    return await pb.collection(tagId ? 'album_tagged_items' : 'album_items').getList(page, perPage, options);
+}
+
+export async function getAlbumTags() {
+    return await pb.collection('album_tag_summary').getFullList({
+        sort: 'position,created',
+        fields: 'id,name,position,assignment_count'
+    });
+}
+
+export async function getAlbumTagAssignments(mediaKeys = []) {
+    const keys = [...new Set(mediaKeys)].filter(Boolean);
+    if (!keys.length) return [];
+    const records = [];
+    for (let offset = 0; offset < keys.length; offset += 40) {
+        const chunk = keys.slice(offset, offset + 40);
+        const values = {};
+        const clauses = chunk.map((key, index) => {
+            const separator = key.indexOf(':');
+            values[`collection${index}`] = key.slice(0, separator);
+            values[`media${index}`] = key.slice(separator + 1);
+            return `(file_collection = {:collection${index}} && media = {:media${index}})`;
+        });
+        records.push(...await pb.collection('album_tagged_items').getFullList({
+            filter: pb.filter(clauses.join(' || '), values),
+            fields: 'tag_id,media,file_collection'
+        }));
+    }
+    return records;
+}
+
+export async function createAlbumTag(name) {
+    return await pb.send('/api/cwk/album/tags', {
+        method: 'POST',
+        body: { name },
+        requestKey: null
+    });
+}
+
+export async function updateAlbumTag(tagId, name) {
+    return await pb.send(`/api/cwk/album/tags/${encodeURIComponent(tagId)}`, {
+        method: 'PATCH',
+        body: { name },
+        requestKey: null
+    });
+}
+
+export async function deleteAlbumTag(tagId) {
+    return await pb.send(`/api/cwk/album/tags/${encodeURIComponent(tagId)}`, {
+        method: 'DELETE',
+        requestKey: null
+    });
+}
+
+export async function applyAlbumTag(mediaKeys, tagId, action) {
+    return await pb.send('/api/cwk/album/tags/batch', {
+        method: 'POST',
+        body: { media_keys: mediaKeys, tag_id: tagId, action },
+        requestKey: null
+    });
 }
 
 let albumTimelinePromise = null;

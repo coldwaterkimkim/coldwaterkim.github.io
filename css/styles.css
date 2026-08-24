@@ -2526,16 +2526,75 @@ body > center > table[width="1140"] > tbody > tr > td {
 .album-toolbar {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   gap: 10px;
   margin: 0 0 10px;
   font-family: var(--cwk-font-mono);
   font-size: 12px;
 }
 
+.album-filter-row {
+  margin: 4px 0;
+  font-family: var(--cwk-font-mono);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
 .album-filter--active {
   color: var(--cwk-ink);
   font-weight: bold;
   text-decoration: none;
+}
+
+.album-tag-manager {
+  margin: 10px 0;
+  padding: 7px;
+  border: 1px dashed var(--cwk-border-dashed);
+  background: var(--cwk-surface-preview);
+  font-family: var(--cwk-font-mono);
+  font-size: 12px;
+}
+
+.album-tag-create-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 7px;
+}
+
+.album-tag-create-form input {
+  width: min(220px, 55vw);
+}
+
+.album-tag-manager-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+}
+
+.album-tag-manager-item {
+  white-space: nowrap;
+}
+
+.album-selection-bar {
+  position: sticky;
+  z-index: 8;
+  top: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 10px 0;
+  padding: 7px;
+  border: 2px solid var(--cwk-ink);
+  background: var(--cwk-surface-banner);
+  font-family: var(--cwk-font-mono);
+  font-size: 12px;
+}
+
+.album-selection-bar[hidden] {
+  display: none;
 }
 
 .album-grid {
@@ -2560,6 +2619,16 @@ body > center > table[width="1140"] > tbody > tr > td {
   outline-offset: -3px;
 }
 
+.album-grid--editing .album-tile {
+  cursor: pointer;
+}
+
+.album-tile--selected,
+.album-grid--editing .album-tile--selected:hover {
+  outline: 5px solid var(--cwk-surface-banner);
+  outline-offset: -5px;
+}
+
 .album-tile img {
   display: block;
   width: 100%;
@@ -2578,6 +2647,24 @@ body > center > table[width="1140"] > tbody > tr > td {
   font: bold 9px/1 var(--cwk-font-mono);
 }
 
+.album-select-mark {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  display: none;
+  width: 20px;
+  height: 20px;
+  border: 1px solid #fff;
+  background: #000;
+  color: #fff;
+  font: bold 16px/20px var(--cwk-font-mono);
+  text-align: center;
+}
+
+.album-tile--selected .album-select-mark {
+  display: block;
+}
+
 .album-message {
   grid-column: 1 / -1;
   margin: 18px 0;
@@ -2588,6 +2675,11 @@ body > center > table[width="1140"] > tbody > tr > td {
   margin: 16px 0;
   text-align: center;
   font-family: var(--cwk-font-mono);
+}
+
+.album-scroll-sentinel {
+  width: 100%;
+  height: 1px;
 }
 
 .home-album-table td {
@@ -2614,6 +2706,10 @@ body > center > table[width="1140"] > tbody > tr > td {
   .album-toolbar {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .album-selection-bar {
+    top: 2px;
   }
 
   .entry-gate {

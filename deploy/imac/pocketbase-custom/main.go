@@ -112,6 +112,7 @@ func main() {
 	seoPages := newSEORenderer(app, siteDir)
 	bgmTrimmer := newBGMTrimService(app)
 	askQuestions := newAskQuestionService(app)
+	albumTags := newAlbumTagService(app)
 	app.Cron().MustAdd("cleanup-tus-uploads", "17 4 * * *", func() {
 		if err := resumableUploads.cleanupStaleUploads(time.Now()); err != nil {
 			app.Logger().Warn("Failed to clean stale tus uploads", "error", err.Error())
@@ -148,6 +149,7 @@ func main() {
 		resumableUploads.registerRoutes(e)
 		bgmTrimmer.registerRoutes(e)
 		askQuestions.registerRoutes(e)
+		albumTags.registerRoutes(e)
 		seoPages.registerRoutes(e)
 		return e.Next()
 	})

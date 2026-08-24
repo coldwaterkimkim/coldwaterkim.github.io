@@ -67,6 +67,7 @@
     "qa:entry-gate": "node scripts/verify-entry-gate.mjs",
     "qa:maintenance": "node scripts/verify-maintenance-page.mjs",
     "qa:album": "node scripts/verify-album.mjs",
+    "album:import-tags": "node scripts/import-media-lab-tags.mjs",
     "qa:archive": "node scripts/verify-archive.mjs",
     "qa:webring": "node scripts/verify-webring.mjs",
     "qa:seo": "node scripts/verify-seo.mjs",

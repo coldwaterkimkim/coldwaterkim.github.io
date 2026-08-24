@@ -52,3 +52,20 @@ export function normalizeAlbumPage(value = 1) {
   const page = Number.parseInt(value, 10);
   return Number.isFinite(page) && page > 0 ? page : 1;
 }
+
+export function albumMediaKey(item = {}) {
+  const collection = String(item.file_collection || 'media').trim() || 'media';
+  const media = String(item.media || '').trim();
+  return media ? `${collection}:${media}` : '';
+}
+
+export function albumBrowseUrl({ page = 1, kind = '', tag = '' } = {}) {
+  const params = new URLSearchParams();
+  const normalizedPage = normalizeAlbumPage(page);
+  const normalizedKind = normalizeAlbumKind(kind);
+  if (normalizedPage > 1) params.set('page', String(normalizedPage));
+  if (normalizedKind) params.set('kind', normalizedKind);
+  if (tag) params.set('tag', String(tag));
+  const query = params.toString();
+  return `/album/index.html${query ? `?${query}` : ''}`;
+}
