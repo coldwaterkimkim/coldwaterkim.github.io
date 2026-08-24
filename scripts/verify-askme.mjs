@@ -7,7 +7,6 @@ import {
   ASK_ME_PENDING_COPY,
   ASK_ME_PRIVATE_COPY,
   askMeEntryBody,
-  askMeExcerpt,
   askMePageItems,
 } from '../js/askme-logic.mjs';
 
@@ -52,11 +51,8 @@ const albumTableAt = homeHtml.indexOf('id="recent-album-table"');
 check(recentTableAt >= 0 && recentTableAt < homeAskMeAt && homeAskMeAt < albumTableAt, 'home Ask Me form must sit between the recent-post and album tables');
 check(homeHtml.includes('<th align="left">Ask Me</th>'), 'home Ask Me table heading is missing');
 check(homeHtml.includes('<a href="askme.html">질문 목록</a>'), 'home Ask Me list link is missing');
-check(homeHtml.includes('id="homeAskMePreview"'), 'home Ask Me recent-question feed is missing');
-const homeFormAt = homeHtml.indexOf('data-askme-form');
-const homePreviewAt = homeHtml.indexOf('id="homeAskMePreview"');
-check(homeFormAt >= 0 && homeFormAt < homePreviewAt && homePreviewAt < albumTableAt, 'home recent questions must sit directly below the form and before the album');
-check(homeHtml.includes('최근 질문 3개'), 'home recent-question heading is missing');
+check(!homeHtml.includes('id="homeAskMePreview"'), 'home Ask Me recent-question preview must stay removed');
+check(!homeHtml.includes('최근 질문 3개'), 'home Ask Me recent-question heading must stay removed');
 for (const [name, source] of [['Ask Me page', html], ['home', homeHtml]]) {
   check(source.includes('data-askme-password-fields hidden'), `${name} private password fields must start hidden`);
   check(source.includes('data-askme-password-confirm'), `${name} private form needs password confirmation`);
@@ -82,8 +78,6 @@ check(ASK_ME_DELETED_COPY === '주인장이 삭제한 질문입니다. 뭔가 �
 check(askMeEntryBody({ status: 'pending', question: 'secret' }) === ASK_ME_PENDING_COPY, 'pending question must render only the waiting copy');
 check(askMeEntryBody({ status: 'private', question: 'secret' }) === ASK_ME_PRIVATE_COPY, 'private question must render only the privacy copy');
 check(askMeEntryBody({ status: 'answered', question: '공개 질문' }) === '공개 질문', 'answered public question must render its actual text');
-check(askMeExcerpt('  줄바꿈\n 포함   질문  ', 20) === '줄바꿈 포함 질문', 'home excerpt must normalize whitespace');
-check(askMeExcerpt('가나다라마바사', 4) === '가나다라…', 'home excerpt must truncate by Unicode characters');
 assert.deepEqual(askMePageItems(1, 3), [1, 2, 3], 'short archive uses direct page numbers');
 assert.deepEqual(askMePageItems(6, 12), [1, 4, 5, 6, 7, 8, 12], 'long archive keeps bounded page links');
 assertions += 2;
@@ -94,19 +88,11 @@ check(pageScript.includes('const PAGE_SIZE = 10'), 'question pagination must kee
 check(pageScript.includes("pb.send('/api/cwk/ask/questions'"), 'visitor submission must use the protected custom endpoint');
 check(pageScript.includes('result.asker_name || `${result.sequence}번째 질문`'), 'submission notice must use the active-question display number');
 check(pageScript.includes("pb.collection('ask_question_feed')"), 'visitors must read only the redacted public view');
-check(pageScript.includes("pb.collection('ask_question_feed').getList(1, 3, { sort: '-sequence' })"), 'home preview must fetch exactly the latest three public-feed entries');
-check(pageScript.includes('result.items.map(renderHomePreviewEntry)'), 'home preview must render every returned status');
-check(pageScript.includes("entry.status === 'pending'"), 'home preview must identify pending questions');
-check(pageScript.includes("entry.status === 'private'"), 'home preview must identify private questions');
-check(pageScript.includes('askMeExcerpt(body, 80)'), 'home question preview must stay compact');
-check(pageScript.includes('askMeExcerpt(entry.answer, 120)'), 'home answer preview must stay compact');
-check(pageScript.includes('askme.html#question=${encodeURIComponent(sequence)}'), 'home rows must link to the matching Ask Me question');
-check(pageScript.includes("getReceipt(entry.id) ? ' <span class=\"askme-mine-mark\">[내 질문]</span>'"), 'home preview must mark questions owned by this browser');
-check(pageScript.includes('아직 질문이 없습니다.'), 'home preview needs an empty state');
-check(pageScript.includes('질문 목록을 불러오지 못했습니다.'), 'home preview needs an isolated error state');
-const homePreviewFunction = pageScript.slice(pageScript.indexOf('async function loadHomeAskMePreview'), pageScript.indexOf('function renderPublicEntry'));
-check(!homePreviewFunction.includes("pb.collection('ask_questions')"), 'home preview must never read the OWNER raw collection');
-check(!homePreviewFunction.includes('/api/cwk/ask/questions/read'), 'home preview must not unlock raw questions');
+check(!pageScript.includes('homeAskMePreview'), 'home preview DOM hook must stay removed');
+check(!pageScript.includes('loadHomeAskMePreview'), 'home preview loader must stay removed');
+check(!pageScript.includes('renderHomePreviewEntry'), 'home preview renderer must stay removed');
+check(!pageScript.includes("getList(1, 3, { sort: '-sequence' })"), 'home preview feed request must stay removed');
+check(!css.includes('.home-askme-preview-'), 'home preview-only styles must stay removed');
 check(pageScript.includes("pb.collection('ask_questions')"), 'OWNER must read and answer from the private source collection');
 check(pageScript.includes('answered_at: new Date().toISOString()'), 'OWNER answer save must include its timestamp');
 check(pageScript.includes('다음 ▶'), 'retro next-page control is missing');
