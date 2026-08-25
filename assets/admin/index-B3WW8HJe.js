@@ -1,0 +1,1 @@
+import"../modulepreload-polyfill-Dezn_h7o.js";import{lt as e}from"../pb-DEzKlkVX.js";/* empty css               */e()||(window.location.replace(`/admin/login.html?next=/`),await new Promise(()=>{}));
