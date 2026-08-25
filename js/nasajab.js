@@ -9,7 +9,10 @@ import {
     nasajabDisplayDate,
     formatDate,
     escapeHtml,
-    cmsErrorMessage
+    cmsErrorMessage,
+    contentViewKey,
+    getContentViewCounts,
+    recordContentView
 } from './pb.js';
 
 const ARCHIVE_PER_PAGE = 5;
@@ -18,6 +21,7 @@ const ownerMode = isLoggedIn();
 const demoMode = new URLSearchParams(window.location.search).has('demo');
 
 let items = [];
+let nasajabViewCounts = {};
 let currentPage = 1;
 let selectedId = cleanHashId();
 let editingItemId = '';
@@ -28,6 +32,7 @@ const featuredEl = document.getElementById('nasajabFeatured');
 const archiveEl = document.getElementById('nasajabArchive');
 const paginationEl = document.getElementById('nasajabPagination');
 const ownerPanel = document.getElementById('nasajabOwnerPanel');
+const viewsHead = document.getElementById('nasajabViewsHead');
 const ownerHead = document.getElementById('nasajabOwnerHead');
 const ownerStatus = document.getElementById('nasajabOwnerStatus');
 const form = document.getElementById('nasajabForm');
@@ -49,6 +54,7 @@ const formFields = {
 
 if (ownerMode) {
     ownerPanel.hidden = false;
+    viewsHead.hidden = false;
     ownerHead.hidden = false;
     setOwnerStatus('OWNER MODE: 사진 하나만 올려도 위쪽에 바로 뜸.');
 }
@@ -173,7 +179,7 @@ loadItems();
 
 async function loadItems() {
     featuredEl.innerHTML = '<p>나사잡 불러오는 중...</p>';
-    archiveEl.innerHTML = '<tr><td colspan="5">아카이브 불러오는 중...</td></tr>';
+    archiveEl.innerHTML = `<tr><td colspan="${ownerMode ? 6 : 4}">아카이브 불러오는 중...</td></tr>`;
 
     if (demoMode) {
         items = demoNasajabItems();
@@ -186,6 +192,9 @@ async function loadItems() {
         items = ownerMode
             ? await getAllNasajabTimeline()
             : await getPublishedNasajabTimeline();
+        nasajabViewCounts = ownerMode
+            ? await getContentViewCounts(items.map(item => ({ kind: 'nasajab', id: item.id })))
+            : {};
         render();
     } catch (error) {
         renderLoadError(error);
@@ -200,8 +209,10 @@ function render() {
 
     const latest = items[0];
     const selected = selectedId ? items.find(item => item.id === selectedId) : null;
-    renderFeatured(selected || latest, Boolean(selected));
+    const featured = selected || latest;
+    renderFeatured(featured, Boolean(selected));
     renderArchive();
+    if (!ownerMode && !demoMode) recordNasajabViewAfterEntry(featured);
 }
 
 function renderFeatured(item, isArchivePick = false) {
@@ -213,6 +224,9 @@ function renderFeatured(item, isArchivePick = false) {
         ? `<p class="nasajab-source">source: <a href="${escapeAttribute(item.source_url)}" target="_blank" rel="noopener">${escapeHtml(shortUrl(item.source_url))}</a></p>`
         : '';
     const ownerActions = ownerMode ? ownerActionsHtml(item) : '';
+    const ownerViewMeta = ownerMode
+        ? ` · 조회수 <span class="post-view-count">${formatOwnerViewCount(nasajabViewCounts[contentViewKey('nasajab', item.id)])}</span>`
+        : '';
 
     featuredEl.innerHTML = `
         <table border="1" cellspacing="0" cellpadding="6" width="100%" class="nasajab-today-table nasajab-today-table--stacked">
@@ -228,7 +242,7 @@ function renderFeatured(item, isArchivePick = false) {
                 <td class="nasajab-featured-text-cell">
                     <div class="nasajab-featured-memo">${escapeMultiline(memo)}</div>
                     ${source}
-                    <p class="nasajab-featured-date">${escapeHtml(date)}</p>
+                    <p class="nasajab-featured-date">${escapeHtml(date)}${ownerViewMeta}</p>
                     ${ownerActions}
                 </td>
             </tr>
@@ -238,7 +252,7 @@ function renderFeatured(item, isArchivePick = false) {
 
 function renderArchive() {
     const archiveItems = items;
-    const ownerColspan = ownerMode ? 5 : 4;
+    const ownerColspan = ownerMode ? 6 : 4;
 
     if (!archiveItems.length) {
         archiveEl.innerHTML = `
@@ -264,6 +278,9 @@ function renderArchive() {
         const imageUrl = imageUrlFor(item);
         const memo = displayMemo(item);
         const isSelected = selectedId === item.id;
+        const ownerViewCell = ownerMode
+            ? `<td align="center" class="nasajab-views-cell post-view-count">${formatOwnerViewCount(nasajabViewCounts[contentViewKey('nasajab', item.id)])}</td>`
+            : '';
         const ownerCell = ownerMode ? `<td class="nasajab-owner-cell">${ownerActionsHtml(item)}</td>` : '';
 
         return `
@@ -283,6 +300,7 @@ function renderArchive() {
                     <small class="nasajab-mobile-date">${escapeHtml(formatDate(nasajabDisplayDate(item)))}</small>
                 </td>
                 <td align="center" class="nasajab-archive-date">${escapeHtml(formatDate(nasajabDisplayDate(item)))}</td>
+                ${ownerViewCell}
                 ${ownerCell}
             </tr>
         `;
@@ -308,7 +326,7 @@ function renderPagination(totalPages) {
 }
 
 function renderEmpty() {
-    const colspan = ownerMode ? 5 : 4;
+    const colspan = ownerMode ? 6 : 4;
     featuredEl.innerHTML = `
         <table border="1" cellspacing="0" cellpadding="6" width="100%" class="nasajab-today-table">
             <tr bgcolor="#f0f0f0">
@@ -331,7 +349,7 @@ function renderLoadError(error) {
     const setupHint = error?.status === 404
         ? 'PocketBase에 nasajab 컬렉션을 먼저 반영해야 합니다.'
         : message;
-    const colspan = ownerMode ? 5 : 4;
+    const colspan = ownerMode ? 6 : 4;
 
     featuredEl.innerHTML = `
         <table border="1" cellspacing="0" cellpadding="6" width="100%" class="nasajab-today-table">
@@ -342,6 +360,31 @@ function renderLoadError(error) {
     archiveEl.innerHTML = `<tr><td colspan="${colspan}">${escapeHtml(message)}</td></tr>`;
     paginationEl.innerHTML = '';
     setOwnerStatus(`CMS 확인 필요: ${setupHint}`, 'error');
+}
+
+function recordNasajabViewAfterEntry(item) {
+    const record = () => {
+        recordContentView({
+            kind: 'nasajab',
+            id: item?.id,
+            slug: item?.id || '',
+            published: item?.is_public === true
+        }).catch(error => console.warn('Nasajab view count failed:', cmsErrorMessage(error)));
+    };
+    const gateActive = (
+        document.documentElement.classList.contains('entry-gate-pending')
+        || document.documentElement.classList.contains('entry-gate-open')
+    );
+    if (!gateActive || window.__coldwaterkimEntryAdmitted === true || document.documentElement.dataset.entryAdmitted === 'true') {
+        record();
+        return;
+    }
+    window.addEventListener('coldwaterkim:entry-admitted', record, { once: true });
+}
+
+function formatOwnerViewCount(count) {
+    if (!Number.isFinite(count)) return '-';
+    return Number(count).toLocaleString('ko-KR');
 }
 
 async function saveItem() {

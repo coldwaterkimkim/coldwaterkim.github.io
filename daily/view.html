@@ -178,7 +178,10 @@
             normalizeDailyDayKey,
             formatDate,
             escapeHtml,
-            cmsErrorMessage
+            cmsErrorMessage,
+            contentViewKey,
+            getContentViewCounts,
+            recordContentView
         } from '../js/pb.js';
         import { decorateAlbumMediaAnchors, enhanceEmbeddedMedia, prepareEmbeddedMediaForDisplay, scrollToAlbumMediaHash } from '../js/media-embeds.js';
 
@@ -230,13 +233,16 @@
                 document.getElementById('timeline-title').textContent = '나으 하루';
                 document.getElementById('timeline-note').innerHTML = `<b>${formatDate(dayKey)}의 하루</b> · 기록 ${entries.length}개 · 시간순`;
 
-                if (ownerMode) {
-                    renderOwnerTools();
-                }
+                const viewCounts = ownerMode
+                    ? await getContentViewCounts([{ kind: 'daily', id: dayKey }])
+                    : {};
+
+                if (ownerMode) renderOwnerTools(viewCounts[contentViewKey('daily', dayKey)]);
 
                 renderDayEntries(entries, targetEntryId);
                 wireTimelineOwnerActions();
                 if (targetEntryId) focusTargetEntry(targetEntryId);
+                if (!ownerMode) recordDailyViewAfterEntry(dayKey);
             } catch (e) {
                 showError(cmsErrorMessage(e), 'Daily not found');
             }
@@ -261,10 +267,11 @@
                 });
         }
 
-        function renderOwnerTools() {
+        function renderOwnerTools(viewCount) {
             document.getElementById('owner-tools').innerHTML = `
                 <div class="owner-bar">
                     <b>OWNER MODE</b> ·
+                    현재 하루 조회수 <span class="post-view-count">${formatOwnerViewCount(viewCount)}</span> ·
                     <a href="/admin/daily.html?new=1">새 나으 하루</a> ·
                     <a href="/admin/media.html">미디어</a> ·
                     <a href="#" id="logoutLink">로그아웃</a>
@@ -276,6 +283,27 @@
                 logout();
                 window.location.reload();
             });
+        }
+
+        function recordDailyViewAfterEntry(dayKey) {
+            const record = () => {
+                recordContentView({ kind: 'daily', id: dayKey, slug: dayKey, published: true })
+                    .catch((e) => console.warn('Daily view count failed:', cmsErrorMessage(e)));
+            };
+            const gateActive = (
+                document.documentElement.classList.contains('entry-gate-pending')
+                || document.documentElement.classList.contains('entry-gate-open')
+            );
+            if (!gateActive || window.__coldwaterkimEntryAdmitted === true || document.documentElement.dataset.entryAdmitted === 'true') {
+                record();
+                return;
+            }
+            window.addEventListener('coldwaterkim:entry-admitted', record, { once: true });
+        }
+
+        function formatOwnerViewCount(count) {
+            if (!Number.isFinite(count)) return '-';
+            return Number(count).toLocaleString('ko-KR');
         }
 
         function renderDayEntries(entries, targetEntryId = '') {

@@ -1402,6 +1402,11 @@ body > center > table[width="1140"] > tbody > tr > td {
   width: 118px;
 }
 
+.program-views-head,
+.program-views-cell {
+  width: 78px;
+}
+
 .program-cover-cell,
 .program-action-cell {
   vertical-align: top;
@@ -2108,6 +2113,12 @@ body > center > table[width="1140"] > tbody > tr > td {
 .nasajab-owner-head,
 .nasajab-owner-cell {
   width: 92px;
+  text-align: center;
+}
+
+.nasajab-views-head,
+.nasajab-views-cell {
+  width: 68px;
   text-align: center;
 }
 
@@ -2993,6 +3004,21 @@ body > center > table[width="1140"] > tbody > tr > td {
     white-space: normal;
   }
 
+  .daily-list-table th:nth-child(2),
+  .daily-list-table td:nth-child(2) {
+    display: none;
+  }
+
+  .daily-list-table #views-col-head,
+  .daily-list-table td.post-view-count {
+    width: 48px !important;
+  }
+
+  .daily-list-table #owner-col-head,
+  .daily-list-table td.owner-actions {
+    width: 82px !important;
+  }
+
   .owner-btn {
     margin-top: 3px;
   }
@@ -3113,6 +3139,11 @@ body > center > table[width="1140"] > tbody > tr > td {
 
   .programs-table thead {
     display: none;
+  }
+
+  .program-views-cell::before {
+    content: "조회수 ";
+    font-weight: bold;
   }
 
   .program-cover-cell {
@@ -3238,6 +3269,11 @@ body > center > table[width="1140"] > tbody > tr > td {
   .nasajab-owner-head,
   .nasajab-owner-cell {
     width: 62px !important;
+  }
+
+  .nasajab-views-head,
+  .nasajab-views-cell {
+    width: 48px !important;
   }
 
   .nasajab-thumb-cell img {

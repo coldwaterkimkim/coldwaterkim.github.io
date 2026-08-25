@@ -171,6 +171,7 @@
             <tr bgcolor="#f0f0f0">
               <th align="left">하루</th>
               <th style="width: 120px;">날짜</th>
+              <th id="views-col-head" style="width: 90px; display: none;">조회수</th>
               <th id="owner-col-head" style="width: 160px; display: none;">OWNER</th>
             </tr>
             <tbody id="daily-list">
@@ -202,7 +203,9 @@
       normalizeDailyDayKey,
       formatDate,
       escapeHtml,
-      cmsErrorMessage
+      cmsErrorMessage,
+      contentViewKey,
+      getContentViewCounts
     } from '../js/pb.js';
 
     let currentPage = 1;
@@ -214,6 +217,7 @@
     window.goToDailyPage = goToDailyPage;
 
     if (ownerMode) {
+      document.getElementById('views-col-head').style.display = '';
       document.getElementById('owner-col-head').style.display = '';
       document.getElementById('daily-note').textContent = 'OWNER MODE: 초안까지 같이 보입니다.';
       document.getElementById('owner-tools').innerHTML = `
@@ -263,7 +267,14 @@
           return;
         }
 
+        const viewCounts = ownerMode
+          ? await getContentViewCounts(pageItems.map(day => ({ kind: 'daily', id: day.dayKey })))
+          : {};
+
         tbody.innerHTML = pageItems.map(day => {
+          const ownerViewCell = ownerMode
+            ? `<td align="center" class="post-view-count">${formatOwnerViewCount(viewCounts[contentViewKey('daily', day.dayKey)])}</td>`
+            : '';
           const ownerActions = ownerMode
             ? `<td class="owner-actions">
                 <a class="owner-btn" href="view.html?day=${encodeURIComponent(day.dayKey)}">보기</a>
@@ -278,6 +289,7 @@
                 <div class="daily-list-meta">기록 ${day.entries.length}개 · updated ${formatDate(day.latestDate)}</div>
               </td>
               <td align="center">${formatDate(day.dayKey)}</td>
+              ${ownerViewCell}
               ${ownerActions}
             </tr>
           `;
@@ -374,7 +386,12 @@
     }
 
     function dailyTableColspan() {
-      return ownerMode ? 3 : 2;
+      return ownerMode ? 4 : 2;
+    }
+
+    function formatOwnerViewCount(count) {
+      if (!Number.isFinite(count)) return '-';
+      return Number(count).toLocaleString('ko-KR');
     }
 
     function renderPagination(totalPages, currentPage) {

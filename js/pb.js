@@ -17,6 +17,9 @@ import {
     planPublishedMediaCleanup,
     serializePendingMediaIds
 } from './editor-pending-media.mjs';
+import { contentViewKey, recordContentViewWithAdapter } from './content-views.mjs';
+
+export { contentViewKey } from './content-views.mjs';
 
 // PocketBase API 경로
 // - 로컬 Vite: PocketBase 서버를 127.0.0.1:8090에서 따로 실행
@@ -1471,8 +1474,35 @@ function savePostViewSessions(sessions) {
     storageSet(POST_VIEW_SESSION_KEY, JSON.stringify(sessions || {}));
 }
 
-function postViewCountKey(postId) {
-    return `post-view-count-${postId}`;
+function contentViewCountRequestKey(key) {
+    return `content-view-count-${String(key || '').replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+}
+
+/**
+ * 공개 콘텐츠 조회를 30분 단위 익명 세션으로 기록한다.
+ * 로그인한 관리자의 조회는 제품 의도상 집계하지 않는다.
+ * @param {{kind:string,id:string,slug?:string,published?:boolean}} target
+ * @returns {Promise<boolean>} 새 조회로 기록됐으면 true
+ */
+export async function recordContentView(target = {}) {
+    const now = Date.now();
+    const sessions = readPostViewSessions(now);
+    const visitorId = getVisitorId();
+    const sessionBucket = Math.floor(now / VISITOR_SESSION_TIMEOUT_MS);
+    return await recordContentViewWithAdapter(target, {
+        loggedIn: isLoggedIn(),
+        sessions,
+        visitorId,
+        sessionBucket,
+        dayKey: getKstDateKey(new Date(now)),
+        expiresAt: now + VISITOR_SESSION_TIMEOUT_MS,
+        hash: sha256,
+        create: (payload, viewKey) => pb.collection('post_views').create(payload, {
+            requestKey: `content-view-${viewKey}`
+        }),
+        saveSessions: savePostViewSessions,
+        onError: error => console.warn('Content view count failed:', cmsErrorMessage(error))
+    });
 }
 
 /**
@@ -1482,66 +1512,57 @@ function postViewCountKey(postId) {
  * @returns {Promise<boolean>} 새 조회로 기록됐으면 true
  */
 export async function recordPostView(post) {
-    if (isLoggedIn() || !post?.id || post.status !== 'published') return false;
-
-    const now = Date.now();
-    const sessions = readPostViewSessions(now);
-    if (sessions[post.id]) return false;
-
-    const visitorId = getVisitorId();
-    const sessionBucket = Math.floor(now / VISITOR_SESSION_TIMEOUT_MS);
-    const viewKey = await sha256(`cwk-post-view-v1:${visitorId}:${post.id}:${sessionBucket}`);
-
-    try {
-        await pb.collection('post_views').create({
-            view_key: viewKey,
-            post_id: post.id,
-            post_slug: post.slug || '',
-            day_key: getKstDateKey(new Date(now))
-        }, {
-            requestKey: `post-view-${viewKey}`
-        });
-    } catch (e) {
-        if (e?.status !== 400) {
-            console.warn('Post view count failed:', cmsErrorMessage(e));
-            return false;
-        }
-    }
-
-    sessions[post.id] = {
-        expiresAt: now + VISITOR_SESSION_TIMEOUT_MS
-    };
-    savePostViewSessions(sessions);
-    return true;
+    return await recordContentView({
+        kind: 'post',
+        id: post?.id,
+        slug: post?.slug || '',
+        published: post?.status === 'published'
+    });
 }
 
 /**
- * 관리자 화면에서 여러 글의 조회수를 가져온다.
+ * 관리자 화면에서 여러 공개 콘텐츠의 조회수를 가져온다.
  * post_views 컬렉션이 아직 운영 DB에 없으면 UI를 깨지 않고 빈 값으로 둔다.
- * @param {string[]} postIds
+ * @param {{kind:string,id:string}[]} targets
  * @returns {Promise<Record<string, number>>}
  */
-export async function getPostViewCounts(postIds = []) {
+export async function getContentViewCounts(targets = []) {
     if (!isLoggedIn()) return {};
 
-    const uniquePostIds = Array.from(new Set((postIds || []).filter(Boolean)));
-    if (!uniquePostIds.length) return {};
+    const uniqueKeys = Array.from(new Set((targets || [])
+        .map(target => contentViewKey(target?.kind, target?.id))
+        .filter(Boolean)));
+    if (!uniqueKeys.length) return {};
 
     try {
-        const pairs = await Promise.all(uniquePostIds.map(async (postId) => {
+        const pairs = await Promise.all(uniqueKeys.map(async (key) => {
             const result = await pb.collection('post_views').getList(1, 1, {
-                filter: pb.filter('post_id = {:postId}', { postId }),
+                filter: pb.filter('content_key = {:contentKey}', { contentKey: key }),
                 fields: 'id',
-                requestKey: postViewCountKey(postId)
+                requestKey: contentViewCountRequestKey(key)
             });
-            return [postId, result.totalItems || 0];
+            return [key, result.totalItems || 0];
         }));
 
         return Object.fromEntries(pairs);
     } catch (e) {
-        console.warn('Post view counts failed:', cmsErrorMessage(e));
+        console.warn('Content view counts failed:', cmsErrorMessage(e));
         return {};
     }
+}
+
+/**
+ * 기존 글방 호출부와 외부 호환을 유지하는 wrapper.
+ * @param {string[]} postIds
+ * @returns {Promise<Record<string, number>>}
+ */
+export async function getPostViewCounts(postIds = []) {
+    const ids = Array.from(new Set((postIds || []).filter(Boolean)));
+    const counts = await getContentViewCounts(ids.map(id => ({ kind: 'post', id })));
+    return Object.fromEntries(ids.map(id => {
+        const key = contentViewKey('post', id);
+        return [id, Object.prototype.hasOwnProperty.call(counts, key) ? counts[key] : undefined];
+    }));
 }
 
 // ─────────────────────────────────────────────────────────

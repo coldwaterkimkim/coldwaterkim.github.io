@@ -17,13 +17,16 @@ import {
     uploadMedia,
     getMediaUrl,
     formatMediaUploadProgress,
-    finalizePublishedEditorMedia
+    finalizePublishedEditorMedia,
+    contentViewKey,
+    getContentViewCounts
 } from './pb.js';
 import { findAutomaticProgramCoverFile } from './program-cover.js';
 import { createPendingMediaTracker } from './editor-pending-media.mjs';
 
 const ownerMode = isLoggedIn();
 let programs = [];
+let programViewCounts = {};
 let editingProgramId = '';
 let programBodyEditor = null;
 let programBodyEditorReady = null;
@@ -128,6 +131,7 @@ const formFields = {
 
 if (ownerMode) {
     ownerPanel.hidden = false;
+    document.getElementById('programViewsHead')?.removeAttribute('hidden');
     setOwnerStatus('OWNER MODE: 이 페이지에서 바로 프로그램을 추가/수정할 수 있음.');
     programBodyEditorReady = initProgramBodyEditor().catch(error => {
         setOwnerStatus(`본문 에디터 로드 실패: ${cmsErrorMessage(error)}`, 'error');
@@ -169,12 +173,15 @@ programsList?.addEventListener('click', async (event) => {
 loadPrograms();
 
 async function loadPrograms() {
-    programsList.innerHTML = '<tr><td colspan="3" class="loading">프로그램 목록 불러오는 중...</td></tr>';
+    programsList.innerHTML = `<tr><td colspan="${ownerMode ? 4 : 3}" class="loading">프로그램 목록 불러오는 중...</td></tr>`;
 
     try {
         programs = ownerMode
             ? await getAllProgramTimeline()
             : await getPublishedProgramTimeline();
+        programViewCounts = ownerMode
+            ? await getContentViewCounts(programs.map(program => ({ kind: 'program', id: program.id })))
+            : {};
         renderPrograms();
     } catch (error) {
         if (!ownerMode && error?.status === 404) {
@@ -184,7 +191,7 @@ async function loadPrograms() {
         }
 
         const message = cmsErrorMessage(error);
-        programsList.innerHTML = `<tr><td colspan="3">불러오기 실패: ${escapeHtml(message)}</td></tr>`;
+        programsList.innerHTML = `<tr><td colspan="${ownerMode ? 4 : 3}">불러오기 실패: ${escapeHtml(message)}</td></tr>`;
         setOwnerStatus(`CMS 확인 필요: ${message}`, 'error');
     }
 }
@@ -193,7 +200,7 @@ function renderPrograms() {
     if (!programs.length) {
         programsList.innerHTML = `
             <tr>
-                <td colspan="3">
+                <td colspan="${ownerMode ? 4 : 3}">
                     아직 등록된 프로그램이 없습니다.
                     ${ownerMode ? 'OWNER MODE에서 첫 프로그램을 올려보면 됨.' : '곧 채워질 예정.'}
                 </td>
@@ -221,6 +228,9 @@ function renderProgramRow(program) {
         <button type="button" class="owner-btn owner-btn-danger" data-program-action="delete" data-program-id="${escapeAttribute(program.id)}">삭제</button>
         ${program.is_public ? '' : '<br><span class="note">비공개</span>'}
     ` : '';
+    const ownerViewCell = ownerMode
+        ? `<td align="center" class="program-views-cell post-view-count">${formatOwnerViewCount(programViewCounts[contentViewKey('program', program.id)])}</td>`
+        : '';
 
     return `
         <tr>
@@ -242,8 +252,14 @@ function renderProgramRow(program) {
                 ${actionLinks}
                 ${ownerActions}
             </td>
+            ${ownerViewCell}
         </tr>
     `;
+}
+
+function formatOwnerViewCount(count) {
+    if (!Number.isFinite(count)) return '-';
+    return Number(count).toLocaleString('ko-KR');
 }
 
 function renderImageCover(program, coverUrl) {

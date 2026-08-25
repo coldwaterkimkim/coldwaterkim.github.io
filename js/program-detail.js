@@ -6,7 +6,10 @@ import {
     programStatusLabel,
     normalizeProgramStatus,
     escapeHtml,
-    cmsErrorMessage
+    cmsErrorMessage,
+    contentViewKey,
+    getContentViewCounts,
+    recordContentView
 } from './pb.js';
 import { enhanceEmbeddedMedia, prepareEmbeddedMediaForDisplay } from './media-embeds.js';
 
@@ -102,7 +105,11 @@ async function loadProgramDetail() {
 
     try {
         const program = await getProgramBySlug(slug, ownerMode);
-        renderProgram(program);
+        const viewCounts = ownerMode
+            ? await getContentViewCounts([{ kind: 'program', id: program.id }])
+            : {};
+        renderProgram(program, viewCounts[contentViewKey('program', program.id)]);
+        if (!ownerMode) recordProgramViewAfterEntry(program);
     } catch (error) {
         if (!ownerMode && error?.status === 404 && fallbackBySlug.has(slug)) {
             renderProgram(fallbackBySlug.get(slug));
@@ -113,7 +120,7 @@ async function loadProgramDetail() {
     }
 }
 
-function renderProgram(program) {
+function renderProgram(program, viewCount = null) {
     const status = normalizeProgramStatus(program.status);
     const label = programStatusLabel(status);
     const title = program.title || '(이름 없음)';
@@ -122,7 +129,8 @@ function renderProgram(program) {
     document.title = `${title} — 프로그램실 — coldwaterkim`;
     titleEl.innerHTML = `<span class="program-label">[${escapeHtml(label)}]</span> ${escapeHtml(title)}`;
     metaEl.textContent = [
-        program.platform
+        program.platform,
+        ownerMode ? `조회수 ${formatOwnerViewCount(viewCount)}` : ''
     ].filter(Boolean).join(' · ');
 
     bodyEl.innerHTML = prepareEmbeddedMediaForDisplay(`
@@ -145,6 +153,31 @@ function renderProgram(program) {
     enhanceEmbeddedMedia(bodyEl);
 
     renderDownloads(program);
+}
+
+function recordProgramViewAfterEntry(program) {
+    const record = () => {
+        recordContentView({
+            kind: 'program',
+            id: program?.id,
+            slug: program?.slug || '',
+            published: program?.is_public === true
+        }).catch(error => console.warn('Program view count failed:', cmsErrorMessage(error)));
+    };
+    const gateActive = (
+        document.documentElement.classList.contains('entry-gate-pending')
+        || document.documentElement.classList.contains('entry-gate-open')
+    );
+    if (!gateActive || window.__coldwaterkimEntryAdmitted === true || document.documentElement.dataset.entryAdmitted === 'true') {
+        record();
+        return;
+    }
+    window.addEventListener('coldwaterkim:entry-admitted', record, { once: true });
+}
+
+function formatOwnerViewCount(count) {
+    if (!Number.isFinite(count)) return '-';
+    return Number(count).toLocaleString('ko-KR');
 }
 
 function renderDownloads(program) {
