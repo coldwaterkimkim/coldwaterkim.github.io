@@ -6,7 +6,6 @@
 import {
   getPublishedPostSummaryTimeline,
   getPublishedDailySummaryTimeline,
-  getPublishedProgramSummaryTimeline,
   getPublishedNasajabSummaryTimeline,
   getAnsweredGuestbookSummaryTimeline,
   getAlbumItemTimeline,
@@ -24,7 +23,6 @@ import {
   postDisplayDate,
   dailyEntryDayKey,
   dailyEntryDisplayDate,
-  programDisplayDate,
   nasajabDisplayDate,
   getKstDateKey,
   recordVisitAndGetStats,
@@ -372,10 +370,9 @@ async function initEntryGateUpdates(gate, lastAdmittedAt) {
   const text = gate.querySelector('[data-entry-update-text]');
 
   try {
-    const [posts, dailyEntries, programs, nasajabItems] = await Promise.all([
+    const [posts, dailyEntries, nasajabItems] = await Promise.all([
       getPublishedPostSummaryTimeline(),
       getPublishedDailySummaryTimeline(),
-      getPublishedProgramSummaryTimeline(),
       getPublishedNasajabSummaryTimeline(),
     ]);
     const summary = summarizeEntryUpdates([
@@ -395,15 +392,6 @@ async function initEntryGateUpdates(gate, lastAdmittedAt) {
           title: `${formatDate(dailyEntryDayKey(entry))}의 하루`,
           href: `/daily/${encodeURIComponent(dailyEntryDayKey(entry))}/`,
           updatedAt: entry.updated || dailyEntryDisplayDate(entry),
-        })),
-      },
-      {
-        label: '프로그램실',
-        unit: '개',
-        items: programs.map(program => ({
-          title: program.title || '(이름 없음)',
-          href: `/programs/view.html?slug=${encodeURIComponent(program.slug || '')}`,
-          updatedAt: program.updated || programDisplayDate(program),
         })),
       },
       {
@@ -1995,7 +1983,7 @@ function initHomeOwnerTools(scope = document) {
     <div class="owner-bar home-owner-bar">
       <b>OWNER MODE</b> ·
       <a class="owner-btn home-write-btn" href="/admin/write.html">통합 글쓰기</a>
-      <span class="note">글방 / 나으 하루 / 프로그램실 중 골라서 발행</span>
+      <span class="note">글방 / 나으 하루 중 골라서 발행</span>
     </div>
   `;
 }
@@ -2155,17 +2143,15 @@ async function initRecentPosts(scope = document) {
   tbody.innerHTML = '<tr><td colspan="3">불러오는 중...</td></tr>';
 
   try {
-    const [posts, daily, programs, nasajab, guestbook] = await Promise.all([
+    const [posts, daily, nasajab, guestbook] = await Promise.all([
       getPublishedPostSummaryTimeline(),
       getPublishedDailySummaryTimeline(),
-      getPublishedProgramSummaryTimeline(),
       getPublishedNasajabSummaryTimeline(),
       getAnsweredGuestbookSummaryTimeline(),
     ]);
     const entries = buildArchiveEntries({
       posts,
       daily,
-      programs,
       nasajab,
       guestbook,
     }).slice(0, 8);

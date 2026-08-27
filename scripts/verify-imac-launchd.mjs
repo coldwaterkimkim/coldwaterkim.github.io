@@ -142,6 +142,11 @@ function verifyInstallerScript() {
   requireCondition('launchd installer supports Caddy-only mode', script.includes('--caddy-only'));
   requireCondition('launchd installer supports runtime-only mode', script.includes('--runtime-only'));
   requireCondition('launchd installer defines runtime root', script.includes('RUNTIME_ROOT="${IMAC_RUNTIME_ROOT:-$HOME/.local/share/coldwaterkim/home-server}"'));
+  requireCondition('launchd installer creates private file tool jobs directory', script.includes('RUNTIME_TOOL_JOBS="$RUNTIME_ROOT/tool-jobs"') && script.includes('chmod 700 "$RUNTIME_TOOL_JOBS"'));
+  requireCondition('launchd installer syncs optional file tool runtimes', script.includes('sync_optional_file_tools'));
+  requireCondition('launchd installer relies on verified bundled HWP extension', !script.includes('RUNTIME_H2ORESTART') && !script.includes(' unopkg '));
+  requireCondition('launchd installer renders explicit OWNER user id', script.includes('CWK_OWNER_USER_ID') && script.includes('__CWK_OWNER_USER_ID__'));
+  requireCondition('launchd installer verifies the sole live OWNER users record', script.includes('SELECT count(*) FROM users') && script.includes('user_count'));
   requireCondition('launchd installer replaces runtime dist cleanly', script.includes('replace_runtime_dir "$LOCAL_DIST" "$RUNTIME_DIST"'));
   requireCondition('launchd installer syncs runtime migrations', script.includes('ditto "$LOCAL_MIGRATIONS" "$RUNTIME_MIGRATIONS"'));
   requireCondition('launchd installer syncs runtime backup script', script.includes('install -m 755 "$LOCAL_BACKUP_SCRIPT" "$RUNTIME_BACKUP_SCRIPT"'));
@@ -243,6 +248,8 @@ function verifyStaticService(service) {
     requireCondition('PocketBase launchd binds localhost', plist.includes('--http=127.0.0.1:8090'));
     requireCondition('PocketBase launchd allows 3 hour media uploads', plist.includes('--httpRequestTimeout=3h'));
     requireCondition('PocketBase launchd uses resumable upload staging outside pb_data', plist.includes(`--tusUploadDir=${runtimeRoot}/tus-uploads`));
+    requireCondition('PocketBase launchd uses file tool staging outside pb_data', plist.includes(`--toolJobDir=${runtimeRoot}/tool-jobs`));
+    requireCondition('PocketBase launchd requires explicit OWNER user id rendering', plist.includes('<key>CWK_OWNER_USER_ID</key>') && plist.includes('__CWK_OWNER_USER_ID__'));
     requireCondition('PocketBase launchd uses runtime pb_data', plist.includes(`${runtimeRoot}/pb_data`));
     requireCondition('PocketBase launchd uses runtime migrations', plist.includes(`--migrationsDir=${runtimeRoot}/pb_migrations`));
     requireCondition('PocketBase launchd uses runtime dist for SEO rendering', plist.includes(`--siteDir=${runtimeRoot}/dist`));

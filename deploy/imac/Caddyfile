@@ -18,6 +18,13 @@ coldwaterkim.com, www.coldwaterkim.com {
 		}
 	}
 
+	handle /api/cwk/tools/* {
+		request_body {
+			max_size 202MiB
+		}
+		reverse_proxy 127.0.0.1:8090
+	}
+
 	handle /api/* {
 		reverse_proxy 127.0.0.1:8090
 	}

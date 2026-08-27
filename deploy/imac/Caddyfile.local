@@ -1,50 +1,57 @@
 http://127.0.0.1:18081 {
-    encode zstd gzip
+	encode zstd gzip
 
-    request_body {
-        max_size 20GiB
-    }
+	request_body {
+		max_size 20GiB
+	}
 
-    handle /api/* {
-        reverse_proxy 127.0.0.1:8090
-    }
+	handle /api/cwk/tools/* {
+		request_body {
+			max_size 202MiB
+		}
+		reverse_proxy 127.0.0.1:8090
+	}
 
-    handle /_/* {
-        reverse_proxy 127.0.0.1:8090
-    }
+	handle /api/* {
+		reverse_proxy 127.0.0.1:8090
+	}
 
-    handle /sitemap.xml {
-        reverse_proxy 127.0.0.1:8090
-    }
+	handle /_/* {
+		reverse_proxy 127.0.0.1:8090
+	}
 
-    handle /posts/*/ {
-        reverse_proxy 127.0.0.1:8090
-    }
+	handle /sitemap.xml {
+		reverse_proxy 127.0.0.1:8090
+	}
 
-    handle /daily/*/ {
-        reverse_proxy 127.0.0.1:8090
-    }
+	handle /posts/*/ {
+		reverse_proxy 127.0.0.1:8090
+	}
 
-    handle {
-        root * "/Users/kimchansu/Code/coldwaterkim.github.io/dist"
-        try_files {path} {path}/ =404
-        file_server
-    }
+	handle /daily/*/ {
+		reverse_proxy 127.0.0.1:8090
+	}
 
-    header {
-        X-Frame-Options "SAMEORIGIN"
-        X-Content-Type-Options "nosniff"
-        Referrer-Policy "strict-origin-when-cross-origin"
-    }
+	handle {
+		root * "/Users/kimchansu/Code/coldwaterkim.github.io/dist"
+		try_files {path} {path}/ =404
+		file_server
+	}
 
-    handle_errors {
-        @maintenance expression `{err.status_code} >= 502 && {err.status_code} <= 504`
-        handle @maintenance {
-            root * "/Users/kimchansu/Code/coldwaterkim.github.io/dist"
-            rewrite * /maintenance.html
-            header Cache-Control "no-store"
-            header Retry-After "5"
-            file_server
-        }
-    }
+	header {
+		X-Frame-Options "SAMEORIGIN"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
+
+	handle_errors {
+		@maintenance expression `{err.status_code} >= 502 && {err.status_code} <= 504`
+		handle @maintenance {
+			root * "/Users/kimchansu/Code/coldwaterkim.github.io/dist"
+			rewrite * /maintenance.html
+			header Cache-Control "no-store"
+			header Retry-After "5"
+			file_server
+		}
+	}
 }

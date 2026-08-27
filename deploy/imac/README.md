@@ -12,6 +12,7 @@ coldwaterkim.com
       - PocketBase: 127.0.0.1:8090, CMS/API와 공개 글·하루 SEO HTML 렌더링
       - ~/.local/share/coldwaterkim/home-server/pb_data: DB + 업로드 파일 원본
       - ~/.local/share/coldwaterkim/home-server/tus-uploads: 완료 전 대용량 업로드 조각
+      - ~/.local/share/coldwaterkim/home-server/tool-jobs: OWNER 파일 변환 임시 작업(0700, 백업 제외)
 ```
 
 PocketBase는 외부 서비스가 아니라 아이맥에서 직접 실행되는 CMS/DB 프로그램이다. launchd 서비스는 macOS Documents 접근 제한을 피하기 위해 repo가 아니라 `~/.local/share/coldwaterkim/home-server`에 복사된 운영 파일을 사용한다. `pb_data`는 repo에 커밋하지 않고 아이맥 디스크와 백업 디스크에만 둔다.
@@ -50,11 +51,12 @@ Rollback 기준:
 
 ## Stage 2. iMac service rehearsal
 
-1. `deploy/imac/install-runtime.sh`로 3시간 HTTP 제한시간을 적용한 PocketBase와 아이맥 CPU에 맞는 Caddy 바이너리를 `.local-bin/`에 둔다. 영상 파생본 기능은 `npm run imac:install-ffmpeg`로 체크섬이 고정된 Intel용 FFmpeg/ffprobe도 설치한다.
+1. `deploy/imac/install-runtime.sh`로 3시간 HTTP 제한시간을 적용한 PocketBase와 아이맥 CPU에 맞는 Caddy 바이너리를 `.local-bin/`에 둔다. 영상 파생본 기능은 `npm run imac:install-ffmpeg`로 체크섬이 고정된 Intel용 FFmpeg/ffprobe도 설치한다. 프로그램실 서버 변환기는 `npm run imac:install-file-tools`로 Intel용 micromamba와 conda-forge의 고정 버전 qpdf·Poppler·Tesseract·Ghostscript, macOS에 등록되는 Temurin 21.0.10+7, 체크섬이 고정된 LibreOffice와 H2Orestart 0.7.13을 준비한다. H2Orestart는 GPLv3이며 설치 시 LibreOffice bundled extension으로 무결성 검증 후 배치되고, 실행 job은 격리된 LibreOffice profile만 사용한다.
    - Intel iMac은 `darwin_amd64`/`mac_amd64`가 필요하다.
    - 현재 핀: PocketBase `v0.23.5`, Caddy `v2.11.4`.
    - PocketBase는 `deploy/imac/pocketbase-custom/`의 공식 v0.23.5 엔트리포인트에 `--httpRequestTimeout=3h`, tusd v2.10.0 라우트, OWNER 전용 BGM trim 라우트, `--siteDir` 기반 SEO 렌더러를 추가한다. 완료 파일은 PocketBase 파일 API로 다시 등록되므로 `pb_data` 저장 구조와 JS migration 동작은 공식 v0.23.5와 같다.
    - `/api/cwk/bgm/trim`은 실행 중인 PocketBase와 같은 `bin` 폴더의 FFmpeg/ffprobe로 새 MP3를 만들고 duration과 전체 디코딩을 검증한다. 원본 삭제는 API가 하지 않으며, 브라우저가 새 플레이리스트와 편성을 저장한 뒤 참조되지 않은 이전 레코드만 정리한다.
+   - `/api/cwk/tools/*`는 `CWK_OWNER_USER_ID`로 명시된 단일 `users` 레코드와 PocketBase superuser만 접근한다. 설치기는 운영 `users`가 이 OWNER 1개뿐인지 읽기 전용으로 확인하고, 기존 비-OWNER 계정이 남아 있으면 배포를 중단한다. 최대 200MiB·20파일(HWP/HWPX는 1파일), 동시 실행 1개·대기 3개이며 완료 결과는 30분 뒤 삭제된다. HWP/Office→PDF, OCR, PDF 압축·암호·복구·흑백·텍스트 추출을 처리한다.
    - SEO 렌더러는 `/posts/{slug}/`, `/daily/{day}/`, `/sitemap.xml`만 처리하고 Caddy는 나머지 공개 파일을 `dist`에서 그대로 제공한다. DB를 요청 시 읽으므로 발행·수정·초안 전환 뒤 별도 정적 파일 생성 작업은 없다. 발행 기록이 없는 유효한 `/daily/{day}/`는 검색엔진과 비로그인 방문자에게 HTTP 404·`noindex`를 유지하되 JSON 대신 일관된 HTML 셸을 내려, 로그인한 OWNER 브라우저가 같은 주소에서 해당 날짜의 초안을 불러올 수 있게 한다.
    - Go 1.25.12 Intel 공식 배포본의 SHA-256을 고정해 빌드하며, `deploy/imac/build-pocketbase-custom.sh`가 세 커스텀 플래그와 바이너리 버전을 확인한다.
 2. `npm run build:imac`
@@ -64,14 +66,27 @@ Rollback 기준:
 6. 로컬 리허설은 외부 포트 없이 `127.0.0.1`에서만 한다. 예: PocketBase `127.0.0.1:8090`, Caddy `http://127.0.0.1:18081`.
 7. `https://coldwaterkim.com` 전환 전 테스트는 `/etc/hosts` 또는 내부 DNS로만 한다.
 
+실제 변환기 E2E는 공개 테스트용 HWP/HWPX fixture를 명시해 Office, OCR, qpdf, Ghostscript, 텍스트 추출까지 한 번에 검사한다. `--tooling` 검사는 바이너리가 없는 개발 머신용이라 실제 변환 성공 증거로 쓰지 않는다.
+
+```bash
+CWK_DOCX_FIXTURE=/절대/경로/fixture.docx \
+CWK_XLSX_FIXTURE=/절대/경로/fixture.xlsx \
+CWK_PPTX_FIXTURE=/절대/경로/fixture.pptx \
+CWK_HWP_FIXTURE=/절대/경로/fixture.hwp \
+CWK_HWPX_FIXTURE=/절대/경로/fixture.hwpx \
+node scripts/verify-file-tools-backend.mjs
+```
+
 운영 launchd는 아래 파일들을 `~/.local/share/coldwaterkim/home-server`로 복사해서 실행한다.
 
 - `dist`
 - `pb_migrations`
 - `pb_data`
 - `tus-uploads` (완료 전 조각만 보관하며 `pb_data` 백업 대상은 아님)
+- `tool-jobs` (0700, 완료 결과 30분 보관, `pb_data` 백업 대상은 아님)
 - `bin/pocketbase`
 - `bin/ffmpeg`, `bin/ffprobe`
+- `bin/qpdf`, `bin/pdfinfo`, `bin/pdftoppm`, `bin/pdftotext`, `bin/tesseract`, `bin/gs`, `bin/soffice`, `bin/java`, `bin/sips`
 - `Caddyfile`
 - `backup-pocketbase.sh`
 - `backup-pocketbase.py`
@@ -146,8 +161,8 @@ sudo launchctl bootstrap system /Library/LaunchDaemons/com.coldwaterkim.caddy.pl
 운영 launchd 설치/기동은 아래 스크립트로 한 번에 처리한다. `--dry-run`으로 복사/등록될 경로를 먼저 확인한 뒤 실제 설치한다. PocketBase, Caddy, 백업 job은 `/Library/LaunchDaemons`에 등록되어 사용자 로그인 전에도 부팅 시 자동 시작된다.
 
 ```bash
-npm run imac:install-services:dry-run
-npm run imac:install-services
+CWK_OWNER_USER_ID=운영_users_레코드_ID npm run imac:install-services:dry-run
+CWK_OWNER_USER_ID=운영_users_레코드_ID npm run imac:install-services
 npm run qa:launchd
 ```
 

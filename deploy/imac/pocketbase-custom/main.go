@@ -101,9 +101,28 @@ func main() {
 		"temporary directory for resumable media upload chunks",
 	)
 
+	var toolJobDir string
+	app.RootCmd.PersistentFlags().StringVar(
+		&toolJobDir,
+		"toolJobDir",
+		"",
+		"temporary directory for OWNER file tool jobs",
+	)
+
+	var ownerUserID string
+	app.RootCmd.PersistentFlags().StringVar(
+		&ownerUserID,
+		"ownerUserId",
+		os.Getenv(ownerUserIDEnv),
+		"the explicit users record id allowed to access OWNER-only custom tools",
+	)
+
 	app.RootCmd.ParseFlags(os.Args[1:])
 	if tusUploadDir == "" {
 		tusUploadDir = filepath.Join(filepath.Dir(app.DataDir()), "tus-uploads")
+	}
+	if toolJobDir == "" {
+		toolJobDir = filepath.Join(filepath.Dir(app.DataDir()), "tool-jobs")
 	}
 	resumableUploads, err := newResumableUploadService(app, tusUploadDir)
 	if err != nil {
@@ -113,6 +132,15 @@ func main() {
 	bgmTrimmer := newBGMTrimService(app)
 	askQuestions := newAskQuestionService(app)
 	albumTags := newAlbumTagService(app)
+	fileTools, err := newFileToolService(app, toolJobDir, ownerUserID)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer fileTools.close()
+	app.OnTerminate().BindFunc(func(e *core.TerminateEvent) error {
+		fileTools.close()
+		return e.Next()
+	})
 	app.Cron().MustAdd("cleanup-tus-uploads", "17 4 * * *", func() {
 		if err := resumableUploads.cleanupStaleUploads(time.Now()); err != nil {
 			app.Logger().Warn("Failed to clean stale tus uploads", "error", err.Error())
@@ -150,6 +178,7 @@ func main() {
 		bgmTrimmer.registerRoutes(e)
 		askQuestions.registerRoutes(e)
 		albumTags.registerRoutes(e)
+		fileTools.registerRoutes(e)
 		seoPages.registerRoutes(e)
 		return e.Next()
 	})

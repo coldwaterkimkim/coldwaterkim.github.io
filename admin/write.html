@@ -42,11 +42,10 @@
                         <option value="">선택하기</option>
                         <option value="posts">글방</option>
                         <option value="daily">나으 하루</option>
-                        <option value="programs">프로그램실</option>
                     </select>
                 </div>
                 <p class="global-writer-note">
-                    나사잡은 이미지 아카이브 성격이 달라서 이번 통합 글쓰기 대상에서는 뺐음.
+                    프로그램실은 파일 작업실로 바뀌었고, 나사잡은 이미지 아카이브 성격이 달라서 통합 글쓰기 대상에서는 뺐음.
                     기존 각 페이지의 작성/수정 플로우는 그대로 남아있음.
                 </p>
             </div>
@@ -62,55 +61,6 @@
                         <div class="form-group" id="dateGroup">
                             <label for="published_at" id="dateLabel">발행일</label>
                             <input type="date" id="published_at">
-                        </div>
-                    </div>
-                </div>
-
-                <div id="programFields" class="admin-panel" hidden>
-                    <h2>프로그램실 추가 정보</h2>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="programStatus">상태</label>
-                            <select id="programStatus">
-                                <option value="prototype">PROTOTYPE</option>
-                                <option value="unreleased">UNRELEASED</option>
-                                <option value="beta">BETA</option>
-                                <option value="released">RELEASED</option>
-                                <option value="archived">ARCHIVED</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label for="programPlatform">플랫폼</label>
-                            <input type="text" id="programPlatform" placeholder="macOS · iOS · Web">
-                        </div>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="programStoryIntro">한 줄 소개</label>
-                        <textarea id="programStoryIntro" rows="2" placeholder="프로그램실 목록에 보일 짧은 설명"></textarea>
-                    </div>
-
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="programCoverImage">표지</label>
-                            <input type="file" id="programCoverImage" accept="image/*">
-                            <small class="field-note">비워두면 첨부 이미지나 .app.zip 안의 앱 아이콘을 자동 표지로 찾아.</small>
-                        </div>
-                        <div class="form-group">
-                            <label for="programDownloadFiles">파일</label>
-                            <input type="file" id="programDownloadFiles" multiple>
-                            <small class="field-note">.dmg, .zip, PDF, 이미지 첨부 가능. .app.zip 아이콘도 표지 후보야.</small>
-                        </div>
-                    </div>
-
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="programPrimaryLinkLabel">대표 링크 이름</label>
-                            <input type="text" id="programPrimaryLinkLabel" placeholder="GitHub, TestFlight, Web Demo">
-                        </div>
-                        <div class="form-group">
-                            <label for="programPrimaryLinkUrl">대표 링크 URL</label>
-                            <input type="url" id="programPrimaryLinkUrl" placeholder="https://...">
                         </div>
                     </div>
                 </div>

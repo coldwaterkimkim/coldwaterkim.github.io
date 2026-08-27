@@ -8,8 +8,6 @@ import {
     newDailyEntrySlug,
     newDailyEntryTitle,
     normalizeDailyDayKey,
-    createProgram,
-    normalizeProgramStatus,
     slugify,
     cmsErrorMessage,
     uploadMedia,
@@ -28,7 +26,6 @@ import {
     stopEditorTransferEvent
 } from './markdown-editor.js';
 import { navigateToPublishedEntry, publishedEntryViewerUrl } from './editor-publish-navigation.mjs';
-import { findAutomaticProgramCoverFile } from './program-cover.js';
 import { createPendingMediaTracker } from './editor-pending-media.mjs';
 
 const categorySelect = document.getElementById('category');
@@ -39,17 +36,9 @@ const dateInput = document.getElementById('published_at');
 const dateLabel = document.getElementById('dateLabel');
 const dateGroup = document.getElementById('dateGroup');
 const writerHeading = document.getElementById('writerHeading');
-const programFields = document.getElementById('programFields');
 const editorContainer = document.querySelector('.editor-container');
 const editorImageInput = document.getElementById('editorImageInput');
 const editorImageStatus = document.getElementById('editorImageStatus');
-const programStatus = document.getElementById('programStatus');
-const programPlatform = document.getElementById('programPlatform');
-const programStoryIntro = document.getElementById('programStoryIntro');
-const programCoverImage = document.getElementById('programCoverImage');
-const programDownloadFiles = document.getElementById('programDownloadFiles');
-const programPrimaryLinkLabel = document.getElementById('programPrimaryLinkLabel');
-const programPrimaryLinkUrl = document.getElementById('programPrimaryLinkUrl');
 
 let pendingEditorImageIndex = null;
 let lastAutoTitle = '';
@@ -142,7 +131,7 @@ form?.addEventListener('submit', async (event) => {
 });
 
 const initialCategory = new URLSearchParams(window.location.search).get('category') || '';
-if (['posts', 'daily', 'programs'].includes(initialCategory)) {
+if (['posts', 'daily'].includes(initialCategory)) {
     categorySelect.value = initialCategory;
     applyCategory(initialCategory);
 } else {
@@ -151,8 +140,7 @@ if (['posts', 'daily', 'programs'].includes(initialCategory)) {
 
 function applyCategory(category) {
     form.hidden = !category;
-    programFields.hidden = category !== 'programs';
-    dateGroup.hidden = category === 'programs';
+    dateGroup.hidden = false;
     lastAutoTitle = '';
     setEditorImageStatus();
 
@@ -174,13 +162,6 @@ function applyCategory(category) {
         titleInput.placeholder = '하루 제목';
         setDailyDefaults(today);
         markdownEditor.editor?.setPlaceholder?.('Markdown으로 하루를 작성하세요...');
-    }
-
-    if (category === 'programs') {
-        writerHeading.textContent = '프로그램실에 올릴 항목';
-        titleInput.placeholder = '프로그램 이름';
-        programStatus.value = 'prototype';
-        markdownEditor.editor?.setPlaceholder?.('Markdown으로 제작 배경, 사용법, 스크린샷, 긴 이야기 쓰기...');
     }
 
     titleInput.focus();
@@ -228,9 +209,6 @@ async function saveEntry(mode) {
         } else if (category === 'daily') {
             saved = await saveDailyEntry({ title, content, mode });
             label = '나으 하루';
-        } else if (category === 'programs') {
-            saved = await saveProgramEntry({ title, content, mode });
-            label = '프로그램실';
         }
 
         if (mode === 'publish') {
@@ -298,48 +276,6 @@ function dailyFormData({ title, slug, dayKey, status, content, publishedAt = nul
     formData.append('content', content || '');
     formData.append('published_at', publishedAt || dayKey);
     return formData;
-}
-
-async function saveProgramEntry({ title, content, mode }) {
-    const formData = new FormData();
-    const intro = programStoryIntro.value.trim();
-    const legacyRequiredText = intro || title;
-
-    formData.append('title', title);
-    formData.append('slug', slugify(title) || `program-${Date.now()}`);
-    formData.append('status', normalizeProgramStatus(programStatus.value));
-    formData.append('is_public', mode === 'publish' ? 'true' : 'false');
-    formData.append('story_detail', content);
-    formData.append('why', legacyRequiredText);
-    formData.append('pain_point', legacyRequiredText);
-    formData.append('pending_media_ids', pendingMediaTracker.serialize());
-
-    appendOptionalText(formData, 'platform', programPlatform.value);
-    appendOptionalText(formData, 'story_intro', intro);
-    appendOptionalText(formData, 'primary_link_label', programPrimaryLinkLabel.value);
-    appendOptionalText(formData, 'primary_link_url', programPrimaryLinkUrl.value);
-
-    const coverFiles = Array.from(programCoverImage.files || []);
-    const downloadFiles = Array.from(programDownloadFiles.files || []);
-
-    coverFiles.forEach(file => {
-        formData.append('cover_image', file);
-    });
-    if (!coverFiles.length) {
-        const automaticCoverFile = await findAutomaticProgramCoverFile(downloadFiles);
-        if (automaticCoverFile) formData.append('cover_image', automaticCoverFile);
-    }
-
-    downloadFiles.forEach(file => {
-        formData.append('download_files', file);
-    });
-
-    return await createProgram(formData);
-}
-
-function appendOptionalText(formData, name, value) {
-    const text = String(value || '').trim();
-    if (text) formData.append(name, text);
 }
 
 function showSaved(label, record, url) {

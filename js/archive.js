@@ -6,7 +6,6 @@ import {
   getPublishedDailySummaryTimeline,
   getPublishedNasajabSummaryTimeline,
   getPublishedPostSummaryTimeline,
-  getPublishedProgramSummaryTimeline,
 } from './pb.js';
 import { buildArchiveEntries } from './archive-logic.mjs';
 
@@ -19,14 +18,13 @@ async function initArchiveList() {
   tbody.dataset.archiveReady = 'true';
 
   try {
-    const [posts, daily, programs, nasajab, guestbook] = await Promise.all([
+    const [posts, daily, nasajab, guestbook] = await Promise.all([
       getPublishedPostSummaryTimeline(),
       getPublishedDailySummaryTimeline(),
-      getPublishedProgramSummaryTimeline(),
       getPublishedNasajabSummaryTimeline(),
       getAnsweredGuestbookSummaryTimeline(),
     ]);
-    const entries = buildArchiveEntries({ posts, daily, programs, nasajab, guestbook });
+    const entries = buildArchiveEntries({ posts, daily, nasajab, guestbook });
 
     if (!entries.length) {
       tbody.innerHTML = '<tr><td colspan="3">아직 공개된 글이 없습니다.</td></tr>';

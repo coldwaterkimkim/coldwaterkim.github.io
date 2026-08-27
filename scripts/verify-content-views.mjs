@@ -114,10 +114,9 @@ assert.match(dailyView, /recordContentView\(\{ kind: 'daily', id: dayKey/);
 assert.match(dailyView, /현재 하루 조회수/);
 
 const programs = read('js/programs.js');
-const programDetail = read('js/program-detail.js');
-assert.match(programs, /kind: 'program', id: program\.id/);
-assert.match(programDetail, /recordContentView\(\{/);
-assert.match(programDetail, /published: program\?\.is_public === true/);
+const programDetail = read('programs/view.html');
+assert.doesNotMatch(programs, /recordContentView/, 'file utility room must not record content views');
+assert.doesNotMatch(programDetail, /recordContentView/, 'retired program detail redirect must not record content views');
 
 const nasajab = read('js/nasajab.js');
 assert.match(nasajab, /kind: 'nasajab', id: item\.id/);

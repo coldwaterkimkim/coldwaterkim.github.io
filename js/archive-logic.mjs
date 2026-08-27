@@ -1,7 +1,6 @@
 const CATEGORY_LABELS = Object.freeze({
   post: '글방',
   daily: '나으 하루',
-  program: '프로그램실',
   nasajab: '나사잡',
   guestbook: '방명록',
 });
@@ -41,7 +40,6 @@ function groupDailyEntries(entries = []) {
 export function buildArchiveEntries({
   posts = [],
   daily = [],
-  programs = [],
   nasajab = [],
   guestbook = [],
 } = {}) {
@@ -61,14 +59,6 @@ export function buildArchiveEntries({
       title: `${day.dayKey}의 하루${day.count > 1 ? ` (${day.count}개)` : ''}`,
       date: day.date,
       url: `/daily/${encode(day.dayKey)}/`,
-    })),
-    ...programs.map(program => ({
-      id: `program:${program.id || program.slug || ''}`,
-      category: 'program',
-      categoryLabel: CATEGORY_LABELS.program,
-      title: program.title || '(이름 없음)',
-      date: program.first_published_at || program.created || program.published_at || '',
-      url: `/programs/view.html?slug=${encode(program.slug)}`,
     })),
     ...nasajab.map(item => ({
       id: `nasajab:${item.id || ''}`,

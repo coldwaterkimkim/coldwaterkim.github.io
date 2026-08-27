@@ -88,6 +88,8 @@ RUNTIME_DIST="$RUNTIME_ROOT/dist"
 RUNTIME_MIGRATIONS="$RUNTIME_ROOT/pb_migrations"
 RUNTIME_PB_DATA="$RUNTIME_ROOT/pb_data"
 RUNTIME_TUS_UPLOADS="$RUNTIME_ROOT/tus-uploads"
+RUNTIME_TOOL_JOBS="$RUNTIME_ROOT/tool-jobs"
+RUNTIME_TOOL_SENTINEL="$RUNTIME_TOOL_JOBS/.cwk-file-tools-root-v1"
 
 PB_LABEL="com.coldwaterkim.pocketbase"
 CADDY_LABEL="com.coldwaterkim.caddy"
@@ -103,6 +105,9 @@ LOCAL_BACKUP_PROGRAM="$REPO_ROOT/deploy/imac/backup-pocketbase.py"
 PB_PLIST_SRC="$REPO_ROOT/deploy/imac/${PB_LABEL}.plist"
 CADDY_PLIST_SRC="$REPO_ROOT/deploy/imac/${CADDY_LABEL}.plist"
 BACKUP_PLIST_SRC="$REPO_ROOT/deploy/imac/${BACKUP_LABEL}.plist"
+LOCAL_FILE_TOOL_DIR="$REPO_ROOT/.local-bin"
+FILE_TOOL_NAMES=(qpdf pdfinfo pdftoppm pdftotext tesseract gs soffice java sips)
+LOCAL_TOOL_SENTINEL="$REPO_ROOT/deploy/imac/file-tools-root.sentinel"
 
 USER_AGENT_DIR="$HOME/Library/LaunchAgents"
 SYSTEM_DAEMON_DIR="/Library/LaunchDaemons"
@@ -181,6 +186,27 @@ lint_plist() {
     plutil -lint "$file" >/dev/null
 }
 
+verify_owner_database() {
+    local database="$RUNTIME_PB_DATA/data.db"
+    local owner_count
+    local user_count
+    require_file "$database"
+    if ! command -v sqlite3 >/dev/null 2>&1; then
+        echo "sqlite3 is required to verify the OWNER users record." >&2
+        exit 1
+    fi
+    owner_count="$(sqlite3 -readonly "$database" "SELECT count(*) FROM users WHERE id = '${CWK_OWNER_USER_ID}';")"
+    user_count="$(sqlite3 -readonly "$database" "SELECT count(*) FROM users;")"
+    if [[ "$owner_count" != "1" ]]; then
+        echo "CWK_OWNER_USER_ID does not match exactly one live users record." >&2
+        exit 1
+    fi
+    if [[ "$user_count" != "1" ]]; then
+        echo "Refusing install: users contains $user_count records; audit and remove unauthorized accounts/tokens first." >&2
+        exit 1
+    fi
+}
+
 replace_runtime_dir() {
     local source="$1"
     local target="$2"
@@ -202,9 +228,30 @@ replace_runtime_dir() {
     run_cmd rm -rf "$old"
 }
 
+sync_optional_file_tools() {
+    local tool
+    local source
+    local target
+    for tool in "${FILE_TOOL_NAMES[@]}"; do
+        source="$LOCAL_FILE_TOOL_DIR/$tool"
+        target="$RUNTIME_BIN_DIR/$tool"
+        if [[ ! -x "$source" ]]; then
+            continue
+        fi
+        if [[ -L "$source" ]]; then
+            run_cmd ln -sfn "$(readlink "$source")" "$target"
+        else
+            run_cmd install -m 755 "$source" "$target"
+        fi
+    done
+}
+
 sync_runtime_files() {
-    run_cmd mkdir -p "$RUNTIME_BIN_DIR" "$RUNTIME_PB_DATA" "$RUNTIME_TUS_UPLOADS"
+    run_cmd mkdir -p "$RUNTIME_BIN_DIR" "$RUNTIME_PB_DATA" "$RUNTIME_TUS_UPLOADS" "$RUNTIME_TOOL_JOBS"
+    run_cmd chmod 700 "$RUNTIME_TOOL_JOBS"
+    run_cmd install -m 600 "$LOCAL_TOOL_SENTINEL" "$RUNTIME_TOOL_SENTINEL"
     run_cmd install -m 755 "$LOCAL_POCKETBASE" "$RUNTIME_POCKETBASE"
+    sync_optional_file_tools
     if [[ "$SKIP_CADDY" -eq 0 ]]; then
         run_cmd install -m 755 "$LOCAL_CADDY" "$RUNTIME_CADDY"
     fi
@@ -239,7 +286,20 @@ install_system_daemon() {
     local source_plist="$2"
     local target_plist="$3"
 
-    run_sudo_cmd install -m 644 -o root -g wheel "$source_plist" "$target_plist"
+    if [[ "$label" == "$PB_LABEL" && "$DRY_RUN" -eq 0 ]]; then
+        if [[ ! "${CWK_OWNER_USER_ID:-}" =~ ^[a-zA-Z0-9]{15}$ ]]; then
+            echo "Set CWK_OWNER_USER_ID to the explicit 15-character OWNER users record id." >&2
+            exit 1
+        fi
+        verify_owner_database
+        local rendered_plist
+        rendered_plist="$(mktemp -t cwk-pocketbase-plist)"
+        /usr/bin/sed "s/__CWK_OWNER_USER_ID__/${CWK_OWNER_USER_ID}/g" "$source_plist" > "$rendered_plist"
+        run_sudo_cmd install -m 644 -o root -g wheel "$rendered_plist" "$target_plist"
+        rm -f "$rendered_plist"
+    else
+        run_sudo_cmd install -m 644 -o root -g wheel "$source_plist" "$target_plist"
+    fi
 
     if [[ "$NO_START" -eq 1 ]]; then
         return
@@ -291,6 +351,7 @@ require_file "$PB_PLIST_SRC"
 require_file "$BACKUP_PLIST_SRC"
 require_file "$LOCAL_BACKUP_SCRIPT"
 require_file "$LOCAL_BACKUP_PROGRAM"
+require_file "$LOCAL_TOOL_SENTINEL"
 require_dir "$LOCAL_MIGRATIONS"
 require_executable "$LOCAL_POCKETBASE"
 

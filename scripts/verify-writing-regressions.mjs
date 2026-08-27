@@ -212,7 +212,7 @@ assert.equal(
   'Korean post slugs must be encoded safely in public links',
 );
 assert.equal(publishedEntryViewerUrl('daily', { day_key: '2026-08-03' }), '/daily/2026-08-03/');
-assert.equal(publishedEntryViewerUrl('programs', { slug: 'my-app' }), '/programs/view.html?slug=my-app');
+assert.equal(publishedEntryViewerUrl('programs', { slug: 'my-app' }), '', 'retired program posts must not have a publish target');
 assert.equal(
   postListEntryUrl({ id: 'draft id', slug: 'draft-slug', status: 'draft' }, { ownerMode: true }),
   '/admin/posts.html?id=draft%20id',
@@ -508,11 +508,9 @@ assert.match(adminDaily, /formData\.append\('pending_media_ids', pendingMediaTra
 assert.match(adminDaily, /finalizePublishedEditorMedia\(\{\s*collectionName: 'daily_entries'/, 'daily cleanup must run only from the explicit publish path');
 
 const programs = fs.readFileSync(new URL('../js/programs.js', import.meta.url), 'utf8');
-assert.match(programs, /onFilesPaste: files => insertProgramBodyFiles/, 'BlockNote must own program file paste handling');
-assert.match(programs, /programBodyEditor\.withUploadActivity\(async \(\) =>/, 'program batch uploads must share the editor upload activity guard');
-assert.doesNotMatch(programs, /programBodyEditor\.root\.addEventListener\('paste'/, 'program file paste must not have a second DOM owner');
-assert.match(programs, /window\.location\.assign\(programDetailUrl\(saved\)\)/, 'published programs must leave the editor for the detail viewer');
-assert.match(programs, /pendingProgramMediaTracker\.reset\(program\.pending_media_ids\)/, 'program drafts must restore pending media candidates after reopening');
+assert.match(programs, /runLocalTool/, 'programs room must run local file tools');
+assert.match(programs, /runServerToolClient/, 'programs room must connect authenticated server tools');
+assert.doesNotMatch(programs, /createProgram|updateProgram|deleteProgram/, 'retired program post editing must stay removed');
 
 const mediaEmbeds = fs.readFileSync(new URL('../js/media-embeds.js', import.meta.url), 'utf8');
 assert.match(mediaEmbeds, /img\.setAttribute\('loading', 'lazy'\)/, 'rendered images must use native lazy loading');

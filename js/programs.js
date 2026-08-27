@@ -1,636 +1,425 @@
+import { isLoggedIn } from './pb.js';
 import {
-    isLoggedIn,
-    getPublishedProgramTimeline,
-    getAllProgramTimeline,
-    getProgramBySlug,
-    createProgram,
-    updateProgram,
-    deleteProgram,
-    resolveProgramCoverUrl,
-    programDownloadTargets,
-    programStatusLabel,
-    normalizeProgramStatus,
-    programDetailUrl,
-    slugify,
-    escapeHtml,
-    cmsErrorMessage,
-    uploadMedia,
-    getMediaUrl,
-    formatMediaUploadProgress,
-    finalizePublishedEditorMedia,
-    contentViewKey,
-    getContentViewCounts
-} from './pb.js';
-import { findAutomaticProgramCoverFile } from './program-cover.js';
-import { createPendingMediaTracker } from './editor-pending-media.mjs';
+  TOOL_BY_ID,
+  TOOL_CATEGORIES,
+  TOOLS,
+  runLocalTool,
+  safeOutputFilename,
+  validateToolInput,
+} from './program-tools-catalog.mjs';
 
-const ownerMode = isLoggedIn();
-let programs = [];
-let programViewCounts = {};
-let editingProgramId = '';
-let programBodyEditor = null;
-let programBodyEditorReady = null;
-let pendingProgramBodyImageIndex = null;
-let markdownEditorModulePromise = null;
-let createMarkdownEditor = null;
-let createEditorUploadCoordinator = null;
-let editorFilesFromTransfer = null;
-let editorUploadLabel = null;
-let hasEditorFileTransfer = null;
-let isSupportedEditorUpload = null;
-let normalizeEditorFiles = null;
-let stopEditorTransferEvent = null;
-let programBodyUploadCoordinator = null;
-const pendingProgramMediaTracker = createPendingMediaTracker();
+const el = id => document.getElementById(id);
+const directory = el('programToolDirectory');
+const workbench = el('programToolWorkbench');
+const title = el('programToolTitle');
+const engineBadge = el('programToolEngineBadge');
+const description = el('programToolDescription');
+const dropzone = el('programToolDropzone');
+const fileInput = el('programToolFileInput');
+const acceptText = el('programToolAcceptText');
+const filesWrap = el('programToolFilesWrap');
+const filesBody = el('programToolFiles');
+const optionsRoot = el('programToolOptions');
+const runButton = el('programToolRun');
+const cancelButton = el('programToolCancel');
+const resetButton = el('programToolReset');
+const status = el('programToolStatus');
+const progress = el('programToolProgress');
+const result = el('programToolResult');
 
-const fallbackPrograms = [
-    {
-        id: 'fallback-onecut',
-        title: 'OneCut',
-        slug: 'onecut',
-        status: 'beta',
-        platform: 'iOS · TestFlight · 하루 기록',
-        tagline: 'a day in one frame',
-        story_intro: '하루를 한 컷으로 붙잡는 앱.',
-        why: '하루가 너무 쉽게 흘러가서, 최소한 한 컷만큼은 붙잡아두려고.',
-        pain_point: '사진은 많은데 하루의 감정과 맥락은 흩어지는 문제.',
-        is_public: true
-    },
-    {
-        id: 'fallback-doodle-dolmeng',
-        title: 'Doodle 돌멩',
-        slug: 'doodle-dolmeng',
-        status: 'beta',
-        platform: 'iOS · 위치 기반 지도 · 캠퍼스',
-        tagline: 'campus map scribbles',
-        story_intro: '캠퍼스 생활권을 낙서처럼 남기는 지도.',
-        why: '장소에는 말로 설명하기 어려운 분위기와 낙서 같은 기억이 있어서.',
-        pain_point: '지도는 정확하지만, 사람들이 실제로 느끼는 생활권은 너무 납작하게 보이는 문제.',
-        is_public: true
-    },
-    {
-        id: 'fallback-wisdom-dolmeng',
-        title: '중생돌멩',
-        slug: 'wisdom-dolmeng',
-        status: 'released',
-        platform: 'macOS · 메뉴바 앱 · .dmg 예정',
-        tagline: 'floating wisdom panel',
-        story_intro: '메뉴바에서 잠깐씩 정신을 붙잡아주는 작은 앱.',
-        why: '하루 중 잠깐씩 정신을 붙잡아주는 이상한 문장이 필요해서.',
-        pain_point: '집중이 풀릴 때마다 거창한 앱을 여는 건 너무 큰 행동이라는 문제.',
-        is_public: true
-    },
-    {
-        id: 'fallback-quick-dump-dolmeng',
-        title: '브덤돌멩',
-        slug: 'quick-dump-dolmeng',
-        status: 'prototype',
-        platform: 'macOS · 빠른 메모 · GitHub 예정',
-        tagline: 'throw thoughts fast',
-        story_intro: '생각이 지나가기 전에 아무 데나 던져놓는 메모 도구.',
-        why: '생각이 지나가기 전에 어디든 빠르게 던져놓고 싶어서.',
-        pain_point: '메모 앱을 고르는 순간 이미 쓰려던 말이 사라지는 문제.',
-        is_public: true
-    },
-    {
-        id: 'fallback-coming-soon-program',
-        title: '이름 미정',
-        slug: 'coming-soon-program',
-        status: 'unreleased',
-        platform: 'Web · 예고편 · 아직 비밀',
-        tagline: 'unreleased trailer',
-        story_intro: '아직 이름을 붙이지 않은 예고편 row.',
-        why: '아직 말하면 김이 빠지는 종류의 빡침에서 시작됨.',
-        pain_point: '공개 전이라 자세한 설명은 봉인. 대신 예고편 row로 먼저 입장.',
-        is_public: true
-    }
-];
+let selectedTool = null;
+let selectedFiles = [];
+let running = false;
+let abortCurrent = null;
+let resultUrl = '';
 
-const programsList = document.getElementById('programsList');
-const ownerPanel = document.getElementById('programOwnerPanel');
-const ownerStatus = document.getElementById('programOwnerStatus');
-const programForm = document.getElementById('programForm');
-const formTitle = document.getElementById('programFormTitle');
-const cancelButton = document.getElementById('cancelProgramEdit');
-const newButton = document.getElementById('newProgramButton');
-const formFields = {
-    title: document.getElementById('programTitle'),
-    slug: document.getElementById('programSlug'),
-    status: document.getElementById('programStatus'),
-    platform: document.getElementById('programPlatform'),
-    primaryLinkLabel: document.getElementById('programPrimaryLinkLabel'),
-    primaryLinkUrl: document.getElementById('programPrimaryLinkUrl'),
-    storyIntro: document.getElementById('programStoryIntro'),
-    bodyEditor: document.getElementById('programBodyEditor'),
-    bodyEditorWrap: document.getElementById('programBodyEditorWrap'),
-    bodyImageInput: document.getElementById('programBodyImageInput'),
-    bodyImageStatus: document.getElementById('programBodyImageStatus'),
-    coverImage: document.getElementById('programCoverImage'),
-    downloadFiles: document.getElementById('programDownloadFiles')
-};
+const s = (name, label, choices) => ({ name, label, type: 'select', choices });
+const n = (name, label, min, max, step, value) => ({ name, label, type: 'number', min, max, step, value });
+const t = (name, label, placeholder, value = '') => ({ name, label, type: 'text', placeholder, value });
+const p = (name, label, placeholder) => ({ name, label, type: 'password', placeholder });
+const c = (name, label, checked = true) => ({ name, label, type: 'checkbox', checked });
 
-if (ownerMode) {
-    ownerPanel.hidden = false;
-    document.getElementById('programViewsHead')?.removeAttribute('hidden');
-    setOwnerStatus('OWNER MODE: 이 페이지에서 바로 프로그램을 추가/수정할 수 있음.');
-    programBodyEditorReady = initProgramBodyEditor().catch(error => {
-        setOwnerStatus(`본문 에디터 로드 실패: ${cmsErrorMessage(error)}`, 'error');
-    });
+const OPTIONS = Object.freeze({
+  'pdf-to-pptx': [n('scale', '페이지 해상도 배율', 1, 3, 0.5, 2)],
+  'pdf-to-images': [s('format', '형식', [['png', 'PNG'], ['jpeg', 'JPG']]), n('scale', '해상도 배율', 0.5, 4, 0.5, 2), n('quality', 'JPG 품질', 0.1, 1, 0.05, 0.9)],
+  'pdf-organize': [t('pageSpec', '남길 페이지', '예: 1-3,5,8-6 (비우면 전체)'), s('rotation', '전체 회전', [['0', '안 함'], ['90', '오른쪽 90°'], ['180', '180°'], ['270', '왼쪽 90°']])],
+  'images-to-pdf': [s('pageSize', '종이 크기', [['image', '이미지에 맞춤'], ['a4', 'A4'], ['letter', 'Letter']]), s('fit', '배치', [['contain', '전체 보이기'], ['cover', '종이 가득 채우기']])],
+  'pdf-page-number': [n('start', '시작 번호', 1, 9999, 1, 1), s('position', '위치', [['bottom', '아래'], ['top', '위']]), s('align', '정렬', [['center', '가운데'], ['right', '오른쪽'], ['left', '왼쪽']])],
+  'pdf-watermark': [t('text', '문구', 'CONFIDENTIAL', 'CONFIDENTIAL'), n('opacity', '투명도', 0.05, 1, 0.05, 0.25), n('angle', '기울기', -90, 90, 1, -35)],
+  'pdf-crop': [n('margin', '모든 방향 여백 (pt)', 0, 300, 1, 24)],
+  'pdf-nup': [s('perPage', '한 장에', [['2', '2페이지'], ['4', '4페이지']]), s('orientation', '종이 방향', [['landscape', '가로'], ['portrait', '세로']])],
+  'pdf-sanitize': [c('removeAnnotations', '주석 제거'), c('flatten', '폼 평탄화')],
+  'pdf-redact-raster': [t('page', '적용 페이지', '예: 1', '1'), t('rect', '가릴 영역', 'x,y,width,height (0~1)', '0.1,0.1,0.8,0.1'), n('scale', '출력 해상도 배율', 1, 3, 0.5, 2)],
+  'pdf-compare': [s('format', '결과', [['html', '비교 보고서 HTML'], ['json', '차이 데이터 JSON']])],
+  'pdf-ocr': [s('language', '인식 언어', [['kor+eng', '한국어 + 영어'], ['kor', '한국어'], ['eng', '영어']])],
+  'pdf-compress': [s('quality', '압축 강도', [['balanced', '균형'], ['strong', '강하게'], ['light', '약하게']])],
+  'pdf-protect': [p('password', '열기 암호', '8자 이상 권장')],
+  'pdf-unlock': [p('password', '현재 암호', 'PDF 암호')],
+  'image-convert': [s('format', '결과 형식', [['jpeg', 'JPG'], ['png', 'PNG'], ['webp', 'WebP']]), n('quality', '품질', 0.1, 1, 0.05, 0.9)],
+  'image-compress': [n('maxSizeMB', '목표 용량 (MB)', 0.05, 20, 0.05, 1), n('maxWidthOrHeight', '긴 변 최대 (px)', 320, 12000, 10, 2560)],
+  'image-resize': [n('width', '가로 (px)', 1, 20000, 1, 1920), n('height', '세로 (px)', 1, 20000, 1, 1080), c('keepAspect', '비율 유지')],
+  'image-center-crop': [n('width', '가로 (px)', 1, 20000, 1, 1080), n('height', '세로 (px)', 1, 20000, 1, 1080)],
+  'image-rotate': [s('angle', '회전', [['90', '오른쪽 90°'], ['180', '180°'], ['270', '왼쪽 90°']])],
+  'image-watermark': [t('text', '문구', 'coldwaterkim', 'coldwaterkim'), n('opacity', '투명도', 0.05, 1, 0.05, 0.35)],
+  'sheet-convert': [s('format', '결과 형식', [['xlsx', 'XLSX'], ['csv', 'CSV'], ['json', 'JSON'], ['html', 'HTML'], ['markdown', 'Markdown']])],
+  'sheet-merge': [s('mode', '합치는 방법', [['rows', '행으로 이어 붙이기'], ['sheets', '파일별 시트 만들기']])],
+  'sheet-compare': [c('ignoreWhitespace', '앞뒤 공백 무시')],
+  'sheet-clean': [c('dedupe', '중복 행 제거'), c('removeBlank', '빈 행 제거')],
+  'sheet-select-columns': [t('columns', '남길 열', '쉼표로 구분: 이름,이메일,금액')],
+});
+
+const FALLBACK_DESCRIPTIONS = Object.freeze({
+  'pdf-merge': '여러 PDF를 현재 순서대로 한 파일로 합칩니다.',
+  'pdf-organize': '필요한 페이지만 골라 순서와 방향을 정리합니다.',
+  'images-to-pdf': '여러 이미지를 한 개의 PDF로 묶습니다.',
+  'pdf-to-images': 'PDF 페이지를 PNG 또는 JPG로 꺼냅니다.',
+  'pdf-page-number': '모든 페이지에 번호를 넣습니다.',
+  'pdf-watermark': '반복 워터마크를 넣습니다.',
+  'pdf-crop': '페이지 바깥 여백을 잘라냅니다.',
+  'pdf-nup': '2쪽 또는 4쪽을 종이 한 장에 배치합니다.',
+  'pdf-sanitize': '문서 정보와 주석을 제거합니다.',
+  'pdf-compare': '두 PDF의 다른 부분을 표시합니다.',
+  'pdf-compress': '화질과 용량의 균형을 잡아 압축합니다.',
+  'pdf-protect': '열기 암호를 넣습니다.',
+  'pdf-unlock': '알고 있는 암호를 제거합니다.',
+  'pdf-repair': '깨진 PDF 구조를 다시 써서 복구합니다.',
+  'pdf-grayscale': '인쇄하기 좋은 흑백 PDF로 바꿉니다.',
+  'pdf-to-text': 'PDF의 글자를 TXT로 꺼냅니다.',
+  'image-convert': 'JPG, PNG, WebP 사이를 일괄 변환합니다.',
+  'image-compress': '여러 이미지의 용량을 한꺼번에 줄입니다.',
+  'image-resize': '여러 이미지의 가로·세로 크기를 통일합니다.',
+  'image-center-crop': '지정 크기에 맞춰 가운데를 잘라냅니다.',
+  'image-rotate': '여러 이미지를 같은 각도로 돌립니다.',
+  'image-watermark': '여러 이미지에 같은 글자 워터마크를 넣습니다.',
+  'image-strip-metadata': 'EXIF와 위치정보 없이 새 이미지로 저장합니다.',
+  'sheet-convert': 'XLSX, CSV, JSON, HTML, Markdown 표로 바꿉니다.',
+  'sheet-merge': '여러 파일을 행 또는 시트 단위로 합칩니다.',
+  'sheet-split': '통합 문서의 각 시트를 개별 파일로 나눕니다.',
+  'sheet-compare': '두 표의 추가·삭제·변경 셀을 찾습니다.',
+  'sheet-clean': '중복과 빈 행열, 불필요한 공백을 정리합니다.',
+  'sheet-select-columns': '필요한 열만 골라 새 파일로 만듭니다.',
+  'sheet-transpose': '행과 열을 서로 뒤집습니다.',
+  'sheet-extract-media': '엑셀 안에 박힌 이미지를 꺼냅니다.',
+  'sheet-sanitize': '작성자와 문서 속성 등 메타데이터를 제거합니다.',
+});
+
+renderDirectory();
+bindWorkbench();
+
+function renderDirectory() {
+  if (!directory) return;
+  directory.replaceChildren(...TOOL_CATEGORIES.map(category => {
+    const section = document.createElement('section');
+    section.className = 'file-tool-category';
+    section.dataset.toolCategory = category.id;
+    const heading = document.createElement('h3');
+    heading.className = 'file-tool-category-title';
+    heading.textContent = category.label;
+    const table = document.createElement('table');
+    table.className = 'file-tool-directory-table';
+    Object.assign(table, { border: '1', cellSpacing: '0', cellPadding: '5', width: '100%' });
+    table.innerHTML = '<thead><tr bgcolor="#f0f0f0"><th align="left">작업</th><th align="left">설명</th><th>처리</th></tr></thead>';
+    const tbody = document.createElement('tbody');
+    TOOLS.filter(item => item.category === category.id).forEach(item => tbody.append(toolRow(item)));
+    table.append(tbody);
+    section.append(heading, table);
+    return section;
+  }));
 }
 
-newButton?.addEventListener('click', () => {
-    resetProgramForm({ hidden: false });
-    programForm.scrollIntoView({ block: 'start' });
-    formFields.title.focus();
-});
+function toolRow(tool) {
+  const row = document.createElement('tr');
+  row.dataset.toolId = tool.id;
+  const name = document.createElement('td');
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'file-tool-link';
+  button.dataset.selectTool = tool.id;
+  button.textContent = tool.label;
+  name.append(button);
+  const detail = document.createElement('td');
+  detail.textContent = tool.description || FALLBACK_DESCRIPTIONS[tool.id] || '파일을 골라 바로 처리합니다.';
+  const engine = document.createElement('td');
+  engine.className = 'file-tool-engine-cell';
+  engine.textContent = tool.engine === 'local' ? '🖥 브라우저' : '🍎 아이맥';
+  row.append(name, detail, engine);
+  return row;
+}
 
-cancelButton?.addEventListener('click', () => resetProgramForm({ hidden: true }));
-
-formFields.title?.addEventListener('input', () => {
-    if (editingProgramId || formFields.slug.value.trim()) return;
-    formFields.slug.value = safeSlug(formFields.title.value);
-});
-
-programForm?.addEventListener('submit', async (event) => {
+function bindWorkbench() {
+  directory?.addEventListener('click', event => {
+    const button = event.target.closest('[data-select-tool]');
+    if (button) selectTool(button.dataset.selectTool);
+  });
+  fileInput?.addEventListener('change', () => {
+    addFiles(fileInput.files);
+    fileInput.value = '';
+  });
+  for (const name of ['dragenter', 'dragover']) dropzone?.addEventListener(name, event => {
+    if (!event.dataTransfer?.types?.includes('Files')) return;
     event.preventDefault();
-    await saveProgram();
-});
+    dropzone.classList.add('is-dragover');
+  });
+  dropzone?.addEventListener('dragleave', event => {
+    if (event.relatedTarget instanceof Node && dropzone.contains(event.relatedTarget)) return;
+    dropzone.classList.remove('is-dragover');
+  });
+  dropzone?.addEventListener('drop', event => {
+    event.preventDefault();
+    dropzone.classList.remove('is-dragover');
+    addFiles(event.dataTransfer?.files);
+  });
+  filesBody?.addEventListener('click', event => {
+    const button = event.target.closest('[data-file-action]');
+    if (!button || running) return;
+    const index = Number.parseInt(button.dataset.fileIndex, 10);
+    if (!Number.isInteger(index)) return;
+    if (button.dataset.fileAction === 'remove') selectedFiles.splice(index, 1);
+    if (button.dataset.fileAction === 'up' && index > 0) [selectedFiles[index - 1], selectedFiles[index]] = [selectedFiles[index], selectedFiles[index - 1]];
+    if (button.dataset.fileAction === 'down' && index < selectedFiles.length - 1) [selectedFiles[index + 1], selectedFiles[index]] = [selectedFiles[index], selectedFiles[index + 1]];
+    renderFiles();
+  });
+  runButton?.addEventListener('click', runSelectedTool);
+  cancelButton?.addEventListener('click', () => abortCurrent?.());
+  resetButton?.addEventListener('click', resetWorkbench);
+}
 
-programsList?.addEventListener('click', async (event) => {
-    const button = event.target.closest('[data-program-action]');
-    if (!button) return;
+function selectTool(id) {
+  const tool = TOOL_BY_ID.get(id);
+  if (!tool || running) return;
+  selectedTool = tool;
+  selectedFiles = [];
+  clearResult();
+  directory.querySelectorAll('[data-tool-id]').forEach(row => row.classList.toggle('is-selected', row.dataset.toolId === id));
+  title.textContent = tool.label;
+  engineBadge.textContent = tool.engine === 'local' ? '🖥 브라우저 처리' : '🍎 아이맥 처리';
+  engineBadge.dataset.engine = tool.engine;
+  description.textContent = tool.description || FALLBACK_DESCRIPTIONS[tool.id] || '파일을 골라 바로 처리합니다.';
+  fileInput.accept = tool.accept.join(',');
+  fileInput.multiple = tool.maxFiles !== 1;
+  acceptText.textContent = `${acceptLabel(tool.accept)} · 최대 ${tool.maxFiles}개`;
+  renderOptions(tool);
+  renderFiles();
+  setStatus(tool.engine === 'server' && !isLoggedIn() ? '이 도구는 OWNER 로그인 뒤 사용할 수 있어.' : '파일을 넣어줘.');
+  workbench?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
 
-    const id = button.getAttribute('data-program-id');
-    const action = button.getAttribute('data-program-action');
+function addFiles(fileList) {
+  if (!selectedTool) return setStatus('먼저 위 표에서 도구를 골라줘.', 'error');
+  const incoming = Array.from(fileList || []);
+  const accepted = incoming.filter(file => fileMatchesTool(file, selectedTool));
+  if (accepted.length !== incoming.length) setStatus('이 도구에서 받을 수 없는 파일은 뺐어.', 'error');
+  for (const file of accepted) {
+    if (selectedFiles.length >= selectedTool.maxFiles) break;
+    selectedFiles.push(file);
+  }
+  if (selectedFiles.length) setStatus(`${selectedFiles.length}개 파일 준비됨.`);
+  renderFiles();
+}
 
-    if (action === 'edit') {
-        await editProgram(id);
-    } else if (action === 'delete') {
-        await removeProgram(id);
+function renderFiles() {
+  if (!filesBody) return;
+  filesWrap.hidden = selectedFiles.length === 0;
+  filesBody.replaceChildren(...selectedFiles.map((file, index) => {
+    const row = document.createElement('tr');
+    const name = document.createElement('td');
+    const controls = document.createElement('span');
+    controls.className = 'file-tool-order-controls';
+    controls.append(action('↑', 'up', index, index === 0), action('↓', 'down', index, index === selectedFiles.length - 1));
+    name.append(controls, document.createTextNode(safeOutputFilename(file.name, `파일 ${index + 1}`)));
+    const size = document.createElement('td');
+    size.className = 'file-tool-size-cell';
+    size.textContent = formatBytes(file.size);
+    const remove = document.createElement('td');
+    remove.className = 'file-tool-remove-cell';
+    remove.append(action('×', 'remove', index));
+    row.append(name, size, remove);
+    return row;
+  }));
+  updateRunButton();
+}
+
+function renderOptions(tool) {
+  const schemas = OPTIONS[tool.id] || [];
+  optionsRoot.replaceChildren();
+  optionsRoot.hidden = schemas.length === 0;
+  if (!schemas.length) return;
+  const heading = document.createElement('b');
+  heading.textContent = '옵션';
+  const grid = document.createElement('div');
+  grid.className = 'file-tool-options-grid';
+  schemas.forEach(schema => grid.append(optionControl(schema)));
+  optionsRoot.append(heading, grid);
+}
+
+function optionControl(schema) {
+  const label = document.createElement('label');
+  label.className = `file-tool-option${schema.type === 'checkbox' ? ' file-tool-option--check' : ''}`;
+  const caption = document.createElement('span');
+  caption.textContent = schema.label;
+  const input = schema.type === 'select' ? document.createElement('select') : document.createElement('input');
+  input.dataset.toolOption = schema.name;
+  if (schema.type === 'select') schema.choices.forEach(([value, text]) => input.add(new Option(text, value)));
+  else {
+    input.type = schema.type;
+    if (schema.placeholder) input.placeholder = schema.placeholder;
+    for (const key of ['min', 'max', 'step']) if (schema[key] !== undefined) input[key] = String(schema[key]);
+    if (schema.type === 'checkbox') input.checked = schema.checked;
+    else input.value = String(schema.value ?? '');
+  }
+  label.append(...(schema.type === 'checkbox' ? [input, caption] : [caption, input]));
+  return label;
+}
+
+async function runSelectedTool() {
+  if (!selectedTool || running) return;
+  try {
+    validateToolInput(selectedTool.id, selectedFiles);
+    if (selectedTool.engine === 'server' && !isLoggedIn()) {
+      const next = encodeURIComponent(`${window.location.pathname}?tool=${selectedTool.id}`);
+      result.hidden = false;
+      result.innerHTML = `<b>OWNER 전용 도구야.</b> <a href="/admin/login.html?next=${next}">로그인하고 계속하기</a>`;
+      return setStatus('로그인이 필요해.', 'error');
     }
-});
-
-loadPrograms();
-
-async function loadPrograms() {
-    programsList.innerHTML = `<tr><td colspan="${ownerMode ? 4 : 3}" class="loading">프로그램 목록 불러오는 중...</td></tr>`;
-
-    try {
-        programs = ownerMode
-            ? await getAllProgramTimeline()
-            : await getPublishedProgramTimeline();
-        programViewCounts = ownerMode
-            ? await getContentViewCounts(programs.map(program => ({ kind: 'program', id: program.id })))
-            : {};
-        renderPrograms();
-    } catch (error) {
-        if (!ownerMode && error?.status === 404) {
-            programs = fallbackPrograms;
-            renderPrograms();
-            return;
-        }
-
-        const message = cmsErrorMessage(error);
-        programsList.innerHTML = `<tr><td colspan="${ownerMode ? 4 : 3}">불러오기 실패: ${escapeHtml(message)}</td></tr>`;
-        setOwnerStatus(`CMS 확인 필요: ${message}`, 'error');
-    }
-}
-
-function renderPrograms() {
-    if (!programs.length) {
-        programsList.innerHTML = `
-            <tr>
-                <td colspan="${ownerMode ? 4 : 3}">
-                    아직 등록된 프로그램이 없습니다.
-                    ${ownerMode ? 'OWNER MODE에서 첫 프로그램을 올려보면 됨.' : '곧 채워질 예정.'}
-                </td>
-            </tr>
-        `;
-        return;
-    }
-
-    programsList.innerHTML = programs.map(renderProgramRow).join('');
-}
-
-function renderProgramRow(program) {
-    const status = normalizeProgramStatus(program.status);
-    const label = programStatusLabel(status);
-    const title = program.title || '(이름 없음)';
-    const coverUrl = resolveProgramCoverUrl(program);
-    const detailUrl = programDetailUrl(program);
-    const downloads = programDownloadTargets(program);
-    const actionLinks = downloads.length
-        ? downloads.slice(0, 3).map(target => `<a href="${escapeAttribute(target.url)}" target="_blank" rel="noopener">${escapeHtml(target.label)}</a>`).join('<br>')
-        : '<span class="note">준비중</span>';
-    const ownerActions = ownerMode ? `
-        <hr>
-        <button type="button" class="owner-btn" data-program-action="edit" data-program-id="${escapeAttribute(program.id)}">수정</button>
-        <button type="button" class="owner-btn owner-btn-danger" data-program-action="delete" data-program-id="${escapeAttribute(program.id)}">삭제</button>
-        ${program.is_public ? '' : '<br><span class="note">비공개</span>'}
-    ` : '';
-    const ownerViewCell = ownerMode
-        ? `<td align="center" class="program-views-cell post-view-count">${formatOwnerViewCount(programViewCounts[contentViewKey('program', program.id)])}</td>`
-        : '';
-
-    return `
-        <tr>
-            <td class="program-cover-cell">
-                <a href="${escapeAttribute(detailUrl)}" class="program-cover-link" aria-label="${escapeAttribute(title)} 상세 보기">
-                    ${coverUrl ? renderImageCover(program, coverUrl) : renderMissingCover(program)}
-                </a>
-            </td>
-            <td class="program-story-cell">
-                <h2><span class="program-label">[${escapeHtml(label)}]</span> <a href="${escapeAttribute(detailUrl)}">${escapeHtml(title)}</a></h2>
-                <p class="program-meta">${programMeta(program)}</p>
-                <p>${previewText(program.story_intro || program.tagline || '아직 한 줄 소개를 쓰는 중.')}</p>
-                <p><a href="${escapeAttribute(detailUrl)}">상세 이야기 보기</a></p>
-            </td>
-            <td class="program-action-cell">
-                <b>${escapeHtml(label)}</b><br>
-                <small>${escapeHtml(defaultStatusNote(status))}</small>
-                <hr>
-                ${actionLinks}
-                ${ownerActions}
-            </td>
-            ${ownerViewCell}
-        </tr>
-    `;
-}
-
-function formatOwnerViewCount(count) {
-    if (!Number.isFinite(count)) return '-';
-    return Number(count).toLocaleString('ko-KR');
-}
-
-function renderImageCover(program, coverUrl) {
-    return `
-        <div class="program-cover program-cover--image">
-            <div class="program-window-bar">${escapeHtml(program.slug || 'program')}</div>
-            <img src="${escapeAttribute(coverUrl)}" alt="${escapeAttribute(program.title || 'program cover')}">
-        </div>
-    `;
-}
-
-function renderMissingCover(program) {
-    return `
-        <div class="program-cover program-cover--missing">
-            <div class="program-window-bar">${escapeHtml(program.slug || 'program')}</div>
-            <div class="program-cover-title">없음</div>
-            <div class="program-cover-caption">대표 이미지 없음</div>
-        </div>
-    `;
-}
-
-function programMeta(program) {
-    const parts = [
-        program.platform
-    ].filter(Boolean);
-    return escapeHtml(parts.join(' · ') || 'platform TBD');
-}
-
-function defaultStatusNote(status) {
-    return {
-        released: '받을 수 있음',
-        beta: '실험중',
-        prototype: '손보는중',
-        unreleased: '예고편',
-        archived: '보관됨'
-    }[status] || '진행중';
-}
-
-async function saveProgram() {
-    if (!ownerMode) return;
-    await ensureProgramBodyEditor();
-
-    const title = formFields.title.value.trim();
-
-    if (!title) {
-        setOwnerStatus('이름은 꼭 있어야 함.', 'error');
-        return;
-    }
-
-    const formData = new FormData(programForm);
-    const storyIntro = formFields.storyIntro.value.trim();
-    const legacyRequiredText = storyIntro || title;
-
-    formData.set('slug', safeSlug(formFields.slug.value || title));
-    formData.set('status', normalizeProgramStatus(formFields.status.value));
-    formData.set('is_public', 'true');
-    formData.set('story_intro', storyIntro);
-    formData.set('story_detail', programBodyHtml());
-    formData.set('why', legacyRequiredText);
-    formData.set('pain_point', legacyRequiredText);
-    formData.set('pending_media_ids', pendingProgramMediaTracker.serialize());
-
-    if (!formFields.coverImage.files.length) {
-        formData.delete('cover_image');
-        if (formFields.downloadFiles.files.length) {
-            setOwnerStatus('첨부 파일에서 대표 이미지 찾는 중...');
-        }
-        const automaticCoverFile = await findAutomaticProgramCoverFile(formFields.downloadFiles.files);
-        if (automaticCoverFile) formData.append('cover_image', automaticCoverFile);
-    }
-    if (!formFields.downloadFiles.files.length) formData.delete('download_files');
-    normalizeOptionalTextField(formData, 'platform');
-    normalizeOptionalTextField(formData, 'story_intro');
-    normalizeOptionalTextField(formData, 'primary_link_label');
-    normalizeOptionalTextField(formData, 'primary_link_url');
-
-    setOwnerStatus(editingProgramId ? '프로그램 수정 중...' : '프로그램 저장 중...');
-
-    try {
-        const saved = editingProgramId
-            ? await updateProgram(editingProgramId, formData)
-            : await createProgram(formData);
-        const cleanup = await finalizePublishedEditorMedia({
-            collectionName: 'programs',
-            recordId: saved.id,
-            content: programBodyHtml(),
-            pendingMediaIds: pendingProgramMediaTracker.values()
-        });
-        pendingProgramMediaTracker.reset(cleanup.remaining);
-        if (cleanup.failures.length || cleanup.metadataError) {
-            console.warn('Published program media cleanup needs retry', cleanup);
-        }
-        setOwnerStatus(`${saved.title || '프로그램'} 저장 완료.`, 'success');
-        window.location.assign(programDetailUrl(saved));
-    } catch (error) {
-        setOwnerStatus(`저장 실패: ${cmsErrorMessage(error)}`, 'error');
-    }
-}
-
-async function editProgram(id) {
-    if (!ownerMode || !id) return;
-    await ensureProgramBodyEditor();
-
-    try {
-        const cached = programs.find(program => program.id === id);
-        const program = cached || await getProgramBySlug(id, true);
-        pendingProgramMediaTracker.reset(program.pending_media_ids);
-        editingProgramId = program.id;
-        programForm.hidden = false;
-        formTitle.textContent = `✎ 프로그램 수정: ${program.title || '(이름 없음)'}`;
-        formFields.title.value = program.title || '';
-        formFields.slug.value = program.slug || '';
-        formFields.status.value = normalizeProgramStatus(program.status);
-        formFields.platform.value = program.platform || '';
-        formFields.primaryLinkLabel.value = program.primary_link_label || '';
-        formFields.primaryLinkUrl.value = program.primary_link_url || '';
-        formFields.storyIntro.value = program.story_intro || '';
-        setProgramBodyHtml(program.story_detail || legacyProgramBody(program));
-        formFields.coverImage.value = '';
-        formFields.downloadFiles.value = '';
-        setOwnerStatus('수정 모드. 긴 설명과 스크린샷은 본문에서 자유롭게 고치면 됨.');
-        programForm.scrollIntoView({ block: 'start' });
-        formFields.title.focus();
-    } catch (error) {
-        setOwnerStatus(`프로그램을 불러올 수 없음: ${cmsErrorMessage(error)}`, 'error');
-    }
-}
-
-async function removeProgram(id) {
-    if (!ownerMode || !id) return;
-    const program = programs.find(item => item.id === id);
-    const label = program?.title || '이 프로그램';
-
-    if (!confirm(`${label}을 삭제할까?\n첨부 파일도 CMS 레코드에서 같이 빠집니다.`)) return;
-
-    try {
-        await deleteProgram(id);
-        setOwnerStatus(`${label} 삭제 완료.`, 'success');
-        await loadPrograms();
-    } catch (error) {
-        setOwnerStatus(`삭제 실패: ${cmsErrorMessage(error)}`, 'error');
-    }
-}
-
-function resetProgramForm(options = {}) {
-    if (!programForm) return;
-    editingProgramId = '';
-    pendingProgramMediaTracker.reset();
-    programForm.reset();
-    formTitle.textContent = '✚ 새 프로그램 올리기';
-    formFields.status.value = 'prototype';
-    setProgramBodyHtml('');
-    programForm.hidden = options.hidden ?? true;
-}
-
-function safeSlug(value) {
-    return slugify(value) || `program-${Date.now()}`;
-}
-
-function setOwnerStatus(message, type = 'info') {
-    if (!ownerStatus) return;
-    ownerStatus.textContent = message;
-    ownerStatus.className = `program-owner-status program-owner-status--${type}`;
-}
-
-function normalizeOptionalTextField(formData, name) {
-    const value = String(formData.get(name) || '').trim();
-    if (value) {
-        formData.set(name, value);
+    setRunning(true);
+    clearResult();
+    progress.hidden = false;
+    progress.value = 2;
+    const options = collectOptions();
+    let output;
+    if (selectedTool.engine === 'local') {
+      output = await runLocalTool(selectedTool.id, selectedFiles, normalizeOptions(selectedTool.id, options), updateProgress);
     } else {
-        formData.delete(name);
+      const server = await import('./program-tools-server.mjs');
+      const controller = new AbortController();
+      abortCurrent = () => controller.abort();
+      output = await server.runServerToolClient(selectedTool.id, selectedFiles, options, {
+        signal: controller.signal,
+        onProgress: updateProgress,
+      });
     }
+    showResult(output);
+    setStatus(output.summary || '작업 끝. 결과를 내려받아.', 'success');
+    progress.value = 100;
+  } catch (error) {
+    setStatus(error?.name === 'AbortError' ? '작업을 취소했어. 임시 파일도 정리 중이야.' : (error?.message || '작업에 실패했어.'), 'error');
+  } finally {
+    setRunning(false);
+    abortCurrent = null;
+    setTimeout(() => { if (!running) progress.hidden = true; }, 900);
+  }
 }
 
-function programBodyHtml() {
-    if (!programBodyEditor) return '';
-    const html = programBodyEditor.root.innerHTML.trim();
-    return html === '<p><br></p>' ? '' : html;
+function normalizeOptions(toolId, options) {
+  if (toolId === 'pdf-redact-raster') {
+    const [x, y, width, height] = String(options.rect || '').split(',').map(Number);
+    options.redactions = [{ page: Number(options.page) || 1, x, y, width, height, unit: 'ratio', color: '#000000' }];
+    delete options.page;
+    delete options.rect;
+  }
+  return options;
 }
 
-function setProgramBodyHtml(html = '') {
-    if (programBodyEditor) {
-        programBodyEditor.root.innerHTML = html || '';
-    }
+function updateProgress(update = {}) {
+  const total = Math.max(1, Number(update.total) || 1);
+  const completed = Math.max(0, Number(update.completed) || 0);
+  progress.value = Math.min(95, Math.max(3, Math.round((completed / total) * 95)));
+  if (update.message) setStatus(update.message);
 }
 
-function legacyProgramBody(program) {
-    return [
-        ['왜 만들었냐', program.why],
-        ['해결하는 빡침', program.pain_point],
-        ['어떻게 풀었냐', program.solution],
-        ['제작 노트', program.build_notes]
-    ]
-        .filter(([, value]) => String(value || '').trim())
-        .map(([title, value]) => `<h2>${escapeHtml(title)}</h2><p>${escapeMultiline(value)}</p>`)
-        .join('');
+function showResult(output) {
+  clearResult();
+  resultUrl = URL.createObjectURL(output.blob);
+  const link = document.createElement('a');
+  link.className = 'file-tool-download';
+  link.href = resultUrl;
+  link.download = safeOutputFilename(output.filename, 'result.bin');
+  link.textContent = `⬇ ${link.download} 내려받기 (${formatBytes(output.blob.size)})`;
+  result.replaceChildren(link);
+  result.hidden = false;
 }
 
-async function ensureProgramBodyEditor() {
-    if (programBodyEditorReady) {
-        await programBodyEditorReady;
-    }
+function collectOptions() {
+  const values = {};
+  optionsRoot?.querySelectorAll('[data-tool-option]').forEach(input => {
+    if (input.type === 'checkbox') values[input.dataset.toolOption] = input.checked;
+    else if (input.type === 'number') values[input.dataset.toolOption] = Number(input.value);
+    else values[input.dataset.toolOption] = input.value.trim();
+  });
+  return values;
 }
 
-async function initProgramBodyEditor() {
-    if (!formFields.bodyEditor) return;
-    await loadMarkdownEditorModule();
-    programBodyUploadCoordinator = createEditorUploadCoordinator({
-        uploadFile: uploadProgramBodyRecord
-    });
-
-    programBodyEditor = await createMarkdownEditor('#programBodyEditor', {
-        placeholder: 'Markdown으로 제작 배경, 사용법, 스크린샷, 긴 이야기 쓰기...',
-        fallbackNamePrefix: 'program-body-file',
-        onImageButton: () => {
-            pendingProgramBodyImageIndex = currentProgramBodyIndex();
-            formFields.bodyImageInput.click();
-        },
-        uploadFile: uploadProgramBodyFile,
-        onFilesPaste: files => insertProgramBodyFiles(files, {
-            index: currentProgramBodyIndex()
-        }),
-        onFilesPasteError: error => setOwnerStatus(`붙여넣기 실패: ${cmsErrorMessage(error)}`, 'error')
-    });
-
-    formFields.bodyImageInput?.addEventListener('change', async () => {
-        await insertProgramBodyFiles(formFields.bodyImageInput.files, {
-            index: pendingProgramBodyImageIndex
-        });
-        pendingProgramBodyImageIndex = null;
-        formFields.bodyImageInput.value = '';
-    });
-
-    formFields.bodyEditorWrap?.addEventListener('dragenter', (event) => {
-        if (!hasEditorFileTransfer(event.dataTransfer)) return;
-        event.preventDefault();
-        formFields.bodyEditorWrap.classList.add('is-image-dragover');
-    });
-
-    formFields.bodyEditorWrap?.addEventListener('dragover', (event) => {
-        if (!hasEditorFileTransfer(event.dataTransfer)) return;
-        event.preventDefault();
-        formFields.bodyEditorWrap.classList.add('is-image-dragover');
-    });
-
-    formFields.bodyEditorWrap?.addEventListener('dragleave', (event) => {
-        if (event.relatedTarget instanceof Node && formFields.bodyEditorWrap.contains(event.relatedTarget)) return;
-        formFields.bodyEditorWrap.classList.remove('is-image-dragover');
-    });
-
-    formFields.bodyEditorWrap?.addEventListener('drop', async (event) => {
-        if (!hasEditorFileTransfer(event.dataTransfer)) return;
-        stopEditorTransferEvent(event);
-        formFields.bodyEditorWrap.classList.remove('is-image-dragover');
-        await insertProgramBodyFiles(programFilesFromTransfer(event.dataTransfer), {
-            index: currentProgramBodyIndex()
-        });
-    }, true);
+function resetWorkbench() {
+  if (running) return;
+  selectedFiles = [];
+  clearResult();
+  progress.hidden = true;
+  progress.value = 0;
+  renderFiles();
+  setStatus(selectedTool ? '파일을 넣어줘.' : '도구를 골라줘.');
 }
 
-async function loadMarkdownEditorModule() {
-    if (!markdownEditorModulePromise) {
-        markdownEditorModulePromise = import('./markdown-editor.js');
-    }
-
-    const module = await markdownEditorModulePromise;
-    createEditorUploadCoordinator = module.createEditorUploadCoordinator;
-    createMarkdownEditor = module.createMarkdownEditor;
-    editorFilesFromTransfer = module.editorFilesFromTransfer;
-    editorUploadLabel = module.editorUploadLabel;
-    hasEditorFileTransfer = module.hasEditorFileTransfer;
-    isSupportedEditorUpload = module.isSupportedEditorUpload;
-    normalizeEditorFiles = module.normalizeEditorFiles;
-    stopEditorTransferEvent = module.stopEditorTransferEvent;
+function clearResult() {
+  if (resultUrl) URL.revokeObjectURL(resultUrl);
+  resultUrl = '';
+  result.hidden = true;
+  result.replaceChildren();
 }
 
-function setProgramBodyImageStatus(message = '', type = 'info') {
-    if (!formFields.bodyImageStatus) return;
-    formFields.bodyImageStatus.textContent = message;
-    formFields.bodyImageStatus.className = `program-editor-status program-editor-status--${type}`;
-    formFields.bodyImageStatus.classList.toggle('is-visible', Boolean(message));
+function setRunning(value) {
+  running = value;
+  fileInput.disabled = value;
+  resetButton.disabled = value;
+  cancelButton.hidden = !value || selectedTool?.engine !== 'server';
+  dropzone.classList.toggle('is-disabled', value);
+  updateRunButton();
 }
 
-function programFilesFromTransfer(dataTransfer) {
-    return editorFilesFromTransfer(dataTransfer, {
-        fallbackNamePrefix: 'program-body-file'
-    });
+function updateRunButton() {
+  const enough = selectedTool && selectedFiles.length >= (selectedTool.minFiles || 1);
+  runButton.disabled = running || !enough;
+  runButton.textContent = running ? '작업 중...' : '작업 시작';
 }
 
-function clampProgramBodyIndex(index) {
-    return programBodyEditor.clampIndex(index);
+function setStatus(message, type = 'info') {
+  status.textContent = message;
+  status.dataset.type = type;
 }
 
-function currentProgramBodyIndex() {
-    const range = programBodyEditor.getSelection(true);
-    return clampProgramBodyIndex(range?.index);
+function fileMatchesTool(file, tool) {
+  const name = String(file.name || '').toLowerCase();
+  const type = String(file.type || '').toLowerCase();
+  return tool.accept.some(raw => {
+    const accept = raw.toLowerCase();
+    if (accept.startsWith('.')) return name.endsWith(accept);
+    if (accept.endsWith('/*')) return type.startsWith(accept.slice(0, -1));
+    return type === accept;
+  });
 }
 
-async function insertProgramBodyFiles(files, options = {}) {
-    const editorFiles = normalizeEditorFiles(files, {
-        fallbackNamePrefix: 'program-body-file'
-    });
-
-    if (!editorFiles.length) {
-        setOwnerStatus('JPG, PNG, GIF, WebP, MP4, WebM, MOV, M4V, MP3, PDF만 본문에 넣을 수 있음.', 'error');
-        return;
-    }
-
-    let insertIndex = clampProgramBodyIndex(options.index);
-    await programBodyEditor.withUploadActivity(async () => {
-        await programBodyUploadCoordinator.runBatch(editorFiles, {
-            onFileStart: (file, index, total) => setProgramBodyImageStatus(`${editorUploadLabel(file)} 업로드 준비 중... (${index + 1}/${total}) ${file.name}`),
-            onFileProgress: (file, progress, index, total) => setProgramBodyImageStatus(`${editorUploadLabel(file)} ${formatMediaUploadProgress(progress)} (${index + 1}/${total}) ${file.name}`),
-            onFileReused: (file, _result, index, total) => setProgramBodyImageStatus(`이미 올린 ${editorUploadLabel(file)} 재사용 중... (${index + 1}/${total}) ${file.name}`),
-            onFileError: (file, error) => setOwnerStatus(`본문 ${editorUploadLabel(file)} 업로드 실패: ${cmsErrorMessage(error)}`, 'error'),
-            onDuplicateBatch: () => setProgramBodyImageStatus('같은 붙여넣기가 겹쳐서 한 번만 처리했음.', 'success'),
-            onComplete: uploaded => {
-                const uploadedFiles = uploaded.map(item => item.result);
-                insertIndex = programBodyEditor.insertFiles(insertIndex, uploadedFiles);
-                programBodyEditor.setSelection(insertIndex, 0, 'silent');
-                setProgramBodyImageStatus(`${uploadedFiles.length}개 미디어가 본문에 들어갔습니다.`, 'success');
-                setTimeout(() => setProgramBodyImageStatus(), 2500);
-            }
-        });
-    });
+function action(text, kind, index, disabled = false) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'file-tool-small-button';
+  button.dataset.fileAction = kind;
+  button.dataset.fileIndex = String(index);
+  button.textContent = text;
+  button.disabled = disabled;
+  button.setAttribute('aria-label', kind === 'remove' ? '파일 빼기' : kind === 'up' ? '위로 옮기기' : '아래로 옮기기');
+  return button;
 }
 
-async function uploadProgramBodyFile(file) {
-    if (!isSupportedEditorUpload?.(file)) {
-        throw new Error('JPG, PNG, GIF, WebP, MP4, WebM, MOV, M4V, MP3, PDF만 올릴 수 있음.');
-    }
-
-    try {
-        const uploaded = await programBodyUploadCoordinator.uploadSingle(file, {
-            onFileStart: current => setProgramBodyImageStatus(`${editorUploadLabel(current)} 업로드 준비 중... ${current.name || ''}`),
-            onFileProgress: (current, progress) => setProgramBodyImageStatus(`${editorUploadLabel(current)} ${formatMediaUploadProgress(progress)} ${current.name || ''}`),
-            onFileReused: current => setProgramBodyImageStatus(`이미 올린 ${editorUploadLabel(current)}를 재사용함.`, 'success')
-        });
-        setProgramBodyImageStatus(`${editorUploadLabel(file)} 업로드 완료.`, 'success');
-        setTimeout(() => setProgramBodyImageStatus(), 1800);
-        return uploaded.url;
-    } catch (error) {
-        setProgramBodyImageStatus(`${editorUploadLabel(file)} 업로드 실패: ${cmsErrorMessage(error)}`, 'error');
-        throw error;
-    }
+function acceptLabel(values) {
+  return Array.from(new Set(values.map(value => value.replace('image/*', '이미지').replace('application/pdf', 'PDF').replace(/^\./, '').toUpperCase()))).slice(0, 8).join(' · ');
 }
 
-async function uploadProgramBodyRecord(file, options = {}) {
-    const media = await uploadMedia(file, file.name, 'Program editor media', options);
-    pendingProgramMediaTracker.add(media.id);
-    return {
-        url: getMediaUrl(media, media.file),
-        name: file.name,
-        type: file.type
-    };
+function formatBytes(value) {
+  const bytes = Number(value) || 0;
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function escapeMultiline(value) {
-    return escapeHtml(value).replace(/\r?\n/g, '<br>');
-}
-
-function previewText(value, maxLength = 86) {
-    const text = String(value || '').replace(/\s+/g, ' ').trim();
-    if (text.length <= maxLength) return escapeHtml(text);
-    return `${escapeHtml(text.slice(0, maxLength).trim())}...`;
-}
-
-function escapeAttribute(value) {
-    return String(value || '')
-        .replace(/&/g, '&amp;')
-        .replace(/"/g, '&quot;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
-}
+const requestedTool = new URLSearchParams(window.location.search).get('tool');
+if (requestedTool && TOOL_BY_ID.has(requestedTool)) selectTool(requestedTool);
+window.addEventListener('pagehide', clearResult, { once: true });

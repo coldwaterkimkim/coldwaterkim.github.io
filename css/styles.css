@@ -1875,6 +1875,323 @@ body > center > table[width="1140"] > tbody > tr > td {
   font-size: 13px;
 }
 
+/* Programs room v2: private file utility desk. */
+.file-tools-intro {
+  margin: 8px 0 12px;
+  padding: 10px 12px;
+  border: 2px inset var(--cwk-surface-table-head);
+  background: var(--cwk-surface-entry);
+}
+
+.file-tools-intro p {
+  margin: 3px 0;
+}
+
+.file-tools-kicker {
+  color: var(--cwk-owner-reply-accent);
+  font-family: var(--cwk-font-mono);
+  font-size: 17px;
+}
+
+.file-tools-privacy-table {
+  margin-bottom: 14px;
+  background: var(--cwk-surface-page);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.file-tools-privacy-table th {
+  background: var(--cwk-surface-table-head);
+  font-family: var(--cwk-font-mono);
+}
+
+.file-tool-category {
+  margin: 0 0 14px;
+}
+
+.file-tool-category-title {
+  margin: 0;
+  padding: 4px 7px;
+  border: 1px solid var(--cwk-ink);
+  border-bottom: 0;
+  background: navy;
+  color: white;
+  font-family: var(--cwk-font-mono);
+  font-size: 14px;
+  letter-spacing: .04em;
+}
+
+.file-tool-directory-table {
+  table-layout: fixed;
+  background: var(--cwk-surface-page);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.file-tool-directory-table th:first-child,
+.file-tool-directory-table td:first-child {
+  width: 185px;
+}
+
+.file-tool-directory-table th:last-child,
+.file-tool-directory-table td:last-child {
+  width: 98px;
+}
+
+.file-tool-directory-table tr.is-selected td {
+  background: #ffffcc;
+}
+
+.file-tool-directory-table tr.is-selected td:first-child {
+  box-shadow: inset 4px 0 var(--cwk-hot-red);
+}
+
+.file-tool-link {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--cwk-link);
+  font: inherit;
+  font-weight: bold;
+  text-align: left;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.file-tool-link:hover,
+.file-tool-link:focus-visible {
+  background: var(--cwk-link-hover-bg);
+  color: var(--cwk-hot-red);
+}
+
+.file-tool-engine-cell {
+  font-family: var(--cwk-font-mono);
+  font-size: 11px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.file-tool-workbench {
+  margin: 18px 0 12px;
+  border: 2px outset var(--cwk-surface-table-head);
+  background: var(--cwk-surface-page);
+  scroll-margin-top: 10px;
+}
+
+.file-tool-window-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 5px 7px;
+  background: navy;
+  color: white;
+  font-family: var(--cwk-font-mono);
+  font-size: 14px;
+}
+
+.file-tool-engine-badge {
+  padding: 1px 5px;
+  border: 1px solid white;
+  background: #000066;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.file-tool-engine-badge[data-engine="local"] {
+  background: #006600;
+}
+
+.file-tool-engine-badge[data-engine="server"] {
+  background: #663300;
+}
+
+.file-tool-workbench-body {
+  padding: 10px;
+}
+
+.file-tool-dropzone {
+  display: flex;
+  box-sizing: border-box;
+  min-height: 126px;
+  margin: 9px 0;
+  padding: 18px;
+  border: 2px dashed var(--cwk-border-dashed);
+  background: var(--cwk-surface-preview);
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 5px;
+  text-align: center;
+  cursor: pointer;
+}
+
+.file-tool-dropzone:hover,
+.file-tool-dropzone:focus-within,
+.file-tool-dropzone.is-dragover {
+  border-color: var(--cwk-hot-red);
+  background: #ffffcc;
+}
+
+.file-tool-dropzone.is-disabled {
+  cursor: progress;
+  opacity: .65;
+}
+
+.file-tool-dropzone-icon {
+  font-size: 30px;
+  line-height: 1;
+}
+
+#programToolAcceptText {
+  color: var(--cwk-muted);
+  font-size: 11px;
+}
+
+.file-tool-files-wrap {
+  margin: 10px 0;
+  max-height: 270px;
+  overflow: auto;
+}
+
+.file-tool-files-table {
+  table-layout: fixed;
+  font-size: 12px;
+}
+
+.file-tool-files-table th:nth-child(2),
+.file-tool-files-table td:nth-child(2) {
+  width: 82px;
+}
+
+.file-tool-files-table th:nth-child(3),
+.file-tool-files-table td:nth-child(3) {
+  width: 46px;
+}
+
+.file-tool-size-cell,
+.file-tool-remove-cell {
+  text-align: center;
+  white-space: nowrap;
+}
+
+.file-tool-order-controls {
+  display: inline-flex;
+  margin-right: 6px;
+  gap: 2px;
+}
+
+.file-tool-small-button {
+  min-width: 24px;
+  min-height: 22px;
+  padding: 0 3px;
+  border: 1px outset var(--cwk-surface-table-head);
+  background: var(--cwk-surface-table-head);
+  color: var(--cwk-ink);
+  font-family: var(--cwk-font-mono);
+  cursor: pointer;
+}
+
+.file-tool-small-button:active {
+  border-style: inset;
+}
+
+.file-tool-small-button:disabled {
+  cursor: default;
+  opacity: .35;
+}
+
+.file-tool-options {
+  margin: 10px 0;
+  padding: 8px;
+  border: 1px dashed var(--cwk-border-dashed);
+  background: var(--cwk-surface-table-head);
+}
+
+.file-tool-options-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px 10px;
+  margin-top: 6px;
+}
+
+.file-tool-option {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  font-size: 12px;
+}
+
+.file-tool-option input,
+.file-tool-option select {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 28px;
+  font-family: var(--cwk-font-main);
+}
+
+.file-tool-option--check {
+  display: flex;
+  align-items: center;
+}
+
+.file-tool-option--check input {
+  width: auto;
+  min-height: 0;
+}
+
+.file-tool-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 5px;
+  margin-top: 10px;
+}
+
+.file-tool-status {
+  margin-top: 8px;
+  padding: 5px 7px;
+  border: 1px inset var(--cwk-surface-table-head);
+  background: #eeeeee;
+  font-family: var(--cwk-font-mono);
+  font-size: 11px;
+}
+
+.file-tool-status[data-type="success"] {
+  background: #e8ffe8;
+  color: #006600;
+}
+
+.file-tool-status[data-type="error"] {
+  background: #fff0f0;
+  color: #990000;
+  font-weight: bold;
+}
+
+.file-tool-progress {
+  box-sizing: border-box;
+  width: 100%;
+  height: 14px;
+  margin-top: 6px;
+}
+
+.file-tool-result {
+  margin-top: 9px;
+  padding: 10px;
+  border: 2px inset var(--cwk-surface-table-head);
+  background: #e8ffe8;
+  text-align: center;
+}
+
+.file-tool-download {
+  font-weight: bold;
+}
+
+.file-tools-note {
+  margin-top: 14px;
+}
+
 /* Nasajab: a little archive of things that caught the owner. */
 .nasajab-page-title {
   margin: 12px 0 8px;
@@ -3195,6 +3512,86 @@ body > center > table[width="1140"] > tbody > tr > td {
   .program-detail-poster {
     width: min(260px, 100%);
     margin: 0 auto;
+  }
+
+  .file-tools-privacy-table,
+  .file-tools-privacy-table tbody,
+  .file-tools-privacy-table tr,
+  .file-tools-privacy-table th,
+  .file-tools-privacy-table td {
+    display: block;
+    box-sizing: border-box;
+    width: 100% !important;
+  }
+
+  .file-tools-privacy-table th {
+    border-bottom: 0;
+  }
+
+  .file-tool-directory-table {
+    table-layout: auto;
+  }
+
+  .file-tool-directory-table th:first-child,
+  .file-tool-directory-table td:first-child {
+    width: 42%;
+  }
+
+  .file-tool-directory-table th:nth-child(2),
+  .file-tool-directory-table td:nth-child(2) {
+    display: none;
+  }
+
+  .file-tool-directory-table th:last-child,
+  .file-tool-directory-table td:last-child {
+    width: auto;
+  }
+
+  .file-tool-directory-table td {
+    overflow-wrap: anywhere;
+  }
+
+  .file-tool-window-bar {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .file-tool-dropzone {
+    min-height: 118px;
+    padding: 14px 8px;
+  }
+
+  .file-tool-options-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .file-tool-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .file-tool-actions .owner-btn {
+    min-height: 44px;
+  }
+
+  .file-tool-actions #programToolRun {
+    grid-column: 1 / -1;
+  }
+
+  .file-tool-files-table th:nth-child(2),
+  .file-tool-files-table td:nth-child(2) {
+    width: 64px;
+  }
+
+  .file-tool-files-table th:nth-child(3),
+  .file-tool-files-table td:nth-child(3) {
+    width: 38px;
+  }
+
+  .file-tool-order-controls {
+    display: flex;
+    margin: 0 0 3px;
   }
 
   .nasajab-page-title {

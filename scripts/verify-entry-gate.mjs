@@ -63,7 +63,7 @@ check(
 check(siteSource.includes('entryWebmasterLineKey'), 'entry must use a KST date-specific webmaster line');
 check(siteSource.includes('getPublishedPostSummaryTimeline'), 'entry must summarize posts without bodies');
 check(siteSource.includes('getPublishedDailySummaryTimeline'), 'entry must summarize daily entries without bodies');
-check(siteSource.includes('getPublishedProgramSummaryTimeline'), 'entry must summarize programs without bodies');
+check(!siteSource.includes('getPublishedProgramSummaryTimeline'), 'entry updates must ignore the file utility room');
 check(siteSource.includes('getPublishedNasajabSummaryTimeline'), 'entry must summarize nasajab without file metadata');
 check(!/quiet|mute|sound off|소리 없이|조용히 입장/i.test(siteSource), 'entry must not offer a silent route');
 check(stylesSource.includes('.entry-gate'), 'entry gate styles must exist');

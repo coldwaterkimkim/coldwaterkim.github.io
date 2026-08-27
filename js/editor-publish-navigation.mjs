@@ -9,10 +9,6 @@ export function publishedEntryViewerUrl(category, record = {}) {
         return record.slug ? `/daily/view.html?slug=${encodeURIComponent(record.slug)}` : '';
     }
 
-    if (category === 'programs') {
-        return record.slug ? `/programs/view.html?slug=${encodeURIComponent(record.slug)}` : '';
-    }
-
     return '';
 }
 
