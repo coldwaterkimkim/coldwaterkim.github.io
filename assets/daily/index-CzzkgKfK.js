@@ -1,4 +1,4 @@
-import"../modulepreload-polyfill-Dezn_h7o.js";import"../site-DRo682QQ.js";import{E as e,Ht as t,I as n,St as r,W as i,gt as a,h as o,k as s,l as c,m as l,nt as u,vt as d}from"../pb-DpAOhH6R.js";var f=null,p=[],m=10,h=a();window.goToDailyPage=C,h&&(document.getElementById(`views-col-head`).style.display=``,document.getElementById(`owner-col-head`).style.display=``,document.getElementById(`daily-note`).textContent=`OWNER MODE: 초안까지 같이 보입니다.`,document.getElementById(`owner-tools`).innerHTML=`
+import"../modulepreload-polyfill-Dezn_h7o.js";import"../site-DrJeYrnQ.js";import{E as e,Ht as t,I as n,St as r,W as i,gt as a,h as o,k as s,l as c,m as l,nt as u,vt as d}from"../pb-DpAOhH6R.js";var f=null,p=[],m=10,h=a();window.goToDailyPage=C,h&&(document.getElementById(`views-col-head`).style.display=``,document.getElementById(`owner-col-head`).style.display=``,document.getElementById(`daily-note`).textContent=`OWNER MODE: 초안까지 같이 보입니다.`,document.getElementById(`owner-tools`).innerHTML=`
         <div class="owner-bar">
           <b>OWNER MODE</b> ·
           <a href="/admin/daily.html?new=1">새 나으 하루 쓰기</a> ·
