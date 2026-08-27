@@ -137,7 +137,7 @@ func main() {
 		log.Fatal(err)
 	}
 	defer fileTools.close()
-	chatGptShares := newChatGptShareService(ownerUserID)
+	chatGptShares := newChatGptShareService(fileTools.ownerUserID)
 	app.OnTerminate().BindFunc(func(e *core.TerminateEvent) error {
 		fileTools.close()
 		return e.Next()
