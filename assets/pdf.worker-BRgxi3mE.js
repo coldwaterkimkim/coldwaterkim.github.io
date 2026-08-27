@@ -1,0 +1,1 @@
+var e=`/assets/pdf.worker-Dg_VPFYK.mjs`;export{e as default};

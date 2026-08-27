@@ -9,26 +9,25 @@
   <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-  <meta name="description" content="김찬수가 직접 만든 작은 프로그램과 실험작을 모은 자료실입니다.">
+  <meta name="description" content="문서, PDF, 이미지, 엑셀과 CSV를 외부 사이트 없이 바로 처리하는 개인 파일 작업실입니다.">
   <link rel="canonical" href="https://coldwaterkim.com/programs/index.html">
   <meta property="og:type" content="website">
   <meta property="og:title" content="프로그램실 — coldwaterkim">
-  <meta property="og:description" content="김찬수가 직접 만든 작은 프로그램과 실험작을 모은 자료실입니다.">
+  <meta property="og:description" content="문서, PDF, 이미지, 엑셀과 CSV를 외부 사이트 없이 바로 처리하는 개인 파일 작업실입니다.">
   <meta property="og:url" content="https://coldwaterkim.com/programs/index.html">
   <meta property="og:image" content="https://coldwaterkim.com/assets/profile-crop.jpg">
   <meta name="twitter:card" content="summary">
   <meta name="twitter:title" content="프로그램실 — coldwaterkim">
-  <meta name="twitter:description" content="김찬수가 직접 만든 작은 프로그램과 실험작을 모은 자료실입니다.">
+  <meta name="twitter:description" content="문서, PDF, 이미지, 엑셀과 CSV를 외부 사이트 없이 바로 처리하는 개인 파일 작업실입니다.">
   <meta name="twitter:image" content="https://coldwaterkim.com/assets/profile-crop.jpg">
-  <script type="module" crossorigin src="/assets/programs/index-BqPzWtMp.js"></script>
+  <script type="module" crossorigin src="/assets/programs/index-BQydd7-1.js"></script>
   <link rel="modulepreload" crossorigin href="/assets/modulepreload-polyfill-Dezn_h7o.js">
   <link rel="modulepreload" crossorigin href="/assets/preload-helper-CZgWQFsJ.js">
-  <link rel="modulepreload" crossorigin href="/assets/pb-DEzKlkVX.js">
+  <link rel="modulepreload" crossorigin href="/assets/pb-DMqTlCfb.js">
   <link rel="modulepreload" crossorigin href="/assets/album-logic-C2DfqA_9.js">
-  <link rel="modulepreload" crossorigin href="/assets/site-Dgseme4s.js">
-  <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-BHe-jwch.js">
-  <link rel="modulepreload" crossorigin href="/assets/program-cover-CIHx37iC.js">
-  <link rel="stylesheet" crossorigin href="/assets/site-BjgNNlUl.css">
+  <link rel="modulepreload" crossorigin href="/assets/site-CNI49moz.js">
+  <link rel="modulepreload" crossorigin href="/assets/program-tools-catalog-DGc0fenh.js">
+  <link rel="stylesheet" crossorigin href="/assets/site-Cy-Vj86d.css">
 </head>
 
 <body class="page-subpage page-programs" background="" bgcolor="#e0e0e0">
@@ -158,119 +157,66 @@
 
           <h1>💾 프로그램실</h1>
 
-          <div id="programOwnerPanel" class="program-owner-panel" hidden>
-            <div class="owner-bar">
-              <b>OWNER MODE</b> · 프로그램실에서 바로 글/파일/링크 올리기
-              <button type="button" id="newProgramButton" class="owner-btn">새 프로그램</button>
-              <span id="programOwnerStatus" class="program-owner-status"></span>
-            </div>
-
-            <form id="programForm" class="program-form" hidden>
-              <h2 id="programFormTitle" class="visitor-heading">✚ 새 프로그램 올리기</h2>
-              <table border="1" cellspacing="0" cellpadding="6" width="100%" class="program-form-table">
-                <tr bgcolor="#f0f0f0">
-                  <th align="left" colspan="2">기본 정보</th>
-                </tr>
-                <tr>
-                  <td width="130"><label for="programTitle"><b>이름 *</b></label></td>
-                  <td><input type="text" id="programTitle" name="title" required placeholder="예: OneCut"></td>
-                </tr>
-                <tr>
-                  <td><label for="programSlug"><b>slug</b></label></td>
-                  <td>
-                    <input type="text" id="programSlug" name="slug" placeholder="onecut">
-                    <div class="note">URL/파일 식별용. 비워두면 이름으로 자동 생성.</div>
-                  </td>
-                </tr>
-                <tr>
-                  <td><label for="programStatus"><b>상태</b></label></td>
-                  <td>
-                    <select id="programStatus" name="status">
-                      <option value="prototype">PROTOTYPE</option>
-                      <option value="unreleased">UNRELEASED</option>
-                      <option value="beta">BETA</option>
-                      <option value="released">RELEASED</option>
-                      <option value="archived">ARCHIVED</option>
-                    </select>
-                  </td>
-                </tr>
-                <tr>
-                  <td><label for="programPlatform"><b>플랫폼</b></label></td>
-                  <td><input type="text" id="programPlatform" name="platform" placeholder="macOS · .dmg / iOS · TestFlight / Web"></td>
-                </tr>
-                <tr>
-                  <td><label for="programStoryIntro"><b>한 줄 소개</b></label></td>
-                  <td><textarea id="programStoryIntro" name="story_intro" rows="2" placeholder="목록에서 보일 짧은 설명"></textarea></td>
-                </tr>
-
-                <tr bgcolor="#f0f0f0">
-                  <th align="left" colspan="2">받기 / 표지</th>
-                </tr>
-                <tr>
-                  <td><label for="programCoverImage"><b>표지</b></label></td>
-                  <td>
-                    <input type="file" id="programCoverImage" name="cover_image" accept="image/*">
-                    <div class="note">직접 넣으면 이 이미지가 표지. 비워두면 첨부 이미지나 .app.zip 안의 앱 아이콘을 자동 표지로 찾음.</div>
-                  </td>
-                </tr>
-                <tr>
-                  <td><label for="programDownloadFiles"><b>파일</b></label></td>
-                  <td>
-                    <input type="file" id="programDownloadFiles" name="download_files" multiple>
-                    <div class="note">.dmg, .zip, PDF, 이미지, 기타 배포 파일 첨부 가능. 이미지나 .app.zip 아이콘이 있으면 표지 후보가 됨.</div>
-                  </td>
-                </tr>
-                <tr>
-                  <td><label for="programPrimaryLinkLabel"><b>대표 링크</b></label></td>
-                  <td>
-                    <input type="text" id="programPrimaryLinkLabel" name="primary_link_label" placeholder="TestFlight, GitHub, Web Demo">
-                    <input type="url" id="programPrimaryLinkUrl" name="primary_link_url" placeholder="https://..." class="program-url-input">
-                  </td>
-                </tr>
-
-                <tr bgcolor="#f0f0f0">
-                  <th align="left" colspan="2">본문</th>
-                </tr>
-                <tr>
-                  <td><label for="programBodyEditor"><b>자유 본문</b></label></td>
-                  <td>
-                    <div class="program-editor-container" id="programBodyEditorWrap">
-                      <div id="programBodyEditor"></div>
-                    </div>
-                    <input type="file" id="programBodyImageInput" accept="image/*,video/mp4,video/webm,video/quicktime,.m4v,audio/mpeg,.mp3,application/pdf" multiple hidden>
-                    <div id="programBodyImageStatus" class="program-editor-status" aria-live="polite"></div>
-                    <div class="note">스크린샷, 제작 배경, 사용법, 긴 이야기는 전부 여기 자유롭게 쓰면 됨.</div>
-                  </td>
-                </tr>
-              </table>
-
-              <p class="program-form-actions">
-                <button type="submit" class="owner-btn">저장</button>
-                <button type="button" id="cancelProgramEdit" class="owner-btn">취소</button>
-              </p>
-            </form>
+          <div class="file-tools-intro">
+            <p class="file-tools-kicker"><b>귀찮은 파일 일, 여기서 끝내기.</b></p>
+            <p>외부 변환 사이트를 돌아다니지 않고 이 페이지에서 바로 처리합니다. 도구를 고르고 파일을 넣으면 끝.</p>
           </div>
 
-          <table border="1" cellspacing="0" cellpadding="6" width="100%" class="programs-table">
-            <thead>
-              <tr bgcolor="#f0f0f0">
-                <th align="left" class="program-cover-head">표지</th>
-                <th align="left">프로그램 / 이야기</th>
-                <th class="program-action-head">상태 / 받기</th>
-                <th id="programViewsHead" class="program-views-head" hidden>조회수</th>
-              </tr>
-            </thead>
-            <tbody id="programsList">
-              <tr>
-                <td colspan="3" class="loading">프로그램 목록 불러오는 중...</td>
-              </tr>
-            </tbody>
+          <table border="1" cellspacing="0" cellpadding="5" width="100%" class="file-tools-privacy-table">
+            <tr>
+              <th align="left" width="150">🖥 브라우저 처리</th>
+              <td>파일이 이 기기를 떠나지 않습니다. 로그인 없이 사용 가능.</td>
+            </tr>
+            <tr>
+              <th align="left">🍎 아이맥 처리</th>
+              <td>오피스·OCR·고급 PDF만 내 아이맥 서버에서 잠깐 처리합니다. OWNER 전용이며 결과 다운로드 또는 30분 뒤 자동 삭제.</td>
+            </tr>
           </table>
 
-          <div class="program-note-box">
-            <b>운영 메모:</b> 표지는 직접 업로드한 이미지가 있으면 그걸 먼저 씁니다.
-            표지를 비워두고 파일에 이미지가 섞여 있거나 .app.zip 안에 앱 아이콘이 있으면 자동 표지로 씁니다.
-            이미지가 없으면 표지는 없음으로 둡니다. 긴 설명과 스크린샷은 본문에 자유롭게 넣습니다.
+          <h2 class="visitor-heading">01. 할 일 고르기</h2>
+          <div id="programToolDirectory" class="file-tools-directory" aria-live="polite">
+            <p class="loading">도구 목록 불러오는 중...</p>
+          </div>
+
+          <section id="programToolWorkbench" class="file-tool-workbench" aria-labelledby="programToolTitle">
+            <div class="file-tool-window-bar">
+              <b id="programToolTitle">작업할 도구를 골라줘</b>
+              <span id="programToolEngineBadge" class="file-tool-engine-badge">준비</span>
+            </div>
+            <div class="file-tool-workbench-body">
+              <p id="programToolDescription" class="note">위 표에서 도구 이름을 누르면 이 작업대가 열립니다.</p>
+
+              <label id="programToolDropzone" class="file-tool-dropzone" for="programToolFileInput">
+                <span class="file-tool-dropzone-icon" aria-hidden="true">📂</span>
+                <b>파일을 끌어다 놓거나 눌러서 고르기</b>
+                <span id="programToolAcceptText">도구를 먼저 골라줘.</span>
+                <input id="programToolFileInput" type="file" multiple hidden>
+              </label>
+
+              <div id="programToolFilesWrap" class="file-tool-files-wrap" hidden>
+                <table border="1" cellspacing="0" cellpadding="5" width="100%" class="file-tool-files-table">
+                  <thead><tr bgcolor="#f0f0f0"><th align="left">순서 / 파일</th><th>크기</th><th>빼기</th></tr></thead>
+                  <tbody id="programToolFiles"></tbody>
+                </table>
+              </div>
+
+              <div id="programToolOptions" class="file-tool-options" hidden></div>
+
+              <div class="file-tool-actions">
+                <button type="button" id="programToolRun" class="owner-btn" disabled>작업 시작</button>
+                <button type="button" id="programToolCancel" class="owner-btn" hidden>취소</button>
+                <button type="button" id="programToolReset" class="owner-btn">비우기</button>
+              </div>
+
+              <div id="programToolStatus" class="file-tool-status" role="status" aria-live="polite">도구를 골라줘.</div>
+              <progress id="programToolProgress" class="file-tool-progress" max="100" value="0" hidden></progress>
+              <div id="programToolResult" class="file-tool-result" hidden></div>
+            </div>
+          </section>
+
+          <div class="program-note-box file-tools-note">
+            <b>중요:</b> 브라우저 처리 도구는 업로드 자체를 하지 않습니다. 아이맥 처리 도구는 로그인한 주인장만 쓸 수 있고,
+            원본과 결과는 작업 폴더에서 자동 폐기됩니다. 민감한 파일은 그래도 결과를 직접 확인한 뒤 사용하세요.
           </div>
 
           <hr>
