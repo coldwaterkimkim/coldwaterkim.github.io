@@ -205,11 +205,12 @@ func newFileToolService(app core.App, rootDir, ownerUserID string) (*fileToolSer
 	if err != nil {
 		return nil, err
 	}
+	ownerUserID = resolveFileToolOwnerUserID(rootDir, ownerUserID)
 	ctx, cancel := context.WithCancel(context.Background())
 	service := &fileToolService{
 		app:                 app,
 		rootDir:             rootDir,
-		ownerUserID:         normalizedOwnerUserID(ownerUserID),
+		ownerUserID:         ownerUserID,
 		toolPaths:           discoverFileToolPaths(),
 		dependencyAvailable: fileToolDependencyAvailable,
 		jobs:                map[string]*fileToolJob{},

@@ -90,6 +90,7 @@ RUNTIME_PB_DATA="$RUNTIME_ROOT/pb_data"
 RUNTIME_TUS_UPLOADS="$RUNTIME_ROOT/tus-uploads"
 RUNTIME_TOOL_JOBS="$RUNTIME_ROOT/tool-jobs"
 RUNTIME_TOOL_SENTINEL="$RUNTIME_TOOL_JOBS/.cwk-file-tools-root-v1"
+RUNTIME_OWNER_ID_FILE="$RUNTIME_ROOT/.cwk-owner-user-id"
 
 PB_LABEL="com.coldwaterkim.pocketbase"
 CADDY_LABEL="com.coldwaterkim.caddy"
@@ -246,10 +247,29 @@ sync_optional_file_tools() {
     done
 }
 
+sync_owner_id_file() {
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+        print_command install -m 600 '<CWK_OWNER_USER_ID>' "$RUNTIME_OWNER_ID_FILE"
+        return
+    fi
+    if [[ ! "${CWK_OWNER_USER_ID:-}" =~ ^[a-zA-Z0-9]{15}$ ]]; then
+        echo "Set CWK_OWNER_USER_ID to the explicit 15-character OWNER users record id." >&2
+        exit 1
+    fi
+    verify_owner_database
+    local temporary_owner_file
+    temporary_owner_file="$(mktemp -t cwk-owner-user-id)"
+    chmod 600 "$temporary_owner_file"
+    printf '%s\n' "$CWK_OWNER_USER_ID" > "$temporary_owner_file"
+    install -m 600 "$temporary_owner_file" "$RUNTIME_OWNER_ID_FILE"
+    rm -f "$temporary_owner_file"
+}
+
 sync_runtime_files() {
     run_cmd mkdir -p "$RUNTIME_BIN_DIR" "$RUNTIME_PB_DATA" "$RUNTIME_TUS_UPLOADS" "$RUNTIME_TOOL_JOBS"
     run_cmd chmod 700 "$RUNTIME_TOOL_JOBS"
     run_cmd install -m 600 "$LOCAL_TOOL_SENTINEL" "$RUNTIME_TOOL_SENTINEL"
+    sync_owner_id_file
     run_cmd install -m 755 "$LOCAL_POCKETBASE" "$RUNTIME_POCKETBASE"
     sync_optional_file_tools
     if [[ "$SKIP_CADDY" -eq 0 ]]; then

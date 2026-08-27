@@ -82,6 +82,39 @@ func TestOwnerMiddlewareFailsClosedAndAllowsExplicitOwner(t *testing.T) {
 	}
 }
 
+func TestFileToolOwnerIDFileIsPrivateAndFailClosed(t *testing.T) {
+	runtimeRoot := t.TempDir()
+	jobRoot := filepath.Join(runtimeRoot, "tool-jobs")
+	if err := os.Mkdir(jobRoot, 0700); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(runtimeRoot, ownerUserIDFile)
+	if err := os.WriteFile(path, []byte("aaaaaaaaaaaaaaa\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if got := resolveFileToolOwnerUserID(jobRoot, ""); got != "aaaaaaaaaaaaaaa" {
+		t.Fatalf("private owner id file resolved %q", got)
+	}
+	if got := resolveFileToolOwnerUserID(jobRoot, "bbbbbbbbbbbbbbb"); got != "bbbbbbbbbbbbbbb" {
+		t.Fatalf("explicit owner id must win, got %q", got)
+	}
+	if err := os.Chmod(path, 0644); err != nil {
+		t.Fatal(err)
+	}
+	if got := resolveFileToolOwnerUserID(jobRoot, ""); got != "" {
+		t.Fatalf("world-readable owner id file must fail closed, got %q", got)
+	}
+	if err := os.Chmod(path, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("invalid\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if got := resolveFileToolOwnerUserID(jobRoot, ""); got != "" {
+		t.Fatalf("malformed owner id file must fail closed, got %q", got)
+	}
+}
+
 func TestFileToolAPIUploadStatusDownloadDelete(t *testing.T) {
 	app, err := tests.NewTestApp()
 	if err != nil {

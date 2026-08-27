@@ -2,6 +2,8 @@ package main
 
 import (
 	"crypto/subtle"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -9,6 +11,23 @@ import (
 )
 
 const ownerUserIDEnv = "CWK_OWNER_USER_ID"
+const ownerUserIDFile = ".cwk-owner-user-id"
+
+func resolveFileToolOwnerUserID(jobRoot, configured string) string {
+	if ownerUserID := normalizedOwnerUserID(configured); ownerUserID != "" {
+		return ownerUserID
+	}
+	path := filepath.Join(filepath.Dir(jobRoot), ownerUserIDFile)
+	info, err := os.Lstat(path)
+	if err != nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 || info.Mode().Perm()&0077 != 0 {
+		return ""
+	}
+	contents, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	return normalizedOwnerUserID(string(contents))
+}
 
 // requireOwner allows PocketBase superusers and exactly one explicitly configured
 // users record. An unset or malformed owner id intentionally fails closed for
