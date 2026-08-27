@@ -279,6 +279,14 @@ func chatGptSnapshotFromDecoded(decoded any) (chatGptShareSnapshot, bool) {
 		if role != "user" && role != "assistant" {
 			continue
 		}
+		recipient := stringValue(message["recipient"])
+		if recipient != "" && recipient != "all" {
+			continue
+		}
+		channel := stringValue(message["channel"])
+		if role == "assistant" && channel != "" && channel != "final" {
+			continue
+		}
 		metadata, _ := message["metadata"].(map[string]any)
 		if hidden, _ := metadata["is_visually_hidden_from_conversation"].(bool); hidden {
 			continue
@@ -326,7 +334,7 @@ func chatGptSnapshotFromDecoded(decoded any) (chatGptShareSnapshot, bool) {
 
 func chatGptMessageText(content map[string]any) string {
 	contentType := stringValue(content["content_type"])
-	if contentType != "text" && contentType != "multimodal_text" && contentType != "code" {
+	if contentType != "text" && contentType != "multimodal_text" {
 		return ""
 	}
 	parts, _ := content["parts"].([]any)

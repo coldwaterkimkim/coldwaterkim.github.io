@@ -48,7 +48,7 @@ func TestDecodeChatGptShareHTML(t *testing.T) {
 						"title": "공유 대화 제목",
 						"mapping": map[string]any{
 							"first": map[string]any{"message": map[string]any{
-								"author": map[string]any{"role": "user"}, "create_time": float64(1),
+								"author": map[string]any{"role": "user"}, "recipient": "all", "create_time": float64(1),
 								"content": map[string]any{"content_type": "text", "parts": []any{"질문입니다"}},
 							}},
 							"hidden": map[string]any{"message": map[string]any{
@@ -56,8 +56,16 @@ func TestDecodeChatGptShareHTML(t *testing.T) {
 								"metadata": map[string]any{"is_visually_hidden_from_conversation": true},
 								"content":  map[string]any{"content_type": "text", "parts": []any{"숨겨진 내용"}},
 							}},
+							"commentary": map[string]any{"message": map[string]any{
+								"author": map[string]any{"role": "assistant"}, "recipient": "all", "channel": "commentary", "create_time": float64(2.1),
+								"content": map[string]any{"content_type": "text", "parts": []any{"내부 진행 설명"}},
+							}},
+							"tool": map[string]any{"message": map[string]any{
+								"author": map[string]any{"role": "assistant"}, "recipient": "web.run", "create_time": float64(2.2),
+								"content": map[string]any{"content_type": "code", "parts": []any{"내부 검색 호출"}},
+							}},
 							"last": map[string]any{"message": map[string]any{
-								"author": map[string]any{"role": "assistant"}, "create_time": float64(3),
+								"author": map[string]any{"role": "assistant"}, "recipient": "all", "channel": "final", "create_time": float64(3),
 								"content": map[string]any{"content_type": "text", "parts": []any{"답변입니다"}},
 							}},
 						},
