@@ -46,7 +46,6 @@ const publicHtmlFiles = [
   'daily/view.html',
   'album/index.html',
   'programs/index.html',
-  'programs/view.html',
   'nasajab/index.html',
   'guestbook.html',
   'askme.html',
@@ -59,6 +58,9 @@ for (const file of publicHtmlFiles) {
   const source = await read(file);
   check(source.includes('/js/maintenance-gate.js'), `${file} does not load the maintenance gate`);
 }
+
+const retiredProgramDetail = await read('programs/view.html');
+check(retiredProgramDetail.includes('http-equiv="refresh"') && retiredProgramDetail.includes('/programs/index.html'), 'retired program detail must immediately redirect instead of running the maintenance gate');
 
 if (failures.length > 0) {
   console.error(`Maintenance QA failed (${failures.length}/${assertions})`);

@@ -12,6 +12,7 @@ import {
   observeEditorMediaDuringUploads,
 } from '../js/editor-media-quiescence.mjs';
 import { postListEntryUrl, publishedEntryViewerUrl } from '../js/editor-publish-navigation.mjs';
+import { chatGptShareInfo, normalizeChatGptSnapshot, serializeChatGptSnapshot } from '../js/chatgpt-embeds.mjs';
 import {
   cropAspectFromRect,
   fitImageCropToAspect,
@@ -19,6 +20,33 @@ import {
   parseImageCrop,
   serializeImageCrop,
 } from '../js/image-crop.mjs';
+
+const chatGptShare = chatGptShareInfo('https://chatgpt.com/share/6a901ff4-0b9c-83e9-b058-8ecd80b68701?utm_source=test#ignored');
+assert.deepEqual(
+  chatGptShare,
+  {
+    id: '6a901ff4-0b9c-83e9-b058-8ecd80b68701',
+    url: 'https://chatgpt.com/share/6a901ff4-0b9c-83e9-b058-8ecd80b68701',
+  },
+  'ChatGPT share links must normalize to a stable embed URL',
+);
+assert.equal(chatGptShareInfo('http://chatgpt.com/share/6a901ff4-0b9c-83e9-b058-8ecd80b68701'), null, 'ChatGPT embeds must require HTTPS');
+assert.equal(chatGptShareInfo('https://evil.example/share/6a901ff4-0b9c-83e9-b058-8ecd80b68701'), null, 'ChatGPT embeds must reject untrusted hosts');
+assert.equal(chatGptShareInfo('https://chatgpt.com/g/g-malicious'), null, 'ChatGPT embeds must only accept shared conversations');
+const chatGptSnapshot = normalizeChatGptSnapshot({
+  title: ' 공유 대화 ',
+  messages: [
+    { role: 'system', text: 'hidden' },
+    { role: 'user', text: ' 질문 ' },
+    { role: 'assistant', text: ' 답변 ' },
+  ],
+});
+assert.deepEqual(
+  chatGptSnapshot,
+  { title: '공유 대화', messages: [{ role: 'user', text: '질문' }, { role: 'assistant', text: '답변' }] },
+  'ChatGPT snapshots must keep only visible user and assistant messages',
+);
+assert.deepEqual(normalizeChatGptSnapshot(serializeChatGptSnapshot(chatGptSnapshot)), chatGptSnapshot, 'ChatGPT snapshots must survive the saved HTML round trip');
 
 const serializedCrop = serializeImageCrop({
   enabled: true,

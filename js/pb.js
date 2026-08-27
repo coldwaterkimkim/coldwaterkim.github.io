@@ -134,6 +134,14 @@ export async function applyAlbumTag(mediaKeys, tagId, action) {
     });
 }
 
+export async function getChatGptSharePreview(url) {
+    return await pb.send('/api/cwk/chatgpt-share-preview', {
+        method: 'POST',
+        body: { url },
+        requestKey: null
+    });
+}
+
 let albumTimelinePromise = null;
 
 export async function getAlbumItemTimeline(perPage = 200) {

@@ -169,12 +169,13 @@ const navFiles = [
   'daily/view.html',
   'album/index.html',
   'programs/index.html',
-  'programs/view.html',
   'nasajab/index.html',
 ];
 for (const file of navFiles) {
   check(read(file).includes('>Ask Me</a>'), `${file} navigation is missing Ask Me`);
 }
+const retiredProgramDetail = read('programs/view.html');
+check(retiredProgramDetail.includes('http-equiv="refresh"') && retiredProgramDetail.includes('/programs/index.html'), 'retired program detail must redirect instead of carrying the shared navigation');
 check((homeHtml.match(/>Ask Me<\/a>/g) || []).length === 1, 'home navigation must contain one Ask Me link');
 
 console.log(`Ask Me QA passed (${assertions} assertions).`);

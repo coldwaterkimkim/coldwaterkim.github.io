@@ -26,8 +26,10 @@ import '@mantine/core/styles.css';
 import '@blocknote/core/fonts/inter.css';
 import '@blocknote/mantine/style.css';
 import '../css/editor-crop.css';
+import { chatGptShareInfo, normalizeChatGptSnapshot, serializeChatGptSnapshot } from './chatgpt-embeds.mjs';
 import { observeEditorMediaDuringUploads } from './editor-media-quiescence.mjs';
 import { isYouTubeUrl, pocketBaseImageSources, prepareRichContentHtml } from './media-embeds.js';
+import { getChatGptSharePreview } from './pb.js';
 import { preferredTransferFiles, preferredTransferImageFiles, uniqueSupportedFiles, uniqueTransferFiles } from './editor-file-transfer.mjs';
 import {
     cropAspectFromRect,
@@ -83,10 +85,28 @@ const CroppableImageBlockSpec = createReactBlockSpec(CROPPABLE_IMAGE_CONFIG, {
     runsBefore: ['file']
 });
 
+const CHATGPT_EMBED_CONFIG = {
+    type: 'chatgptEmbed',
+    propSchema: {
+        url: { default: '' },
+        snapshot: { default: '' },
+        error: { default: '' }
+    },
+    content: 'none'
+};
+
+const ChatGptEmbedBlockSpec = createReactBlockSpec(CHATGPT_EMBED_CONFIG, {
+    render: ChatGptEmbedBlock,
+    parse: parseChatGptEmbedElement,
+    toExternalHTML: ChatGptEmbedBlock,
+    runsBefore: ['default']
+});
+
 const CWK_EDITOR_SCHEMA = BlockNoteSchema.create({
     blockSpecs: {
         ...defaultBlockSpecs,
-        image: CroppableImageBlockSpec()
+        image: CroppableImageBlockSpec(),
+        chatgptEmbed: ChatGptEmbedBlockSpec()
     }
 });
 
@@ -261,11 +281,16 @@ class BlockNoteMarkdownEditor {
 
         this.mount.addEventListener('paste', (event) => {
             const text = event.clipboardData?.getData('text/plain')?.trim();
-            if (!text || !isYouTubeUrl(text)) return;
+            const chatGptShare = chatGptShareInfo(text);
+            if (!text || (!chatGptShare && !isYouTubeUrl(text))) return;
 
             event.preventDefault();
             event.stopPropagation();
-            this.insertVideo(this.clampIndex(this.getSelection()?.index), text, 'YouTube video');
+            if (chatGptShare) {
+                void this.insertChatGptEmbed(this.clampIndex(this.getSelection()?.index), chatGptShare.url);
+            } else {
+                this.insertVideo(this.clampIndex(this.getSelection()?.index), text, 'YouTube video');
+            }
         }, true);
     }
 
@@ -477,6 +502,53 @@ class BlockNoteMarkdownEditor {
         });
     }
 
+    async insertChatGptEmbed(_index, url) {
+        const share = chatGptShareInfo(url);
+        if (!this.blockNote || !share) return 0;
+
+        let insertedBlock = null;
+        const insertedLength = this.insertBlocksAtCursor([{
+            type: 'chatgptEmbed',
+            props: {
+                url: share.url,
+                snapshot: '',
+                error: ''
+            }
+        }], blocks => {
+            insertedBlock = blocks[0] || null;
+        });
+        if (!insertedBlock?.id) return insertedLength;
+
+        try {
+            const resolver = this.options.resolveChatGptShare || getChatGptSharePreview;
+            const snapshot = normalizeChatGptSnapshot(await this.withUploadActivity(() => resolver(share.url)));
+            if (!snapshot) throw new Error('공개 대화가 비어 있습니다.');
+            const currentBlock = this.blockNote?.getBlock?.(insertedBlock.id);
+            if (currentBlock) {
+                this.blockNote.updateBlock(currentBlock, {
+                    props: {
+                        url: share.url,
+                        snapshot: serializeChatGptSnapshot(snapshot),
+                        error: ''
+                    }
+                });
+            }
+        } catch (error) {
+            const currentBlock = this.blockNote?.getBlock?.(insertedBlock.id);
+            if (currentBlock) {
+                this.blockNote.updateBlock(currentBlock, {
+                    props: {
+                        url: share.url,
+                        snapshot: '',
+                        error: String(error?.message || '공유 대화를 불러오지 못했습니다.').slice(0, 240)
+                    }
+                });
+            }
+        }
+        this.currentHtml = this.htmlFromEditor();
+        return this.textLength();
+    }
+
     insertFileBlock(type, props) {
         return this.insertBlocksAtCursor([{
             type,
@@ -484,7 +556,7 @@ class BlockNoteMarkdownEditor {
         }]);
     }
 
-    insertBlocksAtCursor(blocks = []) {
+    insertBlocksAtCursor(blocks = [], onInserted) {
         if (!this.blockNote || !blocks.length) return 0;
 
         const currentBlock = this.currentBlock();
@@ -511,6 +583,7 @@ class BlockNoteMarkdownEditor {
         }
 
         const lastInsertedBlock = insertedBlocks.at(-1);
+        if (typeof onInserted === 'function') onInserted(insertedBlocks);
         if (lastInsertedBlock) {
             try {
                 this.blockNote.setTextCursorPosition(lastInsertedBlock, 'end');
@@ -530,6 +603,75 @@ class BlockNoteMarkdownEditor {
             return this.blockNote?.document?.at(-1) || null;
         }
     }
+}
+
+function ChatGptEmbedBlock(props) {
+    const share = chatGptShareInfo(props.block.props.url);
+    if (!share) {
+        return h('p', null, '올바른 ChatGPT 공유 링크가 아닙니다.');
+    }
+
+    const snapshot = normalizeChatGptSnapshot(props.block.props.snapshot);
+    const error = String(props.block.props.error || '').trim();
+    const status = snapshot
+        ? h('div', { className: 'cwk-chatgpt-embed-scroll' },
+            snapshot.messages.map((message, index) => h('section', {
+                className: 'cwk-chatgpt-message',
+                'data-role': message.role,
+                key: `${message.role}-${index}`
+            },
+            h('div', { className: 'cwk-chatgpt-message-label' }, message.role === 'user' ? '나' : '지피띠니'),
+            h('div', { className: 'cwk-chatgpt-message-text' }, message.text)
+            )))
+        : error
+            ? h('div', { className: 'cwk-chatgpt-embed-error' },
+            h('strong', null, '미리보기를 불러오지 못했어.'),
+            h('span', null, ` ${error}`)
+            )
+            : h('div', { className: 'cwk-chatgpt-embed-loading' }, '공유 대화를 불러오는 중...');
+
+    return h('div', {
+        className: 'cwk-chatgpt-embed',
+        contentEditable: false,
+        'data-cwk-chatgpt-embed': 'true',
+        'data-cwk-chatgpt-snapshot': serializeChatGptSnapshot(snapshot),
+        'data-cwk-chatgpt-error': snapshot ? '' : props.block.props.error
+    },
+    h('div', { className: 'cwk-chatgpt-embed-titlebar' },
+        h('strong', null, snapshot?.title || 'ChatGPT 공유 대화'),
+        h('a', {
+            href: share.url,
+            target: '_blank',
+            rel: 'noopener noreferrer',
+            'data-cwk-chatgpt-link': 'true'
+        }, '[ 새 창으로 보기 ]')
+    ),
+    status,
+    h('p', { className: 'cwk-chatgpt-embed-fallback' },
+        '미리보기가 보이지 않으면 ',
+        h('a', {
+            href: share.url,
+            target: '_blank',
+            rel: 'noopener noreferrer'
+        }, '공유 대화를 새 창에서 열어주세요.'),
+    ));
+}
+
+function parseChatGptEmbedElement(element) {
+    if (!(element instanceof HTMLElement)) return undefined;
+    if (!element.matches('[data-cwk-chatgpt-embed="true"], .cwk-chatgpt-embed')) return undefined;
+
+    const candidate = element.querySelector('a[data-cwk-chatgpt-link]')?.getAttribute('href')
+        || '';
+    const share = chatGptShareInfo(candidate);
+    if (!share) return undefined;
+
+    const snapshot = element.getAttribute('data-cwk-chatgpt-snapshot') || '';
+    return {
+        url: share.url,
+        snapshot: serializeChatGptSnapshot(snapshot),
+        error: element.getAttribute('data-cwk-chatgpt-error') || ''
+    };
 }
 
 function CroppableImageBlock(props) {
@@ -622,12 +764,51 @@ function ImageCropToolbarButton({ adapter }) {
 }
 
 function CroppingFormattingToolbar({ adapter }) {
+    const editor = useBlockNoteEditor();
+    const chatGptBlock = useEditorState({
+        editor,
+        selector: ({ editor: currentEditor }) => {
+            if (!currentEditor.isEditable) return undefined;
+            const selectedBlocks = currentEditor.getSelection()?.blocks || [
+                currentEditor.getTextCursorPosition().block
+            ];
+            if (selectedBlocks.length !== 1 || selectedBlocks[0]?.type !== 'chatgptEmbed') return undefined;
+            return selectedBlocks[0];
+        }
+    });
+
+    if (chatGptBlock) {
+        return h(FormattingToolbar, null,
+            h(ChatGptEmbedDeleteButton, {
+                key: 'cwkChatGptDeleteButton',
+                block: chatGptBlock,
+                editor
+            })
+        );
+    }
+
     const items = getFormattingToolbarItems();
     items.splice(8, 0, h(ImageCropToolbarButton, {
         key: 'cwkImageCropButton',
         adapter
     }));
     return h(FormattingToolbar, null, items);
+}
+
+function ChatGptEmbedDeleteButton({ block, editor }) {
+    const Components = useComponentsContext();
+    if (!Components || !block) return null;
+
+    return h(Components.FormattingToolbar.Button, {
+        className: 'bn-button',
+        label: 'ChatGPT 미리보기 삭제',
+        mainTooltip: 'ChatGPT 미리보기 삭제',
+        icon: h('span', { 'aria-hidden': 'true' }, '✕'),
+        onClick: () => {
+            editor.focus();
+            editor.removeBlocks([block.id]);
+        }
+    });
 }
 
 function parseCroppableImageElement(element) {

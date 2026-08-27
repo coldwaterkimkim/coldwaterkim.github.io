@@ -2704,6 +2704,107 @@ body > center > table[width="1140"] > tbody > tr > td {
   background: #000;
 }
 
+.cwk-chatgpt-embed {
+  box-sizing: border-box;
+  width: min(100%, 680px);
+  margin: 12px 0 16px;
+  border: 2px outset var(--cwk-surface-table-head);
+  background: var(--cwk-surface-page);
+}
+
+.cwk-chatgpt-embed-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 5px 7px;
+  background: navy;
+  color: white;
+  font-family: var(--cwk-font-mono);
+  font-size: 12px;
+}
+
+.cwk-chatgpt-embed-titlebar a {
+  color: white;
+  white-space: nowrap;
+}
+
+.cwk-chatgpt-embed-scroll {
+  box-sizing: border-box;
+  width: 100%;
+  max-height: min(68vh, 640px);
+  overflow: auto;
+  border-bottom: 1px solid var(--cwk-ink);
+  background: var(--cwk-surface-entry);
+  overscroll-behavior: contain;
+}
+
+.cwk-chatgpt-message {
+  margin: 0;
+  padding: 9px 10px 11px;
+  border-bottom: 1px dotted var(--cwk-border-dashed);
+}
+
+.cwk-chatgpt-message:last-child {
+  border-bottom: 0;
+}
+
+.cwk-chatgpt-message[data-role="user"] {
+  background: #ffffe6;
+}
+
+.cwk-chatgpt-message[data-role="assistant"] {
+  background: var(--cwk-surface-page);
+}
+
+.cwk-chatgpt-message-label {
+  margin-bottom: 4px;
+  color: var(--cwk-owner-reply-accent);
+  font-family: var(--cwk-font-mono);
+  font-size: 11px;
+  font-weight: bold;
+}
+
+.cwk-chatgpt-message-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.55;
+}
+
+.cwk-chatgpt-embed-error {
+  padding: 12px 10px;
+  border-bottom: 1px solid var(--cwk-ink);
+  background: #ffffcc;
+  color: var(--cwk-hot-red);
+}
+
+.cwk-chatgpt-embed-loading {
+  padding: 12px 10px;
+  border-bottom: 1px solid var(--cwk-ink);
+  background: var(--cwk-surface-entry);
+  color: var(--cwk-meta);
+  font-family: var(--cwk-font-mono);
+}
+
+.cwk-chatgpt-embed-fallback {
+  margin: 0;
+  padding: 5px 7px;
+  background: var(--cwk-surface-table-head);
+  font-size: 11px;
+}
+
+@media (max-width: 520px) {
+  .cwk-chatgpt-embed-titlebar {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .cwk-chatgpt-embed-scroll {
+    max-height: 66vh;
+  }
+}
+
 /* Markdown editor output: keep the old-web body, but render rich blocks clearly. */
 .post-content p,
 .program-body-content p {

@@ -137,6 +137,7 @@ func main() {
 		log.Fatal(err)
 	}
 	defer fileTools.close()
+	chatGptShares := newChatGptShareService(ownerUserID)
 	app.OnTerminate().BindFunc(func(e *core.TerminateEvent) error {
 		fileTools.close()
 		return e.Next()
@@ -179,6 +180,7 @@ func main() {
 		askQuestions.registerRoutes(e)
 		albumTags.registerRoutes(e)
 		fileTools.registerRoutes(e)
+		chatGptShares.registerRoutes(e)
 		seoPages.registerRoutes(e)
 		return e.Next()
 	})

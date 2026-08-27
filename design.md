@@ -419,6 +419,7 @@ PocketBase 또는 DB가 응답하지 않을 때는 일반 shell 대신 독립형
 타임라인 entry는 모던 카드가 아니라 오래된 홈페이지의 dashed entry/table 문법이어야 한다. 현재 글만 `NOW READING` 배지와 빨간 테두리로 구분한다.
 
 - 본문은 기존 `ql-editor` 호환 타이포그래피를 쓴다. 클래스명은 공개 본문 스타일 훅으로 남지만 작성기는 BlockNote 기반 WYSIWYG Markdown이다.
+- 글 작성기에 `https://chatgpt.com/share/...` 링크를 한 줄로 붙여넣으면 OWNER 전용 서버가 공개 대화 스냅샷을 가져와 내부 스크롤이 가능한 복고풍 대화창으로 저장한다. 정확한 ChatGPT 공유 링크만 허용하고 항상 새 창 원문 링크를 함께 제공한다.
 - `font-family: Georgia, serif`, `font-size: 16px`, `line-height: 1.42`가 기준이다. 일반 문단은 읽기 간격을 두고, table cell과 list item 안의 문단 margin은 줄인다.
 - table/code/blockquote/list/image/hr는 Markdown에서 변환된 HTML을 기존 본문 CSS 안에서 렌더링한다. 특히 table은 에디터에서 본 표 구조가 공개 화면에서도 border와 셀 padding을 가진 표로 보여야 한다.
 - 본문 이미지 crop은 원본 파일을 새로 만들거나 덮어쓰지 않고, 이미지 블록의 좌표와 비율로 보이는 frame만 자른다. crop 진입은 편집기 상단의 고정 버튼이 아니라 선택한 이미지 바로 위 BlockNote 도구막대의 가위 버튼으로 제공해 긴 글에서도 현재 작업 위치를 유지한다. frame은 모바일에서도 같은 영역을 유지하고 이미지를 누르면 전체 원본이 열려야 한다. JPG/PNG 반응형 썸네일과 GIF/WebP의 원본 움직임도 crop 때문에 잃지 않는다. 아직 별도 표시 너비가 저장되지 않은 새 이미지도 crop 적용 직전의 편집기 너비를 그대로 유지해야 하며, crop 전환 뒤 frame이 내용 크기에 맞춰 축소되면 안 된다. crop 선택 창은 별도 모던 이미지 앱처럼 꾸미지 않고 회색 form, 남색 titlebar, 기본 버튼의 오래된 데스크톱 도구 느낌을 쓴다.
