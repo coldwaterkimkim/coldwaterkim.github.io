@@ -99,20 +99,34 @@ async function convertOne(file, options) {
 }
 
 async function compressOne(file, options) {
-    requireBrowser();
-    const compression = (await import('browser-image-compression')).default;
     const maxSizeMB = Math.min(Math.max(Number(options.maxSizeMB ?? 1), 0.05), 50);
     const maxWidthOrHeight = Math.min(Math.max(Number(options.maxWidthOrHeight ?? 4096), 32), 16384);
-    const output = await compression(file, {
-        maxSizeMB,
-        maxWidthOrHeight,
-        useWebWorker: true,
-        initialQuality: Math.min(Math.max(Number(options.quality ?? 0.85), 0.1), 1),
-        preserveExif: false,
-        fileType: outputType(options.format, file.type).mime,
-    });
-    const chosen = outputType(options.format, output.type);
-    return { blob: output, extension: chosen.extension };
+    const maxBytes = maxSizeMB * 1024 * 1024;
+    const initialQuality = Math.min(Math.max(Number(options.quality ?? 0.85), 0.1), 1);
+    const chosen = outputType(options.format, file.type);
+    const lossy = chosen.mime === 'image/jpeg' || chosen.mime === 'image/webp';
+    let output = await drawSource(file);
+    const initialScale = Math.min(maxWidthOrHeight / output.width, maxWidthOrHeight / output.height, 1);
+    if (initialScale < 1) {
+        output = await resizeWithPica(output, output.width * initialScale, output.height * initialScale);
+    }
+
+    let quality = initialQuality;
+    let result = await canvasBlob(output, chosen.mime, quality);
+    for (let attempt = 0; result.size > maxBytes && attempt < 12; attempt += 1) {
+        if (lossy && quality > 0.14) {
+            quality = Math.max(0.12, quality * 0.78);
+        } else {
+            const scale = Math.min(0.9, Math.max(0.45, Math.sqrt(maxBytes / result.size) * 0.92));
+            const nextWidth = Math.max(1, Math.round(output.width * scale));
+            const nextHeight = Math.max(1, Math.round(output.height * scale));
+            if (nextWidth === output.width && nextHeight === output.height) break;
+            output = await resizeWithPica(output, nextWidth, nextHeight);
+            if (lossy) quality = Math.max(0.12, initialQuality * 0.8);
+        }
+        result = await canvasBlob(output, chosen.mime, quality);
+    }
+    return { blob: result, extension: chosen.extension };
 }
 
 async function resizeOne(file, options) {
