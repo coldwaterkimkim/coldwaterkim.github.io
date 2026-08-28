@@ -27,6 +27,7 @@ import '@blocknote/core/fonts/inter.css';
 import '@blocknote/mantine/style.css';
 import '../css/editor-crop.css';
 import { chatGptShareInfo, normalizeChatGptSnapshot, serializeChatGptSnapshot } from './chatgpt-embeds.mjs';
+import { renderChatGptMarkdown } from './chatgpt-markdown.mjs';
 import { observeEditorMediaDuringUploads } from './editor-media-quiescence.mjs';
 import { isYouTubeUrl, pocketBaseImageSources, prepareRichContentHtml } from './media-embeds.js';
 import { getChatGptSharePreview } from './pb.js';
@@ -621,7 +622,11 @@ function ChatGptEmbedBlock(props) {
                 key: `${message.role}-${index}`
             },
             h('div', { className: 'cwk-chatgpt-message-label' }, message.role === 'user' ? '나' : '지피띠니'),
-            h('div', { className: 'cwk-chatgpt-message-text' }, message.text)
+            h('div', {
+                className: 'cwk-chatgpt-message-text',
+                'data-cwk-markdown-rendered': 'true',
+                dangerouslySetInnerHTML: { __html: renderChatGptMarkdown(message.text) }
+            })
             )))
         : error
             ? h('div', { className: 'cwk-chatgpt-embed-error' },

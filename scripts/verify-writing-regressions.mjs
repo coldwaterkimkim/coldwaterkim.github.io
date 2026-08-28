@@ -13,6 +13,7 @@ import {
 } from '../js/editor-media-quiescence.mjs';
 import { postListEntryUrl, publishedEntryViewerUrl } from '../js/editor-publish-navigation.mjs';
 import { chatGptShareInfo, normalizeChatGptSnapshot, serializeChatGptSnapshot } from '../js/chatgpt-embeds.mjs';
+import { renderChatGptMarkdown } from '../js/chatgpt-markdown.mjs';
 import {
   cropAspectFromRect,
   fitImageCropToAspect,
@@ -47,6 +48,35 @@ assert.deepEqual(
   'ChatGPT snapshots must keep only visible user and assistant messages',
 );
 assert.deepEqual(normalizeChatGptSnapshot(serializeChatGptSnapshot(chatGptSnapshot)), chatGptSnapshot, 'ChatGPT snapshots must survive the saved HTML round trip');
+const chatGptMarkdown = renderChatGptMarkdown(`# 제목
+
+**굵게**와 [링크](https://example.com), \`코드\`
+
+- 첫째
+- 둘째
+
+| 열 A | 열 B |
+| --- | --- |
+| 값 A | 값 B |
+
+\`\`\`html
+<script>alert('nope')</script>
+\`\`\`
+
+<script>alert('raw html')</script>
+
+[위험](javascript:alert('nope'))
+
+![추적 이미지](https://tracker.example/pixel.gif)`);
+assert.match(chatGptMarkdown, /<h1>제목<\/h1>/, 'ChatGPT Markdown must render headings');
+assert.match(chatGptMarkdown, /<strong>굵게<\/strong>/, 'ChatGPT Markdown must render emphasis');
+assert.match(chatGptMarkdown, /<table>/, 'ChatGPT Markdown must render tables');
+assert.match(chatGptMarkdown, /<pre><code class="language-html">&lt;script&gt;/, 'ChatGPT Markdown must escape fenced code');
+assert.match(chatGptMarkdown, /target="_blank" rel="noopener noreferrer"/, 'ChatGPT Markdown links must open safely');
+assert.doesNotMatch(chatGptMarkdown, /<script>/, 'ChatGPT Markdown must not execute raw HTML');
+assert.doesNotMatch(chatGptMarkdown, /href="javascript:/, 'ChatGPT Markdown must reject unsafe link protocols');
+assert.doesNotMatch(chatGptMarkdown, /<img\b/, 'ChatGPT Markdown must not auto-load third-party images');
+assert.match(chatGptMarkdown, /\[이미지: 추적 이미지\]/, 'ChatGPT Markdown must keep image labels as links');
 
 const serializedCrop = serializeImageCrop({
   enabled: true,

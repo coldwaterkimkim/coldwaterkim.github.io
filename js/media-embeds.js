@@ -42,6 +42,7 @@ export function prepareEmbeddedMediaForDisplay(html = '') {
 export function enhanceEmbeddedMedia(scope = document) {
     const root = scope || document;
     decorateEmbeddedMedia(root);
+    void decorateChatGptEmbeds(root);
     void hydratePocketBaseVideos(root);
 }
 
@@ -194,6 +195,12 @@ function decorateEmbeddedMedia(root) {
         decorateMediaIframe(iframe, youtube.title);
         iframe.dataset.cwkMediaReady = 'true';
     });
+}
+
+async function decorateChatGptEmbeds(root) {
+    if (!root.querySelector('[data-cwk-chatgpt-embed="true"], .cwk-chatgpt-embed')) return;
+    const { decorateChatGptMarkdown } = await import('./chatgpt-markdown.mjs');
+    decorateChatGptMarkdown(root);
 }
 
 async function hydratePocketBaseVideos(root) {

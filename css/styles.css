@@ -2766,9 +2766,111 @@ body > center > table[width="1140"] > tbody > tr > td {
 }
 
 .cwk-chatgpt-message-text {
-  white-space: pre-wrap;
   overflow-wrap: anywhere;
+  overflow-x: auto;
   line-height: 1.55;
+  white-space: normal;
+}
+
+.cwk-chatgpt-message-text > :first-child {
+  margin-top: 0;
+}
+
+.cwk-chatgpt-message-text > :last-child {
+  margin-bottom: 0;
+}
+
+.cwk-chatgpt-message-text p {
+  margin: 0 0 0.7em;
+}
+
+.cwk-chatgpt-message-text :is(h1, h2, h3, h4, h5, h6) {
+  margin: 1em 0 0.4em;
+  line-height: 1.25;
+}
+
+.cwk-chatgpt-message-text h1 {
+  font-size: 1.35em;
+}
+
+.cwk-chatgpt-message-text h2 {
+  font-size: 1.22em;
+}
+
+.cwk-chatgpt-message-text :is(h3, h4, h5, h6) {
+  font-size: 1.08em;
+}
+
+.cwk-chatgpt-message-text :is(ul, ol) {
+  margin: 0.55em 0 0.8em;
+  padding-left: 1.55em;
+}
+
+.cwk-chatgpt-message-text li {
+  margin: 0.18em 0;
+}
+
+.cwk-chatgpt-message-text li > p {
+  margin: 0;
+}
+
+.cwk-chatgpt-message-text blockquote {
+  margin: 0.7em 0;
+  padding: 5px 9px;
+  border-left: 3px solid var(--cwk-border-dashed);
+  background: var(--cwk-surface-preview);
+  color: var(--cwk-meta);
+}
+
+.cwk-chatgpt-message-text table {
+  width: 100%;
+  margin: 0.7em 0;
+  border-collapse: collapse;
+  background: var(--cwk-surface-page);
+  font-size: 0.92em;
+}
+
+.cwk-chatgpt-message-text :is(th, td) {
+  padding: 4px 6px;
+  border: 1px solid var(--cwk-ink);
+  vertical-align: top;
+  text-align: left;
+}
+
+.cwk-chatgpt-message-text th {
+  background: var(--cwk-surface-table-head);
+}
+
+.cwk-chatgpt-message-text pre {
+  margin: 0.7em 0;
+  overflow-x: auto;
+  padding: 7px;
+  border: 1px inset var(--cwk-surface-table-head);
+  background: var(--cwk-code-block-bg);
+  line-height: 1.4;
+  overflow-wrap: normal;
+  white-space: pre;
+}
+
+.cwk-chatgpt-message-text code {
+  padding: 1px 3px;
+  border: 1px solid var(--cwk-border-soft);
+  background: var(--cwk-code-block-bg);
+  font-family: var(--cwk-font-mono);
+  font-size: 0.92em;
+}
+
+.cwk-chatgpt-message-text pre code {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  white-space: inherit;
+}
+
+.cwk-chatgpt-message-text hr {
+  margin: 0.9em 0;
+  border: 0;
+  border-top: 1px dashed var(--cwk-border-dashed);
 }
 
 .cwk-chatgpt-embed-error {
