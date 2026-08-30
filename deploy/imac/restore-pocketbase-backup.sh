@@ -42,6 +42,8 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT_DIR"
 
 BACKUP_ABS="$(cd "$(dirname "$BACKUP_FILE")" && pwd -P)/$(basename "$BACKUP_FILE")"
+PRODUCTION_RUNTIME_PB_DATA_ABS="$(/usr/bin/python3 -c 'import pathlib; print(pathlib.Path("/Users/kimchansu/.local/share/coldwaterkim/home-server/pb_data").resolve())')"
+RESTORE_RESERVE_BYTES=$((10 * 1024 * 1024 * 1024))
 
 if [[ "$TARGET_DIR" = /* ]]; then
   TARGET_ABS="$TARGET_DIR"
@@ -52,15 +54,19 @@ TARGET_ABS="$(/usr/bin/python3 -c 'import pathlib, sys; print(pathlib.Path(sys.a
 TARGET_PARENT="$(dirname "$TARGET_ABS")"
 TARGET_NAME="$(basename "$TARGET_ABS")"
 PB_DATA_ABS="$ROOT_DIR/pb_data"
-RUNTIME_PB_DATA_ABS="$(cd "$HOME" && pwd -P)/.local/share/coldwaterkim/home-server/pb_data"
 HOME_ABS="$(cd "$HOME" && pwd -P)"
 
-case "$TARGET_ABS" in
-  /|"$HOME_ABS"|"$ROOT_DIR"|"$PB_DATA_ABS"|"$PB_DATA_ABS"/*|"$RUNTIME_PB_DATA_ABS"|"$RUNTIME_PB_DATA_ABS"/*)
-    echo "Refusing protected restore target: $TARGET_ABS" >&2
-    exit 1
-    ;;
-esac
+refuse_protected_target() {
+  local candidate="$1"
+  case "$candidate" in
+    /|"$HOME_ABS"|"$ROOT_DIR"|"$PB_DATA_ABS"|"$PB_DATA_ABS"/*|"$PRODUCTION_RUNTIME_PB_DATA_ABS"|"$PRODUCTION_RUNTIME_PB_DATA_ABS"/*)
+      echo "Refusing protected restore target: $candidate" >&2
+      exit 1
+      ;;
+  esac
+}
+
+refuse_protected_target "$TARGET_ABS"
 
 if [[ -e "$TARGET_ABS" || -L "$TARGET_ABS" ]]; then
   echo "Target already exists: $TARGET_ABS" >&2
@@ -70,6 +76,115 @@ fi
 mkdir -p "$TARGET_PARENT"
 TARGET_PARENT="$(cd "$TARGET_PARENT" && pwd -P)"
 TARGET_ABS="$TARGET_PARENT/$TARGET_NAME"
+refuse_protected_target "$TARGET_ABS"
+
+echo "Checking backup archive paths and restore capacity..."
+if ! ARCHIVE_UNCOMPRESSED_BYTES="$(
+  /usr/bin/python3 - "$BACKUP_ABS" "$TARGET_PARENT" "$RESTORE_RESERVE_BYTES" <<'PY'
+import shutil
+import stat
+import sys
+import unicodedata
+import zipfile
+
+
+MAX_ARCHIVE_ENTRIES = 1_000_000
+MAX_ARCHIVE_BYTES = (1 << 63) - 1
+MINIMUM_RESERVE_BYTES = 10 * 1024 * 1024 * 1024
+
+
+def fail(message):
+    print(message, file=sys.stderr)
+    raise SystemExit(1)
+
+
+archive_path, target_parent, reserve_text = sys.argv[1:]
+try:
+    reserve_bytes = int(reserve_text)
+except ValueError:
+    fail("Invalid restore reserve size.")
+if reserve_bytes < MINIMUM_RESERVE_BYTES:
+    fail("Restore reserve must be at least 10 GiB.")
+
+try:
+    with zipfile.ZipFile(archive_path) as archive:
+        entries = archive.infolist()
+except (OSError, ValueError, zipfile.BadZipFile) as error:
+    fail("Invalid backup ZIP central directory: %s" % error)
+
+if not entries:
+    fail("Backup ZIP has no entries.")
+if len(entries) > MAX_ARCHIVE_ENTRIES:
+    fail("Backup ZIP has too many entries: %d" % len(entries))
+
+total_bytes = 0
+normalized_entries = {}
+regular_paths = set()
+has_root_database = False
+for entry in entries:
+    raw_name = entry.filename
+    trimmed_name = raw_name[:-1] if raw_name.endswith("/") else raw_name
+    parts = trimmed_name.split("/")
+    if (
+        not trimmed_name
+        or raw_name.startswith("/")
+        or "\\" in raw_name
+        or any(part in ("", ".", "..") for part in parts)
+    ):
+        fail("Backup contains an unsafe path: %s" % raw_name)
+
+    collision_key = unicodedata.normalize("NFD", trimmed_name).casefold()
+    if collision_key in normalized_entries:
+        fail("Backup contains colliding paths: %s and %s" % (normalized_entries[collision_key], raw_name))
+    normalized_entries[collision_key] = raw_name
+
+    unix_mode = (entry.external_attr >> 16) & 0xFFFF
+    file_type = stat.S_IFMT(unix_mode)
+    if stat.S_ISLNK(unix_mode):
+        fail("Backup contains a symbolic link, which is not allowed: %s" % raw_name)
+    if entry.flag_bits & 0x1:
+        fail("Backup contains an encrypted entry, which is not allowed: %s" % raw_name)
+
+    if entry.is_dir():
+        if file_type not in (0, stat.S_IFDIR):
+            fail("Backup directory has an invalid file type: %s" % raw_name)
+        continue
+    if file_type not in (0, stat.S_IFREG):
+        fail("Backup contains a special file, which is not allowed: %s" % raw_name)
+    if entry.file_size < 0 or entry.compress_size < 0:
+        fail("Backup contains an invalid member size: %s" % raw_name)
+    if entry.file_size > MAX_ARCHIVE_BYTES - total_bytes:
+        fail("Backup declared size exceeds the supported restore limit.")
+
+    total_bytes += entry.file_size
+    regular_paths.add(collision_key)
+    if trimmed_name == "data.db":
+        has_root_database = True
+
+for collision_key, raw_name in normalized_entries.items():
+    parts = collision_key.split("/")
+    for index in range(1, len(parts)):
+        if "/".join(parts[:index]) in regular_paths:
+            fail("Backup path is nested below a regular file: %s" % raw_name)
+
+if not has_root_database:
+    fail("Backup does not contain data.db at the archive root.")
+
+try:
+    free_bytes = shutil.disk_usage(target_parent).free
+except OSError as error:
+    fail("Could not inspect restore target capacity: %s" % error)
+if free_bytes < reserve_bytes or total_bytes > free_bytes - reserve_bytes:
+    fail(
+        "Insufficient restore space: need %d bytes plus %d reserve, have %d"
+        % (total_bytes, reserve_bytes, free_bytes)
+    )
+
+print(total_bytes)
+PY
+)"; then
+  exit 1
+fi
 
 echo "Testing backup archive..."
 unzip -tq "$BACKUP_ABS" >/dev/null
@@ -81,6 +196,8 @@ while IFS= read -r archive_entry; do
     exit 1
   fi
 done < <(unzip -Z1 "$BACKUP_ABS")
+
+echo "Archive preflight passed (${ARCHIVE_UNCOMPRESSED_BYTES} uncompressed bytes; 10 GiB reserve preserved)."
 
 STAGING_DIR="$(mktemp -d "$TARGET_PARENT/.${TARGET_NAME}.restore.XXXXXX")"
 cleanup() {

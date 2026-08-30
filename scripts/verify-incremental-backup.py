@@ -3,7 +3,10 @@
 
 import json
 import os
+import shutil
 import sqlite3
+import stat
+import struct
 import subprocess
 import tempfile
 import zipfile
@@ -14,6 +17,9 @@ ROOT = Path(__file__).resolve().parents[1]
 PROGRAM = ROOT / "deploy/imac/backup-pocketbase.py"
 RESTORE_PROGRAM = ROOT / "deploy/imac/restore-pocketbase-incremental.py"
 ZIP_RESTORE_PROGRAM = ROOT / "deploy/imac/restore-pocketbase-backup.sh"
+PRODUCTION_PB_DATA = Path("/Users/kimchansu/.local/share/coldwaterkim/home-server/pb_data")
+ZIP_SIZE_FIELD_MAX = 0xFFFFFF00
+RESTORE_RESERVE_BYTES = 10 * 1024 * 1024 * 1024
 
 
 def require(condition, message):
@@ -114,6 +120,21 @@ def create_fixture(pb_data):
         target.write_bytes(contents)
 
 
+def inflate_central_directory_sizes(archive, declared_size):
+    """Make a tiny malformed ZIP advertise large members without allocating them."""
+    contents = bytearray(archive.read_bytes())
+    end = contents.rfind(b"PK\x05\x06")
+    require(end >= 0, "ZIP end-of-central-directory record is missing")
+    entry_count = struct.unpack_from("<H", contents, end + 10)[0]
+    offset = struct.unpack_from("<I", contents, end + 16)[0]
+    for _ in range(entry_count):
+        require(contents[offset:offset + 4] == b"PK\x01\x02", "ZIP central-directory entry is missing")
+        struct.pack_into("<I", contents, offset + 24, declared_size)
+        name_length, extra_length, comment_length = struct.unpack_from("<HHH", contents, offset + 28)
+        offset += 46 + name_length + extra_length + comment_length
+    archive.write_bytes(contents)
+
+
 def main():
     with tempfile.TemporaryDirectory(prefix="cwk-backup-fixture-") as temp:
         root = Path(temp)
@@ -194,9 +215,11 @@ def main():
 
         fake_home = root / "fake-home"
         fake_home.mkdir()
-        fake_runtime = fake_home / ".local/share/coldwaterkim/home-server/pb_data"
-        run_zip_restore(archive, fake_runtime, home=fake_home, expect_success=False)
-        require(not fake_runtime.exists(), "restore wrote into the canonical production path")
+        protected_child = PRODUCTION_PB_DATA / (".codex-restore-guard-test-%d" % os.getpid())
+        require(not protected_child.exists(), "protected-path fixture already exists")
+        protected = run_zip_restore(archive, protected_child, home=fake_home, expect_success=False)
+        require("protected restore target" in protected.stderr.lower(), "fake HOME bypassed the production path guard")
+        require(not protected_child.exists(), "restore wrote below the canonical production path")
 
         traversal_archive = root / "traversal.zip"
         with zipfile.ZipFile(traversal_archive, "w") as bundle:
@@ -205,7 +228,50 @@ def main():
         run_zip_restore(traversal_archive, root / "traversal-target", expect_success=False)
         require(not (root / "escaped.txt").exists(), "zip traversal escaped the restore target")
 
-    print("Incremental PocketBase backup and restore QA passed (36 checks)")
+        absolute_archive = root / "absolute-path.zip"
+        with zipfile.ZipFile(absolute_archive, "w") as bundle:
+            bundle.write(snapshots[0], "data.db")
+            bundle.writestr("/absolute.txt", b"escape")
+        absolute = run_zip_restore(absolute_archive, root / "absolute-target", expect_success=False)
+        require("unsafe path" in absolute.stderr.lower(), "absolute ZIP path was not rejected in preflight")
+        require(not (root / "absolute-target").exists(), "absolute-path archive reached extraction")
+
+        backslash_archive = root / "backslash-traversal.zip"
+        with zipfile.ZipFile(backslash_archive, "w") as bundle:
+            bundle.write(snapshots[0], "data.db")
+            bundle.writestr("..\\escaped.txt", b"escape")
+        backslash = run_zip_restore(backslash_archive, root / "backslash-target", expect_success=False)
+        require("unsafe path" in backslash.stderr.lower(), "backslash traversal was not rejected in preflight")
+        require(not (root / "backslash-target").exists(), "backslash archive reached extraction")
+
+        symlink_archive = root / "symlink.zip"
+        with zipfile.ZipFile(symlink_archive, "w") as bundle:
+            bundle.write(snapshots[0], "data.db")
+            symlink = zipfile.ZipInfo("linked-dir")
+            symlink.create_system = 3
+            symlink.external_attr = (stat.S_IFLNK | 0o777) << 16
+            bundle.writestr(symlink, "../outside")
+            bundle.writestr("linked-dir/escaped.txt", b"escape")
+        symlink_target = root / "symlink-target"
+        symlink_result = run_zip_restore(symlink_archive, symlink_target, expect_success=False)
+        require("symbolic link" in symlink_result.stderr.lower(), "ZIP symlink was not rejected in preflight")
+        require(not symlink_target.exists(), "symlink archive reached extraction")
+
+        oversized_archive = root / "oversized.zip"
+        free_bytes = shutil.disk_usage(root).free
+        oversized_entries = max(2, (free_bytes + RESTORE_RESERVE_BYTES) // ZIP_SIZE_FIELD_MAX + 2)
+        require(oversized_entries < 10000, "insufficient-space fixture would be unexpectedly large")
+        with zipfile.ZipFile(oversized_archive, "w") as bundle:
+            for index in range(oversized_entries):
+                name = "data.db" if index == 0 else "payload-%04d.bin" % index
+                bundle.writestr(name, b"x")
+        inflate_central_directory_sizes(oversized_archive, ZIP_SIZE_FIELD_MAX)
+        oversized_target = root / "oversized-target"
+        oversized = run_zip_restore(oversized_archive, oversized_target, expect_success=False)
+        require("insufficient restore space" in oversized.stderr.lower(), "declared ZIP expansion bypassed capacity preflight")
+        require(not oversized_target.exists(), "oversized archive reached extraction")
+
+    print("Incremental PocketBase backup and restore QA passed")
     return 0
 
 
