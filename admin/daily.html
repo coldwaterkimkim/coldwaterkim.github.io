@@ -259,6 +259,9 @@
 
         function setEditorActionBusy(isBusy) {
             postForm.setAttribute('aria-busy', String(isBusy));
+            editorContainer.inert = isBusy;
+            editorContainer.setAttribute('aria-disabled', String(isBusy));
+            editorImageInput.disabled = isBusy;
             backToListButton.disabled = isBusy;
             saveButton.disabled = isBusy;
             publishButton.disabled = isBusy;
@@ -270,6 +273,10 @@
 
         async function runEditorAction(action) {
             if (editorActionInFlight) return null;
+            if (markdownEditor.hasUploadActivity()) {
+                showAlert('미디어 업로드가 끝난 뒤 다시 시도해주세요.', 'error');
+                return null;
+            }
             editorActionInFlight = true;
             setEditorActionBusy(true);
 
@@ -306,6 +313,10 @@
         }
 
         async function insertEditorFiles(files, options = {}) {
+            if (editorActionInFlight) {
+                showAlert('저장 작업이 끝난 뒤 미디어를 추가해주세요.', 'error');
+                return;
+            }
             const editorFiles = normalizeEditorFiles(files, {
                 fallbackNamePrefix: 'daily-editor-file'
             });
@@ -335,6 +346,9 @@
         }
 
         async function uploadEditorFile(file) {
+            if (editorActionInFlight) {
+                throw new Error('저장 작업이 끝난 뒤 미디어를 추가해주세요.');
+            }
             if (!isSupportedEditorUpload(file)) {
                 throw new Error('JPG, PNG, GIF, WebP, MP4, WebM, MOV, M4V, MP3, PDF만 올릴 수 있습니다.');
             }
@@ -529,14 +543,20 @@
         // 저장 후 발행
         async function saveAndPublish() {
             return runEditorAction(async () => {
-                const saved = await savePost({ statusOverride: 'published' });
+                const publishContent = markdownEditor.root.innerHTML;
+                const publishPendingMediaIds = pendingMediaTracker.values();
+                const saved = await savePost({
+                    statusOverride: 'published',
+                    contentOverride: publishContent,
+                    pendingMediaIdsOverride: publishPendingMediaIds
+                });
                 if (!saved) return null;
 
                 const cleanup = await finalizePublishedEditorMedia({
                     collectionName: 'daily_entries',
                     recordId: saved.id,
-                    content: markdownEditor.root.innerHTML,
-                    pendingMediaIds: pendingMediaTracker.values()
+                    content: publishContent,
+                    pendingMediaIds: publishPendingMediaIds
                 });
                 pendingMediaTracker.reset(cleanup.remaining);
                 if (cleanup.failures.length || cleanup.metadataError) {
@@ -548,14 +568,19 @@
         }
 
         // 글 저장
-        async function savePost({ statusOverride = null } = {}) {
+        async function savePost({
+            statusOverride = null,
+            contentOverride = null,
+            pendingMediaIdsOverride = null
+        } = {}) {
             const id = document.getElementById('postId').value;
             const title = document.getElementById('title').value.trim();
             const status = statusOverride ?? document.getElementById('status').value;
             const dayKey = normalizeDailyDayKey(document.getElementById('published_at').value || new Date());
             const currentSlug = document.getElementById('slug').value.trim();
             const slug = currentSlug || (id ? dailySlugFromDayKey(dayKey) : newDailyEntrySlug(dayKey));
-            const content = markdownEditor.root.innerHTML;
+            const content = contentOverride ?? markdownEditor.root.innerHTML;
+            const pendingMediaIds = pendingMediaIdsOverride ?? pendingMediaTracker.values();
 
             document.getElementById('slug').value = slug;
             document.getElementById('published_at').value = dayKey;
@@ -568,7 +593,8 @@
                         slug,
                         dayKey,
                         status,
-                        content
+                        content,
+                        pendingMediaIds
                     });
                     result = await updateDailyEntry(id, formData);
                     showAlert('글이 수정되었습니다!', 'success');
@@ -578,7 +604,8 @@
                         slug,
                         dayKey,
                         status,
-                        content
+                        content,
+                        pendingMediaIds
                     });
 
                     result = await createDailyEntry(formData);
@@ -596,7 +623,15 @@
             }
         }
 
-        function dailyFormData({ title, slug, dayKey, status, content, publishedAt = null }) {
+        function dailyFormData({
+            title,
+            slug,
+            dayKey,
+            status,
+            content,
+            publishedAt = null,
+            pendingMediaIds = pendingMediaTracker.values()
+        }) {
             const formData = new FormData();
             formData.append('title', title || dailyTitleFromDayKey(dayKey));
             formData.append('slug', slug || dailySlugFromDayKey(dayKey));
@@ -604,7 +639,7 @@
             formData.append('status', status || 'draft');
             formData.append('content', content || '');
             formData.append('published_at', publishedAt || dayKey);
-            formData.append('pending_media_ids', pendingMediaTracker.serialize());
+            formData.append('pending_media_ids', JSON.stringify(pendingMediaIds));
             return formData;
         }
 

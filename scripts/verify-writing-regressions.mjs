@@ -542,10 +542,10 @@ assert.match(adminPosts, /markdownEditor\.withUploadActivity\(async \(\) =>/, 'p
 assert.match(adminPosts, /onFilesPaste: files => insertEditorFiles/, 'BlockNote must own post file paste handling');
 assert.doesNotMatch(adminPosts, /markdownEditor\.root\.addEventListener\('paste'/, 'post file paste must not have a second DOM owner');
 assert.match(adminPosts, /navigateToPublishedEntry\('posts', saved\)/, 'published posts must leave the editor for the public viewer');
-assert.match(adminPosts, /formData\.append\('pending_media_ids', pendingMediaTracker\.serialize\(\)\)/, 'post drafts must persist newly uploaded media candidates');
+assert.match(adminPosts, /formData\.append\('pending_media_ids', JSON\.stringify\(pendingMediaIds\)\)/, 'post drafts must persist the captured media candidates');
 assert.match(adminPosts, /finalizePublishedEditorMedia\(\{\s*collectionName: 'posts'/, 'post cleanup must run only from the explicit publish path');
 assert.doesNotMatch(adminPosts, /document\.getElementById\('status'\)\.value = 'published'/, 'a failed post publish must not leave the editor status changed to published');
-assert.match(adminPosts, /savePost\(\{\s*statusOverride: 'published'\s*\}\)/, 'post publishing must override only the outgoing save payload');
+assert.match(adminPosts, /savePost\(\{[\s\S]*statusOverride: 'published',[\s\S]*contentOverride: publishContent,[\s\S]*pendingMediaIdsOverride: publishPendingMediaIds[\s\S]*\}\)/, 'post publishing must save one immutable content and media snapshot');
 assert.match(adminPosts, /const status = statusOverride \?\? document\.getElementById\('status'\)\.value/, 'ordinary post saves must keep using the persisted editor status');
 
 function assertEditorMutationSafety(source, label) {
@@ -555,6 +555,8 @@ function assertEditorMutationSafety(source, label) {
   assert.match(source, /id="backToListBtn"[^>]*aria-busy="false"/, `${label} editor must expose a controllable back-to-list button`);
   assert.match(source, /saveButton\.disabled = isBusy;[\s\S]*publishButton\.disabled = isBusy;/, `${label} save and publish buttons must be disabled together while a mutation is running`);
   assert.match(source, /backToListButton\.disabled = isBusy;/, `${label} back-to-list must be disabled while a mutation is running`);
+  assert.match(source, /editorContainer\.inert = isBusy;/, `${label} editor input must be frozen while a mutation is running`);
+  assert.match(source, /if \(markdownEditor\.hasUploadActivity\(\)\) \{[\s\S]*return null;/, `${label} mutations must wait for active media uploads`);
   assert.match(source, /\[backToListButton, saveButton, publishButton, deleteButton\][\s\S]*button\.setAttribute\('aria-busy', String\(isBusy\)\)/, `${label} every editor navigation and mutation button must expose the shared busy state`);
   assert.match(source, /button\.setAttribute\('aria-busy', String\(isBusy\)\)/, `${label} mutation buttons must expose their busy state`);
   assert.match(source, /function showList\(\) \{\s*if \(editorActionInFlight\) return false;/, `${label} list navigation must reject an in-flight editor mutation`);
@@ -562,6 +564,8 @@ function assertEditorMutationSafety(source, label) {
   assert.match(source, /async function editPost\(id\) \{\s*if \(editorActionInFlight\) return false;/, `${label} record loading must reject an in-flight editor mutation`);
   assert.match(source, /await runEditorAction\(\(\) => savePost\(\)\);/, `${label} ordinary save must use the shared mutation gate`);
   assert.match(source, /async function saveAndPublish\(\) \{\s*return runEditorAction\(async \(\) => \{/, `${label} publishing and its cleanup must stay inside the shared mutation gate`);
+  assert.match(source, /const publishContent = markdownEditor\.root\.innerHTML;\s*const publishPendingMediaIds = pendingMediaTracker\.values\(\);/, `${label} publish must capture content and media together before the request`);
+  assert.match(source, /content: publishContent,\s*pendingMediaIds: publishPendingMediaIds/, `${label} cleanup must use the exact snapshot sent to the server`);
   assert.match(source, /const deleted = await runEditorAction\(\(\) =>\s*confirmDelete\(editingPostId, \{ reloadList: false \}\)\s*\);\s*if \(deleted\) showList\(\);/, `${label} successful deletion must navigate only after the mutation gate has reopened`);
   assert.doesNotMatch(source, /runEditorAction\(async \(\) => \{\s*const deleted[\s\S]*?if \(deleted\) showList\(\);/, `${label} deletion must not attempt an internally blocked view transition`);
   assert.match(source, /if \(!confirm\([\s\S]*?\)\) return false;/, `${label} cancelled deletion must explicitly report failure to delete`);
@@ -582,16 +586,20 @@ assert.match(globalWriter, /markdownEditor\.insertFiles\(insertIndex, uploadedFi
 assert.match(globalWriter, /markdownEditor\.withUploadActivity\(async \(\) =>/, 'global writer batch uploads must share the editor upload activity guard');
 assert.match(globalWriter, /navigateToPublishedEntry\(category, saved\)/, 'global writer publish must leave the editor for the matching viewer');
 assert.match(globalWriter, /if \(mode === 'publish'\) \{\s*const collectionName[\s\S]*finalizePublishedEditorMedia/, 'global writer cleanup must wait for explicit publish');
+assert.match(globalWriter, /if \(markdownEditor\.hasUploadActivity\(\)\) \{[\s\S]*return;/, 'global writer must refuse save while a media upload is active');
+assert.match(globalWriter, /const content = editorHtml\(\);\s*const pendingMediaIds = pendingMediaTracker\.values\(\);/, 'global writer must capture content and media as one save snapshot');
+assert.match(globalWriter, /recordId: saved\.id,\s*content,\s*pendingMediaIds/, 'global writer cleanup must reuse the captured publish snapshot');
+assert.match(globalWriter, /editorContainer\.inert = saving;/, 'global writer editor input must be frozen during save');
 
 const adminDaily = fs.readFileSync(new URL('../admin/daily.html', import.meta.url), 'utf8');
 assert.match(adminDaily, /onFilesPaste: files => insertEditorFiles/, 'BlockNote must own daily file paste handling');
 assert.match(adminDaily, /markdownEditor\.withUploadActivity\(async \(\) =>/, 'daily batch uploads must share the editor upload activity guard');
 assert.doesNotMatch(adminDaily, /markdownEditor\.root\.addEventListener\('paste'/, 'daily file paste must not have a second DOM owner');
 assert.match(adminDaily, /navigateToPublishedEntry\('daily', saved\)/, 'published daily entries must leave the editor for the day viewer');
-assert.match(adminDaily, /formData\.append\('pending_media_ids', pendingMediaTracker\.serialize\(\)\)/, 'daily drafts must persist newly uploaded media candidates');
+assert.match(adminDaily, /formData\.append\('pending_media_ids', JSON\.stringify\(pendingMediaIds\)\)/, 'daily drafts must persist the captured media candidates');
 assert.match(adminDaily, /finalizePublishedEditorMedia\(\{\s*collectionName: 'daily_entries'/, 'daily cleanup must run only from the explicit publish path');
 assert.doesNotMatch(adminDaily, /document\.getElementById\('status'\)\.value = 'published'/, 'a failed daily publish must not leave the editor status changed to published');
-assert.match(adminDaily, /savePost\(\{\s*statusOverride: 'published'\s*\}\)/, 'daily publishing must override only the outgoing save payload');
+assert.match(adminDaily, /savePost\(\{[\s\S]*statusOverride: 'published',[\s\S]*contentOverride: publishContent,[\s\S]*pendingMediaIdsOverride: publishPendingMediaIds[\s\S]*\}\)/, 'daily publishing must save one immutable content and media snapshot');
 assert.match(adminDaily, /const status = statusOverride \?\? document\.getElementById\('status'\)\.value/, 'ordinary daily saves must keep using the persisted editor status');
 assert.match(adminDaily, /const slug = currentSlug \|\| \(id[\s\S]*newDailyEntrySlug\(dayKey\)\);/, 'a new daily save must reuse the slug already created by the editor');
 assertEditorMutationSafety(adminDaily, 'daily');
@@ -649,6 +657,7 @@ assert.match(mediaEmbeds, /Math\.ceil\(displayWidth \/ crop\.width\)/, 'cropped 
 assert.match(mediaEmbeds, /element\.closest\('\.cwk-media-crop-frame'\) \|\| element/, 'album deep links must target the visible crop frame');
 
 const markdownEditorSource = fs.readFileSync(new URL('../js/markdown-editor.js', import.meta.url), 'utf8');
+assert.match(markdownEditorSource, /hasUploadActivity\(\) \{\s*return this\.uploadActivityCount > 0;/, 'writers must be able to block saves until editor uploads finish');
 assert.match(markdownEditorSource, /BlockNoteSchema\.create/, 'the shared BlockNote schema must preserve custom crop props');
 assert.match(markdownEditorSource, /IMAGE_CROP_DATA_ATTRIBUTE/, 'crop coordinates must be serialized into the image HTML itself');
 assert.match(markdownEditorSource, /원본 전체로/, 'the crop dialog must provide a reversible reset action');

@@ -64,6 +64,7 @@ const markdownEditor = await createMarkdownEditor('#editor', {
     placeholder: 'Markdown으로 쓰기 시작...',
     fallbackNamePrefix: 'global-editor-file',
     onImageButton: () => {
+        if (isSaving) return;
         pendingEditorImageIndex = currentEditorIndex();
         editorImageInput.click();
     },
@@ -180,10 +181,15 @@ function setDailyDefaults(value) {
 
 async function saveEntry(mode) {
     if (isSaving) return;
+    if (markdownEditor.hasUploadActivity()) {
+        showAlert('미디어 업로드가 끝난 뒤 다시 시도해줘.', 'error');
+        return;
+    }
 
     const category = categorySelect.value;
     const title = titleInput.value.trim();
     const content = editorHtml();
+    const pendingMediaIds = pendingMediaTracker.values();
 
     if (!category) {
         showAlert('카테고리를 먼저 선택해줘.', 'error');
@@ -204,10 +210,10 @@ async function saveEntry(mode) {
         let saved;
         let label;
         if (category === 'posts') {
-            saved = await savePostEntry({ title, content, mode });
+            saved = await savePostEntry({ title, content, mode, pendingMediaIds });
             label = '글방';
         } else if (category === 'daily') {
-            saved = await saveDailyEntry({ title, content, mode });
+            saved = await saveDailyEntry({ title, content, mode, pendingMediaIds });
             label = '나으 하루';
         }
 
@@ -217,7 +223,7 @@ async function saveEntry(mode) {
                 collectionName,
                 recordId: saved.id,
                 content,
-                pendingMediaIds: pendingMediaTracker.values()
+                pendingMediaIds
             });
             pendingMediaTracker.reset(cleanup.remaining);
             if (cleanup.failures.length || cleanup.metadataError) {
@@ -236,7 +242,7 @@ async function saveEntry(mode) {
     }
 }
 
-async function savePostEntry({ title, content, mode }) {
+async function savePostEntry({ title, content, mode, pendingMediaIds }) {
     const day = normalizeDailyDayKey(dateInput.value || new Date());
     const formData = new FormData();
     const slug = slugify(title) || `post-${Date.now()}`;
@@ -246,12 +252,12 @@ async function savePostEntry({ title, content, mode }) {
     formData.append('status', mode === 'publish' ? 'published' : 'draft');
     formData.append('content', content);
     formData.append('published_at', day);
-    formData.append('pending_media_ids', pendingMediaTracker.serialize());
+    formData.append('pending_media_ids', JSON.stringify(pendingMediaIds));
 
     return await createPost(formData);
 }
 
-async function saveDailyEntry({ title, content, mode }) {
+async function saveDailyEntry({ title, content, mode, pendingMediaIds }) {
     const dayKey = normalizeDailyDayKey(dateInput.value || new Date());
     const status = mode === 'publish' ? 'published' : 'draft';
     const slug = newDailyEntrySlug(dayKey);
@@ -263,7 +269,7 @@ async function saveDailyEntry({ title, content, mode }) {
         status,
         content
     });
-    formData.append('pending_media_ids', pendingMediaTracker.serialize());
+    formData.append('pending_media_ids', JSON.stringify(pendingMediaIds));
     return await createDailyEntry(formData);
 }
 
@@ -292,6 +298,8 @@ function editorHtml() {
 
 function setSavingState(saving) {
     categorySelect.disabled = saving;
+    editorContainer.inert = saving;
+    editorContainer.setAttribute('aria-disabled', String(saving));
     form.querySelectorAll('button, input, select, textarea').forEach(control => {
         control.disabled = saving;
     });
@@ -330,6 +338,10 @@ function currentEditorIndex() {
 }
 
 async function insertEditorFiles(files, options = {}) {
+    if (isSaving) {
+        showAlert('저장 작업이 끝난 뒤 미디어를 추가해줘.', 'error');
+        return;
+    }
     const editorFiles = normalizeEditorFiles(files, {
         fallbackNamePrefix: 'global-editor-file'
     });
@@ -359,6 +371,9 @@ async function insertEditorFiles(files, options = {}) {
 }
 
 async function uploadEditorFile(file) {
+    if (isSaving) {
+        throw new Error('저장 작업이 끝난 뒤 미디어를 추가해줘.');
+    }
     if (!isSupportedEditorUpload(file)) {
         throw new Error('JPG, PNG, GIF, WebP, MP4, WebM, MOV, M4V, MP3, PDF만 올릴 수 있어.');
     }

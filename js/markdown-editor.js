@@ -383,6 +383,10 @@ class BlockNoteMarkdownEditor {
         }
     }
 
+    hasUploadActivity() {
+        return this.uploadActivityCount > 0;
+    }
+
     focus() {
         this.blockNote?.focus?.();
         this.blockNote?.prosemirrorView?.focus?.();
