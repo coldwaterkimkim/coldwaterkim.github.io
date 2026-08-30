@@ -17,6 +17,7 @@ coldwaterkim.com, www.coldwaterkim.com {
 	handle /api/cwk/tus/status {
 		reverse_proxy 127.0.0.1:8090 {
 			header_up X-CWK-Client-IP {http.request.remote.host}
+			header_down X-CWK-Client-IP {client_ip}
 		}
 	}
 
