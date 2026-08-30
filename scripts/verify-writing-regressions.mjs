@@ -559,8 +559,13 @@ function assertEditorMutationSafety(source, label) {
   assert.match(source, /\[backToListButton, saveButton, publishButton, deleteButton\][\s\S]*button\.setAttribute\('aria-busy', String\(isBusy\)\)/, `${label} every editor navigation and mutation button must expose the shared busy state`);
   assert.match(source, /button\.setAttribute\('aria-busy', String\(isBusy\)\)/, `${label} mutation buttons must expose their busy state`);
   assert.match(source, /function showList\(\) \{\s*if \(editorActionInFlight\) return false;/, `${label} list navigation must reject an in-flight editor mutation`);
-  assert.match(source, /function showEditor\(post = null\) \{\s*if \(editorActionInFlight\) return false;/, `${label} editor replacement must reject an in-flight editor mutation`);
+  assert.match(source, /function showEditor\(post = null, expectedLoadGeneration = null\) \{\s*if \(editorActionInFlight\) return false;/, `${label} editor replacement must reject an in-flight editor mutation`);
   assert.match(source, /async function editPost\(id\) \{\s*if \(editorActionInFlight\) return false;/, `${label} record loading must reject an in-flight editor mutation`);
+  assert.match(source, /let editorLoadGeneration = 0;/, `${label} record loads must share a navigation generation`);
+  assert.match(source, /function showList\(\)[\s\S]*?editorLoadGeneration \+= 1;/, `${label} list navigation must invalidate pending record loads`);
+  assert.match(source, /function showEditor\(post = null, expectedLoadGeneration = null\)[\s\S]*?expectedLoadGeneration !== editorLoadGeneration[\s\S]*?expectedLoadGeneration === null\) editorLoadGeneration \+= 1;/, `${label} editor replacement must invalidate or verify pending record loads`);
+  assert.match(source, /async function editPost\(id\)[\s\S]*?const loadGeneration = \+\+editorLoadGeneration;[\s\S]*?await pb\.collection\([\s\S]*?if \(loadGeneration !== editorLoadGeneration\) return false;[\s\S]*?showEditor\(post, loadGeneration\)/, `${label} stale record responses must not replace the current editor`);
+  assert.match(source, /catch \(e\) \{\s*if \(loadGeneration !== editorLoadGeneration\) return false;/, `${label} stale record failures must not replace current feedback`);
   assert.match(source, /await runEditorAction\(\(\) => savePost\(\)\);/, `${label} ordinary save must use the shared mutation gate`);
   assert.match(source, /async function saveAndPublish\(\) \{\s*return runEditorAction\(async \(\) => \{/, `${label} publishing and its cleanup must stay inside the shared mutation gate`);
   assert.match(source, /const publishContent = markdownEditor\.root\.innerHTML;\s*const publishPendingMediaIds = pendingMediaTracker\.values\(\);/, `${label} publish must capture content and media together before the request`);

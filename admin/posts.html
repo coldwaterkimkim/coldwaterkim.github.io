@@ -211,6 +211,7 @@
         let currentPage = 1;
         let editingPostId = null;
         let editorActionInFlight = false;
+        let editorLoadGeneration = 0;
         const postForm = document.getElementById('postForm');
         const backToListButton = document.getElementById('backToListBtn');
         const saveButton = document.getElementById('saveBtn');
@@ -367,6 +368,7 @@
         // 목록 뷰
         function showList() {
             if (editorActionInFlight) return false;
+            editorLoadGeneration += 1;
             document.getElementById('listView').style.display = 'block';
             document.getElementById('editorView').style.display = 'none';
             editingPostId = null;
@@ -375,8 +377,10 @@
         }
 
         // 에디터 뷰
-        function showEditor(post = null) {
+        function showEditor(post = null, expectedLoadGeneration = null) {
             if (editorActionInFlight) return false;
+            if (expectedLoadGeneration !== null && expectedLoadGeneration !== editorLoadGeneration) return false;
+            if (expectedLoadGeneration === null) editorLoadGeneration += 1;
             document.getElementById('listView').style.display = 'none';
             document.getElementById('editorView').style.display = 'block';
 
@@ -480,10 +484,13 @@
         // 글 수정 (ID로 불러오기)
         async function editPost(id) {
             if (editorActionInFlight) return false;
+            const loadGeneration = ++editorLoadGeneration;
             try {
                 const post = await pb.collection('posts').getOne(id);
-                return showEditor(post);
+                if (loadGeneration !== editorLoadGeneration) return false;
+                return showEditor(post, loadGeneration);
             } catch (e) {
+                if (loadGeneration !== editorLoadGeneration) return false;
                 showAlert('글을 불러올 수 없습니다: ' + cmsErrorMessage(e), 'error');
                 return false;
             }
