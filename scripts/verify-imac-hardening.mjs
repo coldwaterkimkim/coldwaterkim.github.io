@@ -130,11 +130,48 @@ function verifyBackupPlist() {
 
   requireCondition('backup plist label set', plist.includes('com.coldwaterkim.pocketbase-backup'));
   requireCondition('backup plist runs runtime backup script', plist.includes(`${runtimeRoot}/backup-pocketbase.sh`));
+  requireCondition(
+    'backup plist runs as the non-root service user',
+    plist.includes('<key>UserName</key>') && plist.includes('<string>kimchansu</string>'),
+  );
+  requireCondition(
+    'backup plist runs as the staff group',
+    plist.includes('<key>GroupName</key>') && plist.includes('<string>staff</string>'),
+  );
+  requireCondition(
+    'backup plist applies umask 077',
+    /<key>Umask<\/key>\s*<integer>63<\/integer>/.test(plist),
+  );
   requireCondition('backup plist avoids Documents TCC path', !plist.includes('/Documents/'));
   requireCondition('backup plist runs daily at 03:30', plist.includes('<integer>3</integer>') && plist.includes('<integer>30</integer>'));
   requireCondition('backup plist sets UTF-8 locale', plist.includes('<key>LANG</key>') && plist.includes('en_US.UTF-8'));
   requireCondition('backup plist logs stdout', plist.includes('coldwaterkim-pocketbase-backup.log'));
   requireCondition('backup plist logs stderr', plist.includes('coldwaterkim-pocketbase-backup.err.log'));
+}
+
+function verifyBackupInstaller() {
+  const installer = readText('deploy/imac/install-launchd-services.sh');
+
+  requireCondition('launchd installer supports backup-only mode', installer.includes('--backup-only'));
+  requireCondition(
+    'backup ownership gate is pinned to the launchd backup root',
+    installer.includes('BACKUP_ROOT="/Users/kimchansu/Backups/coldwaterkim-pocketbase"'),
+  );
+  requireCondition(
+    'launchd installer installs runtime backup executables as 0700',
+    installer.includes('install -m 700 "$LOCAL_BACKUP_SCRIPT" "$RUNTIME_BACKUP_SCRIPT"')
+      && installer.includes('install -m 700 "$LOCAL_BACKUP_PROGRAM" "$RUNTIME_BACKUP_PROGRAM"'),
+  );
+  requireCondition(
+    'backup activation rejects entries not owned by the service user',
+    installer.includes('verify_backup_root_ownership')
+      && installer.includes('find "$BACKUP_ROOT" ! -user "$BACKUP_OWNER_USER" -print -quit')
+      && installer.includes('[[ -L "$BACKUP_ROOT" ]]'),
+  );
+  requireCondition(
+    'backup ownership gate never automatically changes backup ownership',
+    !/chown[^\n]*(?:BACKUP_ROOT|BACKUP_DIR)/.test(installer),
+  );
 }
 
 function verifyReadme() {
@@ -166,6 +203,7 @@ function main() {
   verifyPocketBaseBuildPins();
   verifyBackupScript();
   verifyBackupPlist();
+  verifyBackupInstaller();
   verifyReadme();
   printSummary();
 }

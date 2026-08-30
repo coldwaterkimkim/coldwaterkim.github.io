@@ -6,13 +6,14 @@ NO_START=0
 SKIP_CADDY=0
 CADDY_ONLY=0
 RUNTIME_ONLY=0
+BACKUP_ONLY=0
 
 usage() {
     cat <<'USAGE'
 Install coldwaterkim.com launchd services on the iMac.
 
 Usage:
-  bash deploy/imac/install-launchd-services.sh [--dry-run] [--no-start] [--skip-caddy] [--caddy-only] [--runtime-only]
+  bash deploy/imac/install-launchd-services.sh [--dry-run] [--no-start] [--skip-caddy] [--caddy-only] [--runtime-only] [--backup-only]
 
 Options:
   --dry-run       Print the install/bootstrap commands without changing files.
@@ -20,6 +21,7 @@ Options:
   --skip-caddy    Install only PocketBase and backups.
   --caddy-only    Install only the Caddy runtime, binary, and LaunchDaemon.
   --runtime-only  Sync runtime files only; do not use sudo or restart launchd jobs.
+  --backup-only   Install only the backup runtime and LaunchDaemon; do not restart PocketBase or Caddy.
 USAGE
 }
 
@@ -39,6 +41,9 @@ while (($#)); do
             ;;
         --runtime-only)
             RUNTIME_ONLY=1
+            ;;
+        --backup-only)
+            BACKUP_ONLY=1
             ;;
         -h|--help)
             usage
@@ -63,13 +68,18 @@ if [[ "$CADDY_ONLY" -eq 1 && "$RUNTIME_ONLY" -eq 1 ]]; then
     exit 2
 fi
 
+if [[ "$BACKUP_ONLY" -eq 1 && ("$CADDY_ONLY" -eq 1 || "$RUNTIME_ONLY" -eq 1 || "$SKIP_CADDY" -eq 1) ]]; then
+    echo "--backup-only cannot be combined with --caddy-only, --runtime-only, or --skip-caddy." >&2
+    exit 2
+fi
+
 if [[ "$(uname -s)" != "Darwin" ]]; then
     echo "This installer is intended for macOS launchd only." >&2
     exit 1
 fi
 
 if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
-    echo "Run this as the normal iMac user. The script will ask sudo only for the Caddy LaunchDaemon." >&2
+    echo "Run this as the normal iMac user. The script asks sudo only when installing system LaunchDaemons." >&2
     exit 1
 fi
 
@@ -91,6 +101,8 @@ RUNTIME_TUS_UPLOADS="$RUNTIME_ROOT/tus-uploads"
 RUNTIME_TOOL_JOBS="$RUNTIME_ROOT/tool-jobs"
 RUNTIME_TOOL_SENTINEL="$RUNTIME_TOOL_JOBS/.cwk-file-tools-root-v1"
 RUNTIME_OWNER_ID_FILE="$RUNTIME_ROOT/.cwk-owner-user-id"
+BACKUP_ROOT="/Users/kimchansu/Backups/coldwaterkim-pocketbase"
+BACKUP_OWNER_USER="kimchansu"
 
 PB_LABEL="com.coldwaterkim.pocketbase"
 CADDY_LABEL="com.coldwaterkim.caddy"
@@ -278,8 +290,44 @@ sync_runtime_files() {
     replace_runtime_dir "$LOCAL_DIST" "$RUNTIME_DIST"
     run_cmd ditto "$LOCAL_MIGRATIONS" "$RUNTIME_MIGRATIONS"
     run_cmd install -m 644 "$LOCAL_CADDYFILE" "$RUNTIME_CADDYFILE"
-    run_cmd install -m 755 "$LOCAL_BACKUP_SCRIPT" "$RUNTIME_BACKUP_SCRIPT"
-    run_cmd install -m 755 "$LOCAL_BACKUP_PROGRAM" "$RUNTIME_BACKUP_PROGRAM"
+    run_cmd install -m 700 "$LOCAL_BACKUP_SCRIPT" "$RUNTIME_BACKUP_SCRIPT"
+    run_cmd install -m 700 "$LOCAL_BACKUP_PROGRAM" "$RUNTIME_BACKUP_PROGRAM"
+}
+
+sync_backup_runtime_files() {
+    run_cmd mkdir -p "$RUNTIME_ROOT" "$LOG_DIR"
+    run_cmd install -m 700 "$LOCAL_BACKUP_SCRIPT" "$RUNTIME_BACKUP_SCRIPT"
+    run_cmd install -m 700 "$LOCAL_BACKUP_PROGRAM" "$RUNTIME_BACKUP_PROGRAM"
+}
+
+verify_backup_root_ownership() {
+    local foreign_entry
+
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+        print_command find "$BACKUP_ROOT" ! -user "$BACKUP_OWNER_USER" -print -quit
+        return
+    fi
+
+    if [[ ! -e "$BACKUP_ROOT" ]]; then
+        return
+    fi
+    if [[ -L "$BACKUP_ROOT" ]]; then
+        echo "Refusing backup activation: the exact backup root must not be a symbolic link: $BACKUP_ROOT" >&2
+        exit 1
+    fi
+    if [[ ! -d "$BACKUP_ROOT" ]]; then
+        echo "Refusing backup activation: backup root is not a directory: $BACKUP_ROOT" >&2
+        exit 1
+    fi
+    if ! foreign_entry="$(find "$BACKUP_ROOT" ! -user "$BACKUP_OWNER_USER" -print -quit 2>/dev/null)"; then
+        echo "Refusing backup activation: unable to verify every entry below the exact backup root: $BACKUP_ROOT" >&2
+        exit 1
+    fi
+    if [[ -n "$foreign_entry" ]]; then
+        echo "Refusing backup activation: the exact backup root contains entries not owned by $BACKUP_OWNER_USER: $BACKUP_ROOT" >&2
+        echo "Review ownership manually; this installer will not run chown automatically." >&2
+        exit 1
+    fi
 }
 
 sync_caddy_runtime_files() {
@@ -345,6 +393,25 @@ install_caddy_daemon() {
     run_sudo_cmd launchctl kickstart -k "system/${CADDY_LABEL}"
 }
 
+if [[ "$BACKUP_ONLY" -eq 1 ]]; then
+    require_file "$BACKUP_PLIST_SRC"
+    require_file "$LOCAL_BACKUP_SCRIPT"
+    require_file "$LOCAL_BACKUP_PROGRAM"
+    lint_plist "$BACKUP_PLIST_SRC"
+    verify_backup_root_ownership
+    sync_backup_runtime_files
+    uninstall_old_user_agent "$BACKUP_LABEL" "$OLD_BACKUP_AGENT"
+    install_system_daemon "$BACKUP_LABEL" "$BACKUP_PLIST_SRC" "$BACKUP_PLIST_DST"
+
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+        echo "Dry run only. No files were changed."
+    else
+        echo "Installed the coldwaterkim.com backup service without restarting PocketBase or Caddy."
+        echo "Next: npm run qa:launchd"
+    fi
+    exit 0
+fi
+
 require_file "$CADDY_PLIST_SRC"
 require_file "$LOCAL_CADDYFILE"
 require_dir "$LOCAL_DIST"
@@ -390,6 +457,7 @@ if [[ "$RUNTIME_ONLY" -eq 1 ]]; then
     exit 0
 fi
 
+verify_backup_root_ownership
 sync_runtime_files
 run_cmd mkdir -p "$USER_AGENT_DIR" "$LOG_DIR"
 uninstall_old_user_agent "$PB_LABEL" "$OLD_PB_AGENT"

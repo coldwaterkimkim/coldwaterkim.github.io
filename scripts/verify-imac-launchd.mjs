@@ -141,7 +141,9 @@ function verifyInstallerScript() {
   requireCondition('launchd installer protects normal user launchd setup', script.includes('Run this as the normal iMac user'));
   requireCondition('launchd installer supports Caddy-only mode', script.includes('--caddy-only'));
   requireCondition('launchd installer supports runtime-only mode', script.includes('--runtime-only'));
+  requireCondition('launchd installer supports backup-only mode', script.includes('--backup-only'));
   requireCondition('launchd installer defines runtime root', script.includes('RUNTIME_ROOT="${IMAC_RUNTIME_ROOT:-$HOME/.local/share/coldwaterkim/home-server}"'));
+  requireCondition('launchd installer pins the exact backup root', script.includes('BACKUP_ROOT="/Users/kimchansu/Backups/coldwaterkim-pocketbase"'));
   requireCondition('launchd installer creates private file tool jobs directory', script.includes('RUNTIME_TOOL_JOBS="$RUNTIME_ROOT/tool-jobs"') && script.includes('chmod 700 "$RUNTIME_TOOL_JOBS"'));
   requireCondition('launchd installer syncs optional file tool runtimes', script.includes('sync_optional_file_tools'));
   requireCondition('launchd installer relies on verified bundled HWP extension', !script.includes('RUNTIME_H2ORESTART') && !script.includes(' unopkg '));
@@ -149,8 +151,18 @@ function verifyInstallerScript() {
   requireCondition('launchd installer verifies the sole live OWNER users record', script.includes('SELECT count(*) FROM users') && script.includes('user_count'));
   requireCondition('launchd installer replaces runtime dist cleanly', script.includes('replace_runtime_dir "$LOCAL_DIST" "$RUNTIME_DIST"'));
   requireCondition('launchd installer syncs runtime migrations', script.includes('ditto "$LOCAL_MIGRATIONS" "$RUNTIME_MIGRATIONS"'));
-  requireCondition('launchd installer syncs runtime backup script', script.includes('install -m 755 "$LOCAL_BACKUP_SCRIPT" "$RUNTIME_BACKUP_SCRIPT"'));
-  requireCondition('launchd installer syncs incremental backup program', script.includes('install -m 755 "$LOCAL_BACKUP_PROGRAM" "$RUNTIME_BACKUP_PROGRAM"'));
+  requireCondition('launchd installer syncs runtime backup script privately', script.includes('install -m 700 "$LOCAL_BACKUP_SCRIPT" "$RUNTIME_BACKUP_SCRIPT"'));
+  requireCondition('launchd installer syncs incremental backup program privately', script.includes('install -m 700 "$LOCAL_BACKUP_PROGRAM" "$RUNTIME_BACKUP_PROGRAM"'));
+  requireCondition(
+    'launchd installer rejects foreign-owned backup entries',
+    script.includes('verify_backup_root_ownership')
+      && script.includes('find "$BACKUP_ROOT" ! -user "$BACKUP_OWNER_USER" -print -quit')
+      && script.includes('[[ -L "$BACKUP_ROOT" ]]'),
+  );
+  requireCondition(
+    'launchd installer never automatically changes backup ownership',
+    !/chown[^\n]*(?:BACKUP_ROOT|BACKUP_DIR)/.test(script),
+  );
   requireCondition('launchd installer installs PocketBase LaunchDaemon', script.includes('PB_LABEL="com.coldwaterkim.pocketbase"') && script.includes('SYSTEM_DAEMON_DIR="/Library/LaunchDaemons"'));
   requireCondition('launchd installer installs backup LaunchDaemon', script.includes('BACKUP_LABEL="com.coldwaterkim.pocketbase-backup"') && script.includes('SYSTEM_DAEMON_DIR="/Library/LaunchDaemons"'));
   requireCondition('launchd installer unloads legacy user agents', script.includes('uninstall_old_user_agent "$PB_LABEL"') && script.includes('uninstall_old_user_agent "$BACKUP_LABEL"'));
@@ -193,6 +205,17 @@ function verifyInstallerScript() {
     requireCondition('runtime-only dry-run previews runtime dist replacement', runtimeDryRun.output.includes(`${runtimeRoot}/dist.tmp.`) && runtimeDryRun.output.includes(`${runtimeRoot}/dist.old.`));
     requireCondition('runtime-only dry-run skips LaunchDaemon install', !runtimeDryRun.output.includes('/Library/LaunchDaemons/'));
     requireCondition('runtime-only dry-run skips sudo', !runtimeDryRun.output.includes('sudo '));
+  }
+
+  const backupDryRun = run('bash', [relativePath, '--dry-run', '--backup-only'], { allowFailure: true });
+  requireCondition('backup-only installer dry-run succeeds', backupDryRun.ok, backupDryRun.output);
+  if (backupDryRun.ok) {
+    requireCondition('backup-only dry-run previews private backup executables', backupDryRun.output.includes('install -m 700') && backupDryRun.output.includes('backup-pocketbase.py'));
+    requireCondition('backup-only dry-run previews backup daemon install', backupDryRun.output.includes('/Library/LaunchDaemons/com.coldwaterkim.pocketbase-backup.plist'));
+    requireCondition('backup-only dry-run previews exact backup root ownership gate', backupDryRun.output.includes(`${os.homedir()}/Backups/coldwaterkim-pocketbase`));
+    requireCondition('backup-only dry-run skips PocketBase daemon install', !backupDryRun.output.includes('/Library/LaunchDaemons/com.coldwaterkim.pocketbase.plist'));
+    requireCondition('backup-only dry-run skips Caddy daemon install', !backupDryRun.output.includes('/Library/LaunchDaemons/com.coldwaterkim.caddy.plist'));
+    requireCondition('backup-only dry-run skips Caddy binary install', !backupDryRun.output.includes('/usr/local/bin/caddy'));
   }
 
   const caddyCommand = path.join(root, 'deploy/imac/run-caddy-system-install.command');
@@ -262,6 +285,9 @@ function verifyStaticService(service) {
 
   if (service.label === 'com.coldwaterkim.pocketbase-backup') {
     requireCondition('Backup launchd runs runtime backup script', plist.includes(`${runtimeRoot}/backup-pocketbase.sh`));
+    requireCondition('Backup launchd runs as kimchansu', plist.includes('<key>UserName</key>') && plist.includes('<string>kimchansu</string>'));
+    requireCondition('Backup launchd runs as staff', plist.includes('<key>GroupName</key>') && plist.includes('<string>staff</string>'));
+    requireCondition('Backup launchd uses umask 077', /<key>Umask<\/key>\s*<integer>63<\/integer>/.test(plist));
     requireCondition('Backup launchd runs daily at 03:30', plist.includes('<integer>3</integer>') && plist.includes('<integer>30</integer>'));
     requireCondition('Backup launchd has HOME env', plist.includes('<key>HOME</key>') && plist.includes(os.homedir()));
   }

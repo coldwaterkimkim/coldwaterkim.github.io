@@ -5,6 +5,15 @@
     <key>Label</key>
     <string>com.coldwaterkim.pocketbase-backup</string>
 
+    <key>UserName</key>
+    <string>kimchansu</string>
+
+    <key>GroupName</key>
+    <string>staff</string>
+
+    <key>Umask</key>
+    <integer>63</integer>
+
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>

@@ -158,7 +158,7 @@ sudo chown root:wheel /Library/LaunchDaemons/com.coldwaterkim.caddy.plist
 sudo launchctl bootstrap system /Library/LaunchDaemons/com.coldwaterkim.caddy.plist
 ```
 
-운영 launchd 설치/기동은 아래 스크립트로 한 번에 처리한다. `--dry-run`으로 복사/등록될 경로를 먼저 확인한 뒤 실제 설치한다. PocketBase, Caddy, 백업 job은 `/Library/LaunchDaemons`에 등록되어 사용자 로그인 전에도 부팅 시 자동 시작된다.
+운영 launchd 설치/기동은 아래 스크립트로 한 번에 처리한다. `--dry-run`으로 복사/등록될 경로를 먼저 확인한 뒤 실제 설치한다. PocketBase, Caddy, 백업 job은 `/Library/LaunchDaemons`에 등록되어 사용자 로그인 전에도 부팅 시 자동 시작된다. PocketBase와 백업 job은 각각 `UserName=kimchansu`로 실행하고, 백업 job은 `Umask=077`을 적용한다.
 
 ```bash
 CWK_OWNER_USER_ID=운영_users_레코드_ID npm run imac:install-services:dry-run
@@ -373,16 +373,20 @@ QA:
 - 아이맥 전원 설정은 서버 모드로 고정한다. 시스템 잠자기/디스크 잠자기/standby/autopoweroff는 끄고, 정전 후 자동 재시작은 켠다.
 - Oracle API 서버와 GitHub Pages 배포는 7일 이상 롤백용으로 유지한 뒤 정리한다.
 
-자동 백업 설치:
+자동 백업은 PocketBase와 Caddy를 재시작하지 않는 전용 경로로 설치한다. 먼저 dry-run으로 백업 실행 파일 `0700`, plist, 정확한 백업 root 소유권 검사 경로를 확인한다.
 
 ```bash
-sudo cp deploy/imac/com.coldwaterkim.pocketbase-backup.plist /Library/LaunchDaemons/
-sudo chown root:wheel /Library/LaunchDaemons/com.coldwaterkim.pocketbase-backup.plist
-sudo launchctl bootstrap system /Library/LaunchDaemons/com.coldwaterkim.pocketbase-backup.plist
-sudo launchctl kickstart -k system/com.coldwaterkim.pocketbase-backup
+bash deploy/imac/install-launchd-services.sh --backup-only --dry-run
+bash deploy/imac/install-launchd-services.sh --backup-only
 ```
 
-정상 운영에서는 `npm run imac:install-services`가 위 백업 plist, `backup-pocketbase.sh`, `backup-pocketbase.py`를 운영 런타임 폴더 기준으로 설치한다. 수동 설치는 구조를 확인할 때만 사용한다.
+기존 root 실행 백업이 만든 파일이 있으면 실제 설치는 fail-closed로 중단된다. 설치기는 `~/Backups/coldwaterkim-pocketbase` 아래만 검사하고 소유권을 자동 변경하지 않는다. 아래 읽기 전용 결과를 검토해 모든 항목이 `kimchansu` 소유임을 확인한 뒤에만 실제 설치한다. root 소유 항목의 정리는 별도 수동 작업이며, 범위를 확인하지 않은 재귀 `chown`은 실행하지 않는다.
+
+```bash
+sudo find "$HOME/Backups/coldwaterkim-pocketbase" ! -user kimchansu -print
+```
+
+정상 운영에서는 `npm run imac:install-services`도 같은 소유권 gate를 통과한 뒤 `com.coldwaterkim.pocketbase-backup.plist`와 `0700`인 `backup-pocketbase.sh`, `backup-pocketbase.py`를 운영 런타임 폴더 기준으로 설치한다.
 
 전원 설정:
 
