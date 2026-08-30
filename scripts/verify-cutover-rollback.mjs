@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -18,9 +19,9 @@ function readText(relativePath) {
   return fs.readFileSync(path.join(root, relativePath), 'utf8');
 }
 
-function run(command, commandArgs, allowFailure = false) {
+function run(command, commandArgs, allowFailure = false, cwd = root) {
   const result = spawnSync(command, commandArgs, {
-    cwd: root,
+    cwd,
     encoding: 'utf8',
   });
   const output = [result.stdout, result.stderr].filter(Boolean).join('\n').trim();
@@ -31,6 +32,59 @@ function run(command, commandArgs, allowFailure = false) {
     ok: result.status === 0,
     output,
   };
+}
+
+function verifyDetachedHeadSnapshot(relativePath) {
+  const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'cwk-cutover-detached-'));
+  try {
+    fs.mkdirSync(path.join(fixtureRoot, 'scripts'));
+    fs.copyFileSync(path.join(root, relativePath), path.join(fixtureRoot, relativePath));
+    fs.writeFileSync(path.join(fixtureRoot, 'fixture.txt'), 'detached HEAD fixture\n');
+
+    run('git', ['init'], false, fixtureRoot);
+    run('git', ['config', 'user.name', 'Cutover QA'], false, fixtureRoot);
+    run('git', ['config', 'user.email', 'cutover-qa@example.invalid'], false, fixtureRoot);
+    run('git', ['add', '.'], false, fixtureRoot);
+    run('git', ['commit', '-m', 'detached fixture'], false, fixtureRoot);
+    const head = run('git', ['rev-parse', 'HEAD'], false, fixtureRoot).output;
+    run('git', ['checkout', '--detach', 'HEAD'], false, fixtureRoot);
+
+    const detachedRun = run(
+      process.execPath,
+      [
+        relativePath,
+        '--dry-run',
+        '--allow-network-failures',
+        '--origin',
+        'http://127.0.0.1:1',
+        '--lan-ip',
+        '192.0.2.10',
+        '--public-ip',
+        '203.0.113.10',
+        '--network-env-file',
+        path.join(fixtureRoot, 'missing.env'),
+      ],
+      true,
+      fixtureRoot,
+    );
+    requireCondition('snapshot detached HEAD dry-run succeeds', detachedRun.ok, detachedRun.output);
+    if (!detachedRun.ok) return;
+
+    try {
+      const parsed = JSON.parse(detachedRun.output);
+      requireCondition(
+        'snapshot labels detached HEAD with commit',
+        parsed.git?.branch === `detached@${head.slice(0, 12)}`,
+        parsed.git?.branch || 'missing',
+      );
+    } catch (error) {
+      record('snapshot detached HEAD emits JSON', false, error.message);
+    }
+  } catch (error) {
+    record('snapshot detached HEAD fixture', false, error.message);
+  } finally {
+    fs.rmSync(fixtureRoot, { recursive: true, force: true });
+  }
 }
 
 function verifyPackageScripts() {
@@ -60,6 +114,15 @@ function verifySnapshotScript() {
   requireCondition('snapshot captures api DNS', script.includes("'api.coldwaterkim.com'"));
   requireCondition('snapshot probes api health', script.includes("'/api/health'"));
   requireCondition('snapshot records git head', script.includes("['rev-parse', 'HEAD']"));
+  requireCondition(
+    'snapshot uses Apple Git compatible branch detection',
+    script.includes("['symbolic-ref', '--quiet', '--short', 'HEAD']"),
+  );
+  requireCondition(
+    'snapshot does not use unsupported branch show-current',
+    !script.includes("['branch', '--show-current']"),
+  );
+  requireCondition('snapshot has detached HEAD fallback', script.includes('detached@'));
   requireCondition('snapshot records local IPv4s', script.includes('localIPv4s'));
   requireCondition('snapshot writes into migration_backups by default', script.includes('migration_backups/cutover'));
   requireCondition('snapshot writes private file mode', script.includes('mode: 0o600'));
@@ -71,6 +134,15 @@ function verifySnapshotScript() {
       const parsed = JSON.parse(dryRun.output);
       requireCondition('snapshot has capturedAt', Boolean(parsed.capturedAt));
       requireCondition('snapshot has git head', Boolean(parsed.git?.head));
+      const currentBranch = run('git', ['symbolic-ref', '--quiet', '--short', 'HEAD'], true);
+      const expectedBranch = currentBranch.ok && currentBranch.output
+        ? currentBranch.output
+        : `detached@${parsed.git.head.slice(0, 12)}`;
+      requireCondition(
+        'snapshot records compatible current branch label',
+        parsed.git?.branch === expectedBranch,
+        parsed.git?.branch || 'missing',
+      );
       requireCondition('snapshot has expected home server public IP', Boolean(parsed.expectedHomeServer?.publicIp));
       requireCondition('snapshot has rollback DNS records', Boolean(parsed.rollbackTargets?.dnsRecords));
       requireCondition('snapshot has route probes', Boolean(parsed.probes?.routes));
@@ -79,6 +151,8 @@ function verifySnapshotScript() {
       record('snapshot dry-run emits JSON', false, error.message);
     }
   }
+
+  verifyDetachedHeadSnapshot(relativePath);
 }
 
 function verifyReadme() {

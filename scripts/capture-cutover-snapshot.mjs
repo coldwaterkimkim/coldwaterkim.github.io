@@ -160,7 +160,10 @@ async function main() {
     process.env.HOME_SERVER_PUBLIC_IP || networkEnv.HOME_SERVER_PUBLIC_IP || '',
   );
   const gitHead = run('git', ['rev-parse', 'HEAD']).output;
-  const gitBranch = run('git', ['branch', '--show-current']).output;
+  const gitBranchResult = run('git', ['symbolic-ref', '--quiet', '--short', 'HEAD'], true);
+  const gitBranch = gitBranchResult.ok && gitBranchResult.output
+    ? gitBranchResult.output
+    : `detached@${gitHead.slice(0, 12)}`;
   const gitStatus = run('git', ['status', '--short'], true).output;
 
   const hosts = ['coldwaterkim.com', 'www.coldwaterkim.com', 'api.coldwaterkim.com'];
