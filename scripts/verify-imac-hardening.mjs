@@ -6,6 +6,8 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const runtimeRoot = path.join(os.homedir(), '.local', 'share', 'coldwaterkim', 'home-server');
+const expectedPocketBaseVersion = '0.40.1';
+const expectedGoVersion = '1.27.0';
 const checks = [];
 
 function record(name, ok, detail = '') {
@@ -48,6 +50,43 @@ function verifyPackageScripts() {
   requireCondition('package script qa:hardening', Boolean(scripts['qa:hardening']), scripts['qa:hardening'] || 'missing');
   requireCondition('package script qa:launchd', Boolean(scripts['qa:launchd']), scripts['qa:launchd'] || 'missing');
   requireCondition('package script qa:launchd:tooling', Boolean(scripts['qa:launchd:tooling']), scripts['qa:launchd:tooling'] || 'missing');
+}
+
+function verifyPocketBaseBuildPins() {
+  const module = readText('deploy/imac/pocketbase-custom/go.mod');
+  const buildScript = readText('deploy/imac/build-pocketbase-custom.sh');
+  const installScript = readText('deploy/imac/install-runtime.sh');
+
+  requireCondition(
+    'PocketBase module uses the audited version',
+    module.includes(`github.com/pocketbase/pocketbase v${expectedPocketBaseVersion}`),
+  );
+  requireCondition(
+    'PocketBase module uses the audited Go version',
+    module.includes(`go ${expectedGoVersion.replace(/\.0$/, '')}`),
+  );
+  requireCondition(
+    'custom build pins the audited PocketBase version',
+    buildScript.includes(`POCKETBASE_VERSION="${'${POCKETBASE_VERSION:-'}${expectedPocketBaseVersion}}"`),
+  );
+  requireCondition(
+    'custom build pins the audited Go version',
+    buildScript.includes(`GO_VERSION="${'${GO_VERSION:-'}${expectedGoVersion}}"`),
+  );
+  requireCondition(
+    'runtime install matches the custom PocketBase version',
+    installScript.includes(`POCKETBASE_VERSION="${'${POCKETBASE_VERSION:-'}${expectedPocketBaseVersion}}"`),
+  );
+  requireCondition(
+    'custom build verifies the exact PocketBase version',
+    buildScript.includes('[[ "$VERSION_OUTPUT" != "pocketbase version ${POCKETBASE_VERSION}" ]]'),
+  );
+  requireCondition(
+    'custom build verifies module integrity without rewriting dependencies',
+    buildScript.includes('mod tidy -diff')
+      && buildScript.includes('mod verify')
+      && !/^\s*GOTOOLCHAIN=.*\bmod tidy\s*$/m.test(buildScript),
+  );
 }
 
 function verifyBackupScript() {
@@ -124,6 +163,7 @@ function printSummary() {
 
 function main() {
   verifyPackageScripts();
+  verifyPocketBaseBuildPins();
   verifyBackupScript();
   verifyBackupPlist();
   verifyReadme();

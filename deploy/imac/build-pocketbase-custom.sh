@@ -1,9 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
-POCKETBASE_VERSION="${POCKETBASE_VERSION:-0.23.5}"
-GO_VERSION="${GO_VERSION:-1.25.12}"
-GO_DARWIN_AMD64_SHA256="${GO_DARWIN_AMD64_SHA256:-00a2e743b82bccec03c51c4b0f7e46d5fec52184075fd6c5183c3bb39ae9fb00}"
+POCKETBASE_VERSION="${POCKETBASE_VERSION:-0.40.1}"
+GO_VERSION="${GO_VERSION:-1.27.0}"
+GO_DARWIN_AMD64_SHA256="${GO_DARWIN_AMD64_SHA256:-d3314e25496e4381d71a5c51d2907e7af655d199f6780b549f015bd85fef4986}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -41,7 +41,8 @@ fi
 
 (
     cd "$SOURCE_DIR"
-    GOTOOLCHAIN=local "$GO_BIN" mod tidy
+    GOTOOLCHAIN=local "$GO_BIN" mod tidy -diff
+    GOTOOLCHAIN=local "$GO_BIN" mod verify
     CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 GOTOOLCHAIN=local "$GO_BIN" build \
         -trimpath \
         -ldflags "-s -w -X github.com/pocketbase/pocketbase.Version=${POCKETBASE_VERSION}" \
@@ -50,7 +51,12 @@ fi
 )
 
 chmod 755 "$OUTPUT_DIR/pocketbase"
-"$OUTPUT_DIR/pocketbase" --version
+VERSION_OUTPUT="$("$OUTPUT_DIR/pocketbase" --version)"
+if [[ "$VERSION_OUTPUT" != "pocketbase version ${POCKETBASE_VERSION}" ]]; then
+    echo "Unexpected PocketBase build version: $VERSION_OUTPUT" >&2
+    exit 1
+fi
+echo "$VERSION_OUTPUT"
 "$OUTPUT_DIR/pocketbase" serve --help | grep -F -- "--httpRequestTimeout"
 "$OUTPUT_DIR/pocketbase" serve --help | grep -F -- "--tusUploadDir"
 "$OUTPUT_DIR/pocketbase" serve --help | grep -F -- "--siteDir"

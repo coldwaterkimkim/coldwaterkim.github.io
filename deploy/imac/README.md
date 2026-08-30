@@ -53,12 +53,12 @@ Rollback 기준:
 
 1. `deploy/imac/install-runtime.sh`로 3시간 HTTP 제한시간을 적용한 PocketBase와 아이맥 CPU에 맞는 Caddy 바이너리를 `.local-bin/`에 둔다. 영상 파생본 기능은 `npm run imac:install-ffmpeg`로 체크섬이 고정된 Intel용 FFmpeg/ffprobe도 설치한다. 프로그램실 서버 변환기는 `npm run imac:install-file-tools`로 Intel용 micromamba와 conda-forge의 고정 버전 qpdf·Poppler·Tesseract·Ghostscript, macOS에 등록되는 Temurin 21.0.10+7, 체크섬이 고정된 LibreOffice와 H2Orestart 0.7.13을 준비한다. H2Orestart는 GPLv3이며 설치 시 LibreOffice bundled extension으로 무결성 검증 후 배치되고, 실행 job은 격리된 LibreOffice profile만 사용한다.
    - Intel iMac은 `darwin_amd64`/`mac_amd64`가 필요하다.
-   - 현재 핀: PocketBase `v0.23.5`, Caddy `v2.11.4`.
-   - PocketBase는 `deploy/imac/pocketbase-custom/`의 공식 v0.23.5 엔트리포인트에 `--httpRequestTimeout=3h`, tusd v2.10.0 라우트, OWNER 전용 BGM trim 라우트, `--siteDir` 기반 SEO 렌더러를 추가한다. 완료 파일은 PocketBase 파일 API로 다시 등록되므로 `pb_data` 저장 구조와 JS migration 동작은 공식 v0.23.5와 같다.
+   - 현재 소스 핀: PocketBase `v0.40.1`, Caddy `v2.11.4`.
+   - PocketBase는 `deploy/imac/pocketbase-custom/`의 공식 v0.40.1 엔트리포인트에 `--httpRequestTimeout=3h`, tusd v2.10.0 라우트, OWNER 전용 BGM trim 라우트, `--siteDir` 기반 SEO 렌더러를 추가한다. 완료 파일은 PocketBase 파일 API로 다시 등록되므로 `pb_data` 저장 구조와 JS migration 동작은 공식 v0.40.1과 같다.
    - `/api/cwk/bgm/trim`은 실행 중인 PocketBase와 같은 `bin` 폴더의 FFmpeg/ffprobe로 새 MP3를 만들고 duration과 전체 디코딩을 검증한다. 원본 삭제는 API가 하지 않으며, 브라우저가 새 플레이리스트와 편성을 저장한 뒤 참조되지 않은 이전 레코드만 정리한다.
    - `/api/cwk/tools/*`는 `CWK_OWNER_USER_ID`로 명시된 단일 `users` 레코드와 PocketBase superuser만 접근한다. 설치기는 운영 `users`가 이 OWNER 1개뿐인지 읽기 전용으로 확인하고, 기존 비-OWNER 계정이 남아 있으면 배포를 중단한다. 최대 200MiB·20파일(HWP/HWPX는 1파일), 동시 실행 1개·대기 3개이며 완료 결과는 30분 뒤 삭제된다. HWP/Office→PDF, OCR, PDF 압축·암호·복구·흑백·텍스트 추출을 처리한다.
    - SEO 렌더러는 `/posts/{slug}/`, `/daily/{day}/`, `/sitemap.xml`만 처리하고 Caddy는 나머지 공개 파일을 `dist`에서 그대로 제공한다. DB를 요청 시 읽으므로 발행·수정·초안 전환 뒤 별도 정적 파일 생성 작업은 없다. 발행 기록이 없는 유효한 `/daily/{day}/`는 검색엔진과 비로그인 방문자에게 HTTP 404·`noindex`를 유지하되 JSON 대신 일관된 HTML 셸을 내려, 로그인한 OWNER 브라우저가 같은 주소에서 해당 날짜의 초안을 불러올 수 있게 한다.
-   - Go 1.25.12 Intel 공식 배포본의 SHA-256을 고정해 빌드하며, `deploy/imac/build-pocketbase-custom.sh`가 세 커스텀 플래그와 바이너리 버전을 확인한다.
+   - Go 1.27.0 Intel 공식 배포본의 SHA-256을 고정해 빌드하며, `deploy/imac/build-pocketbase-custom.sh`가 커스텀 플래그와 바이너리 버전을 확인한다. 운영 반영 전에는 운영 DB와 분리한 SQLite 사본에서 system/user migration을 먼저 리허설한다.
 2. `npm run build:imac`
 3. `npm run imac:install-services:dry-run`으로 운영 런타임 폴더 복사와 launchd 설치 계획 확인
 4. PocketBase를 `deploy/imac/com.coldwaterkim.pocketbase.plist`로 시스템 LaunchDaemon 실행

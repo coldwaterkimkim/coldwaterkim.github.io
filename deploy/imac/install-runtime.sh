@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-POCKETBASE_VERSION="${POCKETBASE_VERSION:-0.23.5}"
+POCKETBASE_VERSION="${POCKETBASE_VERSION:-0.40.1}"
 CADDY_VERSION="${CADDY_VERSION:-2.11.4}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
