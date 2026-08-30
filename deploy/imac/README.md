@@ -415,7 +415,7 @@ QA:
 - 아이맥 전원 설정은 서버 모드로 고정한다. 시스템 잠자기/디스크 잠자기/standby/autopoweroff는 끄고, 정전 후 자동 재시작은 켠다.
 - Oracle API 서버와 GitHub Pages 배포는 7일 이상 롤백용으로 유지한 뒤 정리한다.
 
-자동 백업은 PocketBase와 Caddy를 재시작하지 않는 전용 경로로 설치한다. 먼저 dry-run으로 백업 실행 파일 `0700`, plist, 정확한 백업 root 소유권 검사 경로를 확인한다. 실제 설치는 기존 system backup job을 먼저 unload하고 exit 113으로 부재를 다시 증명한 뒤에만 사용자 수정 가능 runtime script를 교체한다. unload가 실패하면 기존 script와 plist를 그대로 두고 중단하며, 새 plist bootstrap이 실패하면 root job을 되살리지 않고 backup job이 내려간 상태로 실패해 수동 복구를 요구한다.
+자동 백업은 PocketBase와 Caddy를 재시작하지 않는 전용 경로로 설치한다. 먼저 dry-run으로 백업 실행 파일 `0700`, plist, 정확한 백업 root 소유권 검사 경로를 확인한다. 실제 설치는 새 non-root plist를 root-owned staged 파일로 만든 뒤 plist와 `/Library/LaunchDaemons` directory를 `F_FULLFSYNC`하고 원자 게시해 재부팅 안전성을 먼저 확보한다. 그 다음에만 기존 system backup job을 unload하고 exit 113으로 부재를 다시 증명해 사용자 수정 가능 runtime script를 교체한다. plist 게시나 unload가 실패하면 runtime script는 그대로 두고 중단한다. script 교체 뒤 새 plist bootstrap이 실패하면 root job을 되살리지 않고 backup job이 내려간 상태로 실패해 수동 복구를 요구한다.
 
 ```bash
 bash deploy/imac/install-launchd-services.sh --backup-only --dry-run

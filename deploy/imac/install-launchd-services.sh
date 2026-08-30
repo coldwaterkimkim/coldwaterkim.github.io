@@ -138,6 +138,7 @@ LOCAL_POCKETBASE_LAUNCHER="$REPO_ROOT/deploy/imac/run-pocketbase-release.sh"
 LOCAL_BACKEND_LINK_PUBLISHER="${IMAC_BACKEND_LINK_PUBLISHER:-$REPO_ROOT/deploy/imac/publish-pocketbase-link.py}"
 LOCAL_BACKEND_FILE_PUBLISHER="${IMAC_BACKEND_FILE_PUBLISHER:-$REPO_ROOT/deploy/imac/publish-pocketbase-file.py}"
 LOCAL_BACKEND_GENERATION_PUBLISHER="${IMAC_BACKEND_GENERATION_PUBLISHER:-$REPO_ROOT/deploy/imac/publish-pocketbase-generation.py}"
+LOCAL_LAUNCHD_PLIST_PUBLISHER="$REPO_ROOT/deploy/imac/publish-launchd-plist.py"
 PB_PLIST_SRC="$REPO_ROOT/deploy/imac/${PB_LABEL}.plist"
 CADDY_PLIST_SRC="$REPO_ROOT/deploy/imac/${CADDY_LABEL}.plist"
 BACKUP_PLIST_SRC="$REPO_ROOT/deploy/imac/${BACKUP_LABEL}.plist"
@@ -934,6 +935,15 @@ require_system_job_absent() {
     fi
 }
 
+publish_system_daemon_plist() {
+    local source_plist="$1"
+    local target_plist="$2"
+    local staged_plist="${target_plist}.staged.$$"
+
+    run_sudo_cmd install -m 644 -o root -g wheel "$source_plist" "$staged_plist"
+    run_sudo_cmd /usr/bin/python3 "$LOCAL_LAUNCHD_PLIST_PUBLISHER" "$staged_plist" "$target_plist"
+}
+
 stop_backup_system_job_before_runtime_change() {
     local launchctl_status
 
@@ -959,7 +969,7 @@ stop_backup_system_job_before_runtime_change() {
     require_system_job_absent "$BACKUP_LABEL"
 }
 
-install_system_daemon() {
+install_system_daemon_plist() {
     local label="$1"
     local source_plist="$2"
     local target_plist="$3"
@@ -973,11 +983,16 @@ install_system_daemon() {
         local rendered_plist
         rendered_plist="$(mktemp -t cwk-pocketbase-plist)"
         /usr/bin/sed "s/__CWK_OWNER_USER_ID__/${CWK_OWNER_USER_ID}/g" "$source_plist" > "$rendered_plist"
-        run_sudo_cmd install -m 644 -o root -g wheel "$rendered_plist" "$target_plist"
+        publish_system_daemon_plist "$rendered_plist" "$target_plist"
         rm -f "$rendered_plist"
     else
-        run_sudo_cmd install -m 644 -o root -g wheel "$source_plist" "$target_plist"
+        publish_system_daemon_plist "$source_plist" "$target_plist"
     fi
+}
+
+start_system_daemon() {
+    local label="$1"
+    local target_plist="$2"
 
     if [[ "$NO_START" -eq 1 ]]; then
         return
@@ -991,6 +1006,15 @@ install_system_daemon() {
     fi
     run_sudo_cmd launchctl bootstrap system "$target_plist"
     run_sudo_cmd launchctl kickstart -k "system/${label}"
+}
+
+install_system_daemon() {
+    local label="$1"
+    local source_plist="$2"
+    local target_plist="$3"
+
+    install_system_daemon_plist "$label" "$source_plist" "$target_plist"
+    start_system_daemon "$label" "$target_plist"
 }
 
 install_caddy_daemon() {
@@ -1011,12 +1035,14 @@ if [[ "$BACKUP_ONLY" -eq 1 ]]; then
     require_file "$BACKUP_PLIST_SRC"
     require_file "$LOCAL_BACKUP_SCRIPT"
     require_file "$LOCAL_BACKUP_PROGRAM"
+    require_file "$LOCAL_LAUNCHD_PLIST_PUBLISHER"
     lint_plist "$BACKUP_PLIST_SRC"
     verify_backup_root_ownership
+    install_system_daemon_plist "$BACKUP_LABEL" "$BACKUP_PLIST_SRC" "$BACKUP_PLIST_DST"
     stop_backup_system_job_before_runtime_change
     uninstall_old_user_agent "$BACKUP_LABEL" "$OLD_BACKUP_AGENT"
     sync_backup_runtime_files
-    install_system_daemon "$BACKUP_LABEL" "$BACKUP_PLIST_SRC" "$BACKUP_PLIST_DST"
+    start_system_daemon "$BACKUP_LABEL" "$BACKUP_PLIST_DST"
 
     if [[ "$DRY_RUN" -eq 1 ]]; then
         echo "Dry run only. No files were changed."
@@ -1116,6 +1142,7 @@ require_file "$LOCAL_BACKEND_LINK_PUBLISHER"
 require_file "$LOCAL_BACKEND_FILE_PUBLISHER"
 require_file "$LOCAL_BACKUP_SCRIPT"
 require_file "$LOCAL_BACKUP_PROGRAM"
+require_file "$LOCAL_LAUNCHD_PLIST_PUBLISHER"
 require_file "$LOCAL_TOOL_SENTINEL"
 
 lint_plist "$PB_PLIST_SRC"
@@ -1124,13 +1151,14 @@ lint_plist "$BACKUP_PLIST_SRC"
 verify_backup_root_ownership
 require_prepared_runtime_backend
 sync_runtime_files
+install_system_daemon_plist "$BACKUP_LABEL" "$BACKUP_PLIST_SRC" "$BACKUP_PLIST_DST"
 stop_backup_system_job_before_runtime_change
 sync_backup_runtime_files
 run_cmd mkdir -p "$USER_AGENT_DIR" "$LOG_DIR"
 uninstall_old_user_agent "$PB_LABEL" "$OLD_PB_AGENT"
 uninstall_old_user_agent "$BACKUP_LABEL" "$OLD_BACKUP_AGENT"
 install_system_daemon "$PB_LABEL" "$PB_PLIST_SRC" "$PB_PLIST_DST"
-install_system_daemon "$BACKUP_LABEL" "$BACKUP_PLIST_SRC" "$BACKUP_PLIST_DST"
+start_system_daemon "$BACKUP_LABEL" "$BACKUP_PLIST_DST"
 
 if [[ "$SKIP_CADDY" -eq 0 ]]; then
     install_caddy_daemon

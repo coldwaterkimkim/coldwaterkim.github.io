@@ -225,6 +225,7 @@ function verifyInstallerScript() {
   const linkPublisher = readText('deploy/imac/publish-pocketbase-link.py');
   const filePublisher = readText('deploy/imac/publish-pocketbase-file.py');
   const generationPublisher = readText('deploy/imac/publish-pocketbase-generation.py');
+  const plistPublisher = readText('deploy/imac/publish-launchd-plist.py');
   requireCondition('launchd installer supports dry run', script.includes('--dry-run'));
   requireCondition('launchd installer supports no-start mode', script.includes('--no-start'));
   requireCondition('launchd installer protects normal user launchd setup', script.includes('Run this as the normal iMac user'));
@@ -267,6 +268,13 @@ function verifyInstallerScript() {
       && generationPublisher.includes('sync_tree(source)')
       && generationPublisher.includes('os.replace(source, destination)')
       && script.includes('LOCAL_BACKEND_GENERATION_PUBLISHER'),
+  );
+  requireCondition(
+    'LaunchDaemon plist publication is allowlisted, atomic, and power-durable',
+    plistPublisher.includes('ALLOWED_DESTINATIONS')
+      && plistPublisher.includes('F_FULLFSYNC')
+      && plistPublisher.includes('os.replace(source, destination)')
+      && script.includes('LOCAL_LAUNCHD_PLIST_PUBLISHER'),
   );
   requireCondition('PocketBase build checks committed source before compiling', buildScript.includes('--check-source-only'));
   requireCondition('PocketBase build emits a release manifest', buildScript.includes('pocketbase-release.json') && buildScript.includes('create-pocketbase-release-manifest.mjs'));
@@ -331,16 +339,18 @@ function verifyInstallerScript() {
     !/chown[^\n]*(?:BACKUP_ROOT|BACKUP_DIR)/.test(script),
   );
   const backupOnlyBlock = script.match(/if \[\[ "\$BACKUP_ONLY" -eq 1 \]\]; then\n([\s\S]*?)^fi$/m)?.[1] || '';
+  const backupPlistIndex = backupOnlyBlock.indexOf('install_system_daemon_plist "$BACKUP_LABEL"');
   const backupStopIndex = backupOnlyBlock.indexOf('stop_backup_system_job_before_runtime_change');
   const backupSyncIndex = backupOnlyBlock.indexOf('sync_backup_runtime_files');
-  const backupInstallIndex = backupOnlyBlock.indexOf('install_system_daemon "$BACKUP_LABEL"');
+  const backupStartIndex = backupOnlyBlock.indexOf('start_system_daemon "$BACKUP_LABEL"');
   requireCondition(
-    'backup installer unloads and proves the system job absent before replacing user-writable runtime scripts',
+    'backup installer durably replaces the plist before unloading root job and replacing runtime scripts',
     script.includes('stop_backup_system_job_before_runtime_change')
       && script.includes('require_system_job_absent "$BACKUP_LABEL"')
-      && backupStopIndex >= 0
+      && backupPlistIndex >= 0
+      && backupStopIndex > backupPlistIndex
       && backupSyncIndex > backupStopIndex
-      && backupInstallIndex > backupSyncIndex,
+      && backupStartIndex > backupSyncIndex,
   );
   requireCondition('launchd installer installs PocketBase LaunchDaemon', script.includes('PB_LABEL="com.coldwaterkim.pocketbase"') && script.includes('SYSTEM_DAEMON_DIR="/Library/LaunchDaemons"'));
   requireCondition('launchd installer installs backup LaunchDaemon', script.includes('BACKUP_LABEL="com.coldwaterkim.pocketbase-backup"') && script.includes('SYSTEM_DAEMON_DIR="/Library/LaunchDaemons"'));
@@ -1042,9 +1052,20 @@ os.execv('/usr/bin/python3', ['/usr/bin/python3', real_publisher, *sys.argv[1:]]
   const backupDryRun = run('bash', [relativePath, '--dry-run', '--backup-only'], { allowFailure: true });
   requireCondition('backup-only installer dry-run succeeds', backupDryRun.ok, backupDryRun.output);
   if (backupDryRun.ok) {
+    const plistInstallIndex = backupDryRun.output.indexOf(`sudo install -m 644 -o root -g wheel ${path.join(root, 'deploy/imac/com.coldwaterkim.pocketbase-backup.plist')}`);
+    const plistPublishIndex = backupDryRun.output.indexOf(`sudo /usr/bin/python3 ${path.join(root, 'deploy/imac/publish-launchd-plist.py')}`);
+    const rootJobBootoutIndex = backupDryRun.output.indexOf('sudo launchctl bootout system/com.coldwaterkim.pocketbase-backup');
+    const runtimeScriptInstallIndex = backupDryRun.output.indexOf(`install -m 700 ${path.join(root, 'deploy/imac/backup-pocketbase.sh')}`);
+    const nonRootBootstrapIndex = backupDryRun.output.indexOf('sudo launchctl bootstrap system /Library/LaunchDaemons/com.coldwaterkim.pocketbase-backup.plist');
     requireCondition('backup-only dry-run previews private backup executables', backupDryRun.output.includes('install -m 700') && backupDryRun.output.includes('backup-pocketbase.py'));
     requireCondition('backup-only dry-run previews backup daemon install', backupDryRun.output.includes('/Library/LaunchDaemons/com.coldwaterkim.pocketbase-backup.plist'));
     requireCondition('backup-only dry-run previews exact backup root ownership gate', backupDryRun.output.includes(`${os.homedir()}/Backups/coldwaterkim-pocketbase`));
+    requireCondition('backup-only dry-run closes the reboot-to-root window before script replacement',
+      plistInstallIndex >= 0
+        && plistPublishIndex > plistInstallIndex
+        && rootJobBootoutIndex > plistPublishIndex
+        && runtimeScriptInstallIndex > rootJobBootoutIndex
+        && nonRootBootstrapIndex > runtimeScriptInstallIndex);
     requireCondition('backup-only dry-run skips PocketBase daemon install', !backupDryRun.output.includes('/Library/LaunchDaemons/com.coldwaterkim.pocketbase.plist'));
     requireCondition('backup-only dry-run skips Caddy daemon install', !backupDryRun.output.includes('/Library/LaunchDaemons/com.coldwaterkim.caddy.plist'));
     requireCondition('backup-only dry-run skips Caddy binary install', !backupDryRun.output.includes('/usr/local/bin/caddy'));
@@ -1052,10 +1073,12 @@ os.execv('/usr/bin/python3', ['/usr/bin/python3', real_publisher, *sys.argv[1:]]
 
   const backupFailureToolDir = path.join(releaseFixture.root, 'backup-failure-tools');
   const backupFailureRuntime = path.join(releaseFixture.root, 'backup-failure-runtime');
+  const backupFailureLog = path.join(releaseFixture.root, 'backup-failure-sudo.log');
   fs.mkdirSync(backupFailureToolDir);
   fs.writeFileSync(path.join(backupFailureToolDir, 'find'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
   fs.writeFileSync(path.join(backupFailureToolDir, 'launchctl'), '#!/bin/sh\nexit 113\n', { mode: 0o755 });
   fs.writeFileSync(path.join(backupFailureToolDir, 'sudo'), `#!/bin/sh
+printf '%s\\n' "$*" >> ${JSON.stringify(backupFailureLog)}
 if [ "$1" = "launchctl" ] && [ "$2" = "print" ]; then
   exit 0
 fi
@@ -1072,9 +1095,15 @@ exit 0
       PATH: `${backupFailureToolDir}:${process.env.PATH}`,
     },
   });
+  const backupFailureCommands = fs.readFileSync(backupFailureLog, 'utf8');
   requireCondition('backup installer fails before replacing runtime scripts when the legacy root job cannot unload',
     !backupBootoutFailure.ok
       && backupBootoutFailure.output.includes('existing system backup job could not be unloaded')
+      && backupFailureCommands.indexOf('install -m 644 -o root -g wheel') >= 0
+      && backupFailureCommands.indexOf('/usr/bin/python3')
+        > backupFailureCommands.indexOf('install -m 644 -o root -g wheel')
+      && backupFailureCommands.indexOf('launchctl bootout system/com.coldwaterkim.pocketbase-backup')
+        > backupFailureCommands.indexOf('/usr/bin/python3')
       && !fs.existsSync(path.join(backupFailureRuntime, 'backup-pocketbase.sh'))
       && !fs.existsSync(path.join(backupFailureRuntime, 'backup-pocketbase.py')),
     backupBootoutFailure.output);
