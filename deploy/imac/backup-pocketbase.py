@@ -95,6 +95,14 @@ def replace_durable(source, destination):
     fsync_directory(destination.parent)
 
 
+def required_snapshot_bytes(database_path):
+    total = database_path.stat().st_size
+    wal_path = database_path.with_name(database_path.name + "-wal")
+    if wal_path.is_file():
+        total += wal_path.stat().st_size
+    return total
+
+
 def validate_roots(pb_data_dir, backup_dir):
     pb_data_dir = pb_data_dir.expanduser().resolve()
     backup_dir = backup_dir.expanduser().resolve()
@@ -319,6 +327,10 @@ def prune_snapshots(snapshot_dir, manifest_dir, retention_days, now):
 
 def main():
     args = parse_args()
+    if args.reserve_bytes < DEFAULT_RESERVE_BYTES:
+        raise RuntimeError(
+            "backup reserve must be at least %d bytes" % DEFAULT_RESERVE_BYTES
+        )
     pb_data_dir, backup_dir = validate_roots(args.pb_data_dir, args.backup_dir)
     now = datetime.now()
     timestamp = now.strftime("%Y%m%d_%H%M%S_%f")
@@ -348,7 +360,15 @@ def main():
         manifest_path = manifest_dir / ("originals_%s.json" % timestamp)
         generation_complete = False
         try:
-            database_checksum = snapshot_database(pb_data_dir / "data.db", snapshot_path)
+            database_path = pb_data_dir / "data.db"
+            snapshot_required = required_snapshot_bytes(database_path)
+            free_bytes = shutil.disk_usage(incremental_root).free
+            if free_bytes < snapshot_required + args.reserve_bytes:
+                raise RuntimeError(
+                    "insufficient backup space before database snapshot: need %d bytes plus %d reserve, have %d"
+                    % (snapshot_required, args.reserve_bytes, free_bytes)
+                )
+            database_checksum = snapshot_database(database_path, snapshot_path)
             write_text_atomic(checksum_path, "%s  %s\n" % (database_checksum, snapshot_path.name))
             originals = discover_originals(snapshot_path, pb_data_dir)
             state = load_state(state_path)

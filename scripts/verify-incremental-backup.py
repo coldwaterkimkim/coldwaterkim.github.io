@@ -27,15 +27,16 @@ def require(condition, message):
         raise AssertionError(message)
 
 
-def run_backup(pb_data, backup_dir, *extra, expect_success=True):
+def run_backup(pb_data, backup_dir, *extra, expect_success=True, reserve_bytes=None):
     command = [
         "/usr/bin/python3",
         str(PROGRAM),
         "--pb-data-dir", str(pb_data),
         "--backup-dir", str(backup_dir),
-        "--reserve-bytes", "0",
         *extra,
     ]
+    if reserve_bytes is not None:
+        command.extend(["--reserve-bytes", str(reserve_bytes)])
     result = subprocess.run(command, cwd=ROOT, text=True, capture_output=True)
     if expect_success and result.returncode != 0:
         raise RuntimeError("backup fixture failed: %s" % (result.stderr or result.stdout))
@@ -171,6 +172,36 @@ def main():
         pb_data = root / "pb_data"
         backup_dir = root / "backup"
         create_fixture(pb_data)
+
+        unsafe_backup_root = root / "unsafe-reserve-backup"
+        unsafe_backup_reserve = run_backup(
+            pb_data,
+            unsafe_backup_root,
+            expect_success=False,
+            reserve_bytes=0,
+        )
+        require(
+            "backup reserve must be at least" in unsafe_backup_reserve.stderr,
+            "zero backup reserve bypassed the safety floor",
+        )
+        require(not unsafe_backup_root.exists(), "unsafe backup reserve created a backup root")
+
+        no_space_backup_root = root / "no-space-backup"
+        impossible_reserve = shutil.disk_usage(root).free + 1024 * 1024 * 1024
+        no_space_backup = run_backup(
+            pb_data,
+            no_space_backup_root,
+            expect_success=False,
+            reserve_bytes=impossible_reserve,
+        )
+        require(
+            "insufficient backup space before database snapshot" in no_space_backup.stderr,
+            "database snapshot capacity was not checked before writing",
+        )
+        require(
+            not list((no_space_backup_root / "incremental/db-snapshots").glob("*")),
+            "capacity preflight wrote a database snapshot",
+        )
 
         dry_run = run_backup(pb_data, backup_dir, "--dry-run")
         dry_summary = json.loads(dry_run.stdout)
@@ -325,6 +356,42 @@ exec /usr/bin/unzip "$@"
         require(
             not (race_target / "swapped-after-preflight.txt").exists(),
             "restore extracted an archive that changed after its private snapshot",
+        )
+
+        publish_race_tools = root / "publish-race-tools"
+        publish_race_tools.mkdir()
+        publish_race_target = root / "publish-race-target"
+        sqlite_wrapper = publish_race_tools / "sqlite3"
+        sqlite_wrapper.write_text(
+            """#!/bin/bash
+set -euo pipefail
+/usr/bin/sqlite3 "$@"
+mkdir -p "$CWK_PUBLISH_RACE_TARGET"
+printf '%s\\n' keep > "$CWK_PUBLISH_RACE_TARGET/keep-me.txt"
+""",
+            encoding="utf-8",
+        )
+        sqlite_wrapper.chmod(0o755)
+        publish_race = run_zip_restore(
+            archive,
+            publish_race_target,
+            extra_environment={
+                "PATH": "%s:/usr/bin:/bin" % publish_race_tools,
+                "CWK_PUBLISH_RACE_TARGET": str(publish_race_target),
+            },
+            expect_success=False,
+        )
+        require(
+            "Target appeared during restore" in publish_race.stderr,
+            "restore did not reject a target created immediately before publication",
+        )
+        require(
+            (publish_race_target / "keep-me.txt").read_text(encoding="utf-8").strip() == "keep",
+            "restore replaced the target created during publication",
+        )
+        require(
+            not list(publish_race_target.glob(".*.restore.*")),
+            "restore nested its staging directory below a target created during publication",
         )
 
         existing_target = root / "existing-restore"

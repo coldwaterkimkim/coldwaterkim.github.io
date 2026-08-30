@@ -92,7 +92,65 @@ trap cleanup EXIT
 
 ARCHIVE_SNAPSHOT="$(mktemp "$TARGET_PARENT/.${TARGET_NAME}.archive.XXXXXX")"
 chmod 600 "$ARCHIVE_SNAPSHOT"
-/bin/cp "$BACKUP_ABS" "$ARCHIVE_SNAPSHOT"
+if ! /usr/bin/python3 - "$BACKUP_ABS" "$ARCHIVE_SNAPSHOT" "$TARGET_PARENT" "$RESTORE_RESERVE_BYTES" <<'PY'
+import os
+import shutil
+import stat
+import sys
+
+
+source_path, snapshot_path, target_parent, reserve_text = sys.argv[1:]
+try:
+    reserve_bytes = int(reserve_text)
+    source_fd = os.open(source_path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+except (OSError, ValueError) as error:
+    print("Could not open a regular backup ZIP safely: %s" % error, file=sys.stderr)
+    raise SystemExit(1)
+
+try:
+    source_stat = os.fstat(source_fd)
+    if not stat.S_ISREG(source_stat.st_mode) or source_stat.st_size < 0:
+        print("Backup ZIP source must be a regular file.", file=sys.stderr)
+        raise SystemExit(1)
+    free_bytes = shutil.disk_usage(target_parent).free
+    if free_bytes < reserve_bytes or source_stat.st_size > free_bytes - reserve_bytes:
+        print(
+            "Insufficient space for a private backup snapshot: need %d bytes plus %d reserve, have %d"
+            % (source_stat.st_size, reserve_bytes, free_bytes),
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+
+    snapshot_fd = os.open(
+        snapshot_path,
+        os.O_WRONLY | os.O_TRUNC | getattr(os, "O_NOFOLLOW", 0),
+    )
+    try:
+        remaining = source_stat.st_size
+        while remaining:
+            chunk = os.read(source_fd, min(4 * 1024 * 1024, remaining))
+            if not chunk:
+                print("Backup ZIP changed size while creating its private snapshot.", file=sys.stderr)
+                raise SystemExit(1)
+            view = memoryview(chunk)
+            while view:
+                written = os.write(snapshot_fd, view)
+                if written <= 0:
+                    raise OSError("short backup snapshot write")
+                view = view[written:]
+            remaining -= len(chunk)
+        if os.read(source_fd, 1):
+            print("Backup ZIP changed size while creating its private snapshot.", file=sys.stderr)
+            raise SystemExit(1)
+        os.fsync(snapshot_fd)
+    finally:
+        os.close(snapshot_fd)
+finally:
+    os.close(source_fd)
+PY
+then
+  exit 1
+fi
 
 echo "Checking backup archive paths and restore capacity..."
 if ! ARCHIVE_UNCOMPRESSED_BYTES="$(
@@ -232,7 +290,30 @@ if [[ "$(sqlite3 "$STAGING_DIR/data.db" 'PRAGMA quick_check;')" != "ok" ]]; then
 fi
 
 chmod 700 "$STAGING_DIR"
-mv "$STAGING_DIR" "$TARGET_ABS"
+if [[ -e "$TARGET_ABS" || -L "$TARGET_ABS" ]]; then
+  echo "Target appeared during restore; refusing to publish over it: $TARGET_ABS" >&2
+  exit 1
+fi
+if ! /usr/bin/python3 - "$STAGING_DIR" "$TARGET_ABS" <<'PY'
+import ctypes
+import os
+import sys
+
+
+source, destination = (os.fsencode(value) for value in sys.argv[1:])
+libc = ctypes.CDLL(None, use_errno=True)
+rename_exclusive = libc.renamex_np
+rename_exclusive.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint]
+rename_exclusive.restype = ctypes.c_int
+RENAME_EXCL = 0x00000004
+if rename_exclusive(source, destination, RENAME_EXCL) != 0:
+    error_number = ctypes.get_errno()
+    raise OSError(error_number, os.strerror(error_number))
+PY
+then
+  echo "Restore target could not be published exclusively." >&2
+  exit 1
+fi
 STAGING_DIR=""
 
 echo "PocketBase backup restored to: $TARGET_ABS"
