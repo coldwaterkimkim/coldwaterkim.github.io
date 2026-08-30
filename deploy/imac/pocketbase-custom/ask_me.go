@@ -235,7 +235,10 @@ func (service *askQuestionService) readQuestion(e *core.RequestEvent) error {
 	defer func() {
 		completedAt := time.Now()
 		service.readFailures.complete(clientKey, completedAt, failed)
-		service.readGlobal.complete(askQuestionGlobalLimitKey, completedAt, failed)
+		// Every admitted read consumes the global budget, including a valid
+		// password. Otherwise an attacker can authenticate their own private
+		// question repeatedly and keep bcrypt busy without ever reaching a cap.
+		service.readGlobal.complete(askQuestionGlobalLimitKey, completedAt, true)
 	}()
 
 	request := askQuestionReadRequest{}

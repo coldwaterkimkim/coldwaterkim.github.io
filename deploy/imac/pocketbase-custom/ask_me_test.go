@@ -262,6 +262,55 @@ func TestAskQuestionDistributedReadBurstHasGlobalAdmissionCap(t *testing.T) {
 	}
 }
 
+func TestAskQuestionSuccessfulPasswordReadsConsumeGlobalAdmissionBudget(t *testing.T) {
+	app, err := tests.NewTestApp()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Cleanup()
+	setupAskQuestionTestCollections(t, app)
+
+	router, err := apis.NewRouter(app)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := newAskQuestionService(app)
+	service.registerRoutes(&core.ServeEvent{App: app, Router: router})
+	mux, err := router.BuildMux()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	const password = "known-password"
+	created := askQuestionTestRequest(t, mux, http.MethodPost, askQuestionPath, map[string]any{
+		"question":   "전역 읽기 예산 테스트",
+		"is_private": true,
+		"password":   password,
+	}, "198.51.100.70:5000", "")
+	if created.Code != http.StatusCreated {
+		t.Fatalf("private create status=%d body=%s", created.Code, created.Body.String())
+	}
+	receipt := decodeAskQuestionCreateResponse(t, created.Body.Bytes())
+
+	for attempt := 0; attempt < askQuestionReadMaxGlobal; attempt++ {
+		response := askQuestionTestRequest(t, mux, http.MethodPost, askQuestionReadPath, map[string]any{
+			"sequence": receipt.Sequence,
+			"password": password,
+		}, "198.51.100.71:5001", "")
+		if response.Code != http.StatusOK {
+			t.Fatalf("successful read %d status=%d body=%s", attempt+1, response.Code, response.Body.String())
+		}
+	}
+
+	blocked := askQuestionTestRequest(t, mux, http.MethodPost, askQuestionReadPath, map[string]any{
+		"sequence": receipt.Sequence,
+		"password": password,
+	}, "198.51.100.71:5001", "")
+	if blocked.Code != http.StatusTooManyRequests {
+		t.Fatalf("successful reads bypassed global budget: status=%d body=%s", blocked.Code, blocked.Body.String())
+	}
+}
+
 func TestAskQuestionLimiterBoundsAndExpiryRecovery(t *testing.T) {
 	limiter := newAskQuestionLimiter(2, time.Minute, 2)
 	now := time.Date(2026, time.August, 20, 12, 0, 0, 0, time.UTC)
