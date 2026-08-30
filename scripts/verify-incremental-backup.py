@@ -79,8 +79,10 @@ def run_incremental_restore(
     return result
 
 
-def run_zip_restore(archive, target, *, home=None, expect_success=True):
+def run_zip_restore(archive, target, *, home=None, extra_environment=None, expect_success=True):
     environment = os.environ.copy()
+    if extra_environment is not None:
+        environment.update(extra_environment)
     if home is not None:
         environment["HOME"] = str(home)
     result = subprocess.run(
@@ -153,6 +155,17 @@ def inflate_central_directory_sizes(archive, declared_size):
 
 
 def main():
+    backup_program_source = PROGRAM.read_text(encoding="utf-8")
+    require("def replace_durable" in backup_program_source, "backup writes must use a durable atomic replace helper")
+    require(
+        backup_program_source.count("os.replace(") == 1
+        and "fsync_directory(destination.parent)" in backup_program_source,
+        "every backup atomic replace must fsync its parent directory",
+    )
+    require(
+        "fsync_file(temp_path)\n                    replace_durable(temp_path, destination)" in backup_program_source,
+        "copied originals must be durable before publication",
+    )
     with tempfile.TemporaryDirectory(prefix="cwk-backup-fixture-") as temp:
         root = Path(temp)
         pb_data = root / "pb_data"
@@ -269,6 +282,50 @@ def main():
         zip_target = root / "zip-restored-pb_data"
         run_zip_restore(archive, zip_target)
         require((zip_target / "data.db").is_file(), "safe zip restore did not create data.db")
+
+        race_archive = root / "race-source.zip"
+        race_replacement = root / "race-replacement.zip"
+        shutil.copy2(archive, race_archive)
+        with zipfile.ZipFile(race_replacement, "w") as bundle:
+            bundle.write(snapshots[0], "data.db")
+            bundle.writestr("swapped-after-preflight.txt", b"must-not-be-restored")
+        wrapper_dir = root / "race-tools"
+        wrapper_dir.mkdir()
+        race_marker = root / "race-triggered"
+        unzip_wrapper = wrapper_dir / "unzip"
+        unzip_wrapper.write_text(
+            """#!/bin/bash
+set -euo pipefail
+if [[ ! -e "$CWK_RACE_MARKER" ]]; then
+  : > "$CWK_RACE_MARKER"
+  /bin/cp "$CWK_RACE_REPLACEMENT" "$CWK_RACE_SOURCE"
+fi
+exec /usr/bin/unzip "$@"
+""",
+            encoding="utf-8",
+        )
+        unzip_wrapper.chmod(0o755)
+        race_target = root / "race-restored-pb_data"
+        run_zip_restore(
+            race_archive,
+            race_target,
+            extra_environment={
+                "PATH": "%s:/usr/bin:/bin" % wrapper_dir,
+                "CWK_RACE_MARKER": str(race_marker),
+                "CWK_RACE_REPLACEMENT": str(race_replacement),
+                "CWK_RACE_SOURCE": str(race_archive),
+            },
+        )
+        require(race_marker.is_file(), "archive replacement fixture did not run")
+        with zipfile.ZipFile(race_archive) as mutated_archive:
+            require(
+                "swapped-after-preflight.txt" in mutated_archive.namelist(),
+                "archive replacement fixture did not mutate the source",
+            )
+        require(
+            not (race_target / "swapped-after-preflight.txt").exists(),
+            "restore extracted an archive that changed after its private snapshot",
+        )
 
         existing_target = root / "existing-restore"
         existing_target.mkdir()

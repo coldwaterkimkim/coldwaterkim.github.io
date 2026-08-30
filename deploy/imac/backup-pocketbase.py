@@ -77,6 +77,24 @@ def safe_child(root, *parts):
     return candidate
 
 
+def fsync_file(path):
+    with path.open("rb") as handle:
+        os.fsync(handle.fileno())
+
+
+def fsync_directory(directory):
+    descriptor = os.open(str(directory), os.O_RDONLY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def replace_durable(source, destination):
+    os.replace(source, destination)
+    fsync_directory(destination.parent)
+
+
 def validate_roots(pb_data_dir, backup_dir):
     pb_data_dir = pb_data_dir.expanduser().resolve()
     backup_dir = backup_dir.expanduser().resolve()
@@ -112,7 +130,8 @@ def snapshot_database(source_path, destination_path):
                 destination.close()
         finally:
             source.close()
-        os.replace(temp_path, destination_path)
+        fsync_file(temp_path)
+        replace_durable(temp_path, destination_path)
         return sha256_file(destination_path)
     finally:
         try:
@@ -134,22 +153,34 @@ def load_state(path):
 def write_json_atomic(path, payload):
     path.parent.mkdir(parents=True, exist_ok=True)
     temp_path = path.with_name(".%s.tmp.%s" % (path.name, os.getpid()))
-    with temp_path.open("w", encoding="utf-8") as handle:
-        json.dump(payload, handle, ensure_ascii=False, indent=2, sort_keys=True)
-        handle.write("\n")
-        handle.flush()
-        os.fsync(handle.fileno())
-    os.replace(temp_path, path)
+    try:
+        with temp_path.open("w", encoding="utf-8") as handle:
+            json.dump(payload, handle, ensure_ascii=False, indent=2, sort_keys=True)
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        replace_durable(temp_path, path)
+    finally:
+        try:
+            temp_path.unlink()
+        except FileNotFoundError:
+            pass
 
 
 def write_text_atomic(path, contents):
     path.parent.mkdir(parents=True, exist_ok=True)
     temp_path = path.with_name(".%s.tmp.%s" % (path.name, os.getpid()))
-    with temp_path.open("w", encoding="utf-8") as handle:
-        handle.write(contents)
-        handle.flush()
-        os.fsync(handle.fileno())
-    os.replace(temp_path, path)
+    try:
+        with temp_path.open("w", encoding="utf-8") as handle:
+            handle.write(contents)
+            handle.flush()
+            os.fsync(handle.fileno())
+        replace_durable(temp_path, path)
+    finally:
+        try:
+            temp_path.unlink()
+        except FileNotFoundError:
+            pass
 
 
 def discover_originals(database_path, pb_data_dir):
@@ -245,7 +276,8 @@ def copy_originals(originals, originals_root, state, verify_all=False, dry_run=F
                     destination_checksum = sha256_file(temp_path)
                     if destination_checksum != source_checksum:
                         raise RuntimeError("copied original checksum mismatch for %s" % relative_path)
-                    os.replace(temp_path, destination)
+                    fsync_file(temp_path)
+                    replace_durable(temp_path, destination)
                 finally:
                     if temp_path.exists():
                         temp_path.unlink()

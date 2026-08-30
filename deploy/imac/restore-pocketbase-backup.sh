@@ -78,9 +78,25 @@ TARGET_PARENT="$(cd "$TARGET_PARENT" && pwd -P)"
 TARGET_ABS="$TARGET_PARENT/$TARGET_NAME"
 refuse_protected_target "$TARGET_ABS"
 
+ARCHIVE_SNAPSHOT=""
+STAGING_DIR=""
+cleanup() {
+  if [[ -n "${STAGING_DIR:-}" && -d "$STAGING_DIR" ]]; then
+    rm -rf "$STAGING_DIR"
+  fi
+  if [[ -n "${ARCHIVE_SNAPSHOT:-}" && -f "$ARCHIVE_SNAPSHOT" ]]; then
+    rm -f "$ARCHIVE_SNAPSHOT"
+  fi
+}
+trap cleanup EXIT
+
+ARCHIVE_SNAPSHOT="$(mktemp "$TARGET_PARENT/.${TARGET_NAME}.archive.XXXXXX")"
+chmod 600 "$ARCHIVE_SNAPSHOT"
+/bin/cp "$BACKUP_ABS" "$ARCHIVE_SNAPSHOT"
+
 echo "Checking backup archive paths and restore capacity..."
 if ! ARCHIVE_UNCOMPRESSED_BYTES="$(
-  /usr/bin/python3 - "$BACKUP_ABS" "$TARGET_PARENT" "$RESTORE_RESERVE_BYTES" <<'PY'
+  /usr/bin/python3 - "$ARCHIVE_SNAPSHOT" "$TARGET_PARENT" "$RESTORE_RESERVE_BYTES" <<'PY'
 import shutil
 import stat
 import sys
@@ -187,7 +203,7 @@ PY
 fi
 
 echo "Testing backup archive..."
-unzip -tq "$BACKUP_ABS" >/dev/null
+unzip -tq "$ARCHIVE_SNAPSHOT" >/dev/null
 
 while IFS= read -r archive_entry; do
   normalized_entry="${archive_entry//\\//}"
@@ -195,19 +211,12 @@ while IFS= read -r archive_entry; do
     echo "Backup contains an unsafe path: $archive_entry" >&2
     exit 1
   fi
-done < <(unzip -Z1 "$BACKUP_ABS")
+done < <(unzip -Z1 "$ARCHIVE_SNAPSHOT")
 
 echo "Archive preflight passed (${ARCHIVE_UNCOMPRESSED_BYTES} uncompressed bytes; 10 GiB reserve preserved)."
 
 STAGING_DIR="$(mktemp -d "$TARGET_PARENT/.${TARGET_NAME}.restore.XXXXXX")"
-cleanup() {
-  if [[ -n "${STAGING_DIR:-}" && -d "$STAGING_DIR" ]]; then
-    rm -rf "$STAGING_DIR"
-  fi
-}
-trap cleanup EXIT
-
-unzip -q "$BACKUP_ABS" -d "$STAGING_DIR"
+unzip -q "$ARCHIVE_SNAPSHOT" -d "$STAGING_DIR"
 
 if [[ ! -f "$STAGING_DIR/data.db" || -L "$STAGING_DIR/data.db" ]]; then
   echo "Backup does not contain data.db at the archive root." >&2
