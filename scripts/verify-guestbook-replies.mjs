@@ -5,6 +5,7 @@ const schema = JSON.parse(fs.readFileSync(new URL('../pb_schema.json', import.me
 const migrationSource = fs.readFileSync(new URL('../pb_migrations/1785942000_add_guestbook_owner_reply.js', import.meta.url), 'utf8');
 const pbSource = fs.readFileSync(new URL('../js/pb.js', import.meta.url), 'utf8');
 const siteSource = fs.readFileSync(new URL('../js/site.js', import.meta.url), 'utf8');
+const guestbookPage = fs.readFileSync(new URL('../guestbook.html', import.meta.url), 'utf8');
 const cssSource = fs.readFileSync(new URL('../css/styles.css', import.meta.url), 'utf8');
 let assertions = 0;
 
@@ -35,6 +36,11 @@ check(siteSource.includes('class="guestbook-preview-reply"'), 'home preview incl
 check(siteSource.includes('escapeHtml(ownerReply)'), 'home preview escapes owner reply content');
 check(siteSource.includes("guestbookEntries.querySelectorAll('.guestbook-reply-form')"), 'reply form submit behavior is wired');
 check(siteSource.includes("guestbookEntries.querySelectorAll('.reply-delete-btn')"), 'reply delete behavior is wired');
+check(guestbookPage.includes('<label for="message"><b>메시지</b></label>'), 'the public message textarea has a visible associated label');
+check(/id="guestbookSubmitStatus"[^>]*role="status"[^>]*aria-live="polite"/.test(guestbookPage), 'guestbook submit feedback is announced to assistive technology');
+check(siteSource.includes("if (guestbookForm.dataset.guestbookSubmitting === 'true') return;"), 'duplicate guestbook submits are ignored before asynchronous work starts');
+check(/function setGuestbookSubmitting\(isSubmitting\)[\s\S]*submitButton\.disabled = isSubmitting;[\s\S]*submitButton\.setAttribute\('aria-busy', String\(isSubmitting\)\)/.test(siteSource), 'guestbook submit exposes and disables its complete in-flight state');
+check(/setGuestbookSubmitting\(true\);[\s\S]*try \{[\s\S]*await addGuestbookEntry\(name, message\);[\s\S]*await loadGuestbook\(guestbookEntries\);[\s\S]*\} finally \{[\s\S]*setGuestbookSubmitting\(false\);/.test(siteSource), 'guestbook retry is restored only after the full submit and refresh finishes');
 check(cssSource.includes('.guestbook-owner-reply'), 'owner reply has a dedicated retro nested style');
 check(cssSource.includes('#guestbook-preview-table {\n  table-layout: fixed;'), 'home preview uses a fixed table layout for a bounded text column');
 check(cssSource.includes('.guestbook-preview-reply'), 'home preview reply has a dedicated compact style');

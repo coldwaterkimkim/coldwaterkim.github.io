@@ -2230,14 +2230,28 @@ function initGuestbookPage(scope = document) {
   if (!guestbookForm || !guestbookEntries) return;
   if (guestbookForm.dataset.guestbookReady === 'true') return;
   guestbookForm.dataset.guestbookReady = 'true';
+  const submitButton = guestbookForm.querySelector('button[type="submit"]');
+  const submitStatus = guestbookForm.querySelector('#guestbookSubmitStatus');
+
+  function setGuestbookSubmitting(isSubmitting) {
+    guestbookForm.dataset.guestbookSubmitting = String(isSubmitting);
+    guestbookForm.setAttribute('aria-busy', String(isSubmitting));
+    if (submitButton) {
+      submitButton.disabled = isSubmitting;
+      submitButton.setAttribute('aria-busy', String(isSubmitting));
+    }
+  }
+
+  function setGuestbookSubmitStatus(message = '') {
+    if (submitStatus) submitStatus.textContent = message;
+  }
 
   guestbookForm.addEventListener('submit', async (e) => {
     e.preventDefault();
+    if (guestbookForm.dataset.guestbookSubmitting === 'true') return;
 
     const nameEl = guestbookForm.querySelector('#guestName');
     const messageEl = guestbookForm.querySelector('#message');
-    const typedName = nameEl?.value.trim() || '';
-    const name = typedName || await nextGuestbookName();
     const message = messageEl?.value.trim() || '';
 
     if (!message) {
@@ -2245,16 +2259,25 @@ function initGuestbookPage(scope = document) {
       return;
     }
 
+    setGuestbookSubmitting(true);
+    setGuestbookSubmitStatus('방명록을 남기는 중...');
+
     try {
+      const typedName = nameEl?.value.trim() || '';
+      const name = typedName || await nextGuestbookName();
       await addGuestbookEntry(name, message);
       trackAnalyticsEvent('guestbook_complete', {
         pageKey: analyticsPageKey(),
         action: 'submit'
       }).catch(error => console.warn('Anonymous analytics failed:', cmsErrorMessage(error)));
       guestbookForm.reset();
-      loadGuestbook(guestbookEntries);
+      await loadGuestbook(guestbookEntries);
+      setGuestbookSubmitStatus('방명록을 남겼습니다.');
     } catch (e) {
+      setGuestbookSubmitStatus('작성에 실패했습니다. 다시 시도해주세요.');
       alert('방명록 작성 실패: ' + cmsErrorMessage(e));
+    } finally {
+      setGuestbookSubmitting(false);
     }
   });
 

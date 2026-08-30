@@ -101,10 +101,11 @@
                     </div>
 
                     <div class="action-buttons">
-                        <button type="submit" class="btn btn-primary">💾 저장</button>
-                        <button type="button" class="btn btn-success" onclick="saveAndPublish()">🚀 저장 후 발행</button>
+                        <button type="submit" class="btn btn-primary" id="saveBtn" aria-busy="false">💾 저장</button>
+                        <button type="button" class="btn btn-success" id="publishBtn" aria-busy="false"
+                            onclick="saveAndPublish()">🚀 저장 후 발행</button>
                         <button type="button" class="btn btn-danger" id="deleteBtn" style="display: none;"
-                            onclick="deleteCurrentPost()">🗑️ 삭제</button>
+                            aria-busy="false" onclick="deleteCurrentPost()">🗑️ 삭제</button>
                     </div>
                 </form>
             </div>
@@ -230,6 +231,11 @@
         let currentPage = 1;
         let editingPostId = null;
         let lastAutoTitle = '';
+        let editorActionInFlight = false;
+        const postForm = document.getElementById('postForm');
+        const saveButton = document.getElementById('saveBtn');
+        const publishButton = document.getElementById('publishBtn');
+        const deleteButton = document.getElementById('deleteBtn');
 
         // 페이지 함수들을 전역으로 노출
         window.showEditor = showEditor;
@@ -247,6 +253,32 @@
             alertEl.className = `alert alert-${type}`;
             alertEl.style.display = 'block';
             setTimeout(() => alertEl.style.display = 'none', 5000);
+        }
+
+        function setEditorActionBusy(isBusy) {
+            postForm.setAttribute('aria-busy', String(isBusy));
+            saveButton.disabled = isBusy;
+            publishButton.disabled = isBusy;
+            deleteButton.disabled = isBusy;
+            [saveButton, publishButton, deleteButton].forEach(button => {
+                button.setAttribute('aria-busy', String(isBusy));
+            });
+        }
+
+        async function runEditorAction(action) {
+            if (editorActionInFlight) return null;
+            editorActionInFlight = true;
+            setEditorActionBusy(true);
+
+            try {
+                return await action();
+            } catch (error) {
+                showAlert('처리 실패: ' + cmsErrorMessage(error), 'error');
+                return null;
+            } finally {
+                editorActionInFlight = false;
+                setEditorActionBusy(false);
+            }
         }
 
         function setEditorImageStatus(message = '', type = 'info') {
@@ -455,47 +487,55 @@
         }
 
         // 글 삭제 확인
-        async function confirmDelete(id) {
-            if (!confirm('정말 이 하루 기록을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.')) return;
+        async function confirmDelete(id, { reloadList = true } = {}) {
+            if (!confirm('정말 이 하루 기록을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.')) return false;
 
             try {
                 await deleteDailyEntry(id);
                 showAlert('하루 기록이 삭제되었습니다.', 'success');
-                loadPosts(currentPage);
+                if (reloadList) await loadPosts(currentPage);
+                return true;
             } catch (e) {
                 showAlert('삭제 실패: ' + cmsErrorMessage(e), 'error');
+                return false;
             }
         }
 
         // 현재 글 삭제
         async function deleteCurrentPost() {
             if (!editingPostId) return;
-            await confirmDelete(editingPostId);
-            showList();
+            return runEditorAction(async () => {
+                const deleted = await confirmDelete(editingPostId, { reloadList: false });
+                if (deleted) showList();
+                return deleted;
+            });
         }
 
         // 폼 제출 (저장)
-        document.getElementById('postForm').addEventListener('submit', async (e) => {
+        postForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            await savePost();
+            await runEditorAction(() => savePost());
         });
 
         // 저장 후 발행
         async function saveAndPublish() {
-            const saved = await savePost({ statusOverride: 'published' });
-            if (!saved) return;
+            return runEditorAction(async () => {
+                const saved = await savePost({ statusOverride: 'published' });
+                if (!saved) return null;
 
-            const cleanup = await finalizePublishedEditorMedia({
-                collectionName: 'daily_entries',
-                recordId: saved.id,
-                content: markdownEditor.root.innerHTML,
-                pendingMediaIds: pendingMediaTracker.values()
+                const cleanup = await finalizePublishedEditorMedia({
+                    collectionName: 'daily_entries',
+                    recordId: saved.id,
+                    content: markdownEditor.root.innerHTML,
+                    pendingMediaIds: pendingMediaTracker.values()
+                });
+                pendingMediaTracker.reset(cleanup.remaining);
+                if (cleanup.failures.length || cleanup.metadataError) {
+                    console.warn('Published daily media cleanup needs retry', cleanup);
+                }
+                navigateToPublishedEntry('daily', saved);
+                return saved;
             });
-            pendingMediaTracker.reset(cleanup.remaining);
-            if (cleanup.failures.length || cleanup.metadataError) {
-                console.warn('Published daily media cleanup needs retry', cleanup);
-            }
-            navigateToPublishedEntry('daily', saved);
         }
 
         // 글 저장
@@ -505,9 +545,7 @@
             const status = statusOverride ?? document.getElementById('status').value;
             const dayKey = normalizeDailyDayKey(document.getElementById('published_at').value || new Date());
             const currentSlug = document.getElementById('slug').value.trim();
-            const slug = id
-                ? (currentSlug || dailySlugFromDayKey(dayKey))
-                : newDailyEntrySlug(dayKey);
+            const slug = currentSlug || (id ? dailySlugFromDayKey(dayKey) : newDailyEntrySlug(dayKey));
             const content = markdownEditor.root.innerHTML;
 
             document.getElementById('slug').value = slug;
