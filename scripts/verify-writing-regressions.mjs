@@ -552,11 +552,18 @@ function assertEditorMutationSafety(source, label) {
   assert.match(source, /let editorActionInFlight = false;/, `${label} editor mutations must share one in-flight gate`);
   assert.match(source, /if \(editorActionInFlight\) return null;/, `${label} editor mutations must ignore duplicate in-flight actions`);
   assert.match(source, /async function runEditorAction\(action\) \{[\s\S]*try \{[\s\S]*return await action\(\);[\s\S]*\} finally \{[\s\S]*setEditorActionBusy\(false\);[\s\S]*\}/, `${label} editor mutations must always reopen retry after success or failure`);
+  assert.match(source, /id="backToListBtn"[^>]*aria-busy="false"/, `${label} editor must expose a controllable back-to-list button`);
   assert.match(source, /saveButton\.disabled = isBusy;[\s\S]*publishButton\.disabled = isBusy;/, `${label} save and publish buttons must be disabled together while a mutation is running`);
+  assert.match(source, /backToListButton\.disabled = isBusy;/, `${label} back-to-list must be disabled while a mutation is running`);
+  assert.match(source, /\[backToListButton, saveButton, publishButton, deleteButton\][\s\S]*button\.setAttribute\('aria-busy', String\(isBusy\)\)/, `${label} every editor navigation and mutation button must expose the shared busy state`);
   assert.match(source, /button\.setAttribute\('aria-busy', String\(isBusy\)\)/, `${label} mutation buttons must expose their busy state`);
+  assert.match(source, /function showList\(\) \{\s*if \(editorActionInFlight\) return false;/, `${label} list navigation must reject an in-flight editor mutation`);
+  assert.match(source, /function showEditor\(post = null\) \{\s*if \(editorActionInFlight\) return false;/, `${label} editor replacement must reject an in-flight editor mutation`);
+  assert.match(source, /async function editPost\(id\) \{\s*if \(editorActionInFlight\) return false;/, `${label} record loading must reject an in-flight editor mutation`);
   assert.match(source, /await runEditorAction\(\(\) => savePost\(\)\);/, `${label} ordinary save must use the shared mutation gate`);
   assert.match(source, /async function saveAndPublish\(\) \{\s*return runEditorAction\(async \(\) => \{/, `${label} publishing and its cleanup must stay inside the shared mutation gate`);
-  assert.match(source, /const deleted = await confirmDelete\(editingPostId, \{ reloadList: false \}\);\s*if \(deleted\) showList\(\);/, `${label} editor deletion must leave the editor only after confirmed successful deletion`);
+  assert.match(source, /const deleted = await runEditorAction\(\(\) =>\s*confirmDelete\(editingPostId, \{ reloadList: false \}\)\s*\);\s*if \(deleted\) showList\(\);/, `${label} successful deletion must navigate only after the mutation gate has reopened`);
+  assert.doesNotMatch(source, /runEditorAction\(async \(\) => \{\s*const deleted[\s\S]*?if \(deleted\) showList\(\);/, `${label} deletion must not attempt an internally blocked view transition`);
   assert.match(source, /if \(!confirm\([\s\S]*?\)\) return false;/, `${label} cancelled deletion must explicitly report failure to delete`);
   assert.match(source, /showAlert\('삭제 실패:[\s\S]*?return false;/, `${label} failed deletion must explicitly keep the editor open`);
 }

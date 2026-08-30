@@ -67,7 +67,8 @@
             <div id="editorView" style="display: none;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                     <h2 style="margin: 0;" id="editorTitle">✍️ 새 글 쓰기</h2>
-                    <button class="btn" onclick="showList()">← 목록으로</button>
+                    <button type="button" class="btn" id="backToListBtn" aria-busy="false"
+                        onclick="showList()">← 목록으로</button>
                 </div>
 
                 <form id="postForm">
@@ -233,6 +234,7 @@
         let lastAutoTitle = '';
         let editorActionInFlight = false;
         const postForm = document.getElementById('postForm');
+        const backToListButton = document.getElementById('backToListBtn');
         const saveButton = document.getElementById('saveBtn');
         const publishButton = document.getElementById('publishBtn');
         const deleteButton = document.getElementById('deleteBtn');
@@ -257,10 +259,11 @@
 
         function setEditorActionBusy(isBusy) {
             postForm.setAttribute('aria-busy', String(isBusy));
+            backToListButton.disabled = isBusy;
             saveButton.disabled = isBusy;
             publishButton.disabled = isBusy;
             deleteButton.disabled = isBusy;
-            [saveButton, publishButton, deleteButton].forEach(button => {
+            [backToListButton, saveButton, publishButton, deleteButton].forEach(button => {
                 button.setAttribute('aria-busy', String(isBusy));
             });
         }
@@ -363,14 +366,17 @@
 
         // 목록 뷰
         function showList() {
+            if (editorActionInFlight) return false;
             document.getElementById('listView').style.display = 'block';
             document.getElementById('editorView').style.display = 'none';
             editingPostId = null;
             loadPosts();
+            return true;
         }
 
         // 에디터 뷰
         function showEditor(post = null) {
+            if (editorActionInFlight) return false;
             document.getElementById('listView').style.display = 'none';
             document.getElementById('editorView').style.display = 'block';
 
@@ -401,6 +407,7 @@
                 // 오늘 날짜 기본값
                 setNewDailyDefaults(normalizeDailyDayKey(new Date()));
             }
+            return true;
         }
 
         function setNewDailyDefaults(dayKey) {
@@ -478,11 +485,13 @@
 
         // 글 수정 (ID로 불러오기)
         async function editPost(id) {
+            if (editorActionInFlight) return false;
             try {
                 const post = await pb.collection(DAILY_COLLECTION).getOne(id);
-                showEditor(post);
+                return showEditor(post);
             } catch (e) {
                 showAlert('글을 불러올 수 없습니다: ' + cmsErrorMessage(e), 'error');
+                return false;
             }
         }
 
@@ -504,11 +513,11 @@
         // 현재 글 삭제
         async function deleteCurrentPost() {
             if (!editingPostId) return;
-            return runEditorAction(async () => {
-                const deleted = await confirmDelete(editingPostId, { reloadList: false });
-                if (deleted) showList();
-                return deleted;
-            });
+            const deleted = await runEditorAction(() =>
+                confirmDelete(editingPostId, { reloadList: false })
+            );
+            if (deleted) showList();
+            return deleted;
         }
 
         // 폼 제출 (저장)
