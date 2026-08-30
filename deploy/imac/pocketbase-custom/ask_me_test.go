@@ -77,6 +77,123 @@ func TestAskQuestionReadLimiter(t *testing.T) {
 	}
 }
 
+func TestAskQuestionReadReservationsAreAtomic(t *testing.T) {
+	limiter := newAskQuestionLimiter(askQuestionReadMaxFailures, time.Minute, askQuestionLimiterMaxClients)
+	now := time.Date(2026, time.August, 20, 12, 0, 0, 0, time.UTC)
+	const requestCount = 200
+
+	start := make(chan struct{})
+	release := make(chan struct{})
+	var admitted atomic.Int64
+	var decisions sync.WaitGroup
+	var workers sync.WaitGroup
+	decisions.Add(requestCount)
+	workers.Add(requestCount)
+	for index := 0; index < requestCount; index++ {
+		go func() {
+			defer workers.Done()
+			<-start
+			reserved := limiter.reserve("same-client", now)
+			if reserved {
+				admitted.Add(1)
+			}
+			decisions.Done()
+			if !reserved {
+				return
+			}
+			<-release
+			limiter.complete("same-client", now, false)
+		}()
+	}
+
+	close(start)
+	decisions.Wait()
+	if got := admitted.Load(); got != askQuestionReadMaxFailures {
+		t.Fatalf("concurrent read reservations admitted=%d want=%d", got, askQuestionReadMaxFailures)
+	}
+	close(release)
+	workers.Wait()
+
+	if limiter.blocked("same-client", now) {
+		t.Fatal("successful reads consumed the failure budget")
+	}
+	if !limiter.reserve("same-client", now) {
+		t.Fatal("successful reads did not release their reservation")
+	}
+	limiter.complete("same-client", now, true)
+	if limiter.blocked("same-client", now) {
+		t.Fatal("a single failed read exhausted the failure budget")
+	}
+}
+
+func TestAskQuestionReadBurstStopsBeforeAuthentication(t *testing.T) {
+	app, err := tests.NewTestApp()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Cleanup()
+	setupAskQuestionTestCollections(t, app)
+
+	router, err := apis.NewRouter(app)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := newAskQuestionService(app)
+	service.registerRoutes(&core.ServeEvent{App: app, Router: router})
+	mux, err := router.BuildMux()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	const requestCount = 100
+	start := make(chan struct{})
+	statuses := make(chan int, requestCount)
+	var workers sync.WaitGroup
+	workers.Add(requestCount)
+	for index := 0; index < requestCount; index++ {
+		go func() {
+			defer workers.Done()
+			<-start
+			request := httptest.NewRequest(
+				http.MethodPost,
+				askQuestionReadPath,
+				strings.NewReader(`{"sequence":1,"password":"wrong"}`),
+			)
+			request.RemoteAddr = "198.51.100.50:5000"
+			request.Header.Set("Content-Type", "application/json")
+			response := httptest.NewRecorder()
+			mux.ServeHTTP(response, request)
+			statuses <- response.Code
+		}()
+	}
+
+	close(start)
+	workers.Wait()
+	close(statuses)
+
+	notFound := 0
+	tooManyRequests := 0
+	for status := range statuses {
+		switch status {
+		case http.StatusNotFound:
+			notFound++
+		case http.StatusTooManyRequests:
+			tooManyRequests++
+		default:
+			t.Fatalf("unexpected burst response status=%d", status)
+		}
+	}
+	if notFound != askQuestionReadMaxFailures || tooManyRequests != requestCount-askQuestionReadMaxFailures {
+		t.Fatalf(
+			"burst reached authentication=%d rejected-before-auth=%d want=%d/%d",
+			notFound,
+			tooManyRequests,
+			askQuestionReadMaxFailures,
+			requestCount-askQuestionReadMaxFailures,
+		)
+	}
+}
+
 func TestAskQuestionLimiterBoundsAndExpiryRecovery(t *testing.T) {
 	limiter := newAskQuestionLimiter(2, time.Minute, 2)
 	now := time.Date(2026, time.August, 20, 12, 0, 0, 0, time.UTC)

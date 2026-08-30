@@ -62,8 +62,9 @@ type askQuestionReadRequest struct {
 }
 
 type askQuestionLimitEntry struct {
-	count   int
-	resetAt time.Time
+	count    int
+	inFlight int
+	resetAt  time.Time
 }
 
 type askQuestionLimiter struct {
@@ -217,19 +218,27 @@ func (service *askQuestionService) createQuestion(e *core.RequestEvent) error {
 func (service *askQuestionService) readQuestion(e *core.RequestEvent) error {
 	now := time.Now()
 	clientKey := askQuestionClientIP(e.Request)
-	if service.readFailures.blocked(clientKey, now) {
+	// Reserve a failure-budget slot before parsing, querying, or running bcrypt.
+	// Without this atomic reservation, a same-IP burst can pass the separate
+	// blocked check before any request has recorded its failure.
+	if !service.readFailures.reserve(clientKey, now) {
 		return e.TooManyRequestsError("잠시 후 다시 시도해주세요.", nil)
 	}
+	failed := true
+	defer func() {
+		service.readFailures.complete(clientKey, time.Now(), failed)
+	}()
 
 	request := askQuestionReadRequest{}
 	if err := e.BindBody(&request); err != nil {
-		return service.failedQuestionRead(e, clientKey, now)
+		return e.NotFoundError("질문을 확인할 수 없습니다.", nil)
 	}
 
 	record, authenticated := service.authenticateQuestionRead(request)
 	if !authenticated {
-		return service.failedQuestionRead(e, clientKey, now)
+		return e.NotFoundError("질문을 확인할 수 없습니다.", nil)
 	}
+	failed = false
 
 	deleted := record.GetBool("deleted")
 	question := record.GetString("question")
@@ -331,11 +340,6 @@ func (service *askQuestionService) authenticateQuestionRead(request askQuestionR
 	}
 
 	return record, true
-}
-
-func (service *askQuestionService) failedQuestionRead(e *core.RequestEvent, clientKey string, now time.Time) error {
-	service.readFailures.fail(clientKey, now)
-	return e.NotFoundError("질문을 확인할 수 없습니다.", nil)
 }
 
 func (service *askQuestionService) softDeleteQuestion(e *core.RequestEvent) error {
@@ -466,11 +470,60 @@ func (limiter *askQuestionLimiter) blocked(key string, now time.Time) bool {
 		}
 		return false
 	}
-	if !now.Before(entry.resetAt) {
-		delete(limiter.entries, key)
+	entry, ok = limiter.refreshEntryLocked(key, entry, now)
+	return ok && entry.count+entry.inFlight >= limiter.max
+}
+
+// reserve atomically admits at most max concurrent/failed attempts for a key.
+// A successful completion releases its slot; a failed completion converts the
+// slot into a failure that remains until the window expires.
+func (limiter *askQuestionLimiter) reserve(key string, now time.Time) bool {
+	limiter.mu.Lock()
+	defer limiter.mu.Unlock()
+
+	limiter.sweepExpiredLocked(now, false)
+	entry, ok := limiter.entries[key]
+	if ok {
+		entry, ok = limiter.refreshEntryLocked(key, entry, now)
+	}
+	if !ok {
+		if len(limiter.entries) >= limiter.maxEntries {
+			limiter.sweepExpiredLocked(now, true)
+			if len(limiter.entries) >= limiter.maxEntries {
+				return false
+			}
+		}
+		entry = askQuestionLimitEntry{resetAt: now.Add(limiter.window)}
+	}
+	if entry.count+entry.inFlight >= limiter.max {
 		return false
 	}
-	return entry.count >= limiter.max
+	entry.inFlight++
+	limiter.entries[key] = entry
+	return true
+}
+
+func (limiter *askQuestionLimiter) complete(key string, now time.Time, failed bool) {
+	limiter.mu.Lock()
+	defer limiter.mu.Unlock()
+
+	entry, ok := limiter.entries[key]
+	if !ok || entry.inFlight < 1 {
+		return
+	}
+	if !now.Before(entry.resetAt) {
+		entry.count = 0
+		entry.resetAt = now.Add(limiter.window)
+	}
+	entry.inFlight--
+	if failed {
+		entry.count++
+	}
+	if entry.count == 0 && entry.inFlight == 0 {
+		delete(limiter.entries, key)
+		return
+	}
+	limiter.entries[key] = entry
 }
 
 func (limiter *askQuestionLimiter) fail(key string, now time.Time) bool {
@@ -479,9 +532,8 @@ func (limiter *askQuestionLimiter) fail(key string, now time.Time) bool {
 
 	limiter.sweepExpiredLocked(now, false)
 	entry, ok := limiter.entries[key]
-	if ok && !now.Before(entry.resetAt) {
-		delete(limiter.entries, key)
-		ok = false
+	if ok {
+		entry, ok = limiter.refreshEntryLocked(key, entry, now)
 	}
 	if !ok {
 		if len(limiter.entries) >= limiter.maxEntries {
@@ -494,7 +546,7 @@ func (limiter *askQuestionLimiter) fail(key string, now time.Time) bool {
 	}
 	entry.count++
 	limiter.entries[key] = entry
-	return entry.count >= limiter.max
+	return entry.count+entry.inFlight >= limiter.max
 }
 
 func (limiter *askQuestionLimiter) allow(key string, now time.Time) bool {
@@ -503,9 +555,8 @@ func (limiter *askQuestionLimiter) allow(key string, now time.Time) bool {
 
 	limiter.sweepExpiredLocked(now, false)
 	entry, ok := limiter.entries[key]
-	if ok && !now.Before(entry.resetAt) {
-		delete(limiter.entries, key)
-		ok = false
+	if ok {
+		entry, ok = limiter.refreshEntryLocked(key, entry, now)
 	}
 	if !ok {
 		if len(limiter.entries) >= limiter.maxEntries {
@@ -516,12 +567,26 @@ func (limiter *askQuestionLimiter) allow(key string, now time.Time) bool {
 		}
 		entry = askQuestionLimitEntry{resetAt: now.Add(limiter.window)}
 	}
-	if entry.count >= limiter.max {
+	if entry.count+entry.inFlight >= limiter.max {
 		return false
 	}
 	entry.count++
 	limiter.entries[key] = entry
 	return true
+}
+
+func (limiter *askQuestionLimiter) refreshEntryLocked(key string, entry askQuestionLimitEntry, now time.Time) (askQuestionLimitEntry, bool) {
+	if now.Before(entry.resetAt) {
+		return entry, true
+	}
+	if entry.inFlight == 0 {
+		delete(limiter.entries, key)
+		return askQuestionLimitEntry{}, false
+	}
+	entry.count = 0
+	entry.resetAt = now.Add(limiter.window)
+	limiter.entries[key] = entry
+	return entry, true
 }
 
 func (limiter *askQuestionLimiter) sweepExpiredLocked(now time.Time, force bool) {
@@ -531,7 +596,13 @@ func (limiter *askQuestionLimiter) sweepExpiredLocked(now time.Time, force bool)
 	}
 	for key, entry := range limiter.entries {
 		if !now.Before(entry.resetAt) {
-			delete(limiter.entries, key)
+			if entry.inFlight == 0 {
+				delete(limiter.entries, key)
+				continue
+			}
+			entry.count = 0
+			entry.resetAt = now.Add(limiter.window)
+			limiter.entries[key] = entry
 		}
 	}
 }
