@@ -39,7 +39,7 @@ check(siteSource.includes("guestbookEntries.querySelectorAll('.reply-delete-btn'
 check(guestbookPage.includes('<label for="message"><b>메시지</b></label>'), 'the public message textarea has a visible associated label');
 check(/id="guestbookSubmitStatus"[^>]*role="status"[^>]*aria-live="polite"/.test(guestbookPage), 'guestbook submit feedback is announced to assistive technology');
 check(siteSource.includes("if (guestbookForm.dataset.guestbookSubmitting === 'true') return;"), 'duplicate guestbook submits are ignored before asynchronous work starts');
-check(/function setGuestbookSubmitting\(isSubmitting\)[\s\S]*submitButton\.disabled = isSubmitting;[\s\S]*submitButton\.setAttribute\('aria-busy', String\(isSubmitting\)\)/.test(siteSource), 'guestbook submit exposes and disables its complete in-flight state');
+check(/function setGuestbookSubmitting\(isSubmitting\)[\s\S]*guestbookForm\.querySelectorAll\('button, input, select, textarea'\)[\s\S]*control\.disabled = isSubmitting;[\s\S]*submitButton\.setAttribute\('aria-busy', String\(isSubmitting\)\)/.test(siteSource), 'guestbook submit freezes every mutable field and exposes its complete in-flight state');
 check(/setGuestbookSubmitting\(true\);[\s\S]*try \{[\s\S]*await addGuestbookEntry\(name, message\);[\s\S]*await loadGuestbook\(guestbookEntries\);[\s\S]*\} finally \{[\s\S]*setGuestbookSubmitting\(false\);/.test(siteSource), 'guestbook retry is restored only after the full submit and refresh finishes');
 check(cssSource.includes('.guestbook-owner-reply'), 'owner reply has a dedicated retro nested style');
 check(cssSource.includes('#guestbook-preview-table {\n  table-layout: fixed;'), 'home preview uses a fixed table layout for a bounded text column');

@@ -2236,8 +2236,10 @@ function initGuestbookPage(scope = document) {
   function setGuestbookSubmitting(isSubmitting) {
     guestbookForm.dataset.guestbookSubmitting = String(isSubmitting);
     guestbookForm.setAttribute('aria-busy', String(isSubmitting));
+    guestbookForm.querySelectorAll('button, input, select, textarea').forEach(control => {
+      control.disabled = isSubmitting;
+    });
     if (submitButton) {
-      submitButton.disabled = isSubmitting;
       submitButton.setAttribute('aria-busy', String(isSubmitting));
     }
   }
