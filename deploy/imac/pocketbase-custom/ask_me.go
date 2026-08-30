@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -20,19 +21,29 @@ import (
 )
 
 const (
-	askQuestionPath              = "/api/cwk/ask/questions"
-	askQuestionReadPath          = "/api/cwk/ask/questions/read"
-	askQuestionDeletePath        = "/api/cwk/ask/questions/{id}"
-	askQuestionBodyMaxBytes      = int64(64 * 1024)
-	askQuestionMaxRunes          = 1000
-	askQuestionReceiptBytes      = 32
-	askQuestionReadMaxFailures   = 5
-	askQuestionReadFailureWindow = 10 * time.Minute
+	askQuestionPath               = "/api/cwk/ask/questions"
+	askQuestionReadPath           = "/api/cwk/ask/questions/read"
+	askQuestionDeletePath         = "/api/cwk/ask/questions/{id}"
+	askQuestionBodyMaxBytes       = int64(64 * 1024)
+	askQuestionMaxRunes           = 1000
+	askQuestionReceiptBytes       = 32
+	askQuestionReadMaxFailures    = 5
+	askQuestionReadFailureWindow  = 10 * time.Minute
+	askQuestionCreateMaxPerClient = 5
+	askQuestionCreateMaxGlobal    = 60
+	askQuestionCreateWindow       = 10 * time.Minute
+	askQuestionLimiterMaxClients  = 4096
+	askQuestionLimiterSweepEvery  = 64
+	askQuestionClientIPHeader     = "X-CWK-Client-IP"
+	askQuestionGlobalLimitKey     = "global"
 )
 
 type askQuestionService struct {
 	app               core.App
-	readFailures      *askQuestionReadLimiter
+	readFailures      *askQuestionLimiter
+	createByClient    *askQuestionLimiter
+	createGlobal      *askQuestionLimiter
+	createQuotaMu     sync.Mutex
 	dummyPasswordHash string
 }
 
@@ -50,32 +61,46 @@ type askQuestionReadRequest struct {
 	Password     string `json:"password" form:"password"`
 }
 
-type askQuestionReadFailure struct {
+type askQuestionLimitEntry struct {
 	count   int
 	resetAt time.Time
 }
 
-type askQuestionReadLimiter struct {
-	mu       sync.Mutex
-	failures map[string]askQuestionReadFailure
-	max      int
-	window   time.Duration
+type askQuestionLimiter struct {
+	mu             sync.Mutex
+	entries        map[string]askQuestionLimitEntry
+	max            int
+	window         time.Duration
+	maxEntries     int
+	operationCount uint64
 }
 
 func newAskQuestionService(app core.App) *askQuestionService {
 	dummyHash, _ := hashAskQuestionPassword("unavailable")
 	return &askQuestionService{
 		app:               app,
-		readFailures:      newAskQuestionReadLimiter(askQuestionReadMaxFailures, askQuestionReadFailureWindow),
+		readFailures:      newAskQuestionLimiter(askQuestionReadMaxFailures, askQuestionReadFailureWindow, askQuestionLimiterMaxClients),
+		createByClient:    newAskQuestionLimiter(askQuestionCreateMaxPerClient, askQuestionCreateWindow, askQuestionLimiterMaxClients),
+		createGlobal:      newAskQuestionLimiter(askQuestionCreateMaxGlobal, askQuestionCreateWindow, 1),
 		dummyPasswordHash: dummyHash,
 	}
 }
 
-func newAskQuestionReadLimiter(maxFailures int, window time.Duration) *askQuestionReadLimiter {
-	return &askQuestionReadLimiter{
-		failures: make(map[string]askQuestionReadFailure),
-		max:      maxFailures,
-		window:   window,
+func newAskQuestionLimiter(max int, window time.Duration, maxEntries int) *askQuestionLimiter {
+	if max < 1 {
+		max = 1
+	}
+	if window <= 0 {
+		window = time.Minute
+	}
+	if maxEntries < 1 {
+		maxEntries = 1
+	}
+	return &askQuestionLimiter{
+		entries:    make(map[string]askQuestionLimitEntry),
+		max:        max,
+		window:     window,
+		maxEntries: maxEntries,
 	}
 }
 
@@ -110,6 +135,9 @@ func (service *askQuestionService) createQuestion(e *core.RequestEvent) error {
 	}
 	if request.IsPrivate && strings.TrimSpace(request.Password) == "" {
 		return e.BadRequestError("비공개 질문에는 비밀번호가 필요합니다.", nil)
+	}
+	if !service.allowQuestionCreate(askQuestionClientIP(e.Request), time.Now()) {
+		return e.TooManyRequestsError("잠시 후 다시 시도해주세요.", nil)
 	}
 
 	receiptToken, err := newAskQuestionReceiptToken()
@@ -188,20 +216,20 @@ func (service *askQuestionService) createQuestion(e *core.RequestEvent) error {
 
 func (service *askQuestionService) readQuestion(e *core.RequestEvent) error {
 	now := time.Now()
+	clientKey := askQuestionClientIP(e.Request)
+	if service.readFailures.blocked(clientKey, now) {
+		return e.TooManyRequestsError("잠시 후 다시 시도해주세요.", nil)
+	}
+
 	request := askQuestionReadRequest{}
 	if err := e.BindBody(&request); err != nil {
-		return service.failedQuestionRead(e, e.RealIP()+"|invalid", now)
-	}
-	limitKey := askQuestionReadLimitKey(e.RealIP(), request)
-	if service.readFailures.blocked(limitKey, now) {
-		return e.TooManyRequestsError("잠시 후 다시 시도해주세요.", nil)
+		return service.failedQuestionRead(e, clientKey, now)
 	}
 
 	record, authenticated := service.authenticateQuestionRead(request)
 	if !authenticated {
-		return service.failedQuestionRead(e, limitKey, now)
+		return service.failedQuestionRead(e, clientKey, now)
 	}
-	service.readFailures.success(limitKey)
 
 	deleted := record.GetBool("deleted")
 	question := record.GetString("question")
@@ -226,15 +254,46 @@ func (service *askQuestionService) readQuestion(e *core.RequestEvent) error {
 	})
 }
 
-func askQuestionReadLimitKey(clientIP string, request askQuestionReadRequest) string {
-	id := strings.TrimSpace(request.ID)
-	if isPocketBaseRecordID(id) {
-		return clientIP + "|id:" + id
+func (service *askQuestionService) allowQuestionCreate(clientKey string, now time.Time) bool {
+	service.createQuotaMu.Lock()
+	defer service.createQuotaMu.Unlock()
+
+	if service.createByClient.blocked(clientKey, now) || service.createGlobal.blocked(askQuestionGlobalLimitKey, now) {
+		return false
 	}
-	if request.Sequence > 0 {
-		return fmt.Sprintf("%s|sequence:%d", clientIP, request.Sequence)
+	return service.createByClient.allow(clientKey, now) && service.createGlobal.allow(askQuestionGlobalLimitKey, now)
+}
+
+// askQuestionClientIP only trusts the dedicated upstream header when the direct
+// peer is loopback. The production PocketBase service binds to 127.0.0.1 and
+// Caddy overwrites this header before proxying, so public clients cannot supply it.
+func askQuestionClientIP(request *http.Request) string {
+	remoteIP := askQuestionRemoteIP(request.RemoteAddr)
+	if remoteIP == nil {
+		return "unknown"
 	}
-	return clientIP + "|invalid"
+	if !remoteIP.IsLoopback() {
+		return remoteIP.String()
+	}
+
+	values := request.Header.Values(askQuestionClientIPHeader)
+	if len(values) != 1 {
+		return remoteIP.String()
+	}
+	upstreamIP := net.ParseIP(strings.TrimSpace(values[0]))
+	if upstreamIP == nil {
+		return remoteIP.String()
+	}
+	return upstreamIP.String()
+}
+
+func askQuestionRemoteIP(remoteAddr string) net.IP {
+	remoteAddr = strings.TrimSpace(remoteAddr)
+	host, _, err := net.SplitHostPort(remoteAddr)
+	if err == nil {
+		return net.ParseIP(host)
+	}
+	return net.ParseIP(remoteAddr)
 }
 
 func (service *askQuestionService) authenticateQuestionRead(request askQuestionReadRequest) (*core.Record, bool) {
@@ -275,9 +334,7 @@ func (service *askQuestionService) authenticateQuestionRead(request askQuestionR
 }
 
 func (service *askQuestionService) failedQuestionRead(e *core.RequestEvent, clientKey string, now time.Time) error {
-	if service.readFailures.fail(clientKey, now) {
-		return e.TooManyRequestsError("잠시 후 다시 시도해주세요.", nil)
-	}
+	service.readFailures.fail(clientKey, now)
 	return e.NotFoundError("질문을 확인할 수 없습니다.", nil)
 }
 
@@ -396,36 +453,91 @@ func askQuestionPasswordDigest(password string) []byte {
 	return hash.Sum(nil)
 }
 
-func (limiter *askQuestionReadLimiter) blocked(key string, now time.Time) bool {
+func (limiter *askQuestionLimiter) blocked(key string, now time.Time) bool {
 	limiter.mu.Lock()
 	defer limiter.mu.Unlock()
 
-	failure, ok := limiter.failures[key]
+	limiter.sweepExpiredLocked(now, false)
+	entry, ok := limiter.entries[key]
 	if !ok {
+		if len(limiter.entries) >= limiter.maxEntries {
+			limiter.sweepExpiredLocked(now, true)
+			return len(limiter.entries) >= limiter.maxEntries
+		}
 		return false
 	}
-	if !now.Before(failure.resetAt) {
-		delete(limiter.failures, key)
+	if !now.Before(entry.resetAt) {
+		delete(limiter.entries, key)
 		return false
 	}
-	return failure.count >= limiter.max
+	return entry.count >= limiter.max
 }
 
-func (limiter *askQuestionReadLimiter) fail(key string, now time.Time) bool {
+func (limiter *askQuestionLimiter) fail(key string, now time.Time) bool {
 	limiter.mu.Lock()
 	defer limiter.mu.Unlock()
 
-	failure, ok := limiter.failures[key]
-	if !ok || !now.Before(failure.resetAt) {
-		failure = askQuestionReadFailure{resetAt: now.Add(limiter.window)}
+	limiter.sweepExpiredLocked(now, false)
+	entry, ok := limiter.entries[key]
+	if ok && !now.Before(entry.resetAt) {
+		delete(limiter.entries, key)
+		ok = false
 	}
-	failure.count++
-	limiter.failures[key] = failure
-	return failure.count >= limiter.max
+	if !ok {
+		if len(limiter.entries) >= limiter.maxEntries {
+			limiter.sweepExpiredLocked(now, true)
+			if len(limiter.entries) >= limiter.maxEntries {
+				return true
+			}
+		}
+		entry = askQuestionLimitEntry{resetAt: now.Add(limiter.window)}
+	}
+	entry.count++
+	limiter.entries[key] = entry
+	return entry.count >= limiter.max
 }
 
-func (limiter *askQuestionReadLimiter) success(key string) {
+func (limiter *askQuestionLimiter) allow(key string, now time.Time) bool {
 	limiter.mu.Lock()
 	defer limiter.mu.Unlock()
-	delete(limiter.failures, key)
+
+	limiter.sweepExpiredLocked(now, false)
+	entry, ok := limiter.entries[key]
+	if ok && !now.Before(entry.resetAt) {
+		delete(limiter.entries, key)
+		ok = false
+	}
+	if !ok {
+		if len(limiter.entries) >= limiter.maxEntries {
+			limiter.sweepExpiredLocked(now, true)
+			if len(limiter.entries) >= limiter.maxEntries {
+				return false
+			}
+		}
+		entry = askQuestionLimitEntry{resetAt: now.Add(limiter.window)}
+	}
+	if entry.count >= limiter.max {
+		return false
+	}
+	entry.count++
+	limiter.entries[key] = entry
+	return true
+}
+
+func (limiter *askQuestionLimiter) sweepExpiredLocked(now time.Time, force bool) {
+	limiter.operationCount++
+	if !force && limiter.operationCount%askQuestionLimiterSweepEvery != 0 {
+		return
+	}
+	for key, entry := range limiter.entries {
+		if !now.Before(entry.resetAt) {
+			delete(limiter.entries, key)
+		}
+	}
+}
+
+func (limiter *askQuestionLimiter) size() int {
+	limiter.mu.Lock()
+	defer limiter.mu.Unlock()
+	return len(limiter.entries)
 }

@@ -1,6 +1,8 @@
 http://127.0.0.1:18081 {
 	encode zstd gzip
 
+	# Match production's loopback-only PocketBase client IP trust boundary.
+	# Every upstream block below overwrites any caller-supplied header value.
 	request_body {
 		max_size 20GiB
 	}
@@ -9,27 +11,39 @@ http://127.0.0.1:18081 {
 		request_body {
 			max_size 202MiB
 		}
-		reverse_proxy 127.0.0.1:8090
+		reverse_proxy 127.0.0.1:8090 {
+			header_up X-CWK-Client-IP {http.request.remote.host}
+		}
 	}
 
 	handle /api/* {
-		reverse_proxy 127.0.0.1:8090
+		reverse_proxy 127.0.0.1:8090 {
+			header_up X-CWK-Client-IP {http.request.remote.host}
+		}
 	}
 
 	handle /_/* {
-		reverse_proxy 127.0.0.1:8090
+		reverse_proxy 127.0.0.1:8090 {
+			header_up X-CWK-Client-IP {http.request.remote.host}
+		}
 	}
 
 	handle /sitemap.xml {
-		reverse_proxy 127.0.0.1:8090
+		reverse_proxy 127.0.0.1:8090 {
+			header_up X-CWK-Client-IP {http.request.remote.host}
+		}
 	}
 
 	handle /posts/*/ {
-		reverse_proxy 127.0.0.1:8090
+		reverse_proxy 127.0.0.1:8090 {
+			header_up X-CWK-Client-IP {http.request.remote.host}
+		}
 	}
 
 	handle /daily/*/ {
-		reverse_proxy 127.0.0.1:8090
+		reverse_proxy 127.0.0.1:8090 {
+			header_up X-CWK-Client-IP {http.request.remote.host}
+		}
 	}
 
 	handle {

@@ -3,10 +3,13 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -52,7 +55,7 @@ func TestAskQuestionReceiptAndPasswordHashing(t *testing.T) {
 }
 
 func TestAskQuestionReadLimiter(t *testing.T) {
-	limiter := newAskQuestionReadLimiter(3, time.Minute)
+	limiter := newAskQuestionLimiter(3, time.Minute, 2)
 	now := time.Date(2026, time.August, 20, 12, 0, 0, 0, time.UTC)
 	if limiter.fail("client", now) || limiter.fail("client", now) {
 		t.Fatal("client blocked before reaching failure limit")
@@ -63,17 +66,210 @@ func TestAskQuestionReadLimiter(t *testing.T) {
 	if limiter.blocked("client", now.Add(time.Minute)) {
 		t.Fatal("expired failure window did not reset")
 	}
-	limiter.fail("client", now.Add(2*time.Minute))
-	limiter.success("client")
-	if limiter.blocked("client", now.Add(2*time.Minute)) {
-		t.Fatal("successful authentication did not clear failures")
+
+	if !limiter.allow("create-client", now.Add(2*time.Minute)) ||
+		!limiter.allow("create-client", now.Add(2*time.Minute)) ||
+		!limiter.allow("create-client", now.Add(2*time.Minute)) {
+		t.Fatal("quota rejected a client before the limit")
+	}
+	if limiter.allow("create-client", now.Add(2*time.Minute)) {
+		t.Fatal("quota allowed a client past the limit")
+	}
+}
+
+func TestAskQuestionLimiterBoundsAndExpiryRecovery(t *testing.T) {
+	limiter := newAskQuestionLimiter(2, time.Minute, 2)
+	now := time.Date(2026, time.August, 20, 12, 0, 0, 0, time.UTC)
+	limiter.fail("client-a", now)
+	limiter.fail("client-b", now)
+
+	if !limiter.blocked("client-c", now) {
+		t.Fatal("full limiter map did not fail closed for an unseen client")
+	}
+	if got := limiter.size(); got != 2 {
+		t.Fatalf("limiter size=%d want=2", got)
 	}
 
-	limiter.fail("client|sequence:1", now)
-	limiter.fail("client|sequence:1", now)
-	limiter.success("client|sequence:2")
-	if !limiter.fail("client|sequence:1", now) {
-		t.Fatal("success for another target cleared this target's failures")
+	afterExpiry := now.Add(time.Minute)
+	if limiter.blocked("client-c", afterExpiry) {
+		t.Fatal("expired limiter map did not recover capacity")
+	}
+	if limiter.fail("client-c", afterExpiry) {
+		t.Fatal("new client was blocked after expired entries were swept")
+	}
+	if got := limiter.size(); got > 2 {
+		t.Fatalf("limiter exceeded map cap: size=%d", got)
+	}
+
+	sweepingLimiter := newAskQuestionLimiter(2, time.Minute, 100)
+	sweepingLimiter.fail("expired-client", now)
+	for operation := 1; operation < askQuestionLimiterSweepEvery; operation++ {
+		sweepingLimiter.blocked("unseen-client", afterExpiry)
+	}
+	if got := sweepingLimiter.size(); got != 0 {
+		t.Fatalf("periodic expiry sweep retained %d stale entries", got)
+	}
+}
+
+func TestAskQuestionCreateQuotaIsAtomic(t *testing.T) {
+	service := &askQuestionService{
+		createByClient: newAskQuestionLimiter(100, time.Minute, askQuestionLimiterMaxClients),
+		createGlobal:   newAskQuestionLimiter(60, time.Minute, 1),
+	}
+	now := time.Date(2026, time.August, 20, 12, 0, 0, 0, time.UTC)
+	var accepted atomic.Int64
+	var workers sync.WaitGroup
+	for index := 0; index < 100; index++ {
+		workers.Add(1)
+		go func(index int) {
+			defer workers.Done()
+			if service.allowQuestionCreate(fmt.Sprintf("client-%d", index), now) {
+				accepted.Add(1)
+			}
+		}(index)
+	}
+	workers.Wait()
+	if got := accepted.Load(); got != 60 {
+		t.Fatalf("concurrent global quota accepted=%d want=60", got)
+	}
+}
+
+func TestAskQuestionClientIPTrustBoundary(t *testing.T) {
+	tests := []struct {
+		name       string
+		remoteAddr string
+		headers    []string
+		want       string
+	}{
+		{
+			name:       "direct client cannot spoof upstream header",
+			remoteAddr: "198.51.100.10:1234",
+			headers:    []string{"203.0.113.20"},
+			want:       "198.51.100.10",
+		},
+		{
+			name:       "loopback proxy header is trusted",
+			remoteAddr: "127.0.0.1:5432",
+			headers:    []string{"203.0.113.20"},
+			want:       "203.0.113.20",
+		},
+		{
+			name:       "multiple proxy header values fail closed",
+			remoteAddr: "127.0.0.1:5432",
+			headers:    []string{"203.0.113.20", "203.0.113.21"},
+			want:       "127.0.0.1",
+		},
+		{
+			name:       "comma-separated proxy chain is rejected",
+			remoteAddr: "127.0.0.1:5432",
+			headers:    []string{"203.0.113.20, 203.0.113.21"},
+			want:       "127.0.0.1",
+		},
+		{
+			name:       "invalid proxy header falls back to loopback",
+			remoteAddr: "[::1]:5432",
+			headers:    []string{"not-an-ip"},
+			want:       "::1",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodPost, askQuestionReadPath, nil)
+			request.RemoteAddr = test.remoteAddr
+			for _, value := range test.headers {
+				request.Header.Add(askQuestionClientIPHeader, value)
+			}
+			if got := askQuestionClientIP(request); got != test.want {
+				t.Fatalf("client IP=%q want=%q", got, test.want)
+			}
+		})
+	}
+}
+
+func TestAskQuestionCreateQuotas(t *testing.T) {
+	if askQuestionCreateMaxPerClient != 5 || askQuestionCreateMaxGlobal != 60 || askQuestionCreateWindow != 10*time.Minute {
+		t.Fatalf(
+			"unexpected production create quota: client=%d global=%d window=%s",
+			askQuestionCreateMaxPerClient,
+			askQuestionCreateMaxGlobal,
+			askQuestionCreateWindow,
+		)
+	}
+	if askQuestionLimiterMaxClients != 4096 || askQuestionLimiterSweepEvery != 64 {
+		t.Fatalf(
+			"unexpected limiter bounds: maxClients=%d sweepEvery=%d",
+			askQuestionLimiterMaxClients,
+			askQuestionLimiterSweepEvery,
+		)
+	}
+
+	app, err := tests.NewTestApp()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Cleanup()
+	setupAskQuestionTestCollections(t, app)
+
+	router, err := apis.NewRouter(app)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := newAskQuestionService(app)
+	service.createByClient = newAskQuestionLimiter(2, time.Minute, askQuestionLimiterMaxClients)
+	service.createGlobal = newAskQuestionLimiter(100, time.Minute, 1)
+	service.registerRoutes(&core.ServeEvent{App: app, Router: router})
+	mux, err := router.BuildMux()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for attempt := 1; attempt <= 2; attempt++ {
+		response := askQuestionTestRequest(t, mux, http.MethodPost, askQuestionPath, map[string]any{
+			"question": "client quota question",
+		}, "198.51.100.30:3000", "")
+		if response.Code != http.StatusCreated {
+			t.Fatalf("client create attempt %d status=%d body=%s", attempt, response.Code, response.Body.String())
+		}
+	}
+	clientBlocked := askQuestionTestRequest(t, mux, http.MethodPost, askQuestionPath, map[string]any{
+		"question":   "must be rejected before hashing or insert",
+		"is_private": true,
+		"password":   "expensive password",
+	}, "198.51.100.30:3000", "")
+	if clientBlocked.Code != http.StatusTooManyRequests {
+		t.Fatalf("client quota status=%d body=%s", clientBlocked.Code, clientBlocked.Body.String())
+	}
+	differentClient := askQuestionTestRequest(t, mux, http.MethodPost, askQuestionPath, map[string]any{
+		"question": "different client remains available",
+	}, "198.51.100.31:3001", "")
+	if differentClient.Code != http.StatusCreated {
+		t.Fatalf("different client status=%d body=%s", differentClient.Code, differentClient.Body.String())
+	}
+
+	records, err := app.FindRecordsByFilter("ask_questions", "", "sequence", 0, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(records) != 3 {
+		t.Fatalf("client-blocked request changed DB: records=%d want=3", len(records))
+	}
+
+	service.createByClient = newAskQuestionLimiter(100, time.Minute, askQuestionLimiterMaxClients)
+	service.createGlobal = newAskQuestionLimiter(2, time.Minute, 1)
+	for attempt := 1; attempt <= 2; attempt++ {
+		response := askQuestionTestRequest(t, mux, http.MethodPost, askQuestionPath, map[string]any{
+			"question": "global quota question",
+		}, fmt.Sprintf("203.0.113.%d:4000", attempt), "")
+		if response.Code != http.StatusCreated {
+			t.Fatalf("global create attempt %d status=%d body=%s", attempt, response.Code, response.Body.String())
+		}
+	}
+	globalBlocked := askQuestionTestRequest(t, mux, http.MethodPost, askQuestionPath, map[string]any{
+		"question": "global quota must reject this",
+	}, "203.0.113.3:4000", "")
+	if globalBlocked.Code != http.StatusTooManyRequests {
+		t.Fatalf("global quota status=%d body=%s", globalBlocked.Code, globalBlocked.Body.String())
 	}
 }
 
@@ -183,7 +379,39 @@ func TestAskQuestionAuthorWorkflow(t *testing.T) {
 	}, "198.51.100.5:1006", "")
 	assertAskQuestionResponse(t, privateRead, http.StatusOK, "비공개 질문 원문", true, false)
 
-	for attempt := 1; attempt < askQuestionReadMaxFailures; attempt++ {
+	for attempt := 1; attempt <= askQuestionReadMaxFailures; attempt++ {
+		wrongTarget := askQuestionTestRequest(t, mux, http.MethodPost, askQuestionReadPath, map[string]any{
+			"sequence": 1000 + attempt,
+			"password": "wrong",
+		}, "198.51.100.10:1011", "")
+		if wrongTarget.Code != http.StatusNotFound {
+			t.Fatalf("changed target attempt %d status=%d body=%s", attempt, wrongTarget.Code, wrongTarget.Body.String())
+		}
+	}
+	changedTargetBlocked := askQuestionTestRequest(t, mux, http.MethodPost, askQuestionReadPath, map[string]any{
+		"id":       privateReceipt.ID,
+		"password": "wrong",
+	}, "198.51.100.10:1011", "")
+	if changedTargetBlocked.Code != http.StatusTooManyRequests {
+		t.Fatalf("changing target bypassed client-wide limit: status=%d body=%s", changedTargetBlocked.Code, changedTargetBlocked.Body.String())
+	}
+	malformedWhileBlocked := httptest.NewRequest(http.MethodPost, askQuestionReadPath, strings.NewReader("{"))
+	malformedWhileBlocked.RemoteAddr = "198.51.100.10:1011"
+	malformedWhileBlocked.Header.Set("Content-Type", "application/json")
+	malformedResponse := httptest.NewRecorder()
+	mux.ServeHTTP(malformedResponse, malformedWhileBlocked)
+	if malformedResponse.Code != http.StatusTooManyRequests {
+		t.Fatalf("blocked request parsed body before 429: status=%d body=%s", malformedResponse.Code, malformedResponse.Body.String())
+	}
+	validOtherTargetWhileBlocked := askQuestionTestRequest(t, mux, http.MethodPost, askQuestionReadPath, map[string]any{
+		"id":            publicReceipt.ID,
+		"receipt_token": publicReceipt.ReceiptToken,
+	}, "198.51.100.10:1011", "")
+	if validOtherTargetWhileBlocked.Code != http.StatusTooManyRequests {
+		t.Fatalf("valid other target bypassed client-wide limit: status=%d body=%s", validOtherTargetWhileBlocked.Code, validOtherTargetWhileBlocked.Body.String())
+	}
+
+	for attempt := 1; attempt <= askQuestionReadMaxFailures; attempt++ {
 		wrong := askQuestionTestRequest(t, mux, http.MethodPost, askQuestionReadPath, map[string]any{
 			"sequence": privateReceipt.Sequence,
 			"password": "wrong",
@@ -196,8 +424,8 @@ func TestAskQuestionAuthorWorkflow(t *testing.T) {
 		"id":            publicReceipt.ID,
 		"receipt_token": publicReceipt.ReceiptToken,
 	}, "198.51.100.6:1007", "")
-	if sameIPValidOtherTarget.Code != http.StatusOK {
-		t.Fatalf("valid read for another target status=%d", sameIPValidOtherTarget.Code)
+	if sameIPValidOtherTarget.Code != http.StatusTooManyRequests {
+		t.Fatalf("valid read for another target bypassed the client-wide limit: status=%d", sameIPValidOtherTarget.Code)
 	}
 	finalWrong := askQuestionTestRequest(t, mux, http.MethodPost, askQuestionReadPath, map[string]any{
 		"sequence": privateReceipt.Sequence,

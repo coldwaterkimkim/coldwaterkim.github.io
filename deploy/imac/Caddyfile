@@ -8,13 +8,15 @@
 coldwaterkim.com, www.coldwaterkim.com {
 	encode zstd gzip
 
+	# PocketBase is loopback-only and trusts this client IP header only from Caddy.
+	# Every upstream block below overwrites any value supplied by the public client.
 	request_body {
 		max_size 20GiB
 	}
 
 	handle /api/cwk/tus/status {
 		reverse_proxy 127.0.0.1:8090 {
-			header_down X-CWK-Client-IP {client_ip}
+			header_up X-CWK-Client-IP {http.request.remote.host}
 		}
 	}
 
@@ -22,27 +24,39 @@ coldwaterkim.com, www.coldwaterkim.com {
 		request_body {
 			max_size 202MiB
 		}
-		reverse_proxy 127.0.0.1:8090
+		reverse_proxy 127.0.0.1:8090 {
+			header_up X-CWK-Client-IP {http.request.remote.host}
+		}
 	}
 
 	handle /api/* {
-		reverse_proxy 127.0.0.1:8090
+		reverse_proxy 127.0.0.1:8090 {
+			header_up X-CWK-Client-IP {http.request.remote.host}
+		}
 	}
 
 	handle /_/* {
-		reverse_proxy 127.0.0.1:8090
+		reverse_proxy 127.0.0.1:8090 {
+			header_up X-CWK-Client-IP {http.request.remote.host}
+		}
 	}
 
 	handle /sitemap.xml {
-		reverse_proxy 127.0.0.1:8090
+		reverse_proxy 127.0.0.1:8090 {
+			header_up X-CWK-Client-IP {http.request.remote.host}
+		}
 	}
 
 	handle /posts/*/ {
-		reverse_proxy 127.0.0.1:8090
+		reverse_proxy 127.0.0.1:8090 {
+			header_up X-CWK-Client-IP {http.request.remote.host}
+		}
 	}
 
 	handle /daily/*/ {
-		reverse_proxy 127.0.0.1:8090
+		reverse_proxy 127.0.0.1:8090 {
+			header_up X-CWK-Client-IP {http.request.remote.host}
+		}
 	}
 
 	handle {
