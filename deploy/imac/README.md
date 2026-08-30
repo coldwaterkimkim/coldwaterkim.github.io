@@ -236,6 +236,18 @@ QA:
 - 500MB 이상 실제 영상 테스트 파일 업로드
 - 모바일/데스크톱 화면 확인
 
+### 운영 상태 진단
+
+아래 명령은 파일·서비스·DB를 변경하지 않고 로컬/공개 health, PocketBase·Caddy·백업 launchd 상태와 최근 종료값, 최신 성공 백업 나이, DB snapshot SHA-256, manifest 원본의 실제 존재·크기, 디스크 여유, 로그 크기, TLS 만료, backend manifest와 binary·migration SHA-256을 한 번에 점검한다. 기본 기준은 백업 26시간, 디스크 `max(20GiB, 10%)`, 로그 파일당 100MiB, 인증서 잔여 21일이다. 모든 대용량 원본의 SHA-256을 매번 다시 계산하지는 않으므로 정기적인 `--verify-all` 백업과 별도 복구 훈련은 계속 필요하다.
+
+```bash
+npm run imac:ops-health
+npm run --silent imac:ops-health:json
+npm run qa:ops-health
+```
+
+결과는 `PASS`, `FAIL`, `UNKNOWN`으로 구분하고 각각 프로세스 종료값 0, 1, 2를 사용한다. 출력에는 설정 경로, 주소, URL, hash, raw error, secret 값을 넣지 않는다. 이 명령은 외부 알림을 보내지 않으므로 iMac·router·회선 전체 장애를 알려줄 별도 외부 uptime monitor는 운영자가 선택해야 한다.
+
 ## Stage 3. Production data rehearsal
 
 운영 데이터 이주는 공개 API를 긁는 방식이 아니라 PocketBase backup ZIP을 기준으로 한다. 그래야 DB, auth collection, settings, storage metadata가 같이 움직인다.
