@@ -37,12 +37,12 @@
         <div class="admin-content">
             <h2 style="margin-top: 0;">🖼️ 미디어 라이브러리</h2>
 
-            <div id="alert" class="alert" style="display: none;"></div>
+            <div id="alert" class="alert" role="status" aria-live="polite" style="display: none;"></div>
 
             <!-- 업로드 영역 -->
             <div class="admin-panel">
                 <h2>📤 파일 업로드</h2>
-                <div id="dropzone" class="dropzone">
+                <div id="dropzone" class="dropzone" role="button" tabindex="0" aria-controls="fileInput">
                     <p>📁 여기에 파일을 드래그하거나 클릭하여 업로드</p>
                     <p style="font-size: 12px; color: #888;">이미지, 영상, MP3, PDF (영상 최대 20GB)</p>
                 </div>
@@ -67,12 +67,12 @@
                 <h2>📋 파일 정보</h2>
                 <div id="mediaInfo"></div>
                 <div class="form-group" style="margin-top: 12px;">
-                    <label>파일 URL (복사해서 글에 사용)</label>
-                    <input type="text" id="mediaUrl" readonly onclick="this.select()">
+                    <label for="mediaUrl">파일 URL (복사해서 글에 사용)</label>
+                    <input type="text" id="mediaUrl" readonly>
                 </div>
                 <div class="action-buttons">
-                    <button class="btn" onclick="copyUrl()">📋 URL 복사</button>
-                    <button class="btn btn-danger" onclick="deleteSelectedMedia()">🗑️ 삭제</button>
+                    <button class="btn" id="copyUrlBtn">📋 URL 복사</button>
+                    <button class="btn btn-danger" id="deleteMediaBtn">🗑️ 삭제</button>
                 </div>
             </div>
         </div>
@@ -98,12 +98,6 @@
         let currentPage = 1;
         let selectedMediaId = null;
 
-        // 전역 함수 노출
-        window.copyUrl = copyUrl;
-        window.deleteSelectedMedia = deleteSelectedMedia;
-        window.selectMedia = selectMedia;
-        window.goToPage = goToPage;
-
         // 알림
         function showAlert(message, type) {
             const alertEl = document.getElementById('alert');
@@ -116,8 +110,14 @@
         // 드롭존 설정
         const dropzone = document.getElementById('dropzone');
         const fileInput = document.getElementById('fileInput');
+        const mediaUrlInput = document.getElementById('mediaUrl');
 
         dropzone.addEventListener('click', () => fileInput.click());
+        dropzone.addEventListener('keydown', (event) => {
+            if (event.key !== 'Enter' && event.key !== ' ') return;
+            event.preventDefault();
+            fileInput.click();
+        });
 
         dropzone.addEventListener('dragover', (e) => {
             e.preventDefault();
@@ -138,6 +138,10 @@
         fileInput.addEventListener('change', (e) => {
             handleFiles(e.target.files);
         });
+
+        mediaUrlInput.addEventListener('click', () => mediaUrlInput.select());
+        document.getElementById('copyUrlBtn').addEventListener('click', copyUrl);
+        document.getElementById('deleteMediaBtn').addEventListener('click', deleteSelectedMedia);
 
         // 파일 업로드 처리
         async function handleFiles(files) {
@@ -176,70 +180,114 @@
         // 미디어 목록 로드
         async function loadMedia(page = 1) {
             const grid = document.getElementById('mediaGrid');
-            grid.innerHTML = '<div class="loading">불러오는 중</div>';
+            const loading = document.createElement('div');
+            loading.className = 'loading';
+            loading.textContent = '불러오는 중';
+            grid.replaceChildren(loading);
 
             try {
                 const result = await getMediaList(page, 12);
                 currentPage = page;
 
                 if (result.items.length === 0) {
-                    grid.innerHTML = '<p>업로드된 파일이 없습니다.</p>';
+                    const empty = document.createElement('p');
+                    empty.textContent = '업로드된 파일이 없습니다.';
+                    grid.replaceChildren(empty);
+                    renderPagination(0, page);
                     return;
                 }
 
-                grid.innerHTML = result.items.map(item => {
+                const mediaItems = result.items.map(item => {
                     const url = getMediaUrl(item, item.file);
                     const isImage = item.file.match(/\.(jpg|jpeg|png|gif|webp)$/i);
                     const isVideo = item.file.match(/\.(mp4|webm)$/i);
                     const isAudio = item.file.match(/\.(mp3|wav)$/i);
 
-                    let preview = '';
+                    const mediaItem = document.createElement('div');
+                    mediaItem.className = 'media-item';
+                    mediaItem.tabIndex = 0;
+                    mediaItem.setAttribute('role', 'button');
+                    mediaItem.setAttribute('aria-label', `파일 선택: ${item.file}`);
+
                     if (isImage) {
-                        preview = `<img src="${url}" alt="${item.alt_text || item.file}">`;
+                        const preview = document.createElement('img');
+                        preview.src = url;
+                        preview.alt = item.alt_text || item.file;
+                        preview.loading = 'lazy';
+                        preview.decoding = 'async';
+                        mediaItem.append(preview);
                     } else if (isVideo) {
-                        preview = `<video src="${url}"></video><div>🎬</div>`;
+                        const preview = document.createElement('video');
+                        preview.src = url;
+                        preview.preload = 'none';
+                        preview.setAttribute('aria-label', item.alt_text || item.file);
+                        mediaItem.append(preview, mediaIcon('🎬'));
                     } else if (isAudio) {
-                        preview = `<div style="font-size: 48px;">🎵</div>`;
+                        mediaItem.append(mediaIcon('🎵'));
                     } else {
-                        preview = `<div style="font-size: 48px;">📄</div>`;
+                        mediaItem.append(mediaIcon('📄'));
                     }
 
-                    return `
-            <div class="media-item" onclick="selectMedia('${item.id}')">
-              ${preview}
-              <div class="filename">${item.file}</div>
-            </div>
-          `;
-                }).join('');
+                    const filename = document.createElement('div');
+                    filename.className = 'filename';
+                    filename.textContent = item.file;
+                    mediaItem.append(filename);
+
+                    mediaItem.addEventListener('click', () => selectMedia(item.id));
+                    mediaItem.addEventListener('keydown', (event) => {
+                        if (event.key !== 'Enter' && event.key !== ' ') return;
+                        event.preventDefault();
+                        selectMedia(item.id);
+                    });
+                    return mediaItem;
+                });
+                grid.replaceChildren(...mediaItems);
 
                 // 페이지네이션
                 renderPagination(result.totalPages, page);
             } catch (e) {
-                grid.innerHTML = `<p>불러오기 실패: ${cmsErrorMessage(e)}</p>`;
+                const error = document.createElement('p');
+                error.textContent = `불러오기 실패: ${cmsErrorMessage(e)}`;
+                grid.replaceChildren(error);
             }
+        }
+
+        function mediaIcon(icon) {
+            const element = document.createElement('div');
+            element.style.fontSize = '48px';
+            element.setAttribute('aria-hidden', 'true');
+            element.textContent = icon;
+            return element;
         }
 
         // 페이지네이션
         function renderPagination(totalPages, currentPage) {
             const paginationEl = document.getElementById('pagination');
             if (totalPages <= 1) {
-                paginationEl.innerHTML = '';
+                paginationEl.replaceChildren();
                 return;
             }
 
-            let html = '';
+            const pages = [];
             for (let i = 1; i <= totalPages; i++) {
                 if (i === currentPage) {
-                    html += `<span class="current">${i}</span>`;
+                    const current = document.createElement('span');
+                    current.className = 'current';
+                    current.setAttribute('aria-current', 'page');
+                    current.textContent = String(i);
+                    pages.push(current);
                 } else {
-                    html += `<a href="javascript:void(0)" onclick="goToPage(${i})">${i}</a>`;
+                    const link = document.createElement('a');
+                    link.href = '#';
+                    link.textContent = String(i);
+                    link.addEventListener('click', (event) => {
+                        event.preventDefault();
+                        loadMedia(i);
+                    });
+                    pages.push(link);
                 }
             }
-            paginationEl.innerHTML = html;
-        }
-
-        function goToPage(page) {
-            loadMedia(page);
+            paginationEl.replaceChildren(...pages);
         }
 
         // 미디어 선택
@@ -253,26 +301,51 @@
                 const isVideo = item.file.match(/\.(mp4|webm)$/i);
                 const isAudio = item.file.match(/\.(mp3|wav)$/i);
 
-                let preview = '';
+                const mediaInfo = document.getElementById('mediaInfo');
+                const details = [];
                 if (isImage) {
-                    preview = `<img src="${url}" style="max-width: 100%; max-height: 200px;">`;
+                    const preview = document.createElement('img');
+                    preview.src = url;
+                    preview.alt = item.alt_text || item.file;
+                    preview.style.maxWidth = '100%';
+                    preview.style.maxHeight = '200px';
+                    details.push(preview);
                 } else if (isVideo) {
-                    preview = `<video src="${url}" controls style="max-width: 100%; max-height: 200px;"></video>`;
+                    const preview = document.createElement('video');
+                    preview.src = url;
+                    preview.controls = true;
+                    preview.preload = 'metadata';
+                    preview.style.maxWidth = '100%';
+                    preview.style.maxHeight = '200px';
+                    preview.setAttribute('aria-label', item.alt_text || item.file);
+                    details.push(preview);
                 } else if (isAudio) {
-                    preview = `<audio src="${url}" controls style="width: 100%;"></audio>`;
+                    const preview = document.createElement('audio');
+                    preview.src = url;
+                    preview.controls = true;
+                    preview.preload = 'metadata';
+                    preview.style.width = '100%';
+                    preview.setAttribute('aria-label', item.alt_text || item.file);
+                    details.push(preview);
                 }
 
-                document.getElementById('mediaInfo').innerHTML = `
-          ${preview}
-          <p><b>파일명:</b> ${item.file}</p>
-          <p><b>업로드:</b> ${formatDate(item.created)}</p>
-          ${item.alt_text ? `<p><b>대체 텍스트:</b> ${item.alt_text}</p>` : ''}
-        `;
-                document.getElementById('mediaUrl').value = url;
+                details.push(mediaDetail('파일명:', item.file));
+                details.push(mediaDetail('업로드:', formatDate(item.created)));
+                if (item.alt_text) details.push(mediaDetail('대체 텍스트:', item.alt_text));
+                mediaInfo.replaceChildren(...details);
+                mediaUrlInput.value = url;
                 document.getElementById('selectedMedia').style.display = 'block';
             } catch (e) {
                 showAlert('파일 정보를 불러올 수 없습니다: ' + cmsErrorMessage(e), 'error');
             }
+        }
+
+        function mediaDetail(label, value) {
+            const row = document.createElement('p');
+            const heading = document.createElement('b');
+            heading.textContent = label;
+            row.append(heading, document.createTextNode(` ${value}`));
+            return row;
         }
 
         // URL 복사

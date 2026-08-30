@@ -482,8 +482,7 @@
 
         // 저장 후 발행
         async function saveAndPublish() {
-            document.getElementById('status').value = 'published';
-            const saved = await savePost();
+            const saved = await savePost({ statusOverride: 'published' });
             if (!saved) return;
 
             const cleanup = await finalizePublishedEditorMedia({
@@ -500,10 +499,10 @@
         }
 
         // 글 저장
-        async function savePost() {
+        async function savePost({ statusOverride = null } = {}) {
             const id = document.getElementById('postId').value;
             const title = document.getElementById('title').value.trim();
-            const status = document.getElementById('status').value;
+            const status = statusOverride ?? document.getElementById('status').value;
             const dayKey = normalizeDailyDayKey(document.getElementById('published_at').value || new Date());
             const currentSlug = document.getElementById('slug').value.trim();
             const slug = id
@@ -542,6 +541,7 @@
                     document.getElementById('deleteBtn').style.display = 'inline-block';
                     showAlert('새 나으 하루 글이 저장되었습니다!', 'success');
                 }
+                document.getElementById('status').value = result.status || status;
                 return result;
             } catch (e) {
                 showAlert('저장 실패: ' + cmsErrorMessage(e), 'error');

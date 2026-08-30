@@ -12,6 +12,7 @@ import {
   observeEditorMediaDuringUploads,
 } from '../js/editor-media-quiescence.mjs';
 import { postListEntryUrl, publishedEntryViewerUrl } from '../js/editor-publish-navigation.mjs';
+import { normalizeAdminNext } from '../js/admin-navigation.mjs';
 import { chatGptShareInfo, normalizeChatGptSnapshot, serializeChatGptSnapshot } from '../js/chatgpt-embeds.mjs';
 import { renderChatGptMarkdown } from '../js/chatgpt-markdown.mjs';
 import {
@@ -543,6 +544,9 @@ assert.doesNotMatch(adminPosts, /markdownEditor\.root\.addEventListener\('paste'
 assert.match(adminPosts, /navigateToPublishedEntry\('posts', saved\)/, 'published posts must leave the editor for the public viewer');
 assert.match(adminPosts, /formData\.append\('pending_media_ids', pendingMediaTracker\.serialize\(\)\)/, 'post drafts must persist newly uploaded media candidates');
 assert.match(adminPosts, /finalizePublishedEditorMedia\(\{\s*collectionName: 'posts'/, 'post cleanup must run only from the explicit publish path');
+assert.doesNotMatch(adminPosts, /document\.getElementById\('status'\)\.value = 'published'/, 'a failed post publish must not leave the editor status changed to published');
+assert.match(adminPosts, /savePost\(\{\s*statusOverride: 'published'\s*\}\)/, 'post publishing must override only the outgoing save payload');
+assert.match(adminPosts, /const status = statusOverride \?\? document\.getElementById\('status'\)\.value/, 'ordinary post saves must keep using the persisted editor status');
 
 const postsIndex = fs.readFileSync(new URL('../posts/index.html', import.meta.url), 'utf8');
 assert.match(postsIndex, /postListEntryUrl\(post, \{ ownerMode \}\)/, 'post list titles must resolve draft and published destinations by status');
@@ -564,6 +568,43 @@ assert.doesNotMatch(adminDaily, /markdownEditor\.root\.addEventListener\('paste'
 assert.match(adminDaily, /navigateToPublishedEntry\('daily', saved\)/, 'published daily entries must leave the editor for the day viewer');
 assert.match(adminDaily, /formData\.append\('pending_media_ids', pendingMediaTracker\.serialize\(\)\)/, 'daily drafts must persist newly uploaded media candidates');
 assert.match(adminDaily, /finalizePublishedEditorMedia\(\{\s*collectionName: 'daily_entries'/, 'daily cleanup must run only from the explicit publish path');
+assert.doesNotMatch(adminDaily, /document\.getElementById\('status'\)\.value = 'published'/, 'a failed daily publish must not leave the editor status changed to published');
+assert.match(adminDaily, /savePost\(\{\s*statusOverride: 'published'\s*\}\)/, 'daily publishing must override only the outgoing save payload');
+assert.match(adminDaily, /const status = statusOverride \?\? document\.getElementById\('status'\)\.value/, 'ordinary daily saves must keep using the persisted editor status');
+
+const adminLogin = fs.readFileSync(new URL('../admin/login.html', import.meta.url), 'utf8');
+assert.match(adminLogin, /import \{ normalizeAdminNext \} from '\.\.\/js\/admin-navigation\.mjs'/, 'admin login redirects must use the shared same-origin path normalizer');
+assert.match(adminLogin, /const next = normalizeAdminNext\(params\.get\('next'\), window\.location\.origin\)/, 'admin login must normalize next before either authenticated redirect');
+assert.doesNotMatch(adminLogin, /const next = params\.get\('next'\) \|\| '\/'/, 'admin login must never navigate to the raw next query value');
+assert.equal(normalizeAdminNext('/admin/posts.html?new=1#editor', 'https://coldwaterkim.com'), '/admin/posts.html?new=1#editor', 'admin next must preserve a valid same-origin path');
+assert.equal(normalizeAdminNext('/posts/../admin/daily.html', 'https://coldwaterkim.com'), '/admin/daily.html', 'admin next must canonicalize same-origin dot segments');
+for (const unsafeNext of [
+  'https://evil.example/admin',
+  'https://coldwaterkim.com/admin',
+  '//evil.example/admin',
+  '//owner:password@coldwaterkim.com/admin',
+  'javascript:alert(1)',
+  'data:text/html,<script>alert(1)</script>',
+  '\\\\evil.example\\admin',
+  '/\\evil.example/admin',
+  '/%5cevil.example/admin',
+  '/%255cevil.example/admin',
+  '/%2f%2fevil.example/admin',
+  '/%252f%252fevil.example/admin',
+  '/a/..//evil.example/admin',
+  '/%2e%2e//evil.example/admin',
+  ' /admin/posts.html',
+]) {
+  assert.equal(normalizeAdminNext(unsafeNext, 'https://coldwaterkim.com'), '/', `unsafe admin next must fall back: ${unsafeNext}`);
+}
+
+const adminMedia = fs.readFileSync(new URL('../admin/media.html', import.meta.url), 'utf8');
+assert.doesNotMatch(adminMedia, /\binnerHTML\b/, 'admin media records and errors must render through DOM text nodes, not HTML parsing');
+assert.doesNotMatch(adminMedia, /\bonclick=/, 'admin media must not interpolate record data through inline event handlers');
+assert.match(adminMedia, /mediaItem\.tabIndex = 0/, 'admin media tiles must be reachable by keyboard');
+assert.match(adminMedia, /mediaItem\.addEventListener\('keydown'/, 'admin media tiles must support keyboard selection');
+assert.match(adminMedia, /filename\.textContent = item\.file/, 'admin media filenames must render as text');
+assert.match(adminMedia, /preview\.alt = item\.alt_text \|\| item\.file/, 'admin media alt text must use a DOM property');
 
 const programs = fs.readFileSync(new URL('../js/programs.js', import.meta.url), 'utf8');
 assert.match(programs, /runLocalTool/, 'programs room must run local file tools');

@@ -46,9 +46,10 @@
 
     <script type="module">
         import { pb, isLoggedIn, login, logout, cmsErrorMessage } from '../js/pb.js';
+        import { normalizeAdminNext } from '../js/admin-navigation.mjs';
 
         const params = new URLSearchParams(window.location.search);
-        const next = params.get('next') || '/';
+        const next = normalizeAdminNext(params.get('next'), window.location.origin);
         const form = document.getElementById('loginForm');
         const alertEl = document.getElementById('alert');
 
