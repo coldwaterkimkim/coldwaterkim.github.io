@@ -2,15 +2,18 @@
 """Exercise the incremental PocketBase backup against an isolated fixture."""
 
 import json
+import os
 import sqlite3
 import subprocess
 import tempfile
+import zipfile
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
 PROGRAM = ROOT / "deploy/imac/backup-pocketbase.py"
 RESTORE_PROGRAM = ROOT / "deploy/imac/restore-pocketbase-incremental.py"
+ZIP_RESTORE_PROGRAM = ROOT / "deploy/imac/restore-pocketbase-backup.sh"
 
 
 def require(condition, message):
@@ -32,6 +35,42 @@ def run_backup(pb_data, backup_dir, *extra, expect_success=True):
         raise RuntimeError("backup fixture failed: %s" % (result.stderr or result.stdout))
     if not expect_success and result.returncode == 0:
         raise AssertionError("backup conflict should fail")
+    return result
+
+
+def run_incremental_restore(snapshot, manifest, originals, target, copy_mode="auto", expect_success=True):
+    result = subprocess.run([
+        "/usr/bin/python3", str(RESTORE_PROGRAM),
+        "--snapshot", str(snapshot),
+        "--manifest", str(manifest),
+        "--originals-root", str(originals),
+        "--target", str(target),
+        "--copy-mode", copy_mode,
+        "--reserve-bytes", "0",
+        "--verify-all",
+    ], cwd=ROOT, text=True, capture_output=True)
+    if expect_success and result.returncode != 0:
+        raise RuntimeError("incremental restore fixture failed: %s" % (result.stderr or result.stdout))
+    if not expect_success and result.returncode == 0:
+        raise AssertionError("unsafe incremental restore should fail")
+    return result
+
+
+def run_zip_restore(archive, target, *, home=None, expect_success=True):
+    environment = os.environ.copy()
+    if home is not None:
+        environment["HOME"] = str(home)
+    result = subprocess.run(
+        ["/bin/bash", str(ZIP_RESTORE_PROGRAM), str(archive), str(target)],
+        cwd=ROOT,
+        env=environment,
+        text=True,
+        capture_output=True,
+    )
+    if expect_success and result.returncode != 0:
+        raise RuntimeError("zip restore fixture failed: %s" % (result.stderr or result.stdout))
+    if not expect_success and result.returncode == 0:
+        raise AssertionError("unsafe zip restore should fail")
     return result
 
 
@@ -99,6 +138,9 @@ def main():
         snapshots = sorted((backup_dir / "incremental/db-snapshots").glob("data_*.db"))
         manifests = sorted((backup_dir / "incremental/manifests").glob("originals_*.json"))
         require(len(snapshots) == 1 and len(manifests) == 1, "snapshot and manifest must be created together")
+        latest_success = json.loads((backup_dir / "incremental/latest-success.json").read_text(encoding="utf-8"))
+        require(latest_success["database"]["file"] == snapshots[0].name, "latest success must point at the complete snapshot")
+        require(latest_success["manifest"] == manifests[0].name, "latest success must point at the complete manifest")
         database = sqlite3.connect(snapshots[0])
         require(database.execute("PRAGMA quick_check").fetchone()[0] == "ok", "snapshot quick_check failed")
         database.close()
@@ -107,17 +149,11 @@ def main():
         require(second["copied_files"] == 0, "second run must not duplicate originals")
 
         restore_target = root / "restored-pb_data"
-        restore = subprocess.run([
-            "/usr/bin/python3", str(RESTORE_PROGRAM),
-            "--snapshot", str(snapshots[0]),
-            "--manifest", str(manifests[0]),
-            "--originals-root", str(originals),
-            "--target", str(restore_target),
-            "--verify-all",
-        ], cwd=ROOT, text=True, capture_output=True)
-        require(restore.returncode == 0, "incremental restore fixture failed: %s" % restore.stderr)
+        restore = run_incremental_restore(snapshots[0], manifests[0], originals, restore_target, copy_mode="copy")
         restore_summary = json.loads(restore.stdout)
-        require(restore_summary["cloned_originals"] == 3, "restore must clone all manifest originals")
+        require(restore_summary["copied_originals"] == 3, "forced copy restore must copy all manifest originals")
+        require(restore_summary["cloned_originals"] == 0, "forced copy restore must not claim APFS clones")
+        require(restore_summary["destination_verified_originals"] == 3, "restore must checksum every destination original")
         require((restore_target / "data.db").is_file(), "restored data.db missing")
         require((restore_target / "storage/media_id/record1/original clip.mov").is_file(), "restored media original missing")
         require(not (restore_target / "storage/media_id/record1/playback.mp4").exists(), "restore must not invent derivatives")
@@ -132,7 +168,44 @@ def main():
         require("append-only backup checksum conflict" in conflict.stderr, "changed original must fail without overwrite")
         require((originals / "media_id/record1/original clip.mov").read_bytes() == b"ORIGINAL-VIDEO", "vault original was overwritten")
 
-    print("Incremental PocketBase backup QA passed (20 checks)")
+        broken_pb_data = root / "broken-pb_data"
+        broken_backup = root / "broken-backup"
+        create_fixture(broken_pb_data)
+        (broken_pb_data / "storage/media_id/record1/original clip.mov").unlink()
+        failed = run_backup(broken_pb_data, broken_backup, expect_success=False)
+        require("referenced original is missing" in failed.stderr, "missing source must fail after snapshot")
+        require(not list((broken_backup / "incremental/db-snapshots").glob("*")), "failed run left a database snapshot")
+        require(not list((broken_backup / "incremental/manifests").glob("*")), "failed run left a manifest")
+        require(not (broken_backup / "incremental/latest-success.json").exists(), "failed run published latest success")
+
+        archive = root / "pocketbase-backup.zip"
+        with zipfile.ZipFile(archive, "w") as bundle:
+            bundle.write(snapshots[0], "data.db")
+        zip_target = root / "zip-restored-pb_data"
+        run_zip_restore(archive, zip_target)
+        require((zip_target / "data.db").is_file(), "safe zip restore did not create data.db")
+
+        existing_target = root / "existing-restore"
+        existing_target.mkdir()
+        sentinel = existing_target / "keep-me.txt"
+        sentinel.write_text("keep", encoding="utf-8")
+        run_zip_restore(archive, existing_target, expect_success=False)
+        require(sentinel.read_text(encoding="utf-8") == "keep", "existing restore target was modified")
+
+        fake_home = root / "fake-home"
+        fake_home.mkdir()
+        fake_runtime = fake_home / ".local/share/coldwaterkim/home-server/pb_data"
+        run_zip_restore(archive, fake_runtime, home=fake_home, expect_success=False)
+        require(not fake_runtime.exists(), "restore wrote into the canonical production path")
+
+        traversal_archive = root / "traversal.zip"
+        with zipfile.ZipFile(traversal_archive, "w") as bundle:
+            bundle.writestr("data.db", b"not-a-database")
+            bundle.writestr("../escaped.txt", b"escape")
+        run_zip_restore(traversal_archive, root / "traversal-target", expect_success=False)
+        require(not (root / "escaped.txt").exists(), "zip traversal escaped the restore target")
+
+    print("Incremental PocketBase backup and restore QA passed (36 checks)")
     return 0
 
 

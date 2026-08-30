@@ -16,7 +16,7 @@ from pathlib import Path
 
 
 DERIVATIVE_FIELDS = {("media", "web_video"), ("media", "video_poster")}
-SNAPSHOT_PATTERN = re.compile(r"^data_(\d{8}_\d{6})\.db$")
+SNAPSHOT_PATTERN = re.compile(r"^data_(\d{8}_\d{6}(?:_\d{6})?)\.db$")
 IDENTIFIER_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 DEFAULT_RESERVE_BYTES = 10 * 1024 * 1024 * 1024
 
@@ -129,6 +129,16 @@ def write_json_atomic(path, payload):
     with temp_path.open("w", encoding="utf-8") as handle:
         json.dump(payload, handle, ensure_ascii=False, indent=2, sort_keys=True)
         handle.write("\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(temp_path, path)
+
+
+def write_text_atomic(path, contents):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = path.with_name(".%s.tmp.%s" % (path.name, os.getpid()))
+    with temp_path.open("w", encoding="utf-8") as handle:
+        handle.write(contents)
         handle.flush()
         os.fsync(handle.fileno())
     os.replace(temp_path, path)
@@ -255,7 +265,9 @@ def prune_snapshots(snapshot_dir, manifest_dir, retention_days, now):
         match = SNAPSHOT_PATTERN.fullmatch(path.name)
         if not match or not path.is_file():
             continue
-        created = datetime.strptime(match.group(1), "%Y%m%d_%H%M%S")
+        timestamp = match.group(1)
+        timestamp_format = "%Y%m%d_%H%M%S_%f" if len(timestamp) > 15 else "%Y%m%d_%H%M%S"
+        created = datetime.strptime(timestamp, timestamp_format)
         if created >= cutoff:
             continue
         for candidate in (path, path.with_suffix(path.suffix + ".sha256"), manifest_dir / ("originals_%s.json" % match.group(1))):
@@ -269,7 +281,7 @@ def main():
     args = parse_args()
     pb_data_dir, backup_dir = validate_roots(args.pb_data_dir, args.backup_dir)
     now = datetime.now()
-    timestamp = now.strftime("%Y%m%d_%H%M%S")
+    timestamp = now.strftime("%Y%m%d_%H%M%S_%f")
     incremental_root = backup_dir / "incremental"
     snapshot_dir = incremental_root / "db-snapshots"
     manifest_dir = incremental_root / "manifests"
@@ -292,28 +304,46 @@ def main():
             return 0
 
         snapshot_path = snapshot_dir / ("data_%s.db" % timestamp)
-        database_checksum = snapshot_database(pb_data_dir / "data.db", snapshot_path)
         checksum_path = snapshot_path.with_suffix(snapshot_path.suffix + ".sha256")
-        checksum_path.write_text("%s  %s\n" % (database_checksum, snapshot_path.name), encoding="utf-8")
-        originals = discover_originals(snapshot_path, pb_data_dir)
-        state = load_state(state_path)
-        verify_all = args.verify_all or now.weekday() == 6
-        manifest_items, copied, verified, new_bytes = copy_originals(
-            originals,
-            originals_root,
-            state,
-            verify_all=verify_all,
-            reserve_bytes=args.reserve_bytes,
-        )
-        state["updated_at"] = now.isoformat(timespec="seconds")
-        write_json_atomic(state_path, state)
-        manifest = {
-            "version": 1,
-            "created_at": now.isoformat(timespec="seconds"),
-            "database": {"file": snapshot_path.name, "sha256": database_checksum},
-            "originals": manifest_items,
-        }
-        write_json_atomic(manifest_dir / ("originals_%s.json" % timestamp), manifest)
+        manifest_path = manifest_dir / ("originals_%s.json" % timestamp)
+        generation_complete = False
+        try:
+            database_checksum = snapshot_database(pb_data_dir / "data.db", snapshot_path)
+            write_text_atomic(checksum_path, "%s  %s\n" % (database_checksum, snapshot_path.name))
+            originals = discover_originals(snapshot_path, pb_data_dir)
+            state = load_state(state_path)
+            verify_all = args.verify_all or now.weekday() == 6
+            manifest_items, copied, verified, new_bytes = copy_originals(
+                originals,
+                originals_root,
+                state,
+                verify_all=verify_all,
+                reserve_bytes=args.reserve_bytes,
+            )
+            state["updated_at"] = now.isoformat(timespec="seconds")
+            write_json_atomic(state_path, state)
+            manifest = {
+                "version": 1,
+                "created_at": now.isoformat(timespec="seconds"),
+                "database": {"file": snapshot_path.name, "sha256": database_checksum},
+                "originals": manifest_items,
+            }
+            write_json_atomic(manifest_path, manifest)
+            write_json_atomic(incremental_root / "latest-success.json", {
+                "version": 1,
+                "created_at": manifest["created_at"],
+                "database": manifest["database"],
+                "manifest": manifest_path.name,
+                "original_files": len(manifest_items),
+            })
+            generation_complete = True
+        finally:
+            if not generation_complete:
+                for incomplete_path in (manifest_path, checksum_path, snapshot_path):
+                    try:
+                        incomplete_path.unlink()
+                    except FileNotFoundError:
+                        pass
         removed = prune_snapshots(snapshot_dir, manifest_dir, args.database_retention_days, now)
         print(json.dumps({
             "snapshot": str(snapshot_path),
