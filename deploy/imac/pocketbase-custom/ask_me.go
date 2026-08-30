@@ -28,6 +28,7 @@ const (
 	askQuestionMaxRunes           = 1000
 	askQuestionReceiptBytes       = 32
 	askQuestionReadMaxFailures    = 5
+	askQuestionReadMaxGlobal      = 60
 	askQuestionReadFailureWindow  = 10 * time.Minute
 	askQuestionCreateMaxPerClient = 5
 	askQuestionCreateMaxGlobal    = 60
@@ -41,6 +42,7 @@ const (
 type askQuestionService struct {
 	app               core.App
 	readFailures      *askQuestionLimiter
+	readGlobal        *askQuestionLimiter
 	createByClient    *askQuestionLimiter
 	createGlobal      *askQuestionLimiter
 	createQuotaMu     sync.Mutex
@@ -81,6 +83,7 @@ func newAskQuestionService(app core.App) *askQuestionService {
 	return &askQuestionService{
 		app:               app,
 		readFailures:      newAskQuestionLimiter(askQuestionReadMaxFailures, askQuestionReadFailureWindow, askQuestionLimiterMaxClients),
+		readGlobal:        newAskQuestionLimiter(askQuestionReadMaxGlobal, askQuestionReadFailureWindow, 1),
 		createByClient:    newAskQuestionLimiter(askQuestionCreateMaxPerClient, askQuestionCreateWindow, askQuestionLimiterMaxClients),
 		createGlobal:      newAskQuestionLimiter(askQuestionCreateMaxGlobal, askQuestionCreateWindow, 1),
 		dummyPasswordHash: dummyHash,
@@ -224,9 +227,15 @@ func (service *askQuestionService) readQuestion(e *core.RequestEvent) error {
 	if !service.readFailures.reserve(clientKey, now) {
 		return e.TooManyRequestsError("잠시 후 다시 시도해주세요.", nil)
 	}
+	if !service.readGlobal.reserve(askQuestionGlobalLimitKey, now) {
+		service.readFailures.complete(clientKey, now, false)
+		return e.TooManyRequestsError("잠시 후 다시 시도해주세요.", nil)
+	}
 	failed := true
 	defer func() {
-		service.readFailures.complete(clientKey, time.Now(), failed)
+		completedAt := time.Now()
+		service.readFailures.complete(clientKey, completedAt, failed)
+		service.readGlobal.complete(askQuestionGlobalLimitKey, completedAt, failed)
 	}()
 
 	request := askQuestionReadRequest{}

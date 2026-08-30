@@ -194,6 +194,74 @@ func TestAskQuestionReadBurstStopsBeforeAuthentication(t *testing.T) {
 	}
 }
 
+func TestAskQuestionDistributedReadBurstHasGlobalAdmissionCap(t *testing.T) {
+	app, err := tests.NewTestApp()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Cleanup()
+	setupAskQuestionTestCollections(t, app)
+
+	router, err := apis.NewRouter(app)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := newAskQuestionService(app)
+	service.registerRoutes(&core.ServeEvent{App: app, Router: router})
+	mux, err := router.BuildMux()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	const requestCount = 100
+	start := make(chan struct{})
+	statuses := make(chan int, requestCount)
+	var workers sync.WaitGroup
+	workers.Add(requestCount)
+	for index := 0; index < requestCount; index++ {
+		go func(client int) {
+			defer workers.Done()
+			<-start
+			request := httptest.NewRequest(
+				http.MethodPost,
+				askQuestionReadPath,
+				strings.NewReader(`{"sequence":1,"password":"wrong"}`),
+			)
+			request.RemoteAddr = fmt.Sprintf("198.51.%d.%d:5000", client/254, client%254+1)
+			request.Header.Set("Content-Type", "application/json")
+			response := httptest.NewRecorder()
+			mux.ServeHTTP(response, request)
+			statuses <- response.Code
+		}(index)
+	}
+
+	close(start)
+	workers.Wait()
+	close(statuses)
+
+	notFound := 0
+	tooManyRequests := 0
+	for status := range statuses {
+		switch status {
+		case http.StatusNotFound:
+			notFound++
+		case http.StatusTooManyRequests:
+			tooManyRequests++
+		default:
+			t.Fatalf("unexpected distributed burst response status=%d", status)
+		}
+	}
+	if notFound != askQuestionReadMaxGlobal || tooManyRequests != requestCount-askQuestionReadMaxGlobal {
+		t.Fatalf(
+			"distributed burst reached authentication=%d rejected-before-auth=%d want=%d/%d",
+			notFound,
+			tooManyRequests,
+			askQuestionReadMaxGlobal,
+			requestCount-askQuestionReadMaxGlobal,
+		)
+	}
+}
+
 func TestAskQuestionLimiterBoundsAndExpiryRecovery(t *testing.T) {
 	limiter := newAskQuestionLimiter(2, time.Minute, 2)
 	now := time.Date(2026, time.August, 20, 12, 0, 0, 0, time.UTC)
