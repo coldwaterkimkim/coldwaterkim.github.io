@@ -9,6 +9,7 @@ import os
 import re
 import shutil
 import sqlite3
+import stat
 import sys
 import tempfile
 from datetime import datetime, timedelta
@@ -111,6 +112,14 @@ def validate_roots(pb_data_dir, backup_dir):
     if not (pb_data_dir / "data.db").is_file():
         raise RuntimeError("missing PocketBase data.db: %s" % (pb_data_dir / "data.db"))
     return pb_data_dir, backup_dir
+
+
+def ensure_real_directory(path, parents=False):
+    if path.is_symlink():
+        raise RuntimeError("backup directory must not be a symbolic link: %s" % path)
+    path.mkdir(parents=parents, exist_ok=True)
+    if path.is_symlink() or not path.is_dir():
+        raise RuntimeError("backup path is not a real directory: %s" % path)
 
 
 def snapshot_database(source_path, destination_path):
@@ -346,9 +355,26 @@ def main():
         print(json.dumps({"dry_run": True, "original_files": len(originals), "original_bytes": total}, sort_keys=True))
         return 0
 
-    incremental_root.mkdir(parents=True, exist_ok=True)
+    ensure_real_directory(backup_dir, parents=True)
+    ensure_real_directory(incremental_root)
+    ensure_real_directory(snapshot_dir)
+    ensure_real_directory(manifest_dir)
+    ensure_real_directory(incremental_root / "originals")
+    ensure_real_directory(incremental_root / "originals" / "storage")
+    ensure_real_directory(incremental_root / "state")
     lock_path = incremental_root / ".backup.lock"
-    with lock_path.open("w") as lock:
+    if lock_path.is_symlink() or (lock_path.exists() and not lock_path.is_file()):
+        raise RuntimeError("backup lock must be a regular file: %s" % lock_path)
+    lock_flags = os.O_WRONLY | os.O_CREAT
+    if hasattr(os, "O_CLOEXEC"):
+        lock_flags |= os.O_CLOEXEC
+    if hasattr(os, "O_NOFOLLOW"):
+        lock_flags |= os.O_NOFOLLOW
+    lock_descriptor = os.open(str(lock_path), lock_flags, 0o600)
+    if not stat.S_ISREG(os.fstat(lock_descriptor).st_mode):
+        os.close(lock_descriptor)
+        raise RuntimeError("backup lock must be a regular file: %s" % lock_path)
+    with os.fdopen(lock_descriptor, "w") as lock:
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:

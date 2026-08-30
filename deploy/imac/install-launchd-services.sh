@@ -97,18 +97,18 @@ USER_DOMAIN="gui/${USER_ID}"
 RUNTIME_ROOT="${IMAC_RUNTIME_ROOT:-$HOME/.local/share/coldwaterkim/home-server}"
 RUNTIME_BIN_DIR="$RUNTIME_ROOT/bin"
 RUNTIME_POCKETBASE="$RUNTIME_BIN_DIR/pocketbase"
+RUNTIME_POCKETBASE_LAUNCHER="$RUNTIME_POCKETBASE"
 RUNTIME_CADDY="$RUNTIME_BIN_DIR/caddy"
 RUNTIME_CADDYFILE="$RUNTIME_ROOT/Caddyfile"
 RUNTIME_BACKUP_SCRIPT="$RUNTIME_ROOT/backup-pocketbase.sh"
 RUNTIME_BACKUP_PROGRAM="$RUNTIME_ROOT/backup-pocketbase.py"
 RUNTIME_DIST="$RUNTIME_ROOT/dist"
 RUNTIME_DIST_PREVIOUS="$RUNTIME_ROOT/dist.previous"
-RUNTIME_MIGRATIONS="$RUNTIME_ROOT/pb_migrations"
-RUNTIME_MIGRATIONS_PREVIOUS="$RUNTIME_ROOT/pb_migrations.previous"
-RUNTIME_POCKETBASE_PREVIOUS="$RUNTIME_BIN_DIR/pocketbase.previous"
-RUNTIME_BACKEND_MANIFEST="$RUNTIME_ROOT/pocketbase-release.json"
-RUNTIME_BACKEND_MANIFEST_PREVIOUS="$RUNTIME_ROOT/pocketbase-release.previous.json"
-RUNTIME_BACKEND_STAGE_DIR="$RUNTIME_ROOT/releases/pocketbase/staged"
+RUNTIME_BACKEND_RELEASES_ROOT="$RUNTIME_ROOT/releases/pocketbase"
+RUNTIME_BACKEND_GENERATIONS_ROOT="$RUNTIME_BACKEND_RELEASES_ROOT/generations"
+RUNTIME_BACKEND_CURRENT_LINK="$RUNTIME_BACKEND_RELEASES_ROOT/current"
+RUNTIME_BACKEND_PREVIOUS_LINK="$RUNTIME_BACKEND_RELEASES_ROOT/previous"
+RUNTIME_BACKEND_STAGE_DIR="$RUNTIME_BACKEND_RELEASES_ROOT/staged"
 BACKEND_RELEASE_LOCK="$RUNTIME_ROOT/.pocketbase-release.lock"
 BACKEND_RELEASE_LOCK_HELD=0
 STAGED_POCKETBASE="$RUNTIME_BACKEND_STAGE_DIR/pocketbase"
@@ -134,6 +134,9 @@ LOCAL_MIGRATIONS="${IMAC_BACKEND_MIGRATIONS:-$REPO_ROOT/pb_migrations}"
 LOCAL_CADDYFILE="$REPO_ROOT/deploy/imac/Caddyfile"
 LOCAL_BACKUP_SCRIPT="$REPO_ROOT/deploy/imac/backup-pocketbase.sh"
 LOCAL_BACKUP_PROGRAM="$REPO_ROOT/deploy/imac/backup-pocketbase.py"
+LOCAL_POCKETBASE_LAUNCHER="$REPO_ROOT/deploy/imac/run-pocketbase-release.sh"
+LOCAL_BACKEND_LINK_PUBLISHER="$REPO_ROOT/deploy/imac/publish-pocketbase-link.py"
+LOCAL_BACKEND_FILE_PUBLISHER="${IMAC_BACKEND_FILE_PUBLISHER:-$REPO_ROOT/deploy/imac/publish-pocketbase-file.py}"
 PB_PLIST_SRC="$REPO_ROOT/deploy/imac/${PB_LABEL}.plist"
 CADDY_PLIST_SRC="$REPO_ROOT/deploy/imac/${CADDY_LABEL}.plist"
 BACKUP_PLIST_SRC="$REPO_ROOT/deploy/imac/${BACKUP_LABEL}.plist"
@@ -361,13 +364,18 @@ sync_runtime_files() {
 }
 
 require_prepared_runtime_backend() {
-    if [[ ! -x "$RUNTIME_POCKETBASE" || ! -d "$RUNTIME_MIGRATIONS" || ! -f "$RUNTIME_BACKEND_MANIFEST" ]]; then
-        echo "Refusing full service install: prepare the runtime PocketBase binary, migrations, and provenance manifest through --backend-stage and --backend-activate first." >&2
+    local release_dir
+    release_dir="$(resolve_backend_release_link "$RUNTIME_BACKEND_CURRENT_LINK")" || {
+        echo "Refusing full service install: prepare an atomic current PocketBase generation through --backend-stage and --backend-activate first." >&2
         echo "For a new host with no running PocketBase job, use --backend-activate --no-start before installing the LaunchDaemons." >&2
         exit 1
+    }
+    if [[ ! -x "$RUNTIME_POCKETBASE_LAUNCHER" ]] \
+        || ! /usr/bin/grep -q 'CWK_ATOMIC_POCKETBASE_LAUNCHER_V1' "$RUNTIME_POCKETBASE_LAUNCHER" 2>/dev/null; then
+        echo "Refusing full service install: the atomic PocketBase launcher is missing." >&2
+        exit 1
     fi
-
-    verify_backend_release "$RUNTIME_POCKETBASE" "$RUNTIME_MIGRATIONS" "$RUNTIME_BACKEND_MANIFEST"
+    verify_installed_backend_release "$release_dir/pocketbase" "$release_dir/pb_migrations" "$release_dir/manifest.json"
 }
 
 sync_frontend_runtime_files() {
@@ -382,8 +390,10 @@ sync_backup_runtime_files() {
 
 verify_backup_root_ownership() {
     local foreign_entry
+    local symlink_entry
 
     if [[ "$DRY_RUN" -eq 1 ]]; then
+        print_command find "$BACKUP_ROOT" -type l -print -quit
         print_command find "$BACKUP_ROOT" ! -user "$BACKUP_OWNER_USER" -print -quit
         return
     fi
@@ -397,6 +407,14 @@ verify_backup_root_ownership() {
     fi
     if [[ ! -d "$BACKUP_ROOT" ]]; then
         echo "Refusing backup activation: backup root is not a directory: $BACKUP_ROOT" >&2
+        exit 1
+    fi
+    if ! symlink_entry="$(find "$BACKUP_ROOT" -type l -print -quit 2>/dev/null)"; then
+        echo "Refusing backup activation: unable to inspect symlinks below the exact backup root: $BACKUP_ROOT" >&2
+        exit 1
+    fi
+    if [[ -n "$symlink_entry" ]]; then
+        echo "Refusing backup activation: the exact backup root contains a symbolic link: $symlink_entry" >&2
         exit 1
     fi
     if ! foreign_entry="$(find "$BACKUP_ROOT" ! -user "$BACKUP_OWNER_USER" -print -quit 2>/dev/null)"; then
@@ -450,6 +468,62 @@ verify_backend_release() {
         --quiet
 }
 
+verify_installed_backend_release() {
+    local binary="$1"
+    local migrations="$2"
+    local manifest="$3"
+    if [[ -z "$BACKEND_GO_VERSION_TOOL" || ! -x "$BACKEND_GO_VERSION_TOOL" ]]; then
+        echo "A Go command is required to inspect PocketBase build metadata with 'go version -m'." >&2
+        return 1
+    fi
+    local verified_generation_id
+    local expected_generation_id
+    verified_generation_id="$(node "$BACKEND_RELEASE_VERIFIER" \
+        --binary "$binary" \
+        --migrations "$migrations" \
+        --manifest "$manifest" \
+        --go-command "$BACKEND_GO_VERSION_TOOL" \
+        --allow-non-head \
+        --print-generation-id)" || return 1
+    expected_generation_id="$(basename "$(dirname "$binary")")"
+    if [[ "$verified_generation_id" != "$expected_generation_id" ]]; then
+        echo "PocketBase installed generation id does not match its verified manifest." >&2
+        return 1
+    fi
+}
+
+resolve_backend_release_link() {
+    local link_path="$1"
+    local resolved
+    local generations_root_real
+    local target
+    if [[ ! -L "$link_path" ]]; then
+        return 1
+    fi
+    target="$(readlink "$link_path")" || return 1
+    if [[ ! "$target" =~ ^generations/[0-9a-f]{40,64}-[0-9a-f]{64}$ ]]; then
+        return 1
+    fi
+    if [[ ! -d "$RUNTIME_BACKEND_RELEASES_ROOT/$target" || -L "$RUNTIME_BACKEND_RELEASES_ROOT/$target" ]]; then
+        return 1
+    fi
+    generations_root_real="$(cd -P "$RUNTIME_BACKEND_GENERATIONS_ROOT" 2>/dev/null && pwd)" || return 1
+    resolved="$(cd -P "$link_path" 2>/dev/null && pwd)" || return 1
+    if [[ "$resolved" != "$generations_root_real/${target#generations/}" ]]; then
+        return 1
+    fi
+    printf '%s\n' "$resolved"
+}
+
+verify_runtime_backend_current() {
+    local release_dir
+    release_dir="$(resolve_backend_release_link "$RUNTIME_BACKEND_CURRENT_LINK")" || {
+        echo "PocketBase current release pointer is missing or unsafe." >&2
+        return 1
+    }
+    verify_installed_backend_release "$release_dir/pocketbase" "$release_dir/pb_migrations" "$release_dir/manifest.json"
+}
+
 stage_backend_release() {
     local staged="${RUNTIME_BACKEND_STAGE_DIR}.staged.$$"
 
@@ -501,7 +575,7 @@ require_offline_pocketbase_for_no_start() {
         echo "Refusing --no-start backend activation: lsof is required to prove port 8090 is unused." >&2
         exit 1
     fi
-    if listener_output="$("$POCKETBASE_LSOF_TOOL" -nP -iTCP:8090 -sTCP:LISTEN 2>/dev/null)"; then
+    if listener_output="$("$POCKETBASE_LSOF_TOOL" -nP -iTCP:8090 -sTCP:LISTEN 2>&1)"; then
         if [[ -n "$listener_output" ]]; then
             echo "Refusing --no-start backend activation: a process is listening on 127.0.0.1:8090." >&2
         else
@@ -510,7 +584,7 @@ require_offline_pocketbase_for_no_start() {
         exit 1
     else
         listener_status=$?
-        if [[ "$listener_status" -ne 1 ]]; then
+        if [[ "$listener_status" -ne 1 || -n "$listener_output" ]]; then
             echo "Refusing --no-start backend activation: unable to prove port 8090 is unused." >&2
             exit 1
         fi
@@ -569,21 +643,33 @@ wait_for_pocketbase_restart() {
 
 activate_backend_release() {
     local release_commit
-    local next_migrations="${RUNTIME_MIGRATIONS}.staged.$$"
-    local next_pocketbase="${RUNTIME_POCKETBASE}.staged.$$"
-    local next_manifest="${RUNTIME_BACKEND_MANIFEST}.staged.$$"
-    local had_migrations=0
-    local had_pocketbase=0
-    local had_manifest=0
+    local release_generation_id
+    local generation_dir
+    local next_generation
+    local current_release=""
+    local current_target=""
+    local previous_release=""
+    local previous_target=""
+    local next_current="${RUNTIME_BACKEND_CURRENT_LINK}.staged.$$"
+    local next_previous="${RUNTIME_BACKEND_PREVIOUS_LINK}.staged.$$"
+    local next_launcher="${RUNTIME_POCKETBASE_LAUNCHER}.staged.$$"
+    local rollback_current="${RUNTIME_BACKEND_CURRENT_LINK}.rollback.$$"
+    local rollback_previous="${RUNTIME_BACKEND_PREVIOUS_LINK}.rollback.$$"
+    local rollback_launcher="${RUNTIME_POCKETBASE_LAUNCHER}.rollback.$$"
+    local legacy_dir="$RUNTIME_BACKEND_RELEASES_ROOT/legacy-before-generations"
+    local next_legacy="${legacy_dir}.staged.$$"
     local previous_pid=""
+    local had_launcher=0
+    local publication_failed=0
 
     verify_backend_release "$STAGED_POCKETBASE" "$STAGED_MIGRATIONS" "$STAGED_BACKEND_MANIFEST"
-    release_commit="$(node "$BACKEND_RELEASE_VERIFIER" \
+    release_generation_id="$(node "$BACKEND_RELEASE_VERIFIER" \
         --binary "$STAGED_POCKETBASE" \
         --migrations "$STAGED_MIGRATIONS" \
         --manifest "$STAGED_BACKEND_MANIFEST" \
         --go-command "$BACKEND_GO_VERSION_TOOL" \
-        --print-commit)"
+        --print-generation-id)"
+    release_commit="${release_generation_id%%-*}"
 
     if [[ "$DRY_RUN" -eq 1 ]]; then
         echo "Activation requires CWK_BACKEND_ACTIVATE_COMMIT=$release_commit"
@@ -597,6 +683,7 @@ activate_backend_release() {
         echo "IMAC_POCKETBASE_RESTART_TIMEOUT_SECONDS must be an integer from 5 to 120." >&2
         exit 1
     fi
+
     if [[ "$NO_START" -eq 1 ]]; then
         require_offline_pocketbase_for_no_start
     else
@@ -612,83 +699,168 @@ activate_backend_release() {
         fi
     fi
 
-    run_cmd rm -rf "$next_migrations"
-    run_cmd rm -f "$next_pocketbase" "$next_manifest"
-    run_cmd mkdir -p "$RUNTIME_BIN_DIR"
-    run_cmd ditto "$STAGED_MIGRATIONS" "$next_migrations"
-    run_cmd install -m 755 "$STAGED_POCKETBASE" "$next_pocketbase"
-    run_cmd install -m 600 "$STAGED_BACKEND_MANIFEST" "$next_manifest"
-
-    if [[ "$DRY_RUN" -eq 1 ]]; then
-        print_command rm -rf "$RUNTIME_MIGRATIONS_PREVIOUS"
-        print_command ditto "$RUNTIME_MIGRATIONS" "$RUNTIME_MIGRATIONS_PREVIOUS"
-        print_command rm -f "$RUNTIME_POCKETBASE_PREVIOUS" "$RUNTIME_BACKEND_MANIFEST_PREVIOUS"
-        print_command install -m 755 "$RUNTIME_POCKETBASE" "$RUNTIME_POCKETBASE_PREVIOUS"
-        print_command install -m 600 "$RUNTIME_BACKEND_MANIFEST" "$RUNTIME_BACKEND_MANIFEST_PREVIOUS"
-        print_command rm -rf "$RUNTIME_MIGRATIONS"
-        print_command mv "$next_migrations" "$RUNTIME_MIGRATIONS"
-        print_command mv -f "$next_pocketbase" "$RUNTIME_POCKETBASE"
-        print_command mv -f "$next_manifest" "$RUNTIME_BACKEND_MANIFEST"
+    generation_dir="$RUNTIME_BACKEND_GENERATIONS_ROOT/$release_generation_id"
+    next_generation="${generation_dir}.staged.$$"
+    if [[ -e "$generation_dir" || -L "$generation_dir" ]]; then
+        if [[ ! -d "$generation_dir" || -L "$generation_dir" ]]; then
+            echo "Refusing backend activation: release generation path is not a real directory: $generation_dir" >&2
+            exit 1
+        fi
+        verify_backend_release "$generation_dir/pocketbase" "$generation_dir/pb_migrations" "$generation_dir/manifest.json"
     else
-        verify_backend_release "$next_pocketbase" "$next_migrations" "$next_manifest"
-        rm -rf "$RUNTIME_MIGRATIONS_PREVIOUS"
-        rm -f "$RUNTIME_POCKETBASE_PREVIOUS" "$RUNTIME_BACKEND_MANIFEST_PREVIOUS"
-        if [[ -d "$RUNTIME_MIGRATIONS" ]]; then
-            ditto "$RUNTIME_MIGRATIONS" "$RUNTIME_MIGRATIONS_PREVIOUS"
-            had_migrations=1
-        fi
-        if [[ -f "$RUNTIME_POCKETBASE" ]]; then
-            install -m 755 "$RUNTIME_POCKETBASE" "$RUNTIME_POCKETBASE_PREVIOUS"
-            had_pocketbase=1
-        fi
-        if [[ -f "$RUNTIME_BACKEND_MANIFEST" ]]; then
-            install -m 600 "$RUNTIME_BACKEND_MANIFEST" "$RUNTIME_BACKEND_MANIFEST_PREVIOUS"
-            had_manifest=1
-        fi
-
-        rm -rf "$RUNTIME_MIGRATIONS"
-        if ! mv "$next_migrations" "$RUNTIME_MIGRATIONS"; then
-            if [[ "$had_migrations" -eq 1 ]]; then
-                mv "$RUNTIME_MIGRATIONS_PREVIOUS" "$RUNTIME_MIGRATIONS"
-            fi
-            echo "Backend activation failed before replacing the PocketBase binary; the prior release was restored." >&2
-            exit 1
-        fi
-        if ! mv -f "$next_pocketbase" "$RUNTIME_POCKETBASE"; then
-            rm -rf "$RUNTIME_MIGRATIONS"
-            if [[ "$had_migrations" -eq 1 ]]; then
-                mv "$RUNTIME_MIGRATIONS_PREVIOUS" "$RUNTIME_MIGRATIONS"
-            fi
-            echo "Backend activation failed while replacing the PocketBase binary; the prior migrations were restored." >&2
-            exit 1
-        fi
-        if ! mv -f "$next_manifest" "$RUNTIME_BACKEND_MANIFEST"; then
-            if [[ "$had_pocketbase" -eq 1 ]]; then
-                mv -f "$RUNTIME_POCKETBASE_PREVIOUS" "$RUNTIME_POCKETBASE"
-            else
-                rm -f "$RUNTIME_POCKETBASE"
-            fi
-            rm -rf "$RUNTIME_MIGRATIONS"
-            if [[ "$had_migrations" -eq 1 ]]; then
-                mv "$RUNTIME_MIGRATIONS_PREVIOUS" "$RUNTIME_MIGRATIONS"
-            fi
-            if [[ "$had_manifest" -eq 1 ]]; then
-                mv -f "$RUNTIME_BACKEND_MANIFEST_PREVIOUS" "$RUNTIME_BACKEND_MANIFEST"
-            fi
-            echo "Backend activation failed while recording provenance; the prior release was restored." >&2
-            exit 1
+        run_cmd rm -rf "$next_generation"
+        run_cmd mkdir -p "$next_generation"
+        run_cmd install -m 755 "$STAGED_POCKETBASE" "$next_generation/pocketbase"
+        run_cmd ditto "$STAGED_MIGRATIONS" "$next_generation/pb_migrations"
+        run_cmd install -m 600 "$STAGED_BACKEND_MANIFEST" "$next_generation/manifest.json"
+        if [[ "$DRY_RUN" -eq 1 ]]; then
+            print_command node "$BACKEND_RELEASE_VERIFIER" \
+                --binary "$next_generation/pocketbase" \
+                --migrations "$next_generation/pb_migrations" \
+                --manifest "$next_generation/manifest.json" \
+                --go-command "$BACKEND_GO_VERSION_TOOL" \
+                --quiet
+            print_command mkdir -p "$RUNTIME_BACKEND_GENERATIONS_ROOT"
+            print_command mv "$next_generation" "$generation_dir"
+        else
+            verify_backend_release "$next_generation/pocketbase" "$next_generation/pb_migrations" "$next_generation/manifest.json"
+            mkdir -p "$RUNTIME_BACKEND_GENERATIONS_ROOT"
+            mv "$next_generation" "$generation_dir"
+            /bin/sync
         fi
     fi
 
+    if [[ -e "$RUNTIME_BACKEND_CURRENT_LINK" && ! -L "$RUNTIME_BACKEND_CURRENT_LINK" ]]; then
+        echo "Refusing backend activation: current release path is not a symbolic link." >&2
+        exit 1
+    fi
+    if [[ -L "$RUNTIME_BACKEND_CURRENT_LINK" ]]; then
+        current_release="$(resolve_backend_release_link "$RUNTIME_BACKEND_CURRENT_LINK")" || {
+            echo "Refusing backend activation: current release pointer is unsafe or broken." >&2
+            exit 1
+        }
+        verify_installed_backend_release "$current_release/pocketbase" "$current_release/pb_migrations" "$current_release/manifest.json"
+        current_target="$(readlink "$RUNTIME_BACKEND_CURRENT_LINK")"
+        if [[ ! "$current_target" =~ ^generations/[0-9a-f]{40,64}-[0-9a-f]{64}$ ]]; then
+            echo "Refusing backend activation: current release pointer is not an exact relative generation target." >&2
+            exit 1
+        fi
+    fi
+    if [[ -e "$RUNTIME_BACKEND_PREVIOUS_LINK" && ! -L "$RUNTIME_BACKEND_PREVIOUS_LINK" ]]; then
+        echo "Refusing backend activation: previous release path is not a symbolic link." >&2
+        exit 1
+    fi
+    if [[ -L "$RUNTIME_BACKEND_PREVIOUS_LINK" ]]; then
+        if [[ -z "$current_target" ]]; then
+            echo "Refusing backend activation: previous release pointer exists without a current release pointer." >&2
+            exit 1
+        fi
+        previous_release="$(resolve_backend_release_link "$RUNTIME_BACKEND_PREVIOUS_LINK")" || {
+            echo "Refusing backend activation: previous release pointer is unsafe or broken." >&2
+            exit 1
+        }
+        verify_installed_backend_release "$previous_release/pocketbase" "$previous_release/pb_migrations" "$previous_release/manifest.json"
+        previous_target="$(readlink "$RUNTIME_BACKEND_PREVIOUS_LINK")"
+    fi
+
+    run_cmd mkdir -p "$RUNTIME_BIN_DIR"
+    run_cmd rm -f "$next_current" "$next_previous" "$next_launcher" "$rollback_current" "$rollback_previous" "$rollback_launcher"
+    run_cmd ln -s "generations/$release_generation_id" "$next_current"
+    if [[ -n "$current_target" ]]; then
+        run_cmd ln -s "$current_target" "$next_previous"
+        run_cmd ln -s "$current_target" "$rollback_current"
+    fi
+    if [[ -n "$previous_target" ]]; then
+        run_cmd ln -s "$previous_target" "$rollback_previous"
+    fi
+    run_cmd install -m 755 "$LOCAL_POCKETBASE_LAUNCHER" "$next_launcher"
+
+    if [[ -e "$RUNTIME_POCKETBASE_LAUNCHER" || -L "$RUNTIME_POCKETBASE_LAUNCHER" ]]; then
+        if [[ ! -f "$RUNTIME_POCKETBASE_LAUNCHER" || -L "$RUNTIME_POCKETBASE_LAUNCHER" ]]; then
+            echo "Refusing backend activation: the existing PocketBase runtime entry is not a regular file." >&2
+            exit 1
+        fi
+        run_cmd install -m 755 "$RUNTIME_POCKETBASE_LAUNCHER" "$rollback_launcher"
+        had_launcher=1
+    fi
+
+    if [[ -f "$RUNTIME_POCKETBASE_LAUNCHER" ]] \
+        && [[ ! -L "$RUNTIME_POCKETBASE_LAUNCHER" ]] \
+        && ! /usr/bin/grep -q 'CWK_ATOMIC_POCKETBASE_LAUNCHER_V1' "$RUNTIME_POCKETBASE_LAUNCHER" 2>/dev/null \
+        && [[ ! -e "$legacy_dir" ]]; then
+        run_cmd rm -rf "$next_legacy"
+        run_cmd mkdir -p "$next_legacy"
+        run_cmd install -m 755 "$RUNTIME_POCKETBASE_LAUNCHER" "$next_legacy/pocketbase"
+        if [[ -d "$RUNTIME_ROOT/pb_migrations" && ! -L "$RUNTIME_ROOT/pb_migrations" ]]; then
+            run_cmd ditto "$RUNTIME_ROOT/pb_migrations" "$next_legacy/pb_migrations"
+        fi
+        if [[ -f "$RUNTIME_ROOT/pocketbase-release.json" && ! -L "$RUNTIME_ROOT/pocketbase-release.json" ]]; then
+            run_cmd install -m 600 "$RUNTIME_ROOT/pocketbase-release.json" "$next_legacy/manifest.json"
+        fi
+        run_cmd mv "$next_legacy" "$legacy_dir"
+    fi
+
     if [[ "$DRY_RUN" -eq 1 ]]; then
+        print_command /usr/bin/python3 "$LOCAL_BACKEND_LINK_PUBLISHER" "$next_current" "$RUNTIME_BACKEND_CURRENT_LINK"
+        print_command /usr/bin/python3 "$LOCAL_BACKEND_FILE_PUBLISHER" "$next_launcher" "$RUNTIME_POCKETBASE_LAUNCHER"
         print_command node "$BACKEND_RELEASE_VERIFIER" \
-            --binary "$RUNTIME_POCKETBASE" \
-            --migrations "$RUNTIME_MIGRATIONS" \
-            --manifest "$RUNTIME_BACKEND_MANIFEST" \
+            --binary "$generation_dir/pocketbase" \
+            --migrations "$generation_dir/pb_migrations" \
+            --manifest "$generation_dir/manifest.json" \
             --go-command "$BACKEND_GO_VERSION_TOOL" \
             --quiet
+        if [[ -n "$current_target" ]]; then
+            print_command /usr/bin/python3 "$LOCAL_BACKEND_LINK_PUBLISHER" "$next_previous" "$RUNTIME_BACKEND_PREVIOUS_LINK"
+        fi
     else
-        verify_backend_release "$RUNTIME_POCKETBASE" "$RUNTIME_MIGRATIONS" "$RUNTIME_BACKEND_MANIFEST"
+        if ! /usr/bin/python3 "$LOCAL_BACKEND_LINK_PUBLISHER" "$next_current" "$RUNTIME_BACKEND_CURRENT_LINK"; then
+            publication_failed=1
+        elif ! /usr/bin/python3 "$LOCAL_BACKEND_FILE_PUBLISHER" "$next_launcher" "$RUNTIME_POCKETBASE_LAUNCHER"; then
+            publication_failed=1
+        elif ! verify_runtime_backend_current; then
+            publication_failed=1
+        elif [[ -n "$current_target" ]] \
+            && ! /usr/bin/python3 "$LOCAL_BACKEND_LINK_PUBLISHER" "$next_previous" "$RUNTIME_BACKEND_PREVIOUS_LINK"; then
+            publication_failed=1
+        fi
+        if [[ "$publication_failed" -eq 1 ]]; then
+            if [[ -n "$current_target" ]]; then
+                /usr/bin/python3 "$LOCAL_BACKEND_LINK_PUBLISHER" "$rollback_current" "$RUNTIME_BACKEND_CURRENT_LINK" || {
+                    echo "CRITICAL: backend activation failed and the prior current pointer could not be restored." >&2
+                    exit 1
+                }
+            elif [[ -L "$RUNTIME_BACKEND_CURRENT_LINK" ]]; then
+                /usr/bin/python3 "$LOCAL_BACKEND_LINK_PUBLISHER" --remove "$RUNTIME_BACKEND_CURRENT_LINK" || {
+                    echo "CRITICAL: backend activation failed and the new current pointer could not be removed." >&2
+                    exit 1
+                }
+            fi
+            if [[ "$had_launcher" -eq 1 ]]; then
+                /usr/bin/python3 "$LOCAL_BACKEND_FILE_PUBLISHER" "$rollback_launcher" "$RUNTIME_POCKETBASE_LAUNCHER" || {
+                    echo "CRITICAL: backend activation failed and the prior launcher could not be restored." >&2
+                    exit 1
+                }
+            elif [[ -f "$RUNTIME_POCKETBASE_LAUNCHER" && ! -L "$RUNTIME_POCKETBASE_LAUNCHER" ]]; then
+                /usr/bin/python3 "$LOCAL_BACKEND_FILE_PUBLISHER" --remove "$RUNTIME_POCKETBASE_LAUNCHER" || {
+                    echo "CRITICAL: backend activation failed and the new launcher could not be removed." >&2
+                    exit 1
+                }
+            fi
+            if [[ -n "$previous_target" ]]; then
+                /usr/bin/python3 "$LOCAL_BACKEND_LINK_PUBLISHER" "$rollback_previous" "$RUNTIME_BACKEND_PREVIOUS_LINK" || {
+                    echo "CRITICAL: backend activation failed and the prior previous pointer could not be restored." >&2
+                    exit 1
+                }
+            elif [[ -L "$RUNTIME_BACKEND_PREVIOUS_LINK" ]]; then
+                /usr/bin/python3 "$LOCAL_BACKEND_LINK_PUBLISHER" --remove "$RUNTIME_BACKEND_PREVIOUS_LINK" || {
+                    echo "CRITICAL: backend activation failed and the new previous pointer could not be removed." >&2
+                    exit 1
+                }
+            fi
+            echo "Backend activation failed before restart; the prior bootable runtime state was restored." >&2
+            exit 1
+        fi
+        rm -f "$rollback_current" "$rollback_previous" "$rollback_launcher"
     fi
 
     if [[ "$NO_START" -eq 1 ]]; then
@@ -699,7 +871,7 @@ activate_backend_release() {
             exit 1
         fi
         if ! wait_for_pocketbase_restart "$previous_pid"; then
-            echo "Backend activation postcondition failed. The verified new release remains current and *.previous is retained for a migration-aware manual recovery decision." >&2
+            echo "Backend activation postcondition failed. The verified new release remains current and the previous generation pointer is retained for a migration-aware manual recovery decision." >&2
             exit 1
         fi
     fi
@@ -813,6 +985,9 @@ fi
 if [[ "$BACKEND_ACTIVATE" -eq 1 ]]; then
     acquire_backend_release_lock
     require_file "$BACKEND_RELEASE_VERIFIER"
+    require_file "$LOCAL_POCKETBASE_LAUNCHER"
+    require_file "$LOCAL_BACKEND_LINK_PUBLISHER"
+    require_file "$LOCAL_BACKEND_FILE_PUBLISHER"
     require_file "$STAGED_BACKEND_MANIFEST"
     require_dir "$STAGED_MIGRATIONS"
     require_executable "$STAGED_POCKETBASE"
@@ -860,6 +1035,9 @@ fi
 
 require_file "$PB_PLIST_SRC"
 require_file "$BACKUP_PLIST_SRC"
+require_file "$LOCAL_POCKETBASE_LAUNCHER"
+require_file "$LOCAL_BACKEND_LINK_PUBLISHER"
+require_file "$LOCAL_BACKEND_FILE_PUBLISHER"
 require_file "$LOCAL_BACKUP_SCRIPT"
 require_file "$LOCAL_BACKUP_PROGRAM"
 require_file "$LOCAL_TOOL_SENTINEL"

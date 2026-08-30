@@ -21,6 +21,8 @@ const options = {
   manifest: null,
   quiet: false,
   printCommit: false,
+  printGenerationId: false,
+  allowNonHead: false,
   goCommand: process.env.GO_VERSION_TOOL || 'go',
 };
 
@@ -37,6 +39,9 @@ Options:
   --manifest <path>    manifest (default: .local-bin/pocketbase-release.json)
   --quiet              suppress the verification summary
   --print-commit       print only the verified release commit
+  --print-generation-id
+                       print commit and binary SHA-256 as one immutable id
+  --allow-non-head     verify an already-installed historical generation
   --go-command <path>  go command used for "go version -m"
 `);
   process.exit(exitCode);
@@ -52,6 +57,14 @@ for (let index = 0; index < args.length; index += 1) {
   }
   if (arg === '--print-commit') {
     options.printCommit = true;
+    continue;
+  }
+  if (arg === '--print-generation-id') {
+    options.printGenerationId = true;
+    continue;
+  }
+  if (arg === '--allow-non-head') {
+    options.allowNonHead = true;
     continue;
   }
   const key = {
@@ -101,7 +114,9 @@ function main() {
 
   run('git', ['-C', options.repoRoot, 'cat-file', '-e', `${manifest.commit}^{commit}`]);
   const currentCommit = run('git', ['-C', options.repoRoot, 'rev-parse', 'HEAD']).trim();
-  if (manifest.commit !== currentCommit) throw new Error('manifest commit does not match current Git HEAD');
+  if (!options.allowNonHead && manifest.commit !== currentCommit) {
+    throw new Error('manifest commit does not match current Git HEAD');
+  }
   const moduleText = run('git', [
     '-C', options.repoRoot,
     'show', `${manifest.commit}:deploy/imac/pocketbase-custom/go.mod`,
@@ -134,7 +149,9 @@ function main() {
     throw new Error('migration tree does not match the manifest Git commit');
   }
 
-  if (options.printCommit) {
+  if (options.printGenerationId) {
+    console.log(`${manifest.commit}-${manifest.binarySha256}`);
+  } else if (options.printCommit) {
     console.log(manifest.commit);
   } else if (!options.quiet) {
     console.log('PocketBase release verified.');

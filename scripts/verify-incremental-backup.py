@@ -208,6 +208,39 @@ def main():
         require(dry_summary["original_files"] == 3, "dry-run must discover only original file fields")
         require(not backup_dir.exists(), "dry-run must not create the backup root")
 
+        fresh_parent_backup = root / "missing-parent" / "nested" / "backup"
+        fresh_parent_result = json.loads(run_backup(pb_data, fresh_parent_backup).stdout)
+        require(fresh_parent_result["original_files"] == 3, "backup must create a missing safe parent chain")
+
+        outside_backup = root / "outside-backup-target"
+        outside_backup.mkdir()
+        outside_sentinel = outside_backup / "data_20000101_000000.db"
+        outside_sentinel.write_bytes(b"keep")
+        symlink_backup = root / "symlink-backup"
+        symlink_backup.mkdir()
+        (symlink_backup / "incremental").symlink_to(outside_backup, target_is_directory=True)
+        symlink_result = run_backup(pb_data, symlink_backup, expect_success=False)
+        require(
+            "must not be a symbolic link" in symlink_result.stderr,
+            "internal backup directory symlink was not rejected",
+        )
+        require(outside_sentinel.read_bytes() == b"keep", "backup followed an internal symlink outside its root")
+
+        for managed_name in ("db-snapshots", "manifests"):
+            external = root / ("outside-%s" % managed_name)
+            external.mkdir()
+            external_sentinel = external / "keep.txt"
+            external_sentinel.write_text("keep", encoding="utf-8")
+            managed_backup = root / ("symlink-%s-backup" % managed_name)
+            (managed_backup / "incremental").mkdir(parents=True)
+            (managed_backup / "incremental" / managed_name).symlink_to(external, target_is_directory=True)
+            managed_result = run_backup(pb_data, managed_backup, expect_success=False)
+            require(
+                "must not be a symbolic link" in managed_result.stderr,
+                "%s symlink was not rejected" % managed_name,
+            )
+            require(external_sentinel.read_text(encoding="utf-8") == "keep", "%s symlink target was modified" % managed_name)
+
         first = json.loads(run_backup(pb_data, backup_dir).stdout)
         require(first["copied_files"] == 3, "first run must copy three originals")
         require(first["original_files"] == 3, "manifest must contain three originals")

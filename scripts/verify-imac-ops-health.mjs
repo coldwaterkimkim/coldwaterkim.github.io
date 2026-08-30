@@ -132,9 +132,9 @@ function parseArgs(args) {
     tlsHost: 'coldwaterkim.com',
     tlsPort: 443,
     tlsMinDays: 21,
-    runtimeManifest: path.join(runtimeRoot, 'pocketbase-release.json'),
-    runtimeBinary: path.join(runtimeRoot, 'bin', 'pocketbase'),
-    runtimeMigrations: path.join(runtimeRoot, 'pb_migrations'),
+    runtimeManifest: path.join(runtimeRoot, 'releases', 'pocketbase', 'current', 'manifest.json'),
+    runtimeBinary: path.join(runtimeRoot, 'releases', 'pocketbase', 'current', 'pocketbase'),
+    runtimeMigrations: path.join(runtimeRoot, 'releases', 'pocketbase', 'current', 'pb_migrations'),
     timeoutMs: 5000,
   };
   let customLabels = false;

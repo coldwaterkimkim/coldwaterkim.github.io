@@ -80,12 +80,15 @@ node scripts/verify-file-tools-backend.mjs
 운영 launchd는 아래 파일들을 `~/.local/share/coldwaterkim/home-server`로 복사해서 실행한다.
 
 - `dist`
-- `pb_migrations`
 - `pb_data`
 - `tus-uploads` (완료 전 조각만 보관하며 `pb_data` 백업 대상은 아님)
 - `tool-jobs` (0700, 완료 결과 30분 보관, `pb_data` 백업 대상은 아님)
-- `bin/pocketbase`
-- `pocketbase-release.json` (현재 backend provenance; 이전 것은 `.previous.json`)
+- `bin/pocketbase` (고정 launcher; 시작할 때 `current` 세대를 한 번만 고정한다)
+- `releases/pocketbase/generations/<commit>-<binarySha256>/pocketbase`
+- `releases/pocketbase/generations/<commit>-<binarySha256>/pb_migrations`
+- `releases/pocketbase/generations/<commit>-<binarySha256>/manifest.json`
+- `releases/pocketbase/current` (현재 세대를 가리키는 상대 symlink)
+- `releases/pocketbase/previous` (직전 검증 세대를 가리키는 상대 symlink)
 - `bin/ffmpeg`, `bin/ffprobe`
 - `bin/qpdf`, `bin/pdfinfo`, `bin/pdftoppm`, `bin/pdftotext`, `bin/tesseract`, `bin/gs`, `bin/soffice`, `bin/java`, `bin/sips`
 - `Caddyfile`
@@ -142,11 +145,13 @@ npm run imac:video:enqueue-referenced
 
 `imac:build-backend-release`는 `deploy/imac/pocketbase-custom` 또는 `pb_migrations`에 커밋되지 않은 파일·수정이 하나라도 있으면 manifest를 만들지 않는다. 같은 PocketBase 버전이라도 binary의 `vcs.revision`이 manifest commit과 다르면 생성·stage·activation 모두 중단된다. stage와 activation은 binary build metadata와 SHA-256, migration tree SHA-256을 다시 검사하고, migration hash가 적힌 Git commit의 실제 tree와 같은지도 확인한다.
 
-Stage와 activation은 같은 single-writer lock을 사용하므로 서로 겹쳐 실행되지 않는다. Activation은 manifest의 전체 commit을 `CWK_BACKEND_ACTIVATE_COMMIT`으로 다시 입력해야 실행되며, 현재 경로로 전환된 binary·migration·manifest 조합을 다시 검증한 뒤 PocketBase만 재시작한다. kickstart 전 PID를 읽고, 30초 안에 다른 PID가 나타나며 `http://127.0.0.1:8090/api/health`가 건강한 JSON을 직접 반환해야 성공이다. Caddy를 거친 공개 응답은 이 postcondition을 대신하지 않는다. `--no-start`는 아직 PocketBase launchd job이 설치되지 않았고 `127.0.0.1:8090`도 사용하지 않는 새 호스트 준비에만 허용된다. 실행 중인 운영 서버의 무중단 파일 교체 수단으로 사용할 수 없고, 운영 완료 판정으로도 사용하지 않는다. `dist`, Caddy, 백업 서비스, launchd plist는 건드리지 않는다.
+Stage와 activation은 같은 single-writer lock을 사용하므로 서로 겹쳐 실행되지 않는다. Activation은 manifest의 전체 commit을 `CWK_BACKEND_ACTIVATE_COMMIT`으로 다시 입력해야 실행된다. 검증된 binary·migration·manifest를 `commit-binarySha256` 이름의 불변 세대에 함께 둔 뒤 `previous`, `current` 상대 symlink와 고정 launcher를 각각 원자적·durable하게 교체한다. launcher는 시작 시 `current`를 절대 세대 경로로 한 번만 해석하므로 정전이나 crash가 전환 중 발생해도 서로 다른 세대의 binary와 migration을 섞지 않는다. 재시작 전 publication 검증이 실패하면 이전 `current`와 launcher를 자동 복구하며, 재시작 뒤에는 DB migration이 이미 적용됐을 수 있어 자동 rollback하지 않는다.
+
+현재 세대 조합을 다시 검증한 뒤 PocketBase만 재시작한다. kickstart 전 PID를 읽고, 30초 안에 다른 PID가 나타나며 `http://127.0.0.1:8090/api/health`가 건강한 JSON을 직접 반환해야 성공이다. Caddy를 거친 공개 응답은 이 postcondition을 대신하지 않는다. `--no-start`는 아직 PocketBase launchd job이 설치되지 않았고 `127.0.0.1:8090`도 사용하지 않는 새 호스트 준비에만 허용된다. 실행 중인 운영 서버의 무중단 파일 교체 수단으로 사용할 수 없고, 운영 완료 판정으로도 사용하지 않는다. `dist`, Caddy, 백업 서비스, launchd plist는 건드리지 않는다.
 
 중요: 현재 스크립트는 최신 iMac local backup과 격리 restore rehearsal의 성공을 자동으로 증명하지 못한다. 따라서 위 두 증거를 운영자가 직접 확인하기 전 production activation은 **BLOCKED**다. 기존 `pb:backup:production`은 legacy `https://api.coldwaterkim.com` 원격 백업 경로라 이 backend release gate의 증거로 사용하지 않는다.
 
-전환 전 binary와 migration은 `bin/pocketbase.previous`, `pb_migrations.previous`에 남고, 기존 provenance가 있으면 `pocketbase-release.previous.json`도 함께 남는다. 다만 PocketBase 기동 중 DB migration이 이미 적용됐다면 binary만 되돌리는 것은 안전하지 않을 수 있다. 장애 시 자동으로 옛 binary를 덮어쓰지 말고, DB snapshot과 migration 호환성을 먼저 확인한 뒤 같은 세대 파일을 함께 복구한다.
+첫 세대식 전환 때 기존 flat binary와 migration은 `releases/pocketbase/legacy-before-generations`에 수동 참고본으로 남긴다. manifest로 검증되지 않은 참고본은 자동 rollback 대상으로 보지 않는다. 이후 전환은 검증된 직전 세대 전체를 `previous`가 가리킨다. 다만 PocketBase 기동 중 DB migration이 이미 적용됐다면 `previous`로 pointer만 되돌리는 것도 안전하지 않을 수 있다. 장애 시 자동으로 옛 세대를 실행하지 말고, DB snapshot과 migration 호환성을 먼저 확인한 뒤 같은 세대 전체를 복구한다.
 
 기존 글에서 참조 중인 영상만 최초 대기열에 넣을 때:
 

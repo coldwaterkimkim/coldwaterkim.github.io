@@ -114,6 +114,8 @@ function verifyBackupScript() {
   requireCondition('backup excludes video derivatives', program.includes('("media", "web_video")') && program.includes('("media", "video_poster")'));
   requireCondition('backup originals are append-only', program.includes('append-only backup checksum conflict'));
   requireCondition('backup uses an execution lock', program.includes('fcntl.flock'));
+  requireCondition('backup lock refuses symlink following', program.includes('os.O_NOFOLLOW') && program.includes('os.fstat(lock_descriptor)'));
+  requireCondition('backup managed directories refuse symlinks', program.includes('def ensure_real_directory') && program.includes('path.is_symlink()'));
   requireCondition('backup writes sha256 metadata', program.includes('sha256'));
 }
 
@@ -167,6 +169,10 @@ function verifyBackupInstaller() {
     installer.includes('verify_backup_root_ownership')
       && installer.includes('find "$BACKUP_ROOT" ! -user "$BACKUP_OWNER_USER" -print -quit')
       && installer.includes('[[ -L "$BACKUP_ROOT" ]]'),
+  );
+  requireCondition(
+    'backup activation rejects internal symbolic links',
+    installer.includes('find "$BACKUP_ROOT" -type l -print -quit'),
   );
   requireCondition(
     'backup ownership gate never automatically changes backup ownership',
