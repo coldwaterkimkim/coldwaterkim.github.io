@@ -164,6 +164,10 @@ def main():
         "every backup atomic replace must fsync its parent directory",
     )
     require(
+        "F_FULLFSYNC" in backup_program_source,
+        "macOS backup publication must flush drive caches with F_FULLFSYNC",
+    )
+    require(
         "fsync_file(temp_path)\n                    replace_durable(temp_path, destination)" in backup_program_source,
         "copied originals must be durable before publication",
     )
@@ -207,6 +211,16 @@ def main():
         dry_summary = json.loads(dry_run.stdout)
         require(dry_summary["original_files"] == 3, "dry-run must discover only original file fields")
         require(not backup_dir.exists(), "dry-run must not create the backup root")
+
+        exact_backup_target = root / "exact-backup-target"
+        exact_backup_target.mkdir()
+        exact_backup_link = root / "exact-backup-link"
+        exact_backup_link.symlink_to(exact_backup_target, target_is_directory=True)
+        exact_link_result = run_backup(pb_data, exact_backup_link, expect_success=False)
+        require(
+            "backup root must not be a symbolic link" in exact_link_result.stderr,
+            "configured backup root symlink was not rejected before resolution",
+        )
 
         fresh_parent_backup = root / "missing-parent" / "nested" / "backup"
         fresh_parent_result = json.loads(run_backup(pb_data, fresh_parent_backup).stdout)

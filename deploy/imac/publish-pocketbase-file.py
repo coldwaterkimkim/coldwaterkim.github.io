@@ -1,10 +1,20 @@
 #!/usr/bin/env python3
 """Durably replace a PocketBase runtime file without exposing partial bytes."""
 
+import fcntl
 import os
 import stat
 import sys
 from pathlib import Path
+
+
+def full_sync(descriptor):
+    os.fsync(descriptor)
+    if sys.platform == "darwin":
+        command = getattr(fcntl, "F_FULLFSYNC", None)
+        if command is None:
+            raise RuntimeError("F_FULLFSYNC is unavailable on macOS")
+        fcntl.fcntl(descriptor, command)
 
 
 def main():
@@ -15,7 +25,7 @@ def main():
         destination.unlink()
         directory_fd = os.open(destination.parent, os.O_RDONLY)
         try:
-            os.fsync(directory_fd)
+            full_sync(directory_fd)
         finally:
             os.close(directory_fd)
         return
@@ -32,13 +42,13 @@ def main():
         raise RuntimeError("runtime destination must be absent or a regular file")
     source_fd = os.open(source, os.O_RDONLY)
     try:
-        os.fsync(source_fd)
+        full_sync(source_fd)
     finally:
         os.close(source_fd)
     os.replace(source, destination)
     directory_fd = os.open(source.parent, os.O_RDONLY)
     try:
-        os.fsync(directory_fd)
+        full_sync(directory_fd)
     finally:
         os.close(directory_fd)
 

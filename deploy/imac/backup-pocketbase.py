@@ -78,15 +78,24 @@ def safe_child(root, *parts):
     return candidate
 
 
+def full_sync(descriptor):
+    os.fsync(descriptor)
+    if sys.platform == "darwin":
+        command = getattr(fcntl, "F_FULLFSYNC", None)
+        if command is None:
+            raise RuntimeError("F_FULLFSYNC is unavailable on macOS")
+        fcntl.fcntl(descriptor, command)
+
+
 def fsync_file(path):
     with path.open("rb") as handle:
-        os.fsync(handle.fileno())
+        full_sync(handle.fileno())
 
 
 def fsync_directory(directory):
     descriptor = os.open(str(directory), os.O_RDONLY)
     try:
-        os.fsync(descriptor)
+        full_sync(descriptor)
     finally:
         os.close(descriptor)
 
@@ -105,8 +114,14 @@ def required_snapshot_bytes(database_path):
 
 
 def validate_roots(pb_data_dir, backup_dir):
-    pb_data_dir = pb_data_dir.expanduser().resolve()
-    backup_dir = backup_dir.expanduser().resolve()
+    pb_data_dir = Path(os.path.abspath(str(pb_data_dir.expanduser())))
+    backup_dir = Path(os.path.abspath(str(backup_dir.expanduser())))
+    if pb_data_dir.is_symlink():
+        raise RuntimeError("PocketBase root must not be a symbolic link: %s" % pb_data_dir)
+    if backup_dir.is_symlink():
+        raise RuntimeError("backup root must not be a symbolic link: %s" % backup_dir)
+    pb_data_dir = pb_data_dir.resolve()
+    backup_dir = backup_dir.resolve()
     if pb_data_dir in (Path("/"), Path.home().resolve()) or backup_dir in (Path("/"), Path.home().resolve()):
         raise RuntimeError("refusing broad PocketBase or backup root")
     if not (pb_data_dir / "data.db").is_file():
@@ -117,13 +132,27 @@ def validate_roots(pb_data_dir, backup_dir):
 def ensure_real_directory(path, parents=False):
     if path.is_symlink():
         raise RuntimeError("backup directory must not be a symbolic link: %s" % path)
+    missing = []
+    cursor = path
+    while not cursor.exists():
+        missing.append(cursor)
+        if cursor.parent == cursor:
+            raise RuntimeError("unable to find an existing parent for backup directory: %s" % path)
+        cursor = cursor.parent
+    if cursor.is_symlink() or not cursor.is_dir():
+        raise RuntimeError("backup parent is not a real directory: %s" % cursor)
     path.mkdir(parents=parents, exist_ok=True)
     if path.is_symlink() or not path.is_dir():
         raise RuntimeError("backup path is not a real directory: %s" % path)
+    for created in reversed(missing):
+        if created.is_symlink() or not created.is_dir():
+            raise RuntimeError("backup path changed while it was created: %s" % created)
+        fsync_directory(created)
+        fsync_directory(created.parent)
 
 
 def snapshot_database(source_path, destination_path):
-    destination_path.parent.mkdir(parents=True, exist_ok=True)
+    ensure_real_directory(destination_path.parent, parents=True)
     temp_path = destination_path.with_name(".%s.tmp.%s" % (destination_path.name, os.getpid()))
     if temp_path.exists():
         temp_path.unlink()
@@ -168,14 +197,14 @@ def load_state(path):
 
 
 def write_json_atomic(path, payload):
-    path.parent.mkdir(parents=True, exist_ok=True)
+    ensure_real_directory(path.parent, parents=True)
     temp_path = path.with_name(".%s.tmp.%s" % (path.name, os.getpid()))
     try:
         with temp_path.open("w", encoding="utf-8") as handle:
             json.dump(payload, handle, ensure_ascii=False, indent=2, sort_keys=True)
             handle.write("\n")
             handle.flush()
-            os.fsync(handle.fileno())
+            full_sync(handle.fileno())
         replace_durable(temp_path, path)
     finally:
         try:
@@ -185,13 +214,13 @@ def write_json_atomic(path, payload):
 
 
 def write_text_atomic(path, contents):
-    path.parent.mkdir(parents=True, exist_ok=True)
+    ensure_real_directory(path.parent, parents=True)
     temp_path = path.with_name(".%s.tmp.%s" % (path.name, os.getpid()))
     try:
         with temp_path.open("w", encoding="utf-8") as handle:
             handle.write(contents)
             handle.flush()
-            os.fsync(handle.fileno())
+            full_sync(handle.fileno())
         replace_durable(temp_path, path)
     finally:
         try:
@@ -254,7 +283,7 @@ def copy_originals(originals, originals_root, state, verify_all=False, dry_run=F
         if not destination.exists():
             new_bytes += item["source"].stat().st_size
     if not dry_run:
-        originals_root.mkdir(parents=True, exist_ok=True)
+        ensure_real_directory(originals_root, parents=True)
         free_bytes = shutil.disk_usage(originals_root).free
         if free_bytes < new_bytes + reserve_bytes:
             raise RuntimeError("insufficient backup space: need %d bytes plus %d reserve, have %d" % (new_bytes, reserve_bytes, free_bytes))
@@ -285,7 +314,7 @@ def copy_originals(originals, originals_root, state, verify_all=False, dry_run=F
                     raise RuntimeError("append-only backup checksum conflict for %s" % relative_path)
                 verified += 1
             elif not dry_run:
-                destination.parent.mkdir(parents=True, exist_ok=True)
+                ensure_real_directory(destination.parent, parents=True)
                 with tempfile.NamedTemporaryFile(prefix=".original-", dir=str(destination.parent), delete=False) as temp:
                     temp_path = Path(temp.name)
                 try:

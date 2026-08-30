@@ -135,8 +135,9 @@ LOCAL_CADDYFILE="$REPO_ROOT/deploy/imac/Caddyfile"
 LOCAL_BACKUP_SCRIPT="$REPO_ROOT/deploy/imac/backup-pocketbase.sh"
 LOCAL_BACKUP_PROGRAM="$REPO_ROOT/deploy/imac/backup-pocketbase.py"
 LOCAL_POCKETBASE_LAUNCHER="$REPO_ROOT/deploy/imac/run-pocketbase-release.sh"
-LOCAL_BACKEND_LINK_PUBLISHER="$REPO_ROOT/deploy/imac/publish-pocketbase-link.py"
+LOCAL_BACKEND_LINK_PUBLISHER="${IMAC_BACKEND_LINK_PUBLISHER:-$REPO_ROOT/deploy/imac/publish-pocketbase-link.py}"
 LOCAL_BACKEND_FILE_PUBLISHER="${IMAC_BACKEND_FILE_PUBLISHER:-$REPO_ROOT/deploy/imac/publish-pocketbase-file.py}"
+LOCAL_BACKEND_GENERATION_PUBLISHER="${IMAC_BACKEND_GENERATION_PUBLISHER:-$REPO_ROOT/deploy/imac/publish-pocketbase-generation.py}"
 PB_PLIST_SRC="$REPO_ROOT/deploy/imac/${PB_LABEL}.plist"
 CADDY_PLIST_SRC="$REPO_ROOT/deploy/imac/${CADDY_LABEL}.plist"
 BACKUP_PLIST_SRC="$REPO_ROOT/deploy/imac/${BACKUP_LABEL}.plist"
@@ -359,8 +360,6 @@ sync_runtime_files() {
         validate_runtime_caddy_config
     fi
     activate_runtime_dir "$LOCAL_DIST" "$RUNTIME_DIST" "$RUNTIME_DIST_PREVIOUS"
-    run_cmd install -m 700 "$LOCAL_BACKUP_SCRIPT" "$RUNTIME_BACKUP_SCRIPT"
-    run_cmd install -m 700 "$LOCAL_BACKUP_PROGRAM" "$RUNTIME_BACKUP_PROGRAM"
 }
 
 require_prepared_runtime_backend() {
@@ -653,14 +652,13 @@ activate_backend_release() {
     local next_current="${RUNTIME_BACKEND_CURRENT_LINK}.staged.$$"
     local next_previous="${RUNTIME_BACKEND_PREVIOUS_LINK}.staged.$$"
     local next_launcher="${RUNTIME_POCKETBASE_LAUNCHER}.staged.$$"
-    local rollback_current="${RUNTIME_BACKEND_CURRENT_LINK}.rollback.$$"
     local rollback_previous="${RUNTIME_BACKEND_PREVIOUS_LINK}.rollback.$$"
     local rollback_launcher="${RUNTIME_POCKETBASE_LAUNCHER}.rollback.$$"
     local legacy_dir="$RUNTIME_BACKEND_RELEASES_ROOT/legacy-before-generations"
     local next_legacy="${legacy_dir}.staged.$$"
     local previous_pid=""
     local had_launcher=0
-    local publication_failed=0
+    local precommit_publication_failed=0
 
     verify_backend_release "$STAGED_POCKETBASE" "$STAGED_MIGRATIONS" "$STAGED_BACKEND_MANIFEST"
     release_generation_id="$(node "$BACKEND_RELEASE_VERIFIER" \
@@ -699,6 +697,14 @@ activate_backend_release() {
         fi
     fi
 
+    if [[ "$NO_START" -eq 0 ]] \
+        && [[ ! -e "$RUNTIME_BACKEND_CURRENT_LINK" ]] \
+        && [[ ! -L "$RUNTIME_BACKEND_CURRENT_LINK" ]]; then
+        echo "Refusing the first atomic backend conversion while PocketBase is live." >&2
+        echo "Unload the PocketBase job, prove port 8090 is unused, and use --backend-activate --no-start before reinstalling the LaunchDaemon." >&2
+        exit 1
+    fi
+
     generation_dir="$RUNTIME_BACKEND_GENERATIONS_ROOT/$release_generation_id"
     next_generation="${generation_dir}.staged.$$"
     if [[ -e "$generation_dir" || -L "$generation_dir" ]]; then
@@ -721,12 +727,11 @@ activate_backend_release() {
                 --go-command "$BACKEND_GO_VERSION_TOOL" \
                 --quiet
             print_command mkdir -p "$RUNTIME_BACKEND_GENERATIONS_ROOT"
-            print_command mv "$next_generation" "$generation_dir"
+            print_command /usr/bin/python3 "$LOCAL_BACKEND_GENERATION_PUBLISHER" "$next_generation" "$generation_dir"
         else
             verify_backend_release "$next_generation/pocketbase" "$next_generation/pb_migrations" "$next_generation/manifest.json"
             mkdir -p "$RUNTIME_BACKEND_GENERATIONS_ROOT"
-            mv "$next_generation" "$generation_dir"
-            /bin/sync
+            /usr/bin/python3 "$LOCAL_BACKEND_GENERATION_PUBLISHER" "$next_generation" "$generation_dir"
         fi
     fi
 
@@ -743,6 +748,10 @@ activate_backend_release() {
         current_target="$(readlink "$RUNTIME_BACKEND_CURRENT_LINK")"
         if [[ ! "$current_target" =~ ^generations/[0-9a-f]{40,64}-[0-9a-f]{64}$ ]]; then
             echo "Refusing backend activation: current release pointer is not an exact relative generation target." >&2
+            exit 1
+        fi
+        if [[ "$current_target" == "generations/$release_generation_id" ]]; then
+            echo "Refusing redundant backend activation: the staged release is already current; previous was preserved." >&2
             exit 1
         fi
     fi
@@ -763,12 +772,17 @@ activate_backend_release() {
         previous_target="$(readlink "$RUNTIME_BACKEND_PREVIOUS_LINK")"
     fi
 
+    if [[ -z "$current_target" && "$NO_START" -eq 0 ]]; then
+        echo "Refusing the first atomic backend conversion while PocketBase is live." >&2
+        echo "Unload the PocketBase job, prove port 8090 is unused, and use --backend-activate --no-start before reinstalling the LaunchDaemon." >&2
+        exit 1
+    fi
+
     run_cmd mkdir -p "$RUNTIME_BIN_DIR"
-    run_cmd rm -f "$next_current" "$next_previous" "$next_launcher" "$rollback_current" "$rollback_previous" "$rollback_launcher"
+    run_cmd rm -f "$next_current" "$next_previous" "$next_launcher" "$rollback_previous" "$rollback_launcher"
     run_cmd ln -s "generations/$release_generation_id" "$next_current"
     if [[ -n "$current_target" ]]; then
         run_cmd ln -s "$current_target" "$next_previous"
-        run_cmd ln -s "$current_target" "$rollback_current"
     fi
     if [[ -n "$previous_target" ]]; then
         run_cmd ln -s "$previous_target" "$rollback_previous"
@@ -801,66 +815,75 @@ activate_backend_release() {
     fi
 
     if [[ "$DRY_RUN" -eq 1 ]]; then
-        print_command /usr/bin/python3 "$LOCAL_BACKEND_LINK_PUBLISHER" "$next_current" "$RUNTIME_BACKEND_CURRENT_LINK"
-        print_command /usr/bin/python3 "$LOCAL_BACKEND_FILE_PUBLISHER" "$next_launcher" "$RUNTIME_POCKETBASE_LAUNCHER"
+        if [[ -n "$current_target" ]]; then
+            print_command /usr/bin/python3 "$LOCAL_BACKEND_FILE_PUBLISHER" "$next_launcher" "$RUNTIME_POCKETBASE_LAUNCHER"
+            print_command /usr/bin/python3 "$LOCAL_BACKEND_LINK_PUBLISHER" "$next_previous" "$RUNTIME_BACKEND_PREVIOUS_LINK"
+            print_command /usr/bin/python3 "$LOCAL_BACKEND_LINK_PUBLISHER" "$next_current" "$RUNTIME_BACKEND_CURRENT_LINK"
+        else
+            print_command /usr/bin/python3 "$LOCAL_BACKEND_LINK_PUBLISHER" "$next_current" "$RUNTIME_BACKEND_CURRENT_LINK"
+            print_command /usr/bin/python3 "$LOCAL_BACKEND_FILE_PUBLISHER" "$next_launcher" "$RUNTIME_POCKETBASE_LAUNCHER"
+        fi
         print_command node "$BACKEND_RELEASE_VERIFIER" \
             --binary "$generation_dir/pocketbase" \
             --migrations "$generation_dir/pb_migrations" \
             --manifest "$generation_dir/manifest.json" \
             --go-command "$BACKEND_GO_VERSION_TOOL" \
             --quiet
-        if [[ -n "$current_target" ]]; then
-            print_command /usr/bin/python3 "$LOCAL_BACKEND_LINK_PUBLISHER" "$next_previous" "$RUNTIME_BACKEND_PREVIOUS_LINK"
-        fi
     else
-        if ! /usr/bin/python3 "$LOCAL_BACKEND_LINK_PUBLISHER" "$next_current" "$RUNTIME_BACKEND_CURRENT_LINK"; then
-            publication_failed=1
-        elif ! /usr/bin/python3 "$LOCAL_BACKEND_FILE_PUBLISHER" "$next_launcher" "$RUNTIME_POCKETBASE_LAUNCHER"; then
-            publication_failed=1
-        elif ! verify_runtime_backend_current; then
-            publication_failed=1
-        elif [[ -n "$current_target" ]] \
-            && ! /usr/bin/python3 "$LOCAL_BACKEND_LINK_PUBLISHER" "$next_previous" "$RUNTIME_BACKEND_PREVIOUS_LINK"; then
-            publication_failed=1
-        fi
-        if [[ "$publication_failed" -eq 1 ]]; then
-            if [[ -n "$current_target" ]]; then
-                /usr/bin/python3 "$LOCAL_BACKEND_LINK_PUBLISHER" "$rollback_current" "$RUNTIME_BACKEND_CURRENT_LINK" || {
-                    echo "CRITICAL: backend activation failed and the prior current pointer could not be restored." >&2
-                    exit 1
-                }
-            elif [[ -L "$RUNTIME_BACKEND_CURRENT_LINK" ]]; then
-                /usr/bin/python3 "$LOCAL_BACKEND_LINK_PUBLISHER" --remove "$RUNTIME_BACKEND_CURRENT_LINK" || {
-                    echo "CRITICAL: backend activation failed and the new current pointer could not be removed." >&2
-                    exit 1
-                }
+        if [[ -n "$current_target" ]]; then
+            if ! /usr/bin/python3 "$LOCAL_BACKEND_FILE_PUBLISHER" "$next_launcher" "$RUNTIME_POCKETBASE_LAUNCHER"; then
+                precommit_publication_failed=1
+            elif ! /usr/bin/python3 "$LOCAL_BACKEND_LINK_PUBLISHER" "$next_previous" "$RUNTIME_BACKEND_PREVIOUS_LINK"; then
+                precommit_publication_failed=1
             fi
+        fi
+        if [[ "$precommit_publication_failed" -eq 1 ]]; then
             if [[ "$had_launcher" -eq 1 ]]; then
                 /usr/bin/python3 "$LOCAL_BACKEND_FILE_PUBLISHER" "$rollback_launcher" "$RUNTIME_POCKETBASE_LAUNCHER" || {
-                    echo "CRITICAL: backend activation failed and the prior launcher could not be restored." >&2
+                    echo "CRITICAL: pre-commit activation failed and the prior launcher could not be restored." >&2
                     exit 1
                 }
             elif [[ -f "$RUNTIME_POCKETBASE_LAUNCHER" && ! -L "$RUNTIME_POCKETBASE_LAUNCHER" ]]; then
                 /usr/bin/python3 "$LOCAL_BACKEND_FILE_PUBLISHER" --remove "$RUNTIME_POCKETBASE_LAUNCHER" || {
-                    echo "CRITICAL: backend activation failed and the new launcher could not be removed." >&2
+                    echo "CRITICAL: pre-commit activation failed and the new launcher could not be removed." >&2
                     exit 1
                 }
             fi
             if [[ -n "$previous_target" ]]; then
                 /usr/bin/python3 "$LOCAL_BACKEND_LINK_PUBLISHER" "$rollback_previous" "$RUNTIME_BACKEND_PREVIOUS_LINK" || {
-                    echo "CRITICAL: backend activation failed and the prior previous pointer could not be restored." >&2
+                    echo "CRITICAL: pre-commit activation failed and the prior previous pointer could not be restored." >&2
                     exit 1
                 }
             elif [[ -L "$RUNTIME_BACKEND_PREVIOUS_LINK" ]]; then
                 /usr/bin/python3 "$LOCAL_BACKEND_LINK_PUBLISHER" --remove "$RUNTIME_BACKEND_PREVIOUS_LINK" || {
-                    echo "CRITICAL: backend activation failed and the new previous pointer could not be removed." >&2
+                    echo "CRITICAL: pre-commit activation failed and the new previous pointer could not be removed." >&2
                     exit 1
                 }
             fi
-            echo "Backend activation failed before restart; the prior bootable runtime state was restored." >&2
+            echo "Backend activation failed before the current-pointer commit; the prior bootable runtime state was restored." >&2
             exit 1
         fi
-        rm -f "$rollback_current" "$rollback_previous" "$rollback_launcher"
+
+        # Publishing current is the migration safety commit point. Once this call
+        # starts, never auto-rollback: os.replace may have succeeded before a
+        # later durability error, and launchd may already have run the new binary.
+        if ! /usr/bin/python3 "$LOCAL_BACKEND_LINK_PUBLISHER" "$next_current" "$RUNTIME_BACKEND_CURRENT_LINK"; then
+            echo "Backend activation reached the current-pointer commit but publication did not complete cleanly." >&2
+            echo "The launcher/current state was intentionally preserved; inspect it and use migration-aware manual recovery. Do not auto-rollback." >&2
+            exit 1
+        fi
+        if [[ -z "$current_target" ]] \
+            && ! /usr/bin/python3 "$LOCAL_BACKEND_FILE_PUBLISHER" "$next_launcher" "$RUNTIME_POCKETBASE_LAUNCHER"; then
+            echo "Initial backend conversion committed current but could not finish launcher publication." >&2
+            echo "PocketBase is offline by precondition; inspect current and the launcher before loading the job. Do not auto-rollback." >&2
+            exit 1
+        fi
+        if ! verify_runtime_backend_current; then
+            echo "Backend activation committed current but post-publication verification failed." >&2
+            echo "The verified generation remains selected; use migration-aware manual recovery. Do not auto-rollback." >&2
+            exit 1
+        fi
+        rm -f "$rollback_previous" "$rollback_launcher"
     fi
 
     if [[ "$NO_START" -eq 1 ]]; then
@@ -889,6 +912,53 @@ uninstall_old_user_agent() {
     run_optional_cmd launchctl bootout "${USER_DOMAIN}/${label}"
 }
 
+require_system_job_absent() {
+    local label="$1"
+    local launchctl_status
+
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+        print_command sudo launchctl print "system/${label}"
+        echo "Postcondition: system/${label} must be absent before protected runtime files are replaced."
+        return
+    fi
+
+    if sudo launchctl print "system/${label}" >/dev/null 2>&1; then
+        echo "Refusing protected runtime replacement: system/${label} is still loaded." >&2
+        exit 1
+    else
+        launchctl_status=$?
+        if [[ "$launchctl_status" -ne 113 ]]; then
+            echo "Refusing protected runtime replacement: unable to prove system/${label} is absent." >&2
+            exit 1
+        fi
+    fi
+}
+
+stop_backup_system_job_before_runtime_change() {
+    local launchctl_status
+
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+        print_command sudo launchctl print "system/${BACKUP_LABEL}"
+        print_command sudo launchctl bootout "system/${BACKUP_LABEL}"
+        require_system_job_absent "$BACKUP_LABEL"
+        return
+    fi
+
+    if sudo launchctl print "system/${BACKUP_LABEL}" >/dev/null 2>&1; then
+        if ! sudo launchctl bootout "system/${BACKUP_LABEL}"; then
+            echo "Refusing backup runtime replacement: the existing system backup job could not be unloaded." >&2
+            exit 1
+        fi
+    else
+        launchctl_status=$?
+        if [[ "$launchctl_status" -ne 113 ]]; then
+            echo "Refusing backup runtime replacement: unable to inspect the existing system backup job." >&2
+            exit 1
+        fi
+    fi
+    require_system_job_absent "$BACKUP_LABEL"
+}
+
 install_system_daemon() {
     local label="$1"
     local source_plist="$2"
@@ -913,8 +983,12 @@ install_system_daemon() {
         return
     fi
 
-    run_optional_sudo_cmd launchctl bootout system "$target_plist"
-    run_optional_sudo_cmd launchctl bootout "system/${label}"
+    if [[ "$label" == "$BACKUP_LABEL" ]]; then
+        require_system_job_absent "$label"
+    else
+        run_optional_sudo_cmd launchctl bootout system "$target_plist"
+        run_optional_sudo_cmd launchctl bootout "system/${label}"
+    fi
     run_sudo_cmd launchctl bootstrap system "$target_plist"
     run_sudo_cmd launchctl kickstart -k "system/${label}"
 }
@@ -939,8 +1013,9 @@ if [[ "$BACKUP_ONLY" -eq 1 ]]; then
     require_file "$LOCAL_BACKUP_PROGRAM"
     lint_plist "$BACKUP_PLIST_SRC"
     verify_backup_root_ownership
-    sync_backup_runtime_files
+    stop_backup_system_job_before_runtime_change
     uninstall_old_user_agent "$BACKUP_LABEL" "$OLD_BACKUP_AGENT"
+    sync_backup_runtime_files
     install_system_daemon "$BACKUP_LABEL" "$BACKUP_PLIST_SRC" "$BACKUP_PLIST_DST"
 
     if [[ "$DRY_RUN" -eq 1 ]]; then
@@ -988,6 +1063,7 @@ if [[ "$BACKEND_ACTIVATE" -eq 1 ]]; then
     require_file "$LOCAL_POCKETBASE_LAUNCHER"
     require_file "$LOCAL_BACKEND_LINK_PUBLISHER"
     require_file "$LOCAL_BACKEND_FILE_PUBLISHER"
+    require_file "$LOCAL_BACKEND_GENERATION_PUBLISHER"
     require_file "$STAGED_BACKEND_MANIFEST"
     require_dir "$STAGED_MIGRATIONS"
     require_executable "$STAGED_POCKETBASE"
@@ -1048,6 +1124,8 @@ lint_plist "$BACKUP_PLIST_SRC"
 verify_backup_root_ownership
 require_prepared_runtime_backend
 sync_runtime_files
+stop_backup_system_job_before_runtime_change
+sync_backup_runtime_files
 run_cmd mkdir -p "$USER_AGENT_DIR" "$LOG_DIR"
 uninstall_old_user_agent "$PB_LABEL" "$OLD_PB_AGENT"
 uninstall_old_user_agent "$BACKUP_LABEL" "$OLD_BACKUP_AGENT"

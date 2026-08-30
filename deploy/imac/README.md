@@ -145,9 +145,13 @@ npm run imac:video:enqueue-referenced
 
 `imac:build-backend-release`는 `deploy/imac/pocketbase-custom` 또는 `pb_migrations`에 커밋되지 않은 파일·수정이 하나라도 있으면 manifest를 만들지 않는다. 같은 PocketBase 버전이라도 binary의 `vcs.revision`이 manifest commit과 다르면 생성·stage·activation 모두 중단된다. stage와 activation은 binary build metadata와 SHA-256, migration tree SHA-256을 다시 검사하고, migration hash가 적힌 Git commit의 실제 tree와 같은지도 확인한다.
 
-Stage와 activation은 같은 single-writer lock을 사용하므로 서로 겹쳐 실행되지 않는다. Activation은 manifest의 전체 commit을 `CWK_BACKEND_ACTIVATE_COMMIT`으로 다시 입력해야 실행된다. 검증된 binary·migration·manifest를 `commit-binarySha256` 이름의 불변 세대에 함께 둔 뒤 `previous`, `current` 상대 symlink와 고정 launcher를 각각 원자적·durable하게 교체한다. launcher는 시작 시 `current`를 절대 세대 경로로 한 번만 해석하므로 정전이나 crash가 전환 중 발생해도 서로 다른 세대의 binary와 migration을 섞지 않는다. 재시작 전 publication 검증이 실패하면 이전 `current`와 launcher를 자동 복구하며, 재시작 뒤에는 DB migration이 이미 적용됐을 수 있어 자동 rollback하지 않는다.
+Stage와 activation은 같은 single-writer lock을 사용하므로 서로 겹쳐 실행되지 않는다. Activation은 manifest의 전체 commit을 `CWK_BACKEND_ACTIVATE_COMMIT`으로 다시 입력해야 실행된다. 검증된 binary·migration·manifest를 `commit-binarySha256` 이름의 불변 세대에 함께 두고, 세대 전체 파일·디렉터리와 launcher·pointer를 macOS `F_FULLFSYNC`로 drive cache까지 flush한 뒤 원자적으로 게시한다. launcher는 시작 시 `current`를 절대 세대 경로로 한 번만 해석하므로 정전이나 crash가 전환 중 발생해도 서로 다른 세대의 binary와 migration을 섞지 않는다.
 
-현재 세대 조합을 다시 검증한 뒤 PocketBase만 재시작한다. kickstart 전 PID를 읽고, 30초 안에 다른 PID가 나타나며 `http://127.0.0.1:8090/api/health`가 건강한 JSON을 직접 반환해야 성공이다. Caddy를 거친 공개 응답은 이 postcondition을 대신하지 않는다. `--no-start`는 아직 PocketBase launchd job이 설치되지 않았고 `127.0.0.1:8090`도 사용하지 않는 새 호스트 준비에만 허용된다. 실행 중인 운영 서버의 무중단 파일 교체 수단으로 사용할 수 없고, 운영 완료 판정으로도 사용하지 않는다. `dist`, Caddy, 백업 서비스, launchd plist는 건드리지 않는다.
+기존 세대 A→B 전환은 새 launcher와 `previous=A`를 먼저 준비하고 `current=B`를 마지막 migration safety commit point로 게시한다. commit point 전 실패만 이전 launcher/`previous`로 자동 복구한다. `current` 게시 호출이 시작된 뒤에는 publisher가 오류를 반환해도 atomic replace가 이미 끝났거나 KeepAlive가 B를 실행해 migration을 적용했을 수 있으므로 절대 A로 자동 rollback하지 않는다. 그 상태는 새 `current`를 보존하고 운영자가 DB migration 호환성을 확인해 수동 복구한다.
+
+현재 세대 조합을 다시 검증한 뒤 PocketBase만 재시작한다. kickstart 전 PID를 읽고, 30초 안에 다른 PID가 나타나며 `http://127.0.0.1:8090/api/health`가 건강한 JSON을 직접 반환해야 성공이다. Caddy를 거친 공개 응답은 이 postcondition을 대신하지 않는다. `--no-start`는 PocketBase launchd job이 내려가 있고 `127.0.0.1:8090`도 사용하지 않음이 증명된 준비 작업에만 허용된다. 실행 중인 운영 서버의 무중단 파일 교체 수단이나 운영 완료 판정으로 사용할 수 없다. `dist`, Caddy, 백업 서비스, launchd plist는 건드리지 않는다.
+
+현재 운영처럼 flat binary에서 세대식 launcher로 처음 바꾸는 경우에는 live activation을 거부한다. 승인된 점검 시간에 기존 PocketBase LaunchDaemon을 내리고 8090 listener가 없음을 확인한 뒤 `imac:activate-backend:no-start`를 실행해야 한다. 성공 후에는 검증한 기존 root-owned PocketBase plist를 다시 bootstrap하고 새 PID/direct health를 확인한다. 첫 전환 도중 정전되면 `current` 게시 전에는 기존 flat binary, 게시 후 launcher 교체 전에는 여전히 기존 flat binary가 기동하므로 서로 다른 generation binary/migration을 조합하지 않는다. 이 절차는 실제 서비스 중단과 DB migration을 포함하므로 별도 production 승인 없이는 실행하지 않는다.
 
 중요: 현재 스크립트는 최신 iMac local backup과 격리 restore rehearsal의 성공을 자동으로 증명하지 못한다. 따라서 위 두 증거를 운영자가 직접 확인하기 전 production activation은 **BLOCKED**다. 기존 `pb:backup:production`은 legacy `https://api.coldwaterkim.com` 원격 백업 경로라 이 backend release gate의 증거로 사용하지 않는다.
 
@@ -411,7 +415,7 @@ QA:
 - 아이맥 전원 설정은 서버 모드로 고정한다. 시스템 잠자기/디스크 잠자기/standby/autopoweroff는 끄고, 정전 후 자동 재시작은 켠다.
 - Oracle API 서버와 GitHub Pages 배포는 7일 이상 롤백용으로 유지한 뒤 정리한다.
 
-자동 백업은 PocketBase와 Caddy를 재시작하지 않는 전용 경로로 설치한다. 먼저 dry-run으로 백업 실행 파일 `0700`, plist, 정확한 백업 root 소유권 검사 경로를 확인한다.
+자동 백업은 PocketBase와 Caddy를 재시작하지 않는 전용 경로로 설치한다. 먼저 dry-run으로 백업 실행 파일 `0700`, plist, 정확한 백업 root 소유권 검사 경로를 확인한다. 실제 설치는 기존 system backup job을 먼저 unload하고 exit 113으로 부재를 다시 증명한 뒤에만 사용자 수정 가능 runtime script를 교체한다. unload가 실패하면 기존 script와 plist를 그대로 두고 중단하며, 새 plist bootstrap이 실패하면 root job을 되살리지 않고 backup job이 내려간 상태로 실패해 수동 복구를 요구한다.
 
 ```bash
 bash deploy/imac/install-launchd-services.sh --backup-only --dry-run

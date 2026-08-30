@@ -224,6 +224,7 @@ function verifyInstallerScript() {
   const launcherScript = readText('deploy/imac/run-pocketbase-release.sh');
   const linkPublisher = readText('deploy/imac/publish-pocketbase-link.py');
   const filePublisher = readText('deploy/imac/publish-pocketbase-file.py');
+  const generationPublisher = readText('deploy/imac/publish-pocketbase-generation.py');
   requireCondition('launchd installer supports dry run', script.includes('--dry-run'));
   requireCondition('launchd installer supports no-start mode', script.includes('--no-start'));
   requireCondition('launchd installer protects normal user launchd setup', script.includes('Run this as the normal iMac user'));
@@ -250,13 +251,22 @@ function verifyInstallerScript() {
   requireCondition(
     'PocketBase pointer publication is atomic and durable',
     linkPublisher.includes('os.replace(source, destination)')
-      && linkPublisher.includes('os.fsync(directory_fd)'),
+      && linkPublisher.includes('F_FULLFSYNC')
+      && linkPublisher.includes('full_sync(directory_fd)'),
   );
   requireCondition(
     'PocketBase launcher publication is atomic and durable',
-    filePublisher.includes('os.fsync(source_fd)')
+    filePublisher.includes('F_FULLFSYNC')
+      && filePublisher.includes('full_sync(source_fd)')
       && filePublisher.includes('os.replace(source, destination)')
-      && filePublisher.includes('os.fsync(directory_fd)'),
+      && filePublisher.includes('full_sync(directory_fd)'),
+  );
+  requireCondition(
+    'PocketBase generation publication flushes the complete tree before atomic rename',
+    generationPublisher.includes('F_FULLFSYNC')
+      && generationPublisher.includes('sync_tree(source)')
+      && generationPublisher.includes('os.replace(source, destination)')
+      && script.includes('LOCAL_BACKEND_GENERATION_PUBLISHER'),
   );
   requireCondition('PocketBase build checks committed source before compiling', buildScript.includes('--check-source-only'));
   requireCondition('PocketBase build emits a release manifest', buildScript.includes('pocketbase-release.json') && buildScript.includes('create-pocketbase-release-manifest.mjs'));
@@ -289,8 +299,20 @@ function verifyInstallerScript() {
     'backend activation publishes one atomic generation pointer',
     script.includes('RUNTIME_BACKEND_GENERATIONS_ROOT')
       && script.includes('"$LOCAL_BACKEND_LINK_PUBLISHER" "$next_current" "$RUNTIME_BACKEND_CURRENT_LINK"')
+      && script.includes('"$LOCAL_BACKEND_GENERATION_PUBLISHER" "$next_generation" "$generation_dir"')
       && !script.includes('mv -f "$next_manifest"')
       && !script.includes('mv -f "$next_pocketbase"'),
+  );
+  requireCondition(
+    'backend activation never auto-rolls back after the current-pointer commit',
+    script.includes('Publishing current is the migration safety commit point')
+      && script.includes('Do not auto-rollback.')
+      && !script.includes('rollback_current'),
+  );
+  requireCondition(
+    'first atomic backend conversion requires an offline service',
+    script.includes('Refusing the first atomic backend conversion while PocketBase is live.')
+      && script.includes('--backend-activate --no-start'),
   );
   requireCondition(
     'installed generations may be verified independently of current HEAD',
@@ -307,6 +329,18 @@ function verifyInstallerScript() {
   requireCondition(
     'launchd installer never automatically changes backup ownership',
     !/chown[^\n]*(?:BACKUP_ROOT|BACKUP_DIR)/.test(script),
+  );
+  const backupOnlyBlock = script.match(/if \[\[ "\$BACKUP_ONLY" -eq 1 \]\]; then\n([\s\S]*?)^fi$/m)?.[1] || '';
+  const backupStopIndex = backupOnlyBlock.indexOf('stop_backup_system_job_before_runtime_change');
+  const backupSyncIndex = backupOnlyBlock.indexOf('sync_backup_runtime_files');
+  const backupInstallIndex = backupOnlyBlock.indexOf('install_system_daemon "$BACKUP_LABEL"');
+  requireCondition(
+    'backup installer unloads and proves the system job absent before replacing user-writable runtime scripts',
+    script.includes('stop_backup_system_job_before_runtime_change')
+      && script.includes('require_system_job_absent "$BACKUP_LABEL"')
+      && backupStopIndex >= 0
+      && backupSyncIndex > backupStopIndex
+      && backupInstallIndex > backupSyncIndex,
   );
   requireCondition('launchd installer installs PocketBase LaunchDaemon', script.includes('PB_LABEL="com.coldwaterkim.pocketbase"') && script.includes('SYSTEM_DAEMON_DIR="/Library/LaunchDaemons"'));
   requireCondition('launchd installer installs backup LaunchDaemon', script.includes('BACKUP_LABEL="com.coldwaterkim.pocketbase-backup"') && script.includes('SYSTEM_DAEMON_DIR="/Library/LaunchDaemons"'));
@@ -645,12 +679,22 @@ BUILD_INFO
   fs.cpSync(releaseFixture.migrations, path.join(stagedRoot, 'pb_migrations'), { recursive: true });
   fs.copyFileSync(releaseFixture.manifest, path.join(stagedRoot, 'manifest.json'));
   const existingGeneration = path.join(backendRuntimeRoot, 'releases', 'pocketbase', 'generations', releaseFixture.generationId);
-  fs.mkdirSync(existingGeneration, { recursive: true });
-  fs.copyFileSync(releaseFixture.binary, path.join(existingGeneration, 'pocketbase'));
-  fs.chmodSync(path.join(existingGeneration, 'pocketbase'), 0o755);
-  fs.cpSync(releaseFixture.migrations, path.join(existingGeneration, 'pb_migrations'), { recursive: true });
-  fs.copyFileSync(releaseFixture.manifest, path.join(existingGeneration, 'manifest.json'));
-  fs.symlinkSync(`generations/${releaseFixture.generationId}`, path.join(backendRuntimeRoot, 'releases', 'pocketbase', 'current'));
+  const dryRunPriorBinary = path.join(releaseFixture.root, 'dry-run-prior-pocketbase');
+  fs.copyFileSync(releaseFixture.binary, dryRunPriorBinary);
+  fs.appendFileSync(dryRunPriorBinary, '# prior dry-run artifact\n');
+  fs.chmodSync(dryRunPriorBinary, 0o755);
+  const dryRunPriorManifest = {
+    ...JSON.parse(fs.readFileSync(releaseFixture.manifest, 'utf8')),
+    binarySha256: sha256File(dryRunPriorBinary),
+  };
+  const dryRunPriorGenerationId = `${releaseFixture.commit}-${dryRunPriorManifest.binarySha256}`;
+  const dryRunPriorGeneration = path.join(backendRuntimeRoot, 'releases', 'pocketbase', 'generations', dryRunPriorGenerationId);
+  fs.mkdirSync(dryRunPriorGeneration, { recursive: true });
+  fs.copyFileSync(dryRunPriorBinary, path.join(dryRunPriorGeneration, 'pocketbase'));
+  fs.chmodSync(path.join(dryRunPriorGeneration, 'pocketbase'), 0o755);
+  fs.cpSync(releaseFixture.migrations, path.join(dryRunPriorGeneration, 'pb_migrations'), { recursive: true });
+  fs.writeFileSync(path.join(dryRunPriorGeneration, 'manifest.json'), `${JSON.stringify(dryRunPriorManifest, null, 2)}\n`, { mode: 0o600 });
+  fs.symlinkSync(`generations/${dryRunPriorGenerationId}`, path.join(backendRuntimeRoot, 'releases', 'pocketbase', 'current'));
   const backendActivateDryRun = run('bash', [relativePath, '--dry-run', '--backend-activate'], {
     allowFailure: true,
     env: backendEnv,
@@ -795,6 +839,31 @@ BUILD_INFO
   requireCondition('atomic launcher executes one complete current generation',
     launcherRun.ok && launcherRun.output.includes('pocketbase version 0.40.1'), launcherRun.output);
 
+  const initialLiveRuntimeRoot = path.join(releaseFixture.root, 'initial-live-runtime');
+  const initialLiveStagedRoot = path.join(initialLiveRuntimeRoot, 'releases', 'pocketbase', 'staged');
+  fs.mkdirSync(initialLiveStagedRoot, { recursive: true });
+  fs.copyFileSync(releaseFixture.binary, path.join(initialLiveStagedRoot, 'pocketbase'));
+  fs.chmodSync(path.join(initialLiveStagedRoot, 'pocketbase'), 0o755);
+  fs.cpSync(releaseFixture.migrations, path.join(initialLiveStagedRoot, 'pb_migrations'), { recursive: true });
+  fs.copyFileSync(releaseFixture.manifest, path.join(initialLiveStagedRoot, 'manifest.json'));
+  fs.writeFileSync(path.join(runningToolDir, 'launchctl'), '#!/bin/sh\nprintf "%s\\n" "pid = 4242"\nexit 0\n', { mode: 0o755 });
+  const initialLiveActivation = run('bash', [relativePath, '--backend-activate'], {
+    allowFailure: true,
+    env: {
+      ...releaseFixture.env,
+      IMAC_RUNTIME_ROOT: initialLiveRuntimeRoot,
+      CWK_BACKEND_ACTIVATE_COMMIT: releaseFixture.commit,
+      PATH: `${runningToolDir}:${process.env.PATH}`,
+    },
+  });
+  requireCondition('first atomic conversion refuses a live KeepAlive service',
+    !initialLiveActivation.ok
+      && initialLiveActivation.output.includes('first atomic backend conversion while PocketBase is live')
+      && !fs.existsSync(path.join(initialLiveRuntimeRoot, 'releases', 'pocketbase', 'current'))
+      && !fs.existsSync(path.join(initialLiveRuntimeRoot, 'bin', 'pocketbase')),
+    initialLiveActivation.output);
+  fs.writeFileSync(path.join(runningToolDir, 'launchctl'), '#!/bin/sh\nexit 113\n', { mode: 0o755 });
+
   const unsafeLauncherRoot = path.join(releaseFixture.root, 'unsafe-launcher-runtime');
   const unsafeReleaseRoot = path.join(unsafeLauncherRoot, 'releases', 'pocketbase');
   fs.mkdirSync(path.join(unsafeReleaseRoot, 'generations'), { recursive: true });
@@ -858,6 +927,22 @@ BUILD_INFO
   transitionActivation.output);
   requireCondition('previous generation remains byte-for-byte immutable after activation',
     sha256File(path.join(transition.generation, 'pocketbase')) === priorBinaryHash);
+  const redundantActivation = run('bash', [relativePath, '--backend-activate', '--no-start'], {
+    allowFailure: true,
+    env: {
+      ...releaseFixture.env,
+      IMAC_RUNTIME_ROOT: transitionRuntimeRoot,
+      CWK_BACKEND_ACTIVATE_COMMIT: releaseFixture.commit,
+      PATH: `${runningToolDir}:${process.env.PATH}`,
+      IMAC_LSOF_TOOL: absentLsofTool,
+    },
+  });
+  requireCondition('redundant activation preserves the actual previous generation',
+    !redundantActivation.ok
+      && redundantActivation.output.includes('staged release is already current')
+      && fs.readlinkSync(path.join(transition.releaseRoot, 'current')) === `generations/${releaseFixture.generationId}`
+      && fs.readlinkSync(path.join(transition.releaseRoot, 'previous')) === `generations/${priorGenerationId}`,
+    redundantActivation.output);
 
   const rollbackRuntimeRoot = path.join(releaseFixture.root, 'rollback-runtime');
   const rollback = prepareTransitionRuntime(rollbackRuntimeRoot);
@@ -891,13 +976,50 @@ os.execv('/usr/bin/python3', ['/usr/bin/python3', ${JSON.stringify(path.join(roo
       IMAC_LSOF_TOOL: absentLsofTool,
     },
   });
-  requireCondition('pre-restart publication failure restores prior current generation',
+  requireCondition('pre-commit publication failure restores prior current generation',
     !failedPublication.ok
       && fs.readlinkSync(path.join(rollback.releaseRoot, 'current')) === `generations/${priorGenerationId}`
       && fs.readlinkSync(path.join(rollback.releaseRoot, 'previous')) === `generations/${releaseFixture.generationId}`,
     failedPublication.output);
-  requireCondition('pre-restart publication failure leaves the prior launcher bootable',
+  requireCondition('pre-commit publication failure leaves the prior launcher bootable',
     fs.readFileSync(path.join(rollbackRuntimeRoot, 'bin', 'pocketbase'), 'utf8').includes('CWK_ATOMIC_POCKETBASE_LAUNCHER_V1'));
+
+  const commitFailureRuntimeRoot = path.join(releaseFixture.root, 'commit-failure-runtime');
+  const commitFailure = prepareTransitionRuntime(commitFailureRuntimeRoot);
+  const failingCurrentPublisher = path.join(releaseFixture.root, 'fail-after-current-publisher.py');
+  fs.writeFileSync(failingCurrentPublisher, `#!/usr/bin/python3
+import os
+import subprocess
+import sys
+from pathlib import Path
+real_publisher = ${JSON.stringify(path.join(root, 'deploy/imac/publish-pocketbase-link.py'))}
+destination = Path(sys.argv[-1])
+if destination.name == 'current':
+    completed = subprocess.run(['/usr/bin/python3', real_publisher, *sys.argv[1:]], check=False)
+    if completed.returncode != 0:
+        raise SystemExit(completed.returncode)
+    raise SystemExit(42)
+os.execv('/usr/bin/python3', ['/usr/bin/python3', real_publisher, *sys.argv[1:]])
+`, { mode: 0o755 });
+  const failedAtCommit = run('bash', [relativePath, '--backend-activate', '--no-start'], {
+    allowFailure: true,
+    env: {
+      ...releaseFixture.env,
+      IMAC_RUNTIME_ROOT: commitFailureRuntimeRoot,
+      IMAC_BACKEND_LINK_PUBLISHER: failingCurrentPublisher,
+      CWK_BACKEND_ACTIVATE_COMMIT: releaseFixture.commit,
+      PATH: `${runningToolDir}:${process.env.PATH}`,
+      IMAC_LSOF_TOOL: absentLsofTool,
+    },
+  });
+  requireCondition('current-pointer commit failure never rolls back to a migration-incompatible generation',
+    !failedAtCommit.ok
+      && failedAtCommit.output.includes('Do not auto-rollback')
+      && fs.readlinkSync(path.join(commitFailure.releaseRoot, 'current')) === `generations/${releaseFixture.generationId}`
+      && fs.readlinkSync(path.join(commitFailure.releaseRoot, 'previous')) === `generations/${priorGenerationId}`,
+    failedAtCommit.output);
+  requireCondition('current-pointer commit failure retains the generation launcher',
+    fs.readFileSync(path.join(commitFailureRuntimeRoot, 'bin', 'pocketbase'), 'utf8').includes('CWK_ATOMIC_POCKETBASE_LAUNCHER_V1'));
 
   const pointerRoot = path.join(releaseFixture.root, 'pointer-publication');
   const oldGenerationId = `${'a'.repeat(40)}-${'1'.repeat(64)}`;
@@ -927,6 +1049,81 @@ os.execv('/usr/bin/python3', ['/usr/bin/python3', ${JSON.stringify(path.join(roo
     requireCondition('backup-only dry-run skips Caddy daemon install', !backupDryRun.output.includes('/Library/LaunchDaemons/com.coldwaterkim.caddy.plist'));
     requireCondition('backup-only dry-run skips Caddy binary install', !backupDryRun.output.includes('/usr/local/bin/caddy'));
   }
+
+  const backupFailureToolDir = path.join(releaseFixture.root, 'backup-failure-tools');
+  const backupFailureRuntime = path.join(releaseFixture.root, 'backup-failure-runtime');
+  fs.mkdirSync(backupFailureToolDir);
+  fs.writeFileSync(path.join(backupFailureToolDir, 'find'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+  fs.writeFileSync(path.join(backupFailureToolDir, 'launchctl'), '#!/bin/sh\nexit 113\n', { mode: 0o755 });
+  fs.writeFileSync(path.join(backupFailureToolDir, 'sudo'), `#!/bin/sh
+if [ "$1" = "launchctl" ] && [ "$2" = "print" ]; then
+  exit 0
+fi
+if [ "$1" = "launchctl" ] && [ "$2" = "bootout" ]; then
+  exit 55
+fi
+exit 0
+`, { mode: 0o755 });
+  const backupBootoutFailure = run('bash', [relativePath, '--backup-only'], {
+    allowFailure: true,
+    env: {
+      ...releaseFixture.env,
+      IMAC_RUNTIME_ROOT: backupFailureRuntime,
+      PATH: `${backupFailureToolDir}:${process.env.PATH}`,
+    },
+  });
+  requireCondition('backup installer fails before replacing runtime scripts when the legacy root job cannot unload',
+    !backupBootoutFailure.ok
+      && backupBootoutFailure.output.includes('existing system backup job could not be unloaded')
+      && !fs.existsSync(path.join(backupFailureRuntime, 'backup-pocketbase.sh'))
+      && !fs.existsSync(path.join(backupFailureRuntime, 'backup-pocketbase.py')),
+    backupBootoutFailure.output);
+
+  const backupSuccessToolDir = path.join(releaseFixture.root, 'backup-success-tools');
+  const backupSuccessRuntime = path.join(releaseFixture.root, 'backup-success-runtime');
+  const backupJobState = path.join(releaseFixture.root, 'backup-job-state');
+  fs.mkdirSync(backupSuccessToolDir);
+  fs.writeFileSync(backupJobState, 'loaded\n');
+  fs.writeFileSync(path.join(backupSuccessToolDir, 'find'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+  fs.writeFileSync(path.join(backupSuccessToolDir, 'launchctl'), '#!/bin/sh\nexit 113\n', { mode: 0o755 });
+  fs.writeFileSync(path.join(backupSuccessToolDir, 'sudo'), `#!/bin/sh
+state=${JSON.stringify(backupJobState)}
+if [ "$1" != "launchctl" ]; then
+  exit 0
+fi
+case "$2" in
+  print)
+    [ "$(cat "$state")" = "loaded" ] && exit 0
+    exit 113
+    ;;
+  bootout)
+    printf '%s\\n' absent > "$state"
+    exit 0
+    ;;
+  bootstrap)
+    printf '%s\\n' loaded > "$state"
+    exit 0
+    ;;
+  kickstart)
+    exit 0
+    ;;
+esac
+exit 64
+`, { mode: 0o755 });
+  const backupSafeReplacement = run('bash', [relativePath, '--backup-only'], {
+    allowFailure: true,
+    env: {
+      ...releaseFixture.env,
+      IMAC_RUNTIME_ROOT: backupSuccessRuntime,
+      PATH: `${backupSuccessToolDir}:${process.env.PATH}`,
+    },
+  });
+  requireCondition('backup installer replaces scripts only after unloading root job and loads the non-root plist',
+    backupSafeReplacement.ok
+      && fs.existsSync(path.join(backupSuccessRuntime, 'backup-pocketbase.sh'))
+      && fs.existsSync(path.join(backupSuccessRuntime, 'backup-pocketbase.py'))
+      && fs.readFileSync(backupJobState, 'utf8').trim() === 'loaded',
+    backupSafeReplacement.output);
 
   const caddyCommand = path.join(root, 'deploy/imac/run-caddy-system-install.command');
   requireCondition('Caddy system install command exists', fs.existsSync(caddyCommand), 'deploy/imac/run-caddy-system-install.command');

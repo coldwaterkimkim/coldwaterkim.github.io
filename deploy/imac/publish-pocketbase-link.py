@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Atomically publish a validated PocketBase generation symlink."""
 
+import fcntl
 import os
 import re
 import sys
@@ -8,6 +9,15 @@ from pathlib import Path
 
 
 TARGET_PATTERN = re.compile(r"^generations/[0-9a-f]{40,64}-[0-9a-f]{64}$")
+
+
+def full_sync(descriptor):
+    os.fsync(descriptor)
+    if sys.platform == "darwin":
+        command = getattr(fcntl, "F_FULLFSYNC", None)
+        if command is None:
+            raise RuntimeError("F_FULLFSYNC is unavailable on macOS")
+        fcntl.fcntl(descriptor, command)
 
 
 def main():
@@ -20,7 +30,7 @@ def main():
         destination.unlink()
         directory_fd = os.open(destination.parent, os.O_RDONLY)
         try:
-            os.fsync(directory_fd)
+            full_sync(directory_fd)
         finally:
             os.close(directory_fd)
         return
@@ -44,7 +54,7 @@ def main():
     os.replace(source, destination)
     directory_fd = os.open(source.parent, os.O_RDONLY)
     try:
-        os.fsync(directory_fd)
+        full_sync(directory_fd)
     finally:
         os.close(directory_fd)
 
