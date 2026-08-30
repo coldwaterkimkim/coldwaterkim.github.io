@@ -239,11 +239,9 @@
             postForm.setAttribute('aria-busy', String(isBusy));
             editorContainer.inert = isBusy;
             editorContainer.setAttribute('aria-disabled', String(isBusy));
-            editorImageInput.disabled = isBusy;
-            backToListButton.disabled = isBusy;
-            saveButton.disabled = isBusy;
-            publishButton.disabled = isBusy;
-            deleteButton.disabled = isBusy;
+            postForm.querySelectorAll('button, input, select, textarea').forEach(control => {
+                control.disabled = isBusy;
+            });
             [backToListButton, saveButton, publishButton, deleteButton].forEach(button => {
                 button.setAttribute('aria-busy', String(isBusy));
             });

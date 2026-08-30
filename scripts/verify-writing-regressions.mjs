@@ -553,8 +553,7 @@ function assertEditorMutationSafety(source, label) {
   assert.match(source, /if \(editorActionInFlight\) return null;/, `${label} editor mutations must ignore duplicate in-flight actions`);
   assert.match(source, /async function runEditorAction\(action\) \{[\s\S]*try \{[\s\S]*return await action\(\);[\s\S]*\} finally \{[\s\S]*setEditorActionBusy\(false\);[\s\S]*\}/, `${label} editor mutations must always reopen retry after success or failure`);
   assert.match(source, /id="backToListBtn"[^>]*aria-busy="false"/, `${label} editor must expose a controllable back-to-list button`);
-  assert.match(source, /saveButton\.disabled = isBusy;[\s\S]*publishButton\.disabled = isBusy;/, `${label} save and publish buttons must be disabled together while a mutation is running`);
-  assert.match(source, /backToListButton\.disabled = isBusy;/, `${label} back-to-list must be disabled while a mutation is running`);
+  assert.match(source, /postForm\.querySelectorAll\('button, input, select, textarea'\)[\s\S]*control\.disabled = isBusy;/, `${label} all mutable form controls must be frozen together while a mutation is running`);
   assert.match(source, /editorContainer\.inert = isBusy;/, `${label} editor input must be frozen while a mutation is running`);
   assert.match(source, /if \(markdownEditor\.hasUploadActivity\(\)\) \{[\s\S]*return null;/, `${label} mutations must wait for active media uploads`);
   assert.match(source, /\[backToListButton, saveButton, publishButton, deleteButton\][\s\S]*button\.setAttribute\('aria-busy', String\(isBusy\)\)/, `${label} every editor navigation and mutation button must expose the shared busy state`);
