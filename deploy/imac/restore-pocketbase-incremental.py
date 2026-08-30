@@ -14,6 +14,9 @@ from pathlib import Path
 
 DEFAULT_RESERVE_BYTES = 10 * 1024 * 1024 * 1024
 REPO_ROOT = Path(__file__).resolve().parents[2]
+CANONICAL_PRODUCTION_PB_DATA = Path(
+    "/Users/kimchansu/.local/share/coldwaterkim/home-server/pb_data"
+)
 
 
 def parse_args():
@@ -81,6 +84,7 @@ def validate_target(target):
         Path.home() / ".local/share/coldwaterkim/home-server",
     )).expanduser().resolve()
     protected_data_roots = (
+        CANONICAL_PRODUCTION_PB_DATA,
         runtime_root / "pb_data",
         REPO_ROOT / "pb_data",
     )
@@ -104,6 +108,10 @@ def required_restore_bytes(snapshot, manifest):
 
 def main():
     args = parse_args()
+    if args.reserve_bytes < DEFAULT_RESERVE_BYTES:
+        raise RuntimeError(
+            "restore reserve must be at least %d bytes" % DEFAULT_RESERVE_BYTES
+        )
     snapshot = args.snapshot.expanduser().resolve()
     manifest_path = args.manifest.expanduser().resolve()
     originals_root = args.originals_root.expanduser().resolve()
@@ -122,7 +130,7 @@ def main():
     target.parent.mkdir(parents=True, exist_ok=True)
     required_bytes = required_restore_bytes(snapshot, manifest)
     free_bytes = shutil.disk_usage(target.parent).free
-    if args.reserve_bytes < 0 or free_bytes < required_bytes + args.reserve_bytes:
+    if free_bytes < required_bytes + args.reserve_bytes:
         raise RuntimeError(
             "insufficient restore space: need %d bytes plus %d reserve, have %d"
             % (required_bytes, args.reserve_bytes, free_bytes)

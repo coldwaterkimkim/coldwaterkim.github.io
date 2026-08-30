@@ -92,25 +92,33 @@ def snapshot_database(source_path, destination_path):
     temp_path = destination_path.with_name(".%s.tmp.%s" % (destination_path.name, os.getpid()))
     if temp_path.exists():
         temp_path.unlink()
-    source_uri = "file:%s?mode=ro" % source_path.as_posix()
-    source = sqlite3.connect(source_uri, uri=True, timeout=30)
-    destination = sqlite3.connect(str(temp_path))
     try:
-        source.backup(destination)
-        destination.commit()
-        # PocketBase runs data.db in WAL mode. A standalone snapshot must use
-        # DELETE journaling so it can be opened without a matching -wal file.
-        journal_mode = destination.execute("PRAGMA journal_mode=DELETE").fetchone()
-        if not journal_mode or str(journal_mode[0]).lower() != "delete":
-            raise RuntimeError("failed to make SQLite snapshot standalone")
-        result = destination.execute("PRAGMA quick_check").fetchone()
-        if not result or result[0] != "ok":
-            raise RuntimeError("SQLite quick_check failed: %r" % (result,))
+        source_uri = "file:%s?mode=ro" % source_path.as_posix()
+        source = sqlite3.connect(source_uri, uri=True, timeout=30)
+        try:
+            destination = sqlite3.connect(str(temp_path))
+            try:
+                source.backup(destination)
+                destination.commit()
+                # PocketBase runs data.db in WAL mode. A standalone snapshot must use
+                # DELETE journaling so it can be opened without a matching -wal file.
+                journal_mode = destination.execute("PRAGMA journal_mode=DELETE").fetchone()
+                if not journal_mode or str(journal_mode[0]).lower() != "delete":
+                    raise RuntimeError("failed to make SQLite snapshot standalone")
+                result = destination.execute("PRAGMA quick_check").fetchone()
+                if not result or result[0] != "ok":
+                    raise RuntimeError("SQLite quick_check failed: %r" % (result,))
+            finally:
+                destination.close()
+        finally:
+            source.close()
+        os.replace(temp_path, destination_path)
+        return sha256_file(destination_path)
     finally:
-        destination.close()
-        source.close()
-    os.replace(temp_path, destination_path)
-    return sha256_file(destination_path)
+        try:
+            temp_path.unlink()
+        except FileNotFoundError:
+            pass
 
 
 def load_state(path):

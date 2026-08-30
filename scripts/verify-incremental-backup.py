@@ -44,17 +44,34 @@ def run_backup(pb_data, backup_dir, *extra, expect_success=True):
     return result
 
 
-def run_incremental_restore(snapshot, manifest, originals, target, copy_mode="auto", expect_success=True):
-    result = subprocess.run([
+def run_incremental_restore(
+    snapshot,
+    manifest,
+    originals,
+    target,
+    copy_mode="auto",
+    expect_success=True,
+    reserve_bytes=None,
+    environment=None,
+):
+    command = [
         "/usr/bin/python3", str(RESTORE_PROGRAM),
         "--snapshot", str(snapshot),
         "--manifest", str(manifest),
         "--originals-root", str(originals),
         "--target", str(target),
         "--copy-mode", copy_mode,
-        "--reserve-bytes", "0",
         "--verify-all",
-    ], cwd=ROOT, text=True, capture_output=True)
+    ]
+    if reserve_bytes is not None:
+        command.extend(["--reserve-bytes", str(reserve_bytes)])
+    result = subprocess.run(
+        command,
+        cwd=ROOT,
+        env=environment,
+        text=True,
+        capture_output=True,
+    )
     if expect_success and result.returncode != 0:
         raise RuntimeError("incremental restore fixture failed: %s" % (result.stderr or result.stdout))
     if not expect_success and result.returncode == 0:
@@ -196,8 +213,55 @@ def main():
         failed = run_backup(broken_pb_data, broken_backup, expect_success=False)
         require("referenced original is missing" in failed.stderr, "missing source must fail after snapshot")
         require(not list((broken_backup / "incremental/db-snapshots").glob("*")), "failed run left a database snapshot")
+        require(
+            not list((broken_backup / "incremental/db-snapshots").glob(".data_*.db.tmp.*")),
+            "failed run left a temporary database snapshot",
+        )
         require(not list((broken_backup / "incremental/manifests").glob("*")), "failed run left a manifest")
         require(not (broken_backup / "incremental/latest-success.json").exists(), "failed run published latest success")
+
+        corrupt_pb_data = root / "corrupt-pb_data"
+        corrupt_backup = root / "corrupt-backup"
+        corrupt_pb_data.mkdir()
+        (corrupt_pb_data / "data.db").write_bytes(b"not-a-sqlite-database")
+        corrupt = run_backup(corrupt_pb_data, corrupt_backup, expect_success=False)
+        require("incremental backup failed" in corrupt.stderr, "corrupt SQLite source must fail closed")
+        require(
+            not list((corrupt_backup / "incremental/db-snapshots").glob(".data_*.db.tmp.*")),
+            "failed SQLite snapshot left a temporary file",
+        )
+
+        unsafe_reserve_target = root / "unsafe-reserve-target"
+        reserve_result = run_incremental_restore(
+            snapshots[0],
+            manifests[0],
+            originals,
+            unsafe_reserve_target,
+            copy_mode="copy",
+            expect_success=False,
+            reserve_bytes=0,
+        )
+        require("reserve must be at least" in reserve_result.stderr, "zero restore reserve bypassed the safety floor")
+        require(not unsafe_reserve_target.exists(), "unsafe reserve restore created its target")
+
+        fake_runtime_environment = os.environ.copy()
+        fake_runtime_environment["IMAC_RUNTIME_ROOT"] = str(root / "fake-runtime")
+        protected_incremental_child = PRODUCTION_PB_DATA / (".codex-incremental-guard-test-%d" % os.getpid())
+        require(not protected_incremental_child.exists(), "incremental protected-path fixture already exists")
+        protected_incremental = run_incremental_restore(
+            snapshots[0],
+            manifests[0],
+            originals,
+            protected_incremental_child,
+            copy_mode="copy",
+            expect_success=False,
+            environment=fake_runtime_environment,
+        )
+        require(
+            "canonical PocketBase data target" in protected_incremental.stderr,
+            "fake IMAC_RUNTIME_ROOT bypassed the production path guard",
+        )
+        require(not protected_incremental_child.exists(), "incremental restore wrote below the canonical production path")
 
         archive = root / "pocketbase-backup.zip"
         with zipfile.ZipFile(archive, "w") as bundle:
