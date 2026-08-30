@@ -12,11 +12,18 @@ OUTPUT_DIR="$REPO_ROOT/.local-bin"
 WORK_DIR="${TMPDIR:-/tmp}/coldwaterkim-pocketbase-build"
 GO_ROOT="$WORK_DIR/go"
 GO_TARBALL="$WORK_DIR/go${GO_VERSION}.darwin-amd64.tar.gz"
+MANIFEST_SCRIPT="$REPO_ROOT/scripts/create-pocketbase-release-manifest.mjs"
+RELEASE_MANIFEST="$OUTPUT_DIR/pocketbase-release.json"
 
 if [[ "$(uname -s)" != "Darwin" || "$(uname -m)" != "x86_64" ]]; then
     echo "This build is pinned for the Intel iMac (darwin/amd64)." >&2
     exit 1
 fi
+
+node "$MANIFEST_SCRIPT" \
+    --check-source-only \
+    --pocketbase-version "$POCKETBASE_VERSION" \
+    --go-version "$GO_VERSION"
 
 mkdir -p "$WORK_DIR" "$OUTPUT_DIR"
 
@@ -62,3 +69,10 @@ echo "$VERSION_OUTPUT"
 "$OUTPUT_DIR/pocketbase" serve --help | grep -F -- "--siteDir"
 "$OUTPUT_DIR/pocketbase" serve --help | grep -F -- "--toolJobDir"
 "$OUTPUT_DIR/pocketbase" serve --help | grep -F -- "--ownerUserId"
+node "$MANIFEST_SCRIPT" \
+    --binary "$OUTPUT_DIR/pocketbase" \
+    --migrations "$REPO_ROOT/pb_migrations" \
+    --output "$RELEASE_MANIFEST" \
+    --pocketbase-version "$POCKETBASE_VERSION" \
+    --go-version "$GO_VERSION" \
+    --go-command "$GO_BIN"

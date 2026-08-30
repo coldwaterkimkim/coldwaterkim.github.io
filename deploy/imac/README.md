@@ -58,7 +58,7 @@ Rollback 기준:
    - `/api/cwk/bgm/trim`은 실행 중인 PocketBase와 같은 `bin` 폴더의 FFmpeg/ffprobe로 새 MP3를 만들고 duration과 전체 디코딩을 검증한다. 원본 삭제는 API가 하지 않으며, 브라우저가 새 플레이리스트와 편성을 저장한 뒤 참조되지 않은 이전 레코드만 정리한다.
    - `/api/cwk/tools/*`는 `CWK_OWNER_USER_ID`로 명시된 단일 `users` 레코드와 PocketBase superuser만 접근한다. 설치기는 운영 `users`가 이 OWNER 1개뿐인지 읽기 전용으로 확인하고, 기존 비-OWNER 계정이 남아 있으면 배포를 중단한다. 최대 200MiB·20파일(HWP/HWPX는 1파일), 동시 실행 1개·대기 3개이며 완료 결과는 30분 뒤 삭제된다. HWP/Office→PDF, OCR, PDF 압축·암호·복구·흑백·텍스트 추출을 처리한다.
    - SEO 렌더러는 `/posts/{slug}/`, `/daily/{day}/`, `/sitemap.xml`만 처리하고 Caddy는 나머지 공개 파일을 `dist`에서 그대로 제공한다. DB를 요청 시 읽으므로 발행·수정·초안 전환 뒤 별도 정적 파일 생성 작업은 없다. 발행 기록이 없는 유효한 `/daily/{day}/`는 검색엔진과 비로그인 방문자에게 HTTP 404·`noindex`를 유지하되 JSON 대신 일관된 HTML 셸을 내려, 로그인한 OWNER 브라우저가 같은 주소에서 해당 날짜의 초안을 불러올 수 있게 한다.
-   - Go 1.27.0 Intel 공식 배포본의 SHA-256을 고정해 빌드하며, `deploy/imac/build-pocketbase-custom.sh`가 커스텀 플래그와 바이너리 버전을 확인한다. 운영 반영 전에는 운영 DB와 분리한 SQLite 사본에서 system/user migration을 먼저 리허설한다.
+   - Go 1.27.0 Intel 공식 배포본의 SHA-256을 고정해 빌드하며, `deploy/imac/build-pocketbase-custom.sh`가 커스텀 플래그와 바이너리 버전을 확인한다. 빌드 전 PocketBase 소스와 migration이 현재 Git commit에 모두 포함되어 있고 변경이 없는지 확인한다. 이어 `go version -m`의 실제 Go toolchain, PocketBase module, `vcs.revision`이 빌드 pin과 현재 commit에 일치할 때만 `.local-bin/pocketbase-release.json`에 commit, PocketBase/Go 버전, 바이너리 SHA-256, migration tree SHA-256, 빌드 시각을 기록한다. 관련 없는 worktree 변경으로 `vcs.modified=true`인 것은 허용하지만 revision 불일치는 허용하지 않는다. 운영 반영 전에는 운영 DB와 분리한 SQLite 사본에서 system/user migration을 먼저 리허설한다.
 2. `npm run build:imac`
 3. `npm run imac:install-services:dry-run`으로 운영 런타임 폴더 복사와 launchd 설치 계획 확인
 4. PocketBase를 `deploy/imac/com.coldwaterkim.pocketbase.plist`로 시스템 LaunchDaemon 실행
@@ -85,6 +85,7 @@ node scripts/verify-file-tools-backend.mjs
 - `tus-uploads` (완료 전 조각만 보관하며 `pb_data` 백업 대상은 아님)
 - `tool-jobs` (0700, 완료 결과 30분 보관, `pb_data` 백업 대상은 아님)
 - `bin/pocketbase`
+- `pocketbase-release.json` (현재 backend provenance; 이전 것은 `.previous.json`)
 - `bin/ffmpeg`, `bin/ffprobe`
 - `bin/qpdf`, `bin/pdfinfo`, `bin/pdftoppm`, `bin/pdftotext`, `bin/tesseract`, `bin/gs`, `bin/soffice`, `bin/java`, `bin/sips`
 - `Caddyfile`
@@ -120,16 +121,32 @@ npm run imac:install-split-dns
 
 영상 업로드는 원본 `media.file`을 바꾸지 않는다. 새 영상은 `video_status=pending`으로 저장되고, 사용자 LaunchAgent `com.coldwaterkim.video-processor`가 한 번에 하나씩 포스터와 필요한 웹 재생본을 만든다. 이미 H.264/AAC, 1080p·30fps 이하, Fast Start MP4인 원본은 중복 재생본을 만들지 않고 그대로 쓴다. 호환 H.264 MOV나 Fast Start가 아닌 MP4는 영상 재인코딩 없이 MP4 포장만 바꾸고, HEVC·4K·고프레임 등 변환이 필요한 영상만 `h264_videotoolbox`를 우선 사용한다. 비트레이트는 원본 크기·해상도·길이에 맞춰 최대 6Mbps 안에서 정하며, 하드웨어 변환 실패 시 `libx264`로 자동 복구한다. 모든 생성본은 H.264/AAC, 1080p·30fps 이하, Fast Start와 앞·뒤 디코딩을 검사한 뒤 저장한다. 처리 전/실패 시 공개 화면은 원본으로 자동 fallback한다.
 
-최초 설치나 영상 schema 변경 배포 순서는 아래처럼 분리한다. 평소 `imac:sync-runtime`은 기존 계약대로 정적 파일과 migration만 동기화하며 워커를 재시작하지 않는다.
+기존 운영 서버의 영상 schema 또는 backend 변경 배포 순서는 아래처럼 분리한다. `imac:sync-runtime`은 frontend 전용이라 `dist`만 교체하고 `dist.previous` 한 세대를 남긴다. PocketBase binary, migration, Caddy, 백업 프로그램, OWNER 파일은 절대 동기화하지 않는다. Backend 변경은 아래의 manifest-bound stage/activation 경로만 사용한다.
 
 ```bash
-npm run pb:backup:production
-npm run imac:sync-runtime
-# PocketBase를 재시작하고 새 media 필드가 적용됐는지 확인
+npm run imac:build-backend-release
+npm run qa:backend-release
+# 현재 iMac runtime DB와 원본을 직접 증분 백업
+npm run imac:backup:local
+# 아래 Stage 5 절차로 최신 snapshot SHA-256, quick_check, 격리 restore를 확인
+npm run imac:stage-backend:dry-run
+npm run imac:stage-backend
+# 별도 SQLite 사본에서 migration 리허설 및 quick_check 완료
+npm run imac:activate-backend:dry-run
+CWK_BACKEND_ACTIVATE_COMMIT=위_검증에서_출력된_전체_commit npm run imac:activate-backend
+# 새 media 필드와 /api/health 확인
 npm run imac:install-video-processor:dry-run
 npm run imac:install-video-processor
 npm run imac:video:enqueue-referenced
 ```
+
+`imac:build-backend-release`는 `deploy/imac/pocketbase-custom` 또는 `pb_migrations`에 커밋되지 않은 파일·수정이 하나라도 있으면 manifest를 만들지 않는다. 같은 PocketBase 버전이라도 binary의 `vcs.revision`이 manifest commit과 다르면 생성·stage·activation 모두 중단된다. stage와 activation은 binary build metadata와 SHA-256, migration tree SHA-256을 다시 검사하고, migration hash가 적힌 Git commit의 실제 tree와 같은지도 확인한다.
+
+Activation은 manifest의 전체 commit을 `CWK_BACKEND_ACTIVATE_COMMIT`으로 다시 입력해야 실행되며 PocketBase만 재시작한다. kickstart 전 PID를 읽고, 30초 안에 다른 PID가 나타나며 `http://127.0.0.1:8090/api/health`가 건강한 JSON을 직접 반환해야 성공이다. Caddy를 거친 공개 응답은 이 postcondition을 대신하지 않는다. `--no-start`는 파일을 현재 경로로 전환하되 재시작과 PID/health postcondition을 의도적으로 생략한다. 정비 창에서 재시작을 별도로 통제할 때만 쓰고 운영 완료 판정으로 사용하지 않는다. `dist`, Caddy, 백업 서비스, launchd plist는 건드리지 않는다.
+
+중요: 현재 스크립트는 최신 iMac local backup과 격리 restore rehearsal의 성공을 자동으로 증명하지 못한다. 따라서 위 두 증거를 운영자가 직접 확인하기 전 production activation은 **BLOCKED**다. 기존 `pb:backup:production`은 legacy `https://api.coldwaterkim.com` 원격 백업 경로라 이 backend release gate의 증거로 사용하지 않는다.
+
+전환 전 binary와 migration은 `bin/pocketbase.previous`, `pb_migrations.previous`에 남고, 기존 provenance가 있으면 `pocketbase-release.previous.json`도 함께 남는다. 다만 PocketBase 기동 중 DB migration이 이미 적용됐다면 binary만 되돌리는 것은 안전하지 않을 수 있다. 장애 시 자동으로 옛 binary를 덮어쓰지 말고, DB snapshot과 migration 호환성을 먼저 확인한 뒤 같은 세대 파일을 함께 복구한다.
 
 기존 글에서 참조 중인 영상만 최초 대기열에 넣을 때:
 
@@ -158,15 +175,17 @@ sudo chown root:wheel /Library/LaunchDaemons/com.coldwaterkim.caddy.plist
 sudo launchctl bootstrap system /Library/LaunchDaemons/com.coldwaterkim.caddy.plist
 ```
 
-운영 launchd 설치/기동은 아래 스크립트로 한 번에 처리한다. `--dry-run`으로 복사/등록될 경로를 먼저 확인한 뒤 실제 설치한다. PocketBase, Caddy, 백업 job은 `/Library/LaunchDaemons`에 등록되어 사용자 로그인 전에도 부팅 시 자동 시작된다. PocketBase와 백업 job은 각각 `UserName=kimchansu`로 실행하고, 백업 job은 `Umask=077`을 적용한다.
+운영 launchd 최초 설치/기동은 아래 스크립트로 처리한다. 이 전체 설치 명령은 새 서버 bootstrap 전용이며 평소 배포나 기존 서버 plist 갱신에 쓰지 않는다. 이 경로는 PocketBase binary, migration, backend manifest를 복사하지 않는다. 현재 runtime 세 파일이 없거나, 같은 release verifier에서 HEAD·binary version/build metadata/SHA-256·migration Git tree 일치를 통과하지 못하면 dry-run과 실제 설치 모두 fail-closed로 중단된다. 새 서버라 아직 PocketBase PID가 없을 때만 stage 후 `imac:activate-backend:no-start`로 파일을 준비하고, LaunchDaemon 설치가 끝난 뒤 건강 상태를 별도로 확인한다. `--dry-run`으로 복사/등록될 경로를 먼저 확인한 뒤 실제 설치한다. PocketBase, Caddy, 백업 job은 `/Library/LaunchDaemons`에 등록되어 사용자 로그인 전에도 부팅 시 자동 시작된다. PocketBase와 백업 job은 각각 `UserName=kimchansu`로 실행하고, 백업 job은 `Umask=077`을 적용한다.
 
 ```bash
+# 새 서버 bootstrap에서만: build/QA/stage와 exact commit 확인을 먼저 완료
+CWK_BACKEND_ACTIVATE_COMMIT=검증된_전체_commit npm run imac:activate-backend:no-start
 CWK_OWNER_USER_ID=운영_users_레코드_ID npm run imac:install-services:dry-run
 CWK_OWNER_USER_ID=운영_users_레코드_ID npm run imac:install-services
 npm run qa:launchd
 ```
 
-프론트 정적 파일만 바뀐 배포는 launchd 재등록이나 서비스 재시작이 필요 없다. 이때는 sudo 없이 운영 런타임 파일만 교체한다. `dist`는 기존 폴더 위에 누적 덮어쓰지 않고 새 폴더를 만든 뒤 교체하므로 오래된 해시 JS/CSS가 운영 폴더에 남지 않는다.
+프론트 정적 파일만 바뀐 배포는 launchd 재등록이나 서비스 재시작이 필요 없다. 이때는 sudo 없이 `dist`만 새 폴더로 만든 뒤 교체하고 직전 세대는 `dist.previous`로 남긴다. 오래된 해시 JS/CSS가 현재 운영 폴더에 누적되지 않으며 backend/Caddy/backup 파일은 바뀌지 않는다.
 
 ```bash
 npm run build:imac
@@ -176,9 +195,11 @@ npm run qa:service-smoke
 
 공사 화면은 공개 HTML의 `/api/health` 검사와 Caddy `handle_errors`를 함께 사용한다. PocketBase/DB 장애만으로는 정적 `dist`와 Caddy가 계속 살아 있으므로 `maintenance.html`을 제공할 수 있고, 5초 간격 복구 확인 뒤 원래 URL로 자동 복귀한다. Caddy 자체·iMac 전원·회선·DNS 장애는 같은 서버의 화면으로 대신할 수 없다.
 
-`deploy/imac/Caddyfile`도 변경한 배포에서는 `imac:sync-runtime` 후 운영 설정을 검증하고 Caddy admin API로 reload한다. launchd 재등록은 필요 없다.
+`deploy/imac/Caddyfile` 또는 Caddy binary를 변경한 배포는 frontend 배포와 분리한다. Caddy-only 경로는 Caddy binary/config와 Caddy LaunchDaemon만 다루며 `dist`, PocketBase, migration, backup 파일은 건드리지 않는다. 먼저 dry-run 경계를 확인한다.
 
 ```bash
+npm run imac:install-caddy:dry-run
+npm run imac:install-caddy:no-start
 ~/.local/share/coldwaterkim/home-server/bin/caddy validate \
   --config ~/.local/share/coldwaterkim/home-server/Caddyfile \
   --adapter caddyfile
@@ -398,6 +419,7 @@ npm run qa:power
 백업 확인:
 
 ```bash
+npm run imac:backup:local
 npm run qa:incremental-backup
 latest_db="$(ls -t ~/Backups/coldwaterkim-pocketbase/incremental/db-snapshots/data_*.db | head -1)"
 stamp="$(basename "$latest_db" .db)"
