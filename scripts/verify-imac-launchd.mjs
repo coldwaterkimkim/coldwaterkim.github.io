@@ -118,7 +118,7 @@ fixture: go1.27.0
 \tdep\tgithub.com/pocketbase/pocketbase\tv${pocketbaseVersion}
 \tbuild\tvcs=git
 \tbuild\tvcs.revision=${commit}
-\tbuild\tvcs.modified=true
+\tbuild\tvcs.modified=false
 BUILD_INFO
 `, { mode: 0o755 });
   fs.writeFileSync(manifest, `${JSON.stringify({
@@ -445,6 +445,33 @@ BUILD_INFO
   ], { allowFailure: true });
   requireCondition('manifest generator rejects a stale same-version binary revision', !staleBinaryCheck.ok && staleBinaryCheck.output.includes('vcs.revision'), staleBinaryCheck.output);
   const currentFixtureRevision = run('git', ['-C', sourceFixtureRoot, 'rev-parse', 'HEAD']).stdout;
+  const modifiedGoTool = path.join(sourceFixtureRoot, 'fake-go-modified');
+  fs.writeFileSync(modifiedGoTool, `#!/bin/sh
+cat <<'BUILD_INFO'
+fixture: go1.27.0
+\tdep\tgithub.com/pocketbase/pocketbase\tv0.40.1
+\tbuild\tvcs=git
+\tbuild\tvcs.revision=${currentFixtureRevision}
+\tbuild\tvcs.modified=true
+BUILD_INFO
+`, { mode: 0o755 });
+  const modifiedBinaryManifest = path.join(sourceFixtureRoot, 'modified-release.json');
+  const modifiedBinaryCreateCheck = run('node', [
+    'scripts/create-pocketbase-release-manifest.mjs',
+    '--repo-root', sourceFixtureRoot,
+    '--binary', staleBinary,
+    '--migrations', path.join(sourceFixtureRoot, 'pb_migrations'),
+    '--output', modifiedBinaryManifest,
+    '--pocketbase-version', '0.40.1',
+    '--go-version', '1.27.0',
+    '--go-command', modifiedGoTool,
+  ], { allowFailure: true });
+  requireCondition(
+    'manifest generator rejects a binary built from modified source',
+    !modifiedBinaryCreateCheck.ok && modifiedBinaryCreateCheck.output.includes('vcs.modified'),
+    modifiedBinaryCreateCheck.output,
+  );
+  requireCondition('modified binary rejection does not publish a manifest', !fs.existsSync(modifiedBinaryManifest));
   const staleVerifierManifest = path.join(sourceFixtureRoot, 'stale-verifier-release.json');
   fs.writeFileSync(staleVerifierManifest, `${JSON.stringify({
     schemaVersion: 1,
@@ -465,6 +492,20 @@ BUILD_INFO
     '--quiet',
   ], { allowFailure: true });
   requireCondition('release verifier rejects a stale same-version binary revision', !staleVerifierCheck.ok && staleVerifierCheck.output.includes('vcs.revision'), staleVerifierCheck.output);
+  const modifiedVerifierCheck = run('node', [
+    'scripts/verify-pocketbase-release.mjs',
+    '--repo-root', sourceFixtureRoot,
+    '--binary', staleBinary,
+    '--migrations', path.join(sourceFixtureRoot, 'pb_migrations'),
+    '--manifest', staleVerifierManifest,
+    '--go-command', modifiedGoTool,
+    '--quiet',
+  ], { allowFailure: true });
+  requireCondition(
+    'release verifier rejects a binary built from modified source',
+    !modifiedVerifierCheck.ok && modifiedVerifierCheck.output.includes('vcs.modified'),
+    modifiedVerifierCheck.output,
+  );
   fs.appendFileSync(path.join(sourceFixtureRoot, 'deploy', 'imac', 'pocketbase-custom', 'main.go'), '// dirty\n');
   const dirtySourceCheck = run('node', [
     'scripts/create-pocketbase-release-manifest.mjs',

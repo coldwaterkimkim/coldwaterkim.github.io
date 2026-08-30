@@ -135,12 +135,14 @@ export function inspectGoBuildInfo(binary, goCommand = 'go') {
   if (settings.get('vcs') !== 'git') fail('Go binary does not contain Git VCS build metadata');
   const revision = settings.get('vcs.revision') || '';
   if (!/^[0-9a-f]{40,64}$/.test(revision)) fail('Go binary does not contain a full vcs.revision');
+  const modified = settings.get('vcs.modified');
+  if (modified !== 'true' && modified !== 'false') fail('Go binary does not contain vcs.modified metadata');
   if (!pocketbaseVersion) fail('Go binary does not contain the PocketBase module version');
 
   return {
     goVersion: normalizeGoVersion(toolchainMatch[1]),
     revision,
-    modified: settings.get('vcs.modified') === 'true',
+    modified: modified === 'true',
     pocketbaseVersion,
   };
 }

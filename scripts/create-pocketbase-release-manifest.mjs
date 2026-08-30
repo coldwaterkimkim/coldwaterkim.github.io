@@ -130,6 +130,9 @@ function main() {
   if (buildInfo.revision !== commit) {
     throw new Error(`binary vcs.revision ${buildInfo.revision} does not match manifest commit ${commit}`);
   }
+  if (buildInfo.modified) {
+    throw new Error('binary vcs.modified is true; rebuild from committed source');
+  }
   if (normalizeGoVersion(buildInfo.goVersion) !== normalizeGoVersion(goVersion)) {
     throw new Error(`binary Go toolchain ${buildInfo.goVersion} does not match build pin ${goVersion}`);
   }

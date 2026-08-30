@@ -120,6 +120,7 @@ function main() {
   assertReleaseBinary(options.binary, manifest.pocketbaseVersion);
   const buildInfo = inspectGoBuildInfo(options.binary, options.goCommand);
   if (buildInfo.revision !== manifest.commit) throw new Error('binary vcs.revision does not match manifest commit');
+  if (buildInfo.modified) throw new Error('binary vcs.modified is true');
   if (normalizeGoVersion(buildInfo.goVersion) !== normalizeGoVersion(manifest.goVersion)) {
     throw new Error('binary Go toolchain does not match manifest Go version');
   }
