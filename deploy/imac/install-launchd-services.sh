@@ -109,6 +109,8 @@ RUNTIME_POCKETBASE_PREVIOUS="$RUNTIME_BIN_DIR/pocketbase.previous"
 RUNTIME_BACKEND_MANIFEST="$RUNTIME_ROOT/pocketbase-release.json"
 RUNTIME_BACKEND_MANIFEST_PREVIOUS="$RUNTIME_ROOT/pocketbase-release.previous.json"
 RUNTIME_BACKEND_STAGE_DIR="$RUNTIME_ROOT/releases/pocketbase/staged"
+BACKEND_RELEASE_LOCK="$RUNTIME_ROOT/.pocketbase-release.lock"
+BACKEND_RELEASE_LOCK_HELD=0
 STAGED_POCKETBASE="$RUNTIME_BACKEND_STAGE_DIR/pocketbase"
 STAGED_MIGRATIONS="$RUNTIME_BACKEND_STAGE_DIR/pb_migrations"
 STAGED_BACKEND_MANIFEST="$RUNTIME_BACKEND_STAGE_DIR/manifest.json"
@@ -145,6 +147,7 @@ if [[ -z "$BACKEND_GO_VERSION_TOOL" && -x "${TMPDIR:-/tmp}/coldwaterkim-pocketba
 fi
 POCKETBASE_HEALTH_URL="http://127.0.0.1:8090/api/health"
 POCKETBASE_RESTART_TIMEOUT_SECONDS="${IMAC_POCKETBASE_RESTART_TIMEOUT_SECONDS:-30}"
+POCKETBASE_LSOF_TOOL="${IMAC_LSOF_TOOL:-/usr/sbin/lsof}"
 
 USER_AGENT_DIR="$HOME/Library/LaunchAgents"
 SYSTEM_DAEMON_DIR="/Library/LaunchDaemons"
@@ -191,6 +194,34 @@ run_optional_sudo_cmd() {
     else
         sudo "$@" >/dev/null 2>&1 || true
     fi
+}
+
+release_backend_release_lock() {
+    if [[ "$BACKEND_RELEASE_LOCK_HELD" -eq 1 ]]; then
+        rm -f "$BACKEND_RELEASE_LOCK"
+        BACKEND_RELEASE_LOCK_HELD=0
+    fi
+}
+
+acquire_backend_release_lock() {
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+        print_command mkdir -p "$RUNTIME_ROOT"
+        print_command /usr/bin/shlock -p "$$" -f "$BACKEND_RELEASE_LOCK"
+        return
+    fi
+
+    mkdir -p "$RUNTIME_ROOT"
+    if [[ -L "$BACKEND_RELEASE_LOCK" ]]; then
+        echo "Refusing backend release: lock path is a symbolic link." >&2
+        exit 1
+    fi
+    if ! /usr/bin/shlock -p "$$" -f "$BACKEND_RELEASE_LOCK"; then
+        echo "Refusing backend release: another stage or activation is already running." >&2
+        exit 1
+    fi
+    BACKEND_RELEASE_LOCK_HELD=1
+    trap release_backend_release_lock EXIT
+    trap 'exit 130' HUP INT TERM
 }
 
 require_file() {
@@ -322,6 +353,7 @@ sync_runtime_files() {
     if [[ "$SKIP_CADDY" -eq 0 ]]; then
         run_cmd install -m 755 "$LOCAL_CADDY" "$RUNTIME_CADDY"
         run_cmd install -m 644 "$LOCAL_CADDYFILE" "$RUNTIME_CADDYFILE"
+        validate_runtime_caddy_config
     fi
     activate_runtime_dir "$LOCAL_DIST" "$RUNTIME_DIST" "$RUNTIME_DIST_PREVIOUS"
     run_cmd install -m 700 "$LOCAL_BACKUP_SCRIPT" "$RUNTIME_BACKUP_SCRIPT"
@@ -382,6 +414,24 @@ sync_caddy_runtime_files() {
     run_cmd mkdir -p "$RUNTIME_BIN_DIR" "$LOG_DIR"
     run_cmd install -m 755 "$LOCAL_CADDY" "$RUNTIME_CADDY"
     run_cmd install -m 644 "$LOCAL_CADDYFILE" "$RUNTIME_CADDYFILE"
+    validate_runtime_caddy_config
+}
+
+validate_caddy_config() {
+    local binary="$1"
+    local config="$2"
+    if ! "$binary" validate --config "$config" >/dev/null; then
+        echo "Refusing Caddy install: candidate binary and config did not validate together." >&2
+        exit 1
+    fi
+}
+
+validate_runtime_caddy_config() {
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+        print_command "$RUNTIME_CADDY" validate --config "$RUNTIME_CADDYFILE"
+    else
+        validate_caddy_config "$RUNTIME_CADDY" "$RUNTIME_CADDYFILE"
+    fi
 }
 
 verify_backend_release() {
@@ -424,6 +474,47 @@ stage_backend_release() {
 read_pocketbase_pid() {
     launchctl print "system/${PB_LABEL}" 2>/dev/null \
         | awk '$1 == "pid" && $2 == "=" && $3 ~ /^[0-9]+$/ { print $3; exit }'
+}
+
+require_offline_pocketbase_for_no_start() {
+    local launchctl_status
+    local listener_output
+    local listener_status
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+        print_command launchctl print "system/${PB_LABEL}"
+        print_command "$POCKETBASE_LSOF_TOOL" -nP -iTCP:8090 -sTCP:LISTEN
+        echo "Precondition: --no-start requires an unloaded PocketBase job and no listener on 127.0.0.1:8090."
+        return
+    fi
+
+    if launchctl print "system/${PB_LABEL}" >/dev/null 2>&1; then
+        echo "Refusing --no-start backend activation: the PocketBase launchd job is loaded." >&2
+        exit 1
+    else
+        launchctl_status=$?
+        if [[ "$launchctl_status" -ne 113 ]]; then
+            echo "Refusing --no-start backend activation: unable to prove the PocketBase launchd job is absent." >&2
+            exit 1
+        fi
+    fi
+    if [[ ! -x "$POCKETBASE_LSOF_TOOL" ]]; then
+        echo "Refusing --no-start backend activation: lsof is required to prove port 8090 is unused." >&2
+        exit 1
+    fi
+    if listener_output="$("$POCKETBASE_LSOF_TOOL" -nP -iTCP:8090 -sTCP:LISTEN 2>/dev/null)"; then
+        if [[ -n "$listener_output" ]]; then
+            echo "Refusing --no-start backend activation: a process is listening on 127.0.0.1:8090." >&2
+        else
+            echo "Refusing --no-start backend activation: unable to prove port 8090 is unused." >&2
+        fi
+        exit 1
+    else
+        listener_status=$?
+        if [[ "$listener_status" -ne 1 ]]; then
+            echo "Refusing --no-start backend activation: unable to prove port 8090 is unused." >&2
+            exit 1
+        fi
+    fi
 }
 
 is_healthy_pocketbase_json() {
@@ -506,7 +597,9 @@ activate_backend_release() {
         echo "IMAC_POCKETBASE_RESTART_TIMEOUT_SECONDS must be an integer from 5 to 120." >&2
         exit 1
     fi
-    if [[ "$NO_START" -eq 0 ]]; then
+    if [[ "$NO_START" -eq 1 ]]; then
+        require_offline_pocketbase_for_no_start
+    else
         if [[ "$DRY_RUN" -eq 1 ]]; then
             print_command launchctl print "system/${PB_LABEL}"
             previous_pid="<previous-pocketbase-pid>"
@@ -585,6 +678,17 @@ activate_backend_release() {
             echo "Backend activation failed while recording provenance; the prior release was restored." >&2
             exit 1
         fi
+    fi
+
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+        print_command node "$BACKEND_RELEASE_VERIFIER" \
+            --binary "$RUNTIME_POCKETBASE" \
+            --migrations "$RUNTIME_MIGRATIONS" \
+            --manifest "$RUNTIME_BACKEND_MANIFEST" \
+            --go-command "$BACKEND_GO_VERSION_TOOL" \
+            --quiet
+    else
+        verify_backend_release "$RUNTIME_POCKETBASE" "$RUNTIME_MIGRATIONS" "$RUNTIME_BACKEND_MANIFEST"
     fi
 
     if [[ "$NO_START" -eq 1 ]]; then
@@ -690,6 +794,7 @@ if [[ "$RUNTIME_ONLY" -eq 1 ]]; then
 fi
 
 if [[ "$BACKEND_STAGE" -eq 1 ]]; then
+    acquire_backend_release_lock
     require_file "$BACKEND_RELEASE_VERIFIER"
     require_file "$LOCAL_BACKEND_MANIFEST"
     require_dir "$LOCAL_MIGRATIONS"
@@ -706,6 +811,7 @@ if [[ "$BACKEND_STAGE" -eq 1 ]]; then
 fi
 
 if [[ "$BACKEND_ACTIVATE" -eq 1 ]]; then
+    acquire_backend_release_lock
     require_file "$BACKEND_RELEASE_VERIFIER"
     require_file "$STAGED_BACKEND_MANIFEST"
     require_dir "$STAGED_MIGRATIONS"
@@ -730,6 +836,7 @@ if [[ "$CADDY_ONLY" -eq 1 ]]; then
     require_file "$LOCAL_CADDYFILE"
     require_executable "$LOCAL_CADDY"
     lint_plist "$CADDY_PLIST_SRC"
+    validate_caddy_config "$LOCAL_CADDY" "$LOCAL_CADDYFILE"
     sync_caddy_runtime_files
     install_caddy_daemon
 
@@ -748,6 +855,7 @@ if [[ "$SKIP_CADDY" -eq 0 ]]; then
     require_file "$LOCAL_CADDYFILE"
     require_executable "$LOCAL_CADDY"
     lint_plist "$CADDY_PLIST_SRC"
+    validate_caddy_config "$LOCAL_CADDY" "$LOCAL_CADDYFILE"
 fi
 
 require_file "$PB_PLIST_SRC"

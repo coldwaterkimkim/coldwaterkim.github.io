@@ -133,6 +133,7 @@ BUILD_INFO
 
   return {
     root: fixtureRoot,
+    commit,
     binary,
     caddy,
     goTool,
@@ -342,6 +343,10 @@ function verifyInstallerScript() {
   if (caddyDryRun.ok) {
     requireCondition('Caddy-only dry-run previews Caddy binary install', caddyDryRun.output.includes('/usr/local/bin/caddy'));
     requireCondition('Caddy-only dry-run previews Caddy daemon install', caddyDryRun.output.includes('/Library/LaunchDaemons/com.coldwaterkim.caddy.plist'));
+    requireCondition(
+      'Caddy-only dry-run revalidates the copied runtime pair before restart',
+      caddyDryRun.output.includes(`${runtimeRoot}/bin/caddy validate --config ${runtimeRoot}/Caddyfile`),
+    );
     requireCondition('Caddy-only dry-run skips PocketBase plist install', !caddyDryRun.output.includes('com.coldwaterkim.pocketbase.plist'));
     requireCondition('Caddy-only dry-run skips frontend dist', !caddyDryRun.output.includes(`${runtimeRoot}/dist`));
     requireCondition('Caddy-only dry-run skips PocketBase binary', !caddyDryRun.output.includes(`${runtimeRoot}/bin/pocketbase`));
@@ -349,6 +354,20 @@ function verifyInstallerScript() {
     requireCondition('Caddy-only dry-run skips backup executables', !caddyDryRun.output.includes('backup-pocketbase'));
     requireCondition('Caddy-only dry-run skips OWNER state', !caddyDryRun.output.includes('.cwk-owner-user-id'));
   }
+
+  const invalidCaddy = path.join(releaseFixture.root, 'invalid-caddy');
+  fs.writeFileSync(invalidCaddy, '#!/bin/sh\nexit 42\n', { mode: 0o755 });
+  const invalidCaddyDryRun = run('bash', [relativePath, '--dry-run', '--no-start', '--caddy-only'], {
+    allowFailure: true,
+    env: { ...releaseFixture.env, IMAC_CADDY_BINARY: invalidCaddy },
+  });
+  requireCondition(
+    'Caddy install rejects an invalid candidate before copying or restarting it',
+    !invalidCaddyDryRun.ok
+      && invalidCaddyDryRun.output.includes('candidate binary and config did not validate together')
+      && !invalidCaddyDryRun.output.includes(`install -m 755 ${invalidCaddy}`),
+    invalidCaddyDryRun.output,
+  );
 
   const runtimeDryRun = run('bash', [relativePath, '--dry-run', '--runtime-only'], {
     allowFailure: true,
@@ -386,7 +405,25 @@ function verifyInstallerScript() {
     requireCondition('backend stage dry-run skips backup executables', !backendStageDryRun.output.includes('backup-pocketbase'));
     requireCondition('backend stage dry-run skips OWNER state', !backendStageDryRun.output.includes('.cwk-owner-user-id'));
     requireCondition('backend stage dry-run skips sudo and launchd', !backendStageDryRun.output.includes('sudo ') && !backendStageDryRun.output.includes('launchctl'));
+    requireCondition('backend stage dry-run previews the shared release lock', backendStageDryRun.output.includes('/usr/bin/shlock'));
   }
+
+  const lockedRuntimeRoot = path.join(releaseFixture.root, 'locked-runtime');
+  fs.mkdirSync(lockedRuntimeRoot);
+  const releaseLock = path.join(lockedRuntimeRoot, '.pocketbase-release.lock');
+  const heldLock = run('/usr/bin/shlock', ['-p', String(process.pid), '-f', releaseLock], { allowFailure: true });
+  requireCondition('release lock fixture acquired', heldLock.ok, heldLock.output);
+  const lockedStage = run('bash', [relativePath, '--backend-stage'], {
+    allowFailure: true,
+    env: { ...releaseFixture.env, IMAC_RUNTIME_ROOT: lockedRuntimeRoot },
+  });
+  requireCondition(
+    'backend stage and activation share a single-writer lock',
+    !lockedStage.ok && lockedStage.output.includes('another stage or activation is already running')
+      && !fs.existsSync(path.join(lockedRuntimeRoot, 'releases')),
+    lockedStage.output,
+  );
+  fs.unlinkSync(releaseLock);
 
   const manifestSourceCheck = run('node', [
     'scripts/create-pocketbase-release-manifest.mjs',
@@ -584,6 +621,11 @@ BUILD_INFO
     requireCondition('backend activation reads the previous PocketBase PID', backendActivateDryRun.output.includes('launchctl print system/com.coldwaterkim.pocketbase'));
     requireCondition('backend activation waits for a different PID', backendActivateDryRun.output.includes('new PocketBase PID must differ'));
     requireCondition('backend activation checks direct loopback health JSON', backendActivateDryRun.output.includes('http://127.0.0.1:8090/api/health'));
+    requireCondition(
+      'backend activation re-verifies the published current tuple',
+      backendActivateDryRun.output.includes(`--binary ${backendRuntimeRoot}/bin/pocketbase`)
+        && backendActivateDryRun.output.includes(`--manifest ${backendRuntimeRoot}/pocketbase-release.json`),
+    );
     requireCondition('backend activation skips other services', !backendActivateDryRun.output.includes('com.coldwaterkim.caddy') && !backendActivateDryRun.output.includes('com.coldwaterkim.pocketbase-backup'));
     requireCondition('backend activation skips frontend dist', !backendActivateDryRun.output.includes(`${backendRuntimeRoot}/dist`));
     requireCondition('backend activation never reinstalls plists', !backendActivateDryRun.output.includes('/Library/LaunchDaemons/') && !backendActivateDryRun.output.includes('launchctl bootstrap') && !backendActivateDryRun.output.includes('launchctl bootout'));
@@ -596,9 +638,61 @@ BUILD_INFO
   requireCondition('backend no-start dry-run succeeds', backendNoStartDryRun.ok, backendNoStartDryRun.output);
   if (backendNoStartDryRun.ok) {
     requireCondition('backend no-start explicitly skips restart postconditions', backendNoStartDryRun.output.includes('--no-start: PocketBase restart and PID/health postcondition are intentionally skipped.'));
-    requireCondition('backend no-start never mutates launchd', !backendNoStartDryRun.output.includes('launchctl'));
+    requireCondition('backend no-start proves the launchd job is absent', backendNoStartDryRun.output.includes('launchctl print system/com.coldwaterkim.pocketbase'));
+    requireCondition('backend no-start proves the loopback listener is absent', backendNoStartDryRun.output.includes('/usr/sbin/lsof -nP -iTCP:8090 -sTCP:LISTEN'));
+    requireCondition('backend no-start never mutates launchd', !backendNoStartDryRun.output.includes('launchctl kickstart') && !backendNoStartDryRun.output.includes('launchctl bootout') && !backendNoStartDryRun.output.includes('launchctl bootstrap'));
     requireCondition('backend no-start never probes runtime health', !backendNoStartDryRun.output.includes('http://127.0.0.1:8090/api/health'));
   }
+
+  const runningToolDir = path.join(releaseFixture.root, 'running-tools');
+  fs.mkdirSync(runningToolDir);
+  fs.writeFileSync(path.join(runningToolDir, 'launchctl'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+  fs.writeFileSync(path.join(runningToolDir, 'nc'), '#!/bin/sh\nexit 1\n', { mode: 0o755 });
+  const runningNoStart = run('bash', [relativePath, '--backend-activate', '--no-start'], {
+    allowFailure: true,
+    env: {
+      ...backendEnv,
+      CWK_BACKEND_ACTIVATE_COMMIT: releaseFixture.commit,
+      PATH: `${runningToolDir}:${process.env.PATH}`,
+    },
+  });
+  requireCondition(
+    'backend no-start rejects a loaded PocketBase job before replacing files',
+    !runningNoStart.ok && runningNoStart.output.includes('launchd job is loaded')
+      && !fs.existsSync(path.join(backendRuntimeRoot, 'bin', 'pocketbase')),
+    runningNoStart.output,
+  );
+  fs.writeFileSync(path.join(runningToolDir, 'launchctl'), '#!/bin/sh\nexit 77\n', { mode: 0o755 });
+  const launchctlErrorNoStart = run('bash', [relativePath, '--backend-activate', '--no-start'], {
+    allowFailure: true,
+    env: {
+      ...backendEnv,
+      CWK_BACKEND_ACTIVATE_COMMIT: releaseFixture.commit,
+      PATH: `${runningToolDir}:${process.env.PATH}`,
+    },
+  });
+  requireCondition(
+    'backend no-start fails closed when launchd absence cannot be proven',
+    !launchctlErrorNoStart.ok && launchctlErrorNoStart.output.includes('unable to prove the PocketBase launchd job is absent'),
+    launchctlErrorNoStart.output,
+  );
+  fs.writeFileSync(path.join(runningToolDir, 'launchctl'), '#!/bin/sh\nexit 113\n', { mode: 0o755 });
+  const lsofErrorTool = path.join(runningToolDir, 'lsof-error');
+  fs.writeFileSync(lsofErrorTool, '#!/bin/sh\nexit 2\n', { mode: 0o755 });
+  const lsofErrorNoStart = run('bash', [relativePath, '--backend-activate', '--no-start'], {
+    allowFailure: true,
+    env: {
+      ...backendEnv,
+      CWK_BACKEND_ACTIVATE_COMMIT: releaseFixture.commit,
+      PATH: `${runningToolDir}:${process.env.PATH}`,
+      IMAC_LSOF_TOOL: lsofErrorTool,
+    },
+  });
+  requireCondition(
+    'backend no-start fails closed when listener absence cannot be proven',
+    !lsofErrorNoStart.ok && lsofErrorNoStart.output.includes('unable to prove port 8090 is unused'),
+    lsofErrorNoStart.output,
+  );
 
   const backupDryRun = run('bash', [relativePath, '--dry-run', '--backup-only'], { allowFailure: true });
   requireCondition('backup-only installer dry-run succeeds', backupDryRun.ok, backupDryRun.output);
