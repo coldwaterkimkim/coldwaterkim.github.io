@@ -241,6 +241,10 @@ function verifyInstallerScript() {
   requireCondition('launchd installer relies on verified bundled HWP extension', !script.includes('RUNTIME_H2ORESTART') && !script.includes(' unopkg '));
   requireCondition('launchd installer renders explicit OWNER user id', script.includes('CWK_OWNER_USER_ID') && script.includes('__CWK_OWNER_USER_ID__'));
   requireCondition('launchd installer verifies the sole live OWNER users record', script.includes('SELECT count(*) FROM users') && script.includes('user_count'));
+  requireCondition(
+    'OWNER verification supports a fresh WAL database without sidecars',
+    script.includes('PRAGMA query_only = ON') && script.includes("sqlite3 -separator '|'"),
+  );
   requireCondition('PocketBase manifest generator exists', fs.existsSync(path.join(root, 'scripts/create-pocketbase-release-manifest.mjs')));
   requireCondition('PocketBase manifest verifier exists', fs.existsSync(path.join(root, 'scripts/verify-pocketbase-release.mjs')));
   requireCondition(

@@ -261,6 +261,7 @@ lint_plist() {
 
 verify_owner_database() {
     local database="$RUNTIME_PB_DATA/data.db"
+    local counts
     local owner_count
     local user_count
     require_file "$database"
@@ -268,8 +269,11 @@ verify_owner_database() {
         echo "sqlite3 is required to verify the OWNER users record." >&2
         exit 1
     fi
-    owner_count="$(sqlite3 -readonly "$database" "SELECT count(*) FROM users WHERE id = '${CWK_OWNER_USER_ID}';")"
-    user_count="$(sqlite3 -readonly "$database" "SELECT count(*) FROM users;")"
+    # A freshly migrated WAL database may not have its -wal/-shm sidecars yet.
+    # Open it normally with query_only enabled so SQLite can create those
+    # operational sidecars without allowing the verification query to mutate data.
+    counts="$(sqlite3 -separator '|' "$database" "PRAGMA query_only = ON; SELECT (SELECT count(*) FROM users WHERE id = '${CWK_OWNER_USER_ID}'), (SELECT count(*) FROM users);")"
+    IFS='|' read -r owner_count user_count <<< "$counts"
     if [[ "$owner_count" != "1" ]]; then
         echo "CWK_OWNER_USER_ID does not match exactly one live users record." >&2
         exit 1

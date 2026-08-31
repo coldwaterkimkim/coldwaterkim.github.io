@@ -5,7 +5,16 @@
 - 작업 branch: `codex/audit-service-deep-review`
 - 검토 범위: 기준 commit 이후 이 보고서 commit까지의 전체 tracked diff
 
-이 작업은 2017 iMac 운영을 유지한다는 제약을 전제로 했다. 구현과 사전 검증은 별도 worktree에서 수행했다. source를 `main`에 merge하는 것과 별개로 운영 DB, 운영 runtime, launchd, Caddy, firewall, router는 변경하거나 재시작하지 않았다. 따라서 아래의 “해결”은 별도 표시가 없으면 **source 기준**이고, 승인된 운영 반영 전까지 live 상태를 뜻하지 않는다.
+이 작업은 2017 iMac 운영을 유지한다는 제약을 전제로 했다. 구현과 사전 검증은 별도 worktree에서 수행한 뒤 `main`에 병합했고, 최종 commit `875acea46720b8f11c65d158dad8b9cf10c01f92`를 기준으로 운영 runtime까지 반영했다. 운영 DB는 삭제하거나 대량 수정하지 않았고, 별도 backup과 restore clone 검증 후 PocketBase·launchd·backup service·Caddy·정적 runtime만 안전하게 전환했다.
+
+## Production Deployment Result
+
+- **배포 판정: GO.** 운영 PocketBase는 0.40.1, Go 1.27.0 빌드로 전환됐고 local/public health가 모두 HTTP 200이다.
+- 정적 runtime과 GitHub Pages는 `875acea46720`을 제공하며 공개 주요 route, API, admin proxy 33개 smoke가 통과했다.
+- PocketBase·Caddy·backup은 system LaunchDaemon으로 설치됐다. PocketBase와 backup은 `kimchansu:staff`로 실행되고 재부팅·crash 후 자동 시작하도록 등록됐다.
+- 운영 전 fresh backup, SHA-256, SQLite `quick_check`, 1,428개 originals 전수 검증과 별도 restore clone의 PocketBase 0.40.1 기동을 확인했다. 배포 후 non-root backup도 실제 1회 성공했다.
+- 운영 진단은 18 PASS / 0 FAIL / 2 UNKNOWN이다. UNKNOWN 두 건은 재시작 후 아직 기록되지 않은 PocketBase·Caddy의 last-exit 값이며 현재 서비스 실패를 뜻하지 않는다.
+- 배포 직후 Chrome 연결이 끊겨 실제 운영 OWNER write/upload는 수행하지 않았다. 공개 Chrome 렌더링은 정적 배포 후 확인했고, backend 전환 후에는 direct/public health와 33개 HTTP smoke로 검증했다.
 
 ## What Changed
 
@@ -22,20 +31,20 @@
 
 | Audit 항목 | Branch 결과 | 운영 반영 상태 |
 |---|---|---|
-| P0-01 / SH-P0-01 PocketBase 원격 종료 취약 버전 | source pin과 custom binary를 0.40.1로 올리고, clone migration rehearsal과 release provenance gate를 추가했다. | **미반영. live 0.23.5이므로 운영 P0는 남아 있다.** |
-| P1-02 / SH-P1-05 Ask Me abuse·client IP 신뢰 | 임의 `X-Forwarded-For` 신뢰를 제거하고 proxy 전용 헤더, RemoteAddr fallback, 입력 상한, client별 실패 5회와 성공·실패 공통 전역 60회/10분 원자 read budget을 적용했다. | 미반영 |
-| P1-03 / SH-P1-06 backend provenance 분리 | exact commit/hash stage·activation, single-writer lock, 불변 세대, full-sync atomic pointer, migration commit point, 새 PID와 direct health postcondition을 적용했다. | 미반영 |
-| P1-04 관리자 login `next` XSS/open redirect | root-relative same-origin 경로만 허용하고 unsafe 값은 관리자 기본 화면으로 보낸다. | 미반영 |
-| P1-05 / SH-P1-08 저장형 OWNER self-XSS | 파일명·alt를 HTML 문자열로 넣지 않고 DOM text/property API로 렌더링한다. | 미반영 |
-| P1-06 발행 실패 뒤 숨은 published status | 발행 상태를 DOM에 남기지 않고 해당 request payload에만 적용하며 content/media snapshot을 고정한다. | 미반영 |
-| SH-P1-03 root backup script 실행 | full-sync non-root plist 원자 게시 → 기존 root job unload·absence 증명 → private runtime script 교체 순서로 전환하고 foreign ownership/symlink를 거부한다. | 미반영 |
-| P2-08 하루 중복 저장 | 저장 gate로 동시 mutation을 직렬화했다. | 미반영 |
-| P2-09 삭제 취소·실패 시 editor 종료 | 성공한 삭제만 navigation을 허용하고, 저장 중 이동과 stale load를 막았다. | 미반영 |
-| P2-10 방명록 중복 제출·form 보호 | 제출 중 전 field를 고정하고 중복 request를 막았다. | 미반영 |
-| SH-P2-06/07 restore 안전성·copy 호환성 | canonical production path guard, APFS clone 우선 + copy fallback, capacity preflight, target exclusive publish, checksum 검증을 추가했다. | 도구 source만 미반영 |
-| P2-15 release/test gate | build provenance, stage/activate 분리, current/previous generation 회귀 fixture와 failure rollback 검사를 추가했다. | 미반영 |
-| P2-17 알려진 Go 취약점 | upgrade 후 `govulncheck`에서 reachable 0, imported package 0을 확인했다. required module 1건은 현재 code path에서 호출되지 않는다. | 새 binary 미반영 |
-| SH-P1-07 최소 observability 부재 | mutation과 외부 전송이 없는 20개 read-only 진단을 추가했다. | 도구 미설치; 외부 alert는 범위 밖 |
+| P0-01 / SH-P0-01 PocketBase 원격 종료 취약 버전 | source pin과 custom binary를 0.40.1로 올리고, clone migration rehearsal과 release provenance gate를 추가했다. | **운영 반영 완료. live 0.40.1** |
+| P1-02 / SH-P1-05 Ask Me abuse·client IP 신뢰 | 임의 `X-Forwarded-For` 신뢰를 제거하고 proxy 전용 헤더, RemoteAddr fallback, 입력 상한, client별 실패 5회와 성공·실패 공통 전역 60회/10분 원자 read budget을 적용했다. | 운영 반영 완료 |
+| P1-03 / SH-P1-06 backend provenance 분리 | exact commit/hash stage·activation, single-writer lock, 불변 세대, full-sync atomic pointer, migration commit point, 새 PID와 direct health postcondition을 적용했다. | 운영 반영 완료 |
+| P1-04 관리자 login `next` XSS/open redirect | root-relative same-origin 경로만 허용하고 unsafe 값은 관리자 기본 화면으로 보낸다. | 운영 반영 완료 |
+| P1-05 / SH-P1-08 저장형 OWNER self-XSS | 파일명·alt를 HTML 문자열로 넣지 않고 DOM text/property API로 렌더링한다. | 운영 반영 완료 |
+| P1-06 발행 실패 뒤 숨은 published status | 발행 상태를 DOM에 남기지 않고 해당 request payload에만 적용하며 content/media snapshot을 고정한다. | 운영 반영 완료 |
+| SH-P1-03 root backup script 실행 | full-sync non-root plist 원자 게시 → 기존 root job unload·absence 증명 → private runtime script 교체 순서로 전환하고 foreign ownership/symlink를 거부한다. | 운영 반영 완료; 실제 backup 성공 |
+| P2-08 하루 중복 저장 | 저장 gate로 동시 mutation을 직렬화했다. | 운영 반영 완료 |
+| P2-09 삭제 취소·실패 시 editor 종료 | 성공한 삭제만 navigation을 허용하고, 저장 중 이동과 stale load를 막았다. | 운영 반영 완료 |
+| P2-10 방명록 중복 제출·form 보호 | 제출 중 전 field를 고정하고 중복 request를 막았다. | 운영 반영 완료 |
+| SH-P2-06/07 restore 안전성·copy 호환성 | canonical production path guard, APFS clone 우선 + copy fallback, capacity preflight, target exclusive publish, checksum 검증을 추가했다. | 도구 반영 및 실제 restore clone 검증 완료 |
+| P2-15 release/test gate | build provenance, stage/activate 분리, current/previous generation 회귀 fixture와 failure rollback 검사를 추가했다. | 운영 반영 완료 |
+| P2-17 알려진 Go 취약점 | upgrade 후 `govulncheck`에서 reachable 0, imported package 0을 확인했다. required module 1건은 현재 code path에서 호출되지 않는다. | 새 binary 운영 반영 완료 |
+| SH-P1-07 최소 observability 부재 | mutation과 외부 전송이 없는 20개 read-only 진단을 추가했다. | 설치·실행 완료; 외부 alert는 범위 밖 |
 
 ## Intentionally Not Changed
 
@@ -80,6 +89,13 @@
 - 실제 Chrome 관리 화면: daily 새 편집기, media filename/alt의 text rendering, guestbook 관리 화면 정상 로드
 - 실제 Chrome 중복 제출: guestbook와 Ask Me 버튼을 각각 동시에 두 번 눌러도 clone에는 각 1건만 생성되고 성공 상태가 표시됨
 - 실제 Chrome 반응형·접근성: 390×844에서 홈, OWNER 글쓰기, Ask Me의 가로 overflow 0; 제목에서 날짜로 `Tab` 이동; 앱 console error 0
+- production fresh backup: originals 1,428개 전수 확인, DB snapshot SHA-256 일치, `quick_check=ok`
+- 별도 restore clone: originals 1,428개 checksum 검증, PocketBase 0.40.1 loopback health/dashboard HTTP 200, 주요 collection count 유지
+- production activation 후 exact generation manifest: commit `875acea46720b8f11c65d158dad8b9cf10c01f92`, PocketBase 0.40.1, Go 1.27.0, binary/migration SHA-256 일치
+- production `qa:launchd`: 225 checks, `qa:service-smoke`: 33 checks
+- production non-root incremental backup 1회: 새 snapshot 생성, copied files 0, originals 1,428개 재사용
+- production ops health: 18 PASS / 0 FAIL / 2 UNKNOWN, TLS 88.9일, disk 151.1GiB free
+- fresh WAL DB에서 sidecar가 없는 상태를 재현하고 `PRAGMA query_only=ON` OWNER 검증이 데이터 변경 없이 통과하는 회귀 확인
 
 의도대로 막힌 gate 또는 환경 경계:
 
@@ -94,31 +110,25 @@
 
 ## Remaining Risks
 
-1. **운영 P0:** 공개 server가 아직 PocketBase 0.23.5다. 이 branch를 merge한 것만으로는 제거되지 않으며, backup·restore rehearsal 후 승인된 activation이 필요하다.
-2. **운영 P1:** 유일한 자동 backup이 iMac 내부 SSD와 같은 failure domain이다. disk/도난/화재에는 DB와 backup을 함께 잃을 수 있다.
-3. **운영 P1/conditional P0:** Ventura Screen Sharing이 wildcard TCP 5900에서 대기하고 host firewall이 꺼져 있다. router WAN 5900 노출 여부는 확인되지 않았으며, WAN이면 즉시 P0다.
-4. 외부 alert가 없다. 새 ops tool은 사람이 실행할 때 원인을 빠르게 좁히지만, 전원·인터넷·TLS·backup failure를 밖으로 보내지 않는다.
-5. Caddy runtime binary/config는 후보 검증 후에도 runtime에 순차 복사되며, 다음 부팅까지 포함한 generation rollback은 없다. root Caddy가 user-writable runtime config를 읽는 권한 경계도 남아 있다.
-6. 첫 generation 전환 전에 존재하던 flat backend는 provenance가 없으면 `legacy-before-generations`의 수동 참고본일 뿐 자동 rollback 세대가 아니다.
-7. `previous` 세대가 있어도 새 migration이 DB에 적용된 뒤 binary pointer만 되돌리는 것은 안전하지 않다. DB snapshot과 migration 호환성 판단이 먼저다.
-8. backup originals의 일일 빠른 검사는 저장된 size/mtime 상태를 활용한다. 동일 크기 silent corruption은 정기 `--verify-all` 또는 실제 restore drill 전까지 늦게 발견될 수 있다.
-9. Ask Me limiter는 단일 PocketBase process의 memory counter라 restart 때 초기화되고 다중 instance 사이에는 공유되지 않는다. 실패 또는 정상 읽기 합계가 60회에 도달하면 최대 10분 동안 전체 Ask Me 읽기가 429로 닫히는 의도적인 fail-closed tradeoff도 있다.
-10. log rotation, TUS global reservation, local account 격리, FileVault, MFA, 공개 admin 제한, media 정책 등 audit의 보류 P2는 남아 있다.
+1. **운영 P1:** 자동 backup이 iMac 내부 SSD와 같은 failure domain이다. disk/도난/화재에는 DB와 backup을 함께 잃을 수 있다. 이번 release backup·restore clone은 복구 가능성을 증명하지만 offsite를 대신하지 않는다.
+2. **운영 P1/conditional P0:** Ventura Screen Sharing이 wildcard TCP 5900에서 대기하고 host firewall이 꺼져 있다. router WAN 5900 노출 여부는 확인되지 않았으며, WAN이면 즉시 P0다.
+3. 외부 alert가 없다. 새 ops tool은 사람이 실행할 때 원인을 빠르게 좁히지만, 전원·인터넷·TLS·backup failure를 밖으로 보내지 않는다.
+4. Caddy runtime binary/config는 후보 검증 후에도 runtime에 순차 복사되며, 다음 부팅까지 포함한 generation rollback은 없다. root Caddy가 user-writable runtime config를 읽는 권한 경계도 남아 있다.
+5. 첫 generation 전환 전에 존재하던 flat backend는 provenance가 없으면 `legacy-before-generations`의 수동 참고본일 뿐 자동 rollback 세대가 아니다.
+6. `previous` 세대가 있어도 새 migration이 DB에 적용된 뒤 binary pointer만 되돌리는 것은 안전하지 않다. DB snapshot과 migration 호환성 판단이 먼저다.
+7. backup originals의 일일 빠른 검사는 저장된 size/mtime 상태를 활용한다. 동일 크기 silent corruption은 정기 `--verify-all` 또는 실제 restore drill 전까지 늦게 발견될 수 있다.
+8. Ask Me limiter는 단일 PocketBase process의 memory counter라 restart 때 초기화되고 다중 instance 사이에는 공유되지 않는다. 실패 또는 정상 읽기 합계가 60회에 도달하면 최대 10분 동안 전체 Ask Me 읽기가 429로 닫히는 의도적인 fail-closed tradeoff도 있다.
+9. log rotation, TUS global reservation, local account 격리, FileVault, MFA, 공개 admin 제한, media 정책 등 audit의 보류 P2는 남아 있다.
 
 ## Manual Actions Required
 
-production activation은 현재 **NO-GO**다. 아래를 순서대로 사람이 확인하고 별도 배포 승인을 준 뒤에만 진행한다.
+production activation과 local backup 전환은 완료됐다. 남은 수동 작업은 아래와 같다.
 
-1. `main`에 병합된 최종 clean commit에서 PocketBase binary와 manifest를 다시 build하고 `qa:backend-release`로 exact HEAD를 확인한다.
-2. 현 iMac runtime DB의 최신 local backup을 만들고 `latest-success.json`, DB SHA-256, `quick_check`, originals 존재/size를 확인한다.
-3. production과 분리한 clone에서 0.23.5 → 0.40.1 system/user migration, record counts, auth, 주요 API를 다시 rehearsal한다.
-4. 현재 flat 0.23.5에서 첫 세대식 전환은 승인된 점검 시간에 PocketBase job을 내리고 8090 listener 부재를 증명한 뒤 `--backend-activate --no-start`로만 수행한다. 검증한 기존 plist를 다시 bootstrap하고 새 PID, direct loopback health, 공개 route, OWNER login/write/upload를 확인한다. 이후 A→B 전환부터 live activation 경로를 쓴다.
-5. 현재 backup root의 root-owned legacy 항목을 정확히 검토해 별도 수동 정리한다. installer가 ownership/symlink gate를 통과한 뒤 non-root backup LaunchDaemon과 새 runtime scripts를 설치하고, 실제 backup 1회와 ops health의 backup/provenance PASS를 확인한다.
-6. 암호화·versioning·retention이 있는 offsite 대상에 backup을 복제하고, iMac을 사용하지 않는 독립 restore test를 수행한다.
-7. router에서 WAN TCP 5900·22·8090·2019와 UPnP mapping을 직접 확인한다. 5900이 WAN에 열려 있으면 먼저 접근 복구 경로를 준비한 뒤 차단한다.
-8. 외부 위치에서 80/443 이외 불필요 port가 닫혔는지 확인하고, public IP 변경 시 알림 또는 DDNS 정책을 정한다.
-9. 격리 clone Chrome에서 아직 미검증인 글 발행·삭제, daily 저장·발행, media upload, 삭제 취소·실패 UI를 확인한다. production activation 직후에는 실제 origin에서 OWNER login/write/upload와 app console error 0을 최종 smoke한다. login redirect, 초안 저장·재진입, filename/alt 렌더링, 방명록·Ask Me 중복 제출, 390px overflow와 keyboard focus는 격리 clone에서 완료했다.
-10. 노출 가능성이 의심되는 credential은 값을 문서에 복사하지 말고 별도로 rotate한다.
+1. 암호화·versioning·retention이 있는 offsite 대상에 backup을 복제하고, iMac을 사용하지 않는 독립 restore test를 수행한다.
+2. router에서 WAN TCP 5900·22·8090·2019와 UPnP mapping을 직접 확인한다. 5900이 WAN에 열려 있으면 먼저 접근 복구 경로를 준비한 뒤 차단한다.
+3. 외부 위치에서 80/443 이외 불필요 port가 닫혔는지 확인하고, public IP 변경 시 알림 또는 DDNS 정책을 정한다.
+4. production Chrome OWNER 세션을 사용할 수 있을 때 실제 origin에서 login/write/upload와 app console error 0을 한 번 확인한다. 현재는 격리 clone OWNER E2E와 운영 HTTP smoke까지 완료됐다.
+5. 노출 가능성이 의심되는 credential은 값을 문서에 복사하지 말고 별도로 rotate한다.
 
 ## Product Decisions Needed
 
@@ -136,7 +146,7 @@ production activation은 현재 **NO-GO**다. 아래를 순서대로 사람이 �
 
 | 영역 | Before | After (branch source) |
 |---|---|---|
-| PocketBase | live/source 0.23.5, 공개 무인증 outage 취약 | build target 0.40.1; live는 배포 전까지 0.23.5 |
+| PocketBase | live/source 0.23.5, 공개 무인증 outage 취약 | **live 0.40.1**, exact commit/hash generation 검증 완료 |
 | Go 취약점 | audit 기준 symbol-reachable 알려진 취약점 15개 | `govulncheck`: reachable 0, imported package 0 |
 | Backend release | runtime 파일을 개별 복사, commit/provenance 결합 없음 | clean Git revision + binary/migration SHA manifest + immutable generation + atomic current pointer |
 | 정전 중 backend 전환 | binary/migration/manifest 혼합 가능 | generation/file/pointer `F_FULLFSYNC`; launcher가 절대 generation을 한 번만 선택; current 전 실패만 복구, commit 이후 migration-aware 수동 복구 |
@@ -149,7 +159,7 @@ production activation은 현재 **NO-GO**다. 아래를 순서대로 사람이 �
 | Backup | same-disk legacy 세대 존재 여부 중심 | online SQLite snapshot + DB SHA + append-only originals + durable complete-generation pointer |
 | Restore | live path/ZIP race/capacity 경계가 약함 | canonical guard + private ZIP snapshot + 10GiB floor + exclusive publish + checksum |
 | Backup 권한 | root가 user-writable script 실행 | full-sync non-root plist 원자 게시 + root job unload/absence 증명 + `kimchansu:staff`, umask 077, ownership/symlink fail-closed |
-| Observability | 장애 때 여러 명령을 수동 조합 | secret-safe read-only 20 checks; live 15 PASS / 0 FAIL / 5 UNKNOWN |
+| Observability | 장애 때 여러 명령을 수동 조합 | secret-safe read-only 20 checks; live 18 PASS / 0 FAIL / 2 UNKNOWN |
 
 ## Final Diff Review & Merge Judgment
 
@@ -158,7 +168,7 @@ production activation은 현재 **NO-GO**다. 아래를 순서대로 사람이 �
 - 새 production environment variable secret은 추가하지 않았다. activation 확인값은 secret이 아닌 Git commit이며, OWNER/관리 credential 값은 출력·문서화하지 않았다.
 - tracked diff에는 사용자 소유 `AUDIT.md`, `SELF_HOSTED_AUDIT.md`가 포함되지 않는다. 두 파일은 worktree에서 untracked로 보존했다.
 - source merge 판정은 **GO**다. 두 독립 reviewer가 최신 전체 diff에서 merge-blocking P0/P1 0건을 확인했고, 최종 clean detached HEAD의 PocketBase release build·provenance 검증과 실제 Chrome 격리 OWNER 부분 E2E도 통과했다.
-- production deploy 판정은 위 Manual Actions 1–5의 exact-HEAD 재확인, fresh backup, live-specific preflight, 승인된 activation과 9번의 activation 후 smoke 전까지 **NO-GO**다. `main` 병합만으로 실행 중인 iMac 서비스는 바뀌지 않는다.
+- production deploy 판정은 **GO**다. exact-HEAD build, fresh backup, restore rehearsal, first offline generation activation, non-root backup 전환, direct/public health, 33개 route smoke, 225개 launchd 검증을 완료했다. 실제 운영 OWNER write/upload는 Chrome 세션 부재로 남긴 수동 smoke이며, 현재 공개 서비스와 데이터 안전성에서 배포를 되돌려야 할 실패는 없다.
 
 ## Commit Structure
 
