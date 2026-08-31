@@ -12,7 +12,7 @@
 - 공개 운영 중인 PocketBase 0.23.5를 0.40.1, Go 1.27.0 기반의 검증된 빌드 대상으로 올렸다. binary version, Go build metadata, Git revision, clean-worktree 여부, binary/migration SHA-256을 하나의 secret-free manifest로 묶었다.
 - backend 배포를 build → stage → exact commit confirmation → activation으로 분리했다. binary·migration·manifest는 `commit-binarySha256` 이름의 불변 세대 하나에 저장하고, macOS `F_FULLFSYNC`를 거친 `current` pointer와 고정 launcher로 함께 선택한다. 기존 세대 전환은 launcher와 `previous`를 먼저 준비하고 `current`를 마지막 migration commit point로 게시하며, 그 이후에는 절대 자동 rollback하지 않는다.
 - 관리자 로그인 redirect, 미디어 원본명/대체텍스트 렌더링, 발행 실패 후 status 오염을 막았다. 저장·삭제·발행 중에는 관련 form 상태를 고정하고 중복 mutation과 stale editor load를 무시한다.
-- Ask Me는 reverse proxy가 덮어쓴 신뢰 헤더 또는 socket 주소만 client identity로 사용한다. IP/user/topic별 rate limit과 query/payload 상한을 추가하고, client별 실패예산과 성공 여부와 무관한 전역 읽기예산을 DB/bcrypt 전에 원자 예약해 병렬·분산 burst 우회를 막았다.
+- Ask Me는 reverse proxy가 덮어쓴 신뢰 헤더 또는 socket 주소만 client identity로 사용한다. client IP별 실패예산과 성공 여부와 무관한 전역 읽기예산, query/payload 상한을 추가하고 DB/bcrypt 전에 예산을 원자 예약해 병렬·분산 burst 우회를 막았다.
 - 증분 backup/restore를 fail-closed로 강화했다. SQLite online snapshot, quick check, SHA-256, append-only originals, 10GiB reserve floor, symlink 거부, `F_FULLFSYNC`, exclusive target publication, ZIP 입력 private snapshot, restore 후 전수 checksum을 검증한다.
 - root LaunchDaemon이 사용자 수정 가능 backup script를 실행하던 구조를 `kimchansu:staff`, `Umask 077`로 바꿨다. 새 non-root plist를 root-owned staged 파일에서 `F_FULLFSYNC`·원자 게시한 뒤 기존 system job의 unload와 부재를 증명해야만 runtime script를 교체하고, backup root의 소유권·symlink도 변경 없이 검사한다.
 - 읽기 전용 iMac 운영 진단을 추가했다. local/public health, launchd, 최신 backup, disk, log size, TLS, backend provenance를 secret 없이 PASS/FAIL/UNKNOWN으로 출력한다.
