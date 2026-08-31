@@ -5,7 +5,7 @@
 - 작업 branch: `codex/audit-service-deep-review`
 - 검토 범위: 기준 commit 이후 이 보고서 commit까지의 전체 tracked diff
 
-이 작업은 2017 iMac 운영을 유지한다는 제약을 전제로 했다. 별도 worktree에서만 소스와 안전 도구를 변경했으며, `main`, 운영 DB, 운영 runtime, launchd, Caddy, firewall, router는 변경하거나 재시작하지 않았다. 따라서 아래의 “해결”은 별도 표시가 없으면 **branch source 기준**이고, 승인된 운영 반영 전까지 live 상태를 뜻하지 않는다.
+이 작업은 2017 iMac 운영을 유지한다는 제약을 전제로 했다. 구현과 사전 검증은 별도 worktree에서 수행했다. source를 `main`에 merge하는 것과 별개로 운영 DB, 운영 runtime, launchd, Caddy, firewall, router는 변경하거나 재시작하지 않았다. 따라서 아래의 “해결”은 별도 표시가 없으면 **source 기준**이고, 승인된 운영 반영 전까지 live 상태를 뜻하지 않는다.
 
 ## What Changed
 
@@ -75,6 +75,11 @@
 - 운영 DB와 분리한 SQLite online snapshot에서 PocketBase 0.40.1 migration rehearsal: `quick_check=ok`, content count 유지, user migration 38개, canonical schema hash 유지
 - live read-only ops health: 20개 중 PASS 15 / FAIL 0 / UNKNOWN 5
 - 이 보고서까지 commit한 최종 clean detached HEAD에서 PocketBase release build와 `qa:backend-release`
+- 실제 Chrome 공개 확인: `https://coldwaterkim.com/` 정상 렌더링, 비로그인 `/admin/index.html`의 로그인 redirect 정상
+- 실제 Chrome 격리 OWNER E2E: exact branch binary와 운영 SQLite online snapshot clone을 loopback `127.0.0.1:18090`에서 실행해 로그인, 악성 외부 `next` 차단, 글 초안 저장·목록 단일 노출·재편집 내용 보존을 확인
+- 실제 Chrome 관리 화면: daily 새 편집기, media filename/alt의 text rendering, guestbook 관리 화면 정상 로드
+- 실제 Chrome 중복 제출: guestbook와 Ask Me 버튼을 각각 동시에 두 번 눌러도 clone에는 각 1건만 생성되고 성공 상태가 표시됨
+- 실제 Chrome 반응형·접근성: 390×844에서 홈, OWNER 글쓰기, Ask Me의 가로 overflow 0; 제목에서 날짜로 `Tab` 이동; 앱 console error 0
 
 의도대로 막힌 gate 또는 환경 경계:
 
@@ -83,7 +88,9 @@
 - `qa:video-processor`는 이 worktree에 local FFmpeg runtime이 없어 실행하지 못했다.
 - `qa:uppy-tus-client`는 `CWK_TUS_QA_ORIGIN`과 실제 인증된 upload target이 없어 실행하지 못했다.
 - 현재 package에는 별도 lint/typecheck script가 없다. JavaScript regression QA, production build, Go test/race/vet, shell syntax, Python fixture로 대신 검증했다.
-- 사용자 Chrome/in-app Browser 연결 목록이 비어 있어 실제 OWNER browser E2E, mobile visual QA, keyboard/focus 실측은 수행하지 못했다.
+- production Chrome에는 OWNER 로그인 세션이 없어 운영 write/upload/publish/delete E2E는 하지 않았다. 대신 운영 SQLite online snapshot clone과 임시 OWNER를 사용해 실제 Chrome에서 동일 source/API 흐름을 검증했다.
+- Chrome QA는 PocketBase direct same-origin `127.0.0.1:18090` 경로였다. production Caddy가 admin port 2019를 사용 중이어서 local Caddy browser 경로는 실행하지 않았으며, Caddy/TLS/launchd parity를 대신하지 않는다.
+- 격리 Chrome에서도 글 발행·삭제, daily 저장·발행, media upload, 삭제 취소·실패 UI는 수행하지 않았다. 이 경로들은 격리 fixture와 JavaScript regression QA로 검증했고, Ask Me 분산 rate limit은 Go HTTP burst fixture와 `qa:askme`로 검증했다.
 
 ## Remaining Risks
 
@@ -102,7 +109,7 @@
 
 production activation은 현재 **NO-GO**다. 아래를 순서대로 사람이 확인하고 별도 배포 승인을 준 뒤에만 진행한다.
 
-1. 이 branch를 검토·merge한 최종 clean commit에서 PocketBase binary와 manifest를 다시 build하고 `qa:backend-release`로 exact HEAD를 확인한다.
+1. `main`에 병합된 최종 clean commit에서 PocketBase binary와 manifest를 다시 build하고 `qa:backend-release`로 exact HEAD를 확인한다.
 2. 현 iMac runtime DB의 최신 local backup을 만들고 `latest-success.json`, DB SHA-256, `quick_check`, originals 존재/size를 확인한다.
 3. production과 분리한 clone에서 0.23.5 → 0.40.1 system/user migration, record counts, auth, 주요 API를 다시 rehearsal한다.
 4. 현재 flat 0.23.5에서 첫 세대식 전환은 승인된 점검 시간에 PocketBase job을 내리고 8090 listener 부재를 증명한 뒤 `--backend-activate --no-start`로만 수행한다. 검증한 기존 plist를 다시 bootstrap하고 새 PID, direct loopback health, 공개 route, OWNER login/write/upload를 확인한다. 이후 A→B 전환부터 live activation 경로를 쓴다.
@@ -110,7 +117,7 @@ production activation은 현재 **NO-GO**다. 아래를 순서대로 사람이 �
 6. 암호화·versioning·retention이 있는 offsite 대상에 backup을 복제하고, iMac을 사용하지 않는 독립 restore test를 수행한다.
 7. router에서 WAN TCP 5900·22·8090·2019와 UPnP mapping을 직접 확인한다. 5900이 WAN에 열려 있으면 먼저 접근 복구 경로를 준비한 뒤 차단한다.
 8. 외부 위치에서 80/443 이외 불필요 port가 닫혔는지 확인하고, public IP 변경 시 알림 또는 DDNS 정책을 정한다.
-9. 실제 Chrome에서 login redirect, media filename, post/daily publish failure, delete cancel/failure, guestbook double-submit, Ask Me rate limit, mobile/focus/keyboard를 확인한다.
+9. 격리 clone Chrome에서 아직 미검증인 글 발행·삭제, daily 저장·발행, media upload, 삭제 취소·실패 UI를 확인한다. production activation 직후에는 실제 origin에서 OWNER login/write/upload와 app console error 0을 최종 smoke한다. login redirect, 초안 저장·재진입, filename/alt 렌더링, 방명록·Ask Me 중복 제출, 390px overflow와 keyboard focus는 격리 clone에서 완료했다.
 10. 노출 가능성이 의심되는 credential은 값을 문서에 복사하지 말고 별도로 rotate한다.
 
 ## Product Decisions Needed
@@ -150,8 +157,8 @@ production activation은 현재 **NO-GO**다. 아래를 순서대로 사람이 �
 - user migration 파일은 변경하지 않았다. 0.40.1 system migration은 production DB가 아닌 격리 clone에서만 rehearsal했다.
 - 새 production environment variable secret은 추가하지 않았다. activation 확인값은 secret이 아닌 Git commit이며, OWNER/관리 credential 값은 출력·문서화하지 않았다.
 - tracked diff에는 사용자 소유 `AUDIT.md`, `SELF_HOSTED_AUDIT.md`가 포함되지 않는다. 두 파일은 worktree에서 untracked로 보존했다.
-- source merge 판정은 **GO**다. 두 독립 reviewer가 최신 전체 diff에서 merge-blocking P0/P1 0건을 확인했고, 최종 clean detached HEAD의 PocketBase release build·provenance 검증도 통과했다.
-- production deploy 판정은 위 Manual Actions 1–4의 fresh backup, isolated migration rehearsal, exact-HEAD artifact, 승인된 activation 전까지 **NO-GO**다.
+- source merge 판정은 **GO**다. 두 독립 reviewer가 최신 전체 diff에서 merge-blocking P0/P1 0건을 확인했고, 최종 clean detached HEAD의 PocketBase release build·provenance 검증과 실제 Chrome 격리 OWNER 부분 E2E도 통과했다.
+- production deploy 판정은 위 Manual Actions 1–5의 exact-HEAD 재확인, fresh backup, live-specific preflight, 승인된 activation과 9번의 activation 후 smoke 전까지 **NO-GO**다. `main` 병합만으로 실행 중인 iMac 서비스는 바뀌지 않는다.
 
 ## Commit Structure
 
