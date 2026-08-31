@@ -10,7 +10,7 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <meta name="robots" content="noindex,nofollow">
-  <script type="module" crossorigin src="/assets/admin/media-8lR0gpzz.js"></script>
+  <script type="module" crossorigin src="/assets/admin/media-DB8Had4o.js"></script>
   <link rel="modulepreload" crossorigin href="/assets/modulepreload-polyfill-Dezn_h7o.js">
   <link rel="modulepreload" crossorigin href="/assets/preload-helper-CZgWQFsJ.js">
   <link rel="modulepreload" crossorigin href="/assets/pb-DkqvpIev.js">
@@ -42,12 +42,12 @@
         <div class="admin-content">
             <h2 style="margin-top: 0;">🖼️ 미디어 라이브러리</h2>
 
-            <div id="alert" class="alert" style="display: none;"></div>
+            <div id="alert" class="alert" role="status" aria-live="polite" style="display: none;"></div>
 
             <!-- 업로드 영역 -->
             <div class="admin-panel">
                 <h2>📤 파일 업로드</h2>
-                <div id="dropzone" class="dropzone">
+                <div id="dropzone" class="dropzone" role="button" tabindex="0" aria-controls="fileInput">
                     <p>📁 여기에 파일을 드래그하거나 클릭하여 업로드</p>
                     <p style="font-size: 12px; color: #888;">이미지, 영상, MP3, PDF (영상 최대 20GB)</p>
                 </div>
@@ -72,12 +72,12 @@
                 <h2>📋 파일 정보</h2>
                 <div id="mediaInfo"></div>
                 <div class="form-group" style="margin-top: 12px;">
-                    <label>파일 URL (복사해서 글에 사용)</label>
-                    <input type="text" id="mediaUrl" readonly onclick="this.select()">
+                    <label for="mediaUrl">파일 URL (복사해서 글에 사용)</label>
+                    <input type="text" id="mediaUrl" readonly>
                 </div>
                 <div class="action-buttons">
-                    <button class="btn" onclick="copyUrl()">📋 URL 복사</button>
-                    <button class="btn btn-danger" onclick="deleteSelectedMedia()">🗑️ 삭제</button>
+                    <button class="btn" id="copyUrlBtn">📋 URL 복사</button>
+                    <button class="btn btn-danger" id="deleteMediaBtn">🗑️ 삭제</button>
                 </div>
             </div>
         </div>
