@@ -3,6 +3,10 @@
   --cwk-viewport-width: 1200px;
   --cwk-page-width: 1140px;
   --cwk-entry-width: 720px;
+  --cwk-record-width: 640px;
+  --cwk-record-gutter: 24px;
+  --cwk-record-mobile-gutter: 16px;
+  --cwk-record-header-height: 56px;
   --cwk-home-sidebar-width: 180px;
   --cwk-guestbook-sidebar-width: 300px;
   --cwk-cell-padding: 8px;

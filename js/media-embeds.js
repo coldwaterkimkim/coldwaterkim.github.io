@@ -39,11 +39,11 @@ export function prepareEmbeddedMediaForDisplay(html = '') {
     return template.innerHTML.trim();
 }
 
-export function enhanceEmbeddedMedia(scope = document) {
+export function enhanceEmbeddedMedia(scope = document, { videoMetadataOrigin } = {}) {
     const root = scope || document;
     decorateEmbeddedMedia(root);
     void decorateChatGptEmbeds(root);
-    void hydratePocketBaseVideos(root);
+    void hydratePocketBaseVideos(root, videoMetadataOrigin);
 }
 
 export function decorateAlbumMediaAnchors(scope = document, sourceId = '') {
@@ -203,7 +203,7 @@ async function decorateChatGptEmbeds(root) {
     decorateChatGptMarkdown(root);
 }
 
-async function hydratePocketBaseVideos(root) {
+async function hydratePocketBaseVideos(root, videoMetadataOrigin) {
     const videos = [...root.querySelectorAll('video')]
         .map(video => {
             const src = video.dataset.cwkOriginalSrc || video.getAttribute('src') || video.querySelector('source')?.getAttribute('src') || '';
@@ -222,7 +222,9 @@ async function hydratePocketBaseVideos(root) {
     await Promise.all([...byOrigin.entries()].map(async ([origin, entries]) => {
         const ids = [...new Set(entries.map(item => item.reference.recordId))];
         const filter = ids.map(id => `id="${id.replace(/"/g, '')}"`).join('||');
-        const url = new URL('/api/collections/media/records', origin);
+        // Isolated previews may read a local metadata copy while the unchanged
+        // video reference continues to resolve original/derived media remotely.
+        const url = new URL('/api/collections/media/records', videoMetadataOrigin || origin);
         url.searchParams.set('perPage', String(Math.min(ids.length, 500)));
         url.searchParams.set('filter', filter);
         url.searchParams.set('fields', 'id,collectionId,web_video,video_poster,video_status');

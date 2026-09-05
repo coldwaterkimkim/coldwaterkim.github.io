@@ -98,7 +98,8 @@
     "preview": "vite preview",
     "dev:records": "vite --config vite.records.config.js",
     "build:records": "vite build --config vite.records.config.js",
-    "qa:records": "node scripts/verify-records-v2.mjs"
+    "qa:records": "node scripts/verify-records-v2.mjs",
+    "qa:records:ui": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/verify-records-v2-ui.mjs"
   },
   "dependencies": {
     "@blocknote/core": "^0.51.4",
