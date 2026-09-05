@@ -175,7 +175,7 @@ func main() {
 	})
 
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
-		if os.Getenv("CWK_RECORDS_V2") == "1" {
+		if os.Getenv("CWK_RECORDS_V2") != "0" {
 			if err := ensureRecordsV2(app); err != nil {
 				return err
 			}

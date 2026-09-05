@@ -64,6 +64,7 @@ type recordsV2Document struct {
 	Revision         int                   `json:"revision"`
 	Created          string                `json:"created"`
 	Updated          string                `json:"updated"`
+	SourceUpdated    string                `json:"sourceUpdated,omitempty"`
 }
 
 func ensureRecordsV2(app core.App) error {
@@ -92,6 +93,20 @@ func ensureRecordsV2(app core.App) error {
 	})
 }
 func (s *recordsV2Service) registerRoutes(e *core.ServeEvent) {
+	for _, collection := range []string{"posts", "daily_entries"} {
+		protect := func(event *core.RecordRequestEvent) error {
+			mapped, err := s.app.FindFirstRecordByFilter("records_v2", "source_key={:key}", dbx.Params{"key": event.Record.Collection().Name + ":" + event.Record.Id})
+			if err == nil {
+				return event.JSON(http.StatusConflict, map[string]string{"message": "이 기록은 새 작성기에서 수정해 줘.", "recordId": mapped.Id, "url": "/records/#record/" + mapped.Id})
+			}
+			if !errors.Is(err, sql.ErrNoRows) {
+				return err
+			}
+			return event.Next()
+		}
+		s.app.OnRecordUpdateRequest(collection).BindFunc(protect)
+		s.app.OnRecordDeleteRequest(collection).BindFunc(protect)
+	}
 	s.app.OnRecordDelete("media").BindFunc(func(event *core.RecordEvent) error {
 		count, err := event.App.CountRecords("records_v2_media", dbx.HashExp{"media": event.Record.Id})
 		if err != nil {
@@ -122,32 +137,30 @@ func recordsV2Decode(r *core.Record) (recordsV2Document, error) {
 	return d, err
 }
 func (s *recordsV2Service) get(e *core.RequestEvent) error {
-	r, err := s.app.FindRecordById("records_v2", e.Request.PathValue("id"))
+	d, err := s.document(e.Request.PathValue("id"))
 	if errors.Is(err, sql.ErrNoRows) {
 		return e.NotFoundError("Record not found", nil)
 	}
 	if err != nil {
 		return err
 	}
-	if r.GetString("status") != "published" && !s.owner(e) {
+	if d.Status != "published" && !s.owner(e) {
 		return e.NotFoundError("Record not found", nil)
-	}
-	d, err := recordsV2Decode(r)
-	if err != nil {
-		return err
 	}
 	return e.JSON(http.StatusOK, d)
 }
 func (s *recordsV2Service) list(e *core.RequestEvent) error {
 	q := e.Request.URL.Query()
 	status := "published"
-	sort := "-first_published_at,-id"
 	if q.Get("status") == "draft" {
 		if !s.owner(e) {
 			return e.ForbiddenError("OWNER required", nil)
 		}
 		status = "draft"
-		sort = "-updated,-id"
+	}
+	category := q.Get("category")
+	if category != "" && category != "posts" && category != "daily" {
+		return e.BadRequestError("Invalid category", nil)
 	}
 	page, _ := strconv.Atoi(q.Get("page"))
 	if page < 1 {
@@ -163,34 +176,13 @@ func (s *recordsV2Service) list(e *core.RequestEvent) error {
 	if size > 100 {
 		size = 100
 	}
-	filter := "status={:status}"
-	params := dbx.Params{"status": status}
-	if c := q.Get("category"); c != "" {
-		if c != "posts" && c != "daily" {
-			return e.BadRequestError("Invalid category", nil)
-		}
-		filter += " && category={:category}"
-		params["category"] = c
-	}
-	rs, err := s.app.FindRecordsByFilter("records_v2", filter, sort, size, (page-1)*size, params)
+	items, more, err := s.unifiedList(status, category, size, (page-1)*size)
 	if err != nil {
 		return err
 	}
-	items := make([]recordsV2Document, 0, len(rs))
-	for _, r := range rs {
-		d, err := recordsV2Decode(r)
-		if err != nil {
-			return err
-		}
-		items = append(items, d)
-	}
-	// Fetch one extra through a bounded query, without exposing inaccessible counts.
-	next, err := s.app.FindRecordsByFilter("records_v2", filter, sort, 1, page*size, params)
-	if err != nil {
-		return err
-	}
-	return e.JSON(http.StatusOK, map[string]any{"items": items, "page": page, "perPage": size, "hasMore": len(next) > 0})
+	return e.JSON(http.StatusOK, map[string]any{"items": items, "page": page, "perPage": size, "hasMore": more})
 }
+
 func recordsV2SafeURL(raw string) bool {
 	if len(raw) > 8192 {
 		return false
@@ -350,6 +342,21 @@ func (s *recordsV2Service) write(e *core.RequestEvent) error {
 		return e.BadRequestError(err.Error(), nil)
 	}
 	id := e.Request.PathValue("id")
+	synthetic := strings.Contains(id, ":")
+	if synthetic {
+		original, err := s.document(id)
+		if err != nil {
+			return e.NotFoundError("Record not found", nil)
+		}
+		if original.ID != id {
+			return e.JSON(http.StatusConflict, map[string]string{"message": errRecordsV2Revision.Error()})
+		}
+		if d.SourceUpdated == "" || d.SourceUpdated != original.SourceUpdated || d.Revision != 0 {
+			return e.JSON(http.StatusConflict, map[string]string{"message": errRecordsV2Revision.Error()})
+		}
+		d.LegacySource = original.LegacySource
+		id = ""
+	}
 	var saved *core.Record
 	err := s.app.RunInTransaction(func(tx core.App) error {
 		c, err := tx.FindCollectionByNameOrId("records_v2")
@@ -374,11 +381,19 @@ func (s *recordsV2Service) write(e *core.RequestEvent) error {
 			if err != nil {
 				return err
 			}
-			if source.GetString("status") != "published" {
+			if synthetic && source.GetString("updated") != d.SourceUpdated {
+				return errRecordsV2Revision
+			}
+			if !synthetic && source.GetString("status") != "published" {
 				return fmt.Errorf("Only published legacy records can be imported")
 			}
+			authentic := recordsV2FromLegacy(source)
+			d.LegacySource = authentic.LegacySource
+			if synthetic {
+				d.LegacyHTML = authentic.LegacyHTML
+			}
 			first = source.GetString("first_published_at")
-			if first == "" {
+			if first == "" && source.GetString("status") == "published" {
 				return fmt.Errorf("Legacy record has no evidenced first publication timestamp")
 			}
 			if (d.LegacySource.Collection == "posts" && d.Category != "posts") || (d.LegacySource.Collection == "daily_entries" && d.Category != "daily") {
@@ -388,6 +403,7 @@ func (s *recordsV2Service) write(e *core.RequestEvent) error {
 		if first == "" && d.Status == "published" {
 			first = time.Now().UTC().Format("2006-01-02 15:04:05.000Z")
 		}
+		recordsV2AssignID(r)
 		d.FirstPublishedAt = first
 		d.Revision = r.GetInt("revision") + 1
 		d.ID = r.Id
@@ -400,6 +416,13 @@ func (s *recordsV2Service) write(e *core.RequestEvent) error {
 		if !r.IsNew() && r.GetString("source_key") != source {
 			return fmt.Errorf("Legacy source cannot change")
 		}
+		if !r.IsNew() && r.GetString("category") != d.Category {
+			return fmt.Errorf("Linked record category cannot change")
+		}
+		if err := s.projectLegacy(tx, r, &d); err != nil {
+			return err
+		}
+		source = d.LegacySource.Collection + ":" + d.LegacySource.ID
 		r.Set("document", d)
 		r.Set("category", d.Category)
 		r.Set("status", d.Status)
@@ -518,6 +541,21 @@ func (s *recordsV2Service) delete(e *core.RequestEvent) error {
 		}
 		if revision != r.GetInt("revision") {
 			return errRecordsV2Revision
+		}
+		d, err := recordsV2Decode(r)
+		if err != nil {
+			return err
+		}
+		if d.LegacySource != nil {
+			source, err := tx.FindRecordById(d.LegacySource.Collection, d.LegacySource.ID)
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
+				return err
+			}
+			if err == nil {
+				if err = tx.Delete(source); err != nil {
+					return err
+				}
+			}
 		}
 		return tx.Delete(r)
 	})

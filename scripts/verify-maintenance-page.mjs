@@ -40,6 +40,8 @@ check(JSON.parse(packageJson).scripts['qa:maintenance'], 'maintenance QA script 
 
 const publicHtmlFiles = [
   'index.html',
+  'page-view.html',
+  'records/index.html',
   'posts/index.html',
   'posts/view.html',
   'daily/index.html',

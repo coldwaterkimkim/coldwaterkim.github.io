@@ -13,7 +13,7 @@ export function mediaKind(mime = '', name = '') {
 }
 export function normalizeRecord(input = {}) {
   return {
-    id: String(input.id || ''), created: String(input.created || ''), updated: String(input.updated || ''), category: input.category === 'daily' ? 'daily' : 'posts', body: String(input.body || ''),
+    id: String(input.id || ''), created: String(input.created || ''), updated: String(input.updated || ''), sourceUpdated: String(input.sourceUpdated || ''), category: input.category === 'daily' ? 'daily' : 'posts', body: String(input.body || ''),
     attachments: Array.from(input.attachments || []).map(a => ({ id: String(a.id || stableOccurrenceId()), mediaId: String(a.mediaId || ''), url: safeMediaUrl(a.url), name: String(a.name || ''), mime: String(a.mime || ''), kind: ['image','video','audio','file'].includes(a.kind) ? a.kind : mediaKind(a.mime, a.name), crop: a.crop?.enabled ? normalizeImageCrop(a.crop) : null, comment: String(a.comment || ''), ...(a.playbackUrl ? {playbackUrl:safeMediaUrl(a.playbackUrl)} : {}), ...(a.posterUrl ? {posterUrl:safeMediaUrl(a.posterUrl)} : {}) })),
     embeds: Array.from(input.embeds || []).filter(e => ['chatgpt','youtube'].includes(e.type)).map(e => ({ id: String(e.id || stableOccurrenceId()), type: e.type, url: safeMediaUrl(e.url), snapshot: e.type === 'chatgpt' ? normalizeChatGptSnapshot(e.snapshot) : null })),
     ...(input.legacyHtml != null ? { legacyHtml: String(input.legacyHtml) } : {}),

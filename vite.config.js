@@ -3,7 +3,7 @@ import { execSync } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 
-const htmlDirs = ['.', 'all', 'posts', 'daily', 'album', 'programs', 'nasajab', 'admin']
+const htmlDirs = ['.', 'all', 'posts', 'daily', 'album', 'programs', 'nasajab', 'admin', 'records']
 const liveCmsUrl = 'https://coldwaterkim.com'
 const cmsTarget = String(process.env.VITE_CMS_TARGET || '').toLowerCase()
 const useLiveCmsProxy = cmsTarget === 'live'
@@ -20,7 +20,7 @@ function getHtmlEntries() {
         if (!fs.existsSync(absoluteDir)) return
 
         fs.readdirSync(absoluteDir)
-            .filter(file => file.endsWith('.html'))
+            .filter(file => file.endsWith('.html') && (dir !== 'records' || file === 'index.html'))
             .forEach(file => {
                 const basename = file.replace('.html', '')
                 const name = dir === '.' ? basename : `${dir}/${basename}`
@@ -132,6 +132,7 @@ function staticSeoPlugin() {
 
 export default defineConfig({
     define: {
+        __RECORDS_PREVIEW__: false,
         __SITE_VERSION__: JSON.stringify(siteVersion),
         __CMS_TARGET__: JSON.stringify(cmsTarget),
         __LIVE_CMS_URL__: JSON.stringify(useSameOriginCms ? '' : liveCmsUrl),

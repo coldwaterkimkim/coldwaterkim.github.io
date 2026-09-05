@@ -504,6 +504,10 @@
             if (editorActionInFlight) return false;
             const loadGeneration = ++editorLoadGeneration;
             try {
+                try {
+                    const record=await pb.send('/api/cwk/records-v2/'+encodeURIComponent('daily_entries:'+id),{method:'GET',requestKey:null});
+                    if(record.id&&!record.id.includes(':')){location.href='/#edit/'+encodeURIComponent(record.id);return false;}
+                }catch(error){if(error.status!==404)throw error;}
                 const post = await pb.collection(DAILY_COLLECTION).getOne(id);
                 if (loadGeneration !== editorLoadGeneration) return false;
                 return showEditor(post, loadGeneration);
@@ -519,7 +523,11 @@
             if (!confirm('정말 이 하루 기록을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.')) return false;
 
             try {
-                await deleteDailyEntry(id);
+                let mapped;
+                try{mapped=await pb.send('/api/cwk/records-v2/'+encodeURIComponent('daily_entries:'+id),{method:'GET',requestKey:null});}
+                catch(error){if(error.status!==404)throw error;}
+                if(mapped?.id&&!mapped.id.includes(':'))await pb.send('/api/cwk/records-v2/'+encodeURIComponent(mapped.id),{method:'DELETE',query:{revision:mapped.revision},requestKey:null});
+                else await deleteDailyEntry(id);
                 showAlert('하루 기록이 삭제되었습니다.', 'success');
                 if (reloadList) await loadPosts(currentPage);
                 return true;

@@ -1,4 +1,4 @@
-import { pb, isLoggedIn, uploadMedia, getMediaUrl, getChatGptSharePreview } from './pb.js';
+import { pb, isLoggedIn, uploadMedia, getMediaUrl, getChatGptSharePreview, recordContentView, getContentViewCounts } from './pb.js';
 import { createEditorUploadCoordinator } from './editor-upload-coordinator.mjs';
 import { normalizeRecord, stableOccurrenceId, mediaKind } from './records-v2-model.mjs';
 const endpoint = '/api/cwk/records-v2';
@@ -25,7 +25,22 @@ export async function saveRecord(record) {
   const body = normalizeRecord(record);
   return normalizeRecord(await pb.send(body.id ? `${endpoint}/${encodeURIComponent(body.id)}` : endpoint,{method:body.id?'PUT':'POST',body,requestKey:null}));
 }
+export const deleteRecord = record => pb.send(`${endpoint}/${encodeURIComponent(record.id)}`,{method:'DELETE',query:{revision:record.revision},requestKey:null});
 export const resolveChatGptShare = url => getChatGptSharePreview(url);
+export function recordViewTarget(record) {
+  const source=record.legacySource;
+  if (!source?.id) return null;
+  return record.category==='daily'
+    ? {kind:'daily',id:record.recordDate,slug:record.recordDate,published:record.status==='published'}
+    : {kind:'post',id:source.id,slug:source.slug||'',published:record.status==='published'};
+}
+export async function recordDetailView(record) {
+  const target=recordViewTarget(record);if(target)await recordContentView(target);
+}
+export async function recordDetailCount(record) {
+  const target=recordViewTarget(record);if(!target||!isOwner())return null;
+  const counts=await getContentViewCounts([target]);return counts[`${target.kind}:${target.id}`]??0;
+}
 // One coordinator per loaded browser module. UI renders never reset its dedupe or in-flight state.
 const coordinator = createEditorUploadCoordinator({uploadFile:(file,options)=>uploadMedia(file,file.name,'Records V2 media',options)});
 export async function uploadFiles(files,{onProgress}={}) {

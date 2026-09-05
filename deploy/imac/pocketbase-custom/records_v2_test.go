@@ -2,7 +2,9 @@ package main
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -70,6 +72,16 @@ func TestRecordsV2LifecycleAndReferences(t *testing.T) {
 	if err = ensureRecordsV2(app); err != nil {
 		t.Fatal("schema is not idempotent:", err)
 	}
+	for _, name := range []string{"posts", "daily_entries"} {
+		c := core.NewBaseCollection(name)
+		rule := "@request.auth.id != ''"
+		c.UpdateRule = &rule
+		c.DeleteRule = &rule
+		c.Fields.Add(&core.TextField{Name: "title"}, &core.TextField{Name: "slug"}, &core.TextField{Name: "day_key"}, &core.TextField{Name: "content", Max: 4000000}, &core.TextField{Name: "status"}, &core.DateField{Name: "first_published_at"}, &core.DateField{Name: "published_at"}, &core.AutodateField{Name: "created", OnCreate: true}, &core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true})
+		if err = app.Save(c); err != nil {
+			t.Fatal(err)
+		}
+	}
 	media := core.NewBaseCollection("media")
 	if err = app.Save(media); err != nil {
 		t.Fatal(err)
@@ -130,6 +142,16 @@ func TestRecordsV2LifecycleAndReferences(t *testing.T) {
 	if err = app.Delete(file); err == nil {
 		t.Fatal("referenced media deletion was allowed")
 	}
+	if d.LegacySource == nil || d.SourceUpdated == "" {
+		t.Fatal("projection identity not returned")
+	}
+	draftProjection, err := app.FindRecordById(d.LegacySource.Collection, d.LegacySource.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if draftProjection.GetString("status") != "draft" || draftProjection.GetString("first_published_at") != "" || draftProjection.GetString("published_at") != "" {
+		t.Fatal("draft projection was prematurely published")
+	}
 	recordPath := path + "/" + d.ID
 	request("GET", recordPath, "", nil, http.StatusNotFound)
 	request("GET", recordPath, otherToken, nil, http.StatusNotFound)
@@ -154,10 +176,25 @@ func TestRecordsV2LifecycleAndReferences(t *testing.T) {
 	first := d.FirstPublishedAt
 	request("PUT", recordPath, token, stale, http.StatusConflict)
 	request("GET", recordPath, "", nil, http.StatusOK)
-	// Bad media rolls back both document revision and reference replacement.
+	projectionBefore, err := app.FindRecordById(d.LegacySource.Collection, d.LegacySource.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if projectionBefore.GetString("status") != "published" || projectionBefore.GetString("first_published_at") != d.FirstPublishedAt {
+		t.Fatal("publication projection mismatch")
+	}
+	// Bad media rolls back document, legacy projection and reference replacement.
 	bad := d
+	bad.Body = "must not reach legacy"
 	bad.Attachments = []recordsV2Attachment{{ID: "bad", MediaID: "zzzzzzzzzzzzzzz", URL: "https://example.com/missing.jpg", Kind: "image"}}
 	request("PUT", recordPath, token, bad, http.StatusBadRequest)
+	projectionAfter, _ := app.FindRecordById(d.LegacySource.Collection, d.LegacySource.ID)
+	if projectionAfter.GetString("content") != projectionBefore.GetString("content") || projectionAfter.GetString("updated") != projectionBefore.GetString("updated") {
+		t.Fatal("failed write changed legacy projection")
+	}
+	incompatible := d
+	incompatible.Category = "posts"
+	request("PUT", recordPath, token, incompatible, http.StatusBadRequest)
 	refs, _ = app.CountRecords("records_v2_media")
 	if refs != 1 {
 		t.Fatal("failed write lost references")
@@ -215,23 +252,37 @@ func TestRecordsV2LifecycleAndReferences(t *testing.T) {
 	}
 	request("DELETE", recordPath+"?revision="+strconv.Itoa(d.Revision), token, nil, http.StatusConflict)
 	request("DELETE", recordPath+"?revision="+strconv.Itoa(d.Revision+1), token, nil, http.StatusNoContent)
+	if _, err = app.FindRecordById(d.LegacySource.Collection, d.LegacySource.ID); !errors.Is(err, sql.ErrNoRows) {
+		t.Fatal("V2 delete left legacy projection")
+	}
 	if _, err = app.FindRecordById("media", file.Id); err != nil {
 		t.Fatal("record deletion removed media")
 	}
 	// Legacy import reads publication evidence from a real source, ignoring client timestamps.
-	posts := core.NewBaseCollection("posts")
-	posts.Fields.Add(&core.TextField{Name: "status"}, &core.DateField{Name: "first_published_at"})
-	if err = app.Save(posts); err != nil {
-		t.Fatal(err)
-	}
+	posts, _ := app.FindCollectionByNameOrId("posts")
 	legacy := core.NewRecord(posts)
 	legacy.Set("status", "published")
+	legacy.Set("content", `<p>before</p><img src="https://example.com/api/files/media/`+file.Id+`/photo.jpg"><p>after</p>`)
+	legacy.Set("title", "예전 글의 제목")
+	legacy.Set("slug", "예전-글")
 	legacy.Set("first_published_at", "2025-01-02 03:04:05.000Z")
 	if err = app.Save(legacy); err != nil {
 		t.Fatal(err)
 	}
-	imported := recordsV2Document{Category: "posts", Status: "published", RecordDate: "2025-01-02", LegacySource: &recordsV2Source{Collection: "posts", ID: legacy.Id, URL: "https://example.com/posts/old", Title: "예전 글의 제목", Slug: "예전-글"}, FirstPublishedAt: "2099-01-01 00:00:00.000Z", LegacyHTML: `<p>before</p><img src="https://example.com/api/files/media/` + file.Id + `/photo.jpg"><p>after</p>`}
-	rr = request("POST", path, token, imported, http.StatusCreated)
+	syntheticPath := path + "/posts:" + legacy.Id
+	beforeCount, _ := app.CountRecords("records_v2")
+	beforeRead := request("GET", syntheticPath, "", nil, http.StatusOK)
+	var sourceDoc recordsV2Document
+	json.Unmarshal(beforeRead.Body.Bytes(), &sourceDoc)
+	afterCount, _ := app.CountRecords("records_v2")
+	if beforeCount != afterCount || sourceDoc.LegacySource.Title != "예전 글의 제목" {
+		t.Fatal("read-through mutated or lost source")
+	}
+	staleSource := sourceDoc
+	staleSource.SourceUpdated = "stale"
+	request("PUT", syntheticPath, token, staleSource, http.StatusConflict)
+	imported := recordsV2Document{SourceUpdated: sourceDoc.SourceUpdated, Category: "posts", Status: "published", RecordDate: "2025-01-02", LegacySource: &recordsV2Source{Collection: "posts", ID: legacy.Id, URL: "https://example.com/posts/old", Title: "예전 글의 제목", Slug: "예전-글"}, FirstPublishedAt: "2099-01-01 00:00:00.000Z", LegacyHTML: `<p>before</p><img src="https://example.com/api/files/media/` + file.Id + `/photo.jpg"><p>after</p>`}
+	rr = request("PUT", syntheticPath, token, imported, http.StatusCreated)
 	json.Unmarshal(rr.Body.Bytes(), &imported)
 	if imported.FirstPublishedAt != "2025-01-02 03:04:05.000Z" {
 		t.Fatal("legacy publication evidence not preserved")
@@ -253,6 +304,66 @@ func TestRecordsV2LifecycleAndReferences(t *testing.T) {
 	}
 	imported.Revision = 0
 	request("POST", path, token, imported, http.StatusBadRequest)
+	rr = request("GET", path+"?category=posts", "", nil, http.StatusOK)
+	var feed struct {
+		Items []recordsV2Document `json:"items"`
+	}
+	json.Unmarshal(rr.Body.Bytes(), &feed)
+	if len(feed.Items) != 1 || feed.Items[0].ID != imported.ID {
+		t.Fatalf("duplicate mapped source in feed: %+v", feed)
+	}
+	request("PUT", syntheticPath, token, sourceDoc, http.StatusConflict)
+	request("PATCH", "/api/collections/posts/records/"+legacy.Id, token, map[string]string{"content": "divergent old editor"}, http.StatusConflict)
+	request("DELETE", "/api/collections/posts/records/"+legacy.Id, token, nil, http.StatusConflict)
+	sourceAfterGuard, _ := app.FindRecordById("posts", legacy.Id)
+	if sourceAfterGuard.GetString("content") != legacy.GetString("content") {
+		t.Fatal("legacy guard allowed mutation")
+	}
+	// Merge legacy and structured rows by first publication, not edit time.
+	makeLegacy := func(stamp, status string) *core.Record {
+		r := core.NewRecord(posts)
+		r.Set("title", "source")
+		r.Set("slug", "source-"+strconv.Itoa(len(stamp))+status)
+		r.Set("status", status)
+		r.Set("first_published_at", stamp)
+		r.Set("content", "<table><tr><td>원문</td></tr></table>")
+		if err := app.Save(r); err != nil {
+			t.Fatal(err)
+		}
+		return r
+	}
+	older := makeLegacy("2024-01-01 00:00:00.000Z", "published")
+	newer := makeLegacy("2026-01-01 00:00:00.000Z", "published")
+	draftLegacy := makeLegacy("", "draft")
+	_ = draftLegacy
+	for i, want := range []string{"posts:" + newer.Id, imported.ID, "posts:" + older.Id} {
+		items, more, err := s.unifiedList("published", "posts", 1, i)
+		if err != nil || len(items) != 1 || items[0].ID != want || more != (i < 2) {
+			t.Fatalf("unified pagination %d: %+v %v %v", i, items, more, err)
+		}
+	}
+	older.Set("content", "<p>legacy updated immediately</p>")
+	if err := app.Save(older); err != nil {
+		t.Fatal(err)
+	}
+	observed, err := s.document("posts:" + older.Id)
+	if err != nil || observed.LegacyHTML != older.GetString("content") {
+		t.Fatal("read through became stale")
+	}
+	request("GET", path+"/posts:"+draftLegacy.Id, "", nil, http.StatusNotFound)
 	// Generic PocketBase APIs remain locked; custom OWNER route is the only writer.
 	request("GET", "/api/collections/records_v2/records", "", nil, http.StatusForbidden)
+}
+
+func TestRecordsV2CompatibilityRendering(t *testing.T) {
+	d := recordsV2Document{Body: "<script>bad</script>\n두 줄", LegacyHTML: "<table><tr><td>원문</td></tr></table>", Attachments: []recordsV2Attachment{{Kind: "image", URL: "https://example.com/photo.jpg", Name: `" onerror="bad`, Comment: "<script>comment</script>", Crop: map[string]any{"enabled": true, "x": 0.1, "y": 0.2, "width": 0.8, "height": 0.7, "aspect": 1.5, "pixelWidth": 640}}}, Embeds: []recordsV2Embed{{Type: "chatgpt", URL: "https://chatgpt.com/share/example", Snapshot: &chatGptShareSnapshot{Title: "보존", Messages: []chatGptShareMessage{{Role: "user", Text: "원래 질문"}, {Role: "assistant", Text: "그대로 답변"}}}}, {Type: "youtube", URL: "https://youtu.be/abcdefghijk?t=31"}}}
+	output := recordsV2CompatibilityHTML(d)
+	for _, required := range []string{d.LegacyHTML, "&lt;script&gt;bad&lt;/script&gt;<br>두 줄", "&lt;script&gt;comment&lt;/script&gt;", `data-cwk-image-crop="0.1,0.2,0.8,0.7,1.5,640"`, `data-cwk-chatgpt-snapshot=`, "원래 질문", "그대로 답변", `<video controls preload="none" src="https://youtu.be/abcdefghijk?t=31"`} {
+		if !strings.Contains(output, required) {
+			t.Fatalf("compatibility lost %q: %s", required, output)
+		}
+	}
+	if strings.Contains(output, "<script>") || strings.Contains(output, `alt="" onerror=`) {
+		t.Fatal("structured text escaped its HTML boundary")
+	}
 }

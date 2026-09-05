@@ -7,6 +7,8 @@ const bannedPatterns = [
   'cdn.jsdelivr.net',
   'https://api.coldwaterkim.com',
   'http://api.coldwaterkim.com',
+  '/__preview/session',
+  '/__preview/sources',
 ];
 
 function walk(dir) {
@@ -37,6 +39,20 @@ for (const file of files) {
       fail(`Banned runtime dependency found: ${pattern} in ${path.relative(root, file)}`);
     }
   }
+}
+
+for (const [entry, expected] of [
+  ['index.html', 'id="records-app"'],
+  ['records/index.html', 'id="records-app"'],
+  ['page-view.html', 'id="recent-all-table"'],
+]) {
+  const file = path.join(dist, entry);
+  if (!fs.existsSync(file) || !fs.readFileSync(file, 'utf8').includes(expected)) {
+    fail(`Missing production layout contract: ${entry} (${expected})`);
+  }
+}
+if (fs.existsSync(path.join(dist, 'records/import-preview.html'))) {
+  fail('Local import-preview tool must not be included in production.');
 }
 
 const manifest = path.join(dist, 'site-version.json');

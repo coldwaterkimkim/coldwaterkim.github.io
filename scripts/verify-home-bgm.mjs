@@ -16,6 +16,8 @@ import {
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const homeSource = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+const pageViewSource = fs.readFileSync(path.join(root, 'page-view.html'), 'utf8');
+const feedSource = fs.readFileSync(path.join(root, 'js/records-v2-app.js'), 'utf8');
 const siteSource = fs.readFileSync(path.join(root, 'js/site.js'), 'utf8');
 let assertions = 0;
 
@@ -24,7 +26,10 @@ function check(condition, message) {
   assertions += 1;
 }
 
-check(homeSource.includes('id="recent-all-table"'), 'Home must expose the unified recent table');
+check(homeSource.includes('id="records-app"'), 'Home must expose the default record feed');
+check(pageViewSource.includes('id="recent-all-table"'), 'Preserved page view must expose the unified recent table');
+check(homeSource.includes('data-bgm') && pageViewSource.includes('data-bgm'), 'Both layouts must retain the BGM player');
+check(feedSource.includes("await import('./site.js')"), 'Production feed must reuse the full BGM and shared shell module');
 check(!homeSource.includes('id="recent-daily-table"'), 'the retired per-category recent tables must stay removed');
 check(siteSource.includes('randomBgmCandidateIndex(scheduledBgmTrackIndexes('), 'initial BGM selection must use the active time slot');
 check(

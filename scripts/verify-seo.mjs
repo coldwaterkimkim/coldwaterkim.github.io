@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 const read = relative => fs.readFileSync(new URL(`../${relative}`, import.meta.url), 'utf8');
+const home = read('index.html');
+const pageView = read('page-view.html');
 const post = read('posts/view.html');
 const daily = read('daily/view.html');
 const dailyIndex = read('daily/index.html');
@@ -11,6 +13,10 @@ const robots = read('public/robots.txt');
 const archiveIndex = read('all/index.html');
 const archiveView = read('all/view.html');
 
+assert.match(home, /rel="canonical" href="https:\/\/coldwaterkim\.com\/"/);
+assert.doesNotMatch(home, /name="robots" content="[^"]*noindex/, 'production feed home must remain indexable');
+assert.match(home, /application\/ld\+json/, 'homepage structured metadata must survive the layout switch');
+assert.match(pageView, /rel="canonical" href="https:\/\/coldwaterkim\.com\/"/, 'duplicate page layout must canonicalize to home');
 assert.match(post, /data-legacy-viewer/);
 assert.match(daily, /data-legacy-viewer/);
 assert.match(post, /CWK:SSR_CONTENT_START/);
@@ -34,4 +40,4 @@ assert.match(server, /siteOrigin \+ "\/all\/index\.html"/);
 assert.match(archiveIndex, /id="archive-list"/);
 assert.match(archiveView, /name="robots" content="noindex,follow"/);
 
-console.log('SEO QA passed: 22 assertions');
+console.log('SEO QA passed: 26 assertions');

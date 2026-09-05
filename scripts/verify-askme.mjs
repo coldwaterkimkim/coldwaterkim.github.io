@@ -13,6 +13,7 @@ import {
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = relativePath => fs.readFileSync(path.join(root, relativePath), 'utf8');
 const homeHtml = read('index.html');
+const pageViewHtml = read('page-view.html');
 const html = read('askme.html');
 const pageScript = read('js/askme.js');
 const css = read('css/askme.css');
@@ -45,9 +46,11 @@ check(html.includes('<h1>???</h1>'), 'Ask Me page heading must use the agreed qu
 check(html.includes('placeholder="질문이 있다면"'), 'Ask Me page question placeholder is missing');
 check(!homeHtml.includes('placeholder="질문이 있다면"'), 'home must not contain an Ask Me question form');
 check(!`${homeHtml}\n${html}`.includes('평소 궁금했지만 물어보지 못한 것'), 'retired question placeholder must not remain');
-const recentTableAt = homeHtml.indexOf('id="recent-all-table"');
-const albumTableAt = homeHtml.indexOf('id="recent-album-table"');
-check(recentTableAt >= 0 && recentTableAt < albumTableAt, 'album must follow the recent-post table after home Ask Me removal');
+const recentTableAt = pageViewHtml.indexOf('id="recent-all-table"');
+const albumTableAt = pageViewHtml.indexOf('id="recent-album-table"');
+check(recentTableAt >= 0 && recentTableAt < albumTableAt, 'page view must preserve album after recent posts following Ask Me removal');
+check(homeHtml.includes('id="records-app"'), 'default home must use the record feed');
+check(!/home-askme-table|data-askme-form|css\/askme\.css|js\/askme\.js/.test(pageViewHtml), 'preserved page view must not restore retired Ask Me preview assets');
 check(!homeHtml.includes('home-askme-table'), 'home Ask Me table must stay removed');
 check(!homeHtml.includes('data-askme-form'), 'home Ask Me form hook must stay removed');
 check(!homeHtml.includes('css/askme.css'), 'home must not load Ask Me-only styles');

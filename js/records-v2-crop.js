@@ -34,8 +34,9 @@ export function openPhotoEditor(attachment, {body = ''} = {}) {
     });
     const end=()=>{interaction=null;};selection.addEventListener('pointerup',end);selection.addEventListener('pointercancel',end);selection.addEventListener('lostpointercapture',end);
     selection.addEventListener('keydown',e=>{if(e.target!==selection || !['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key))return;e.preventDefault();const step=e.shiftKey?.05:.01;crop=normalizeImageCrop({...crop,enabled:true,x:Math.min(1-crop.width,Math.max(0,crop.x+(e.key==='ArrowRight'?step:e.key==='ArrowLeft'?-step:0))),y:Math.min(1-crop.height,Math.max(0,crop.y+(e.key==='ArrowDown'?step:e.key==='ArrowUp'?-step:0)))});draw();});
-    save.disabled=true;
-    image.onload=()=>{ready=true;save.disabled=false;stage.style.aspectRatio=String(image.naturalWidth/image.naturalHeight);draw();};
+    const imageControls=[...dialog.querySelectorAll('[data-ratio],[data-reset]')];
+    save.disabled=true;imageControls.forEach(button=>{button.disabled=true;});
+    image.onload=()=>{ready=true;save.disabled=false;imageControls.forEach(button=>{button.disabled=false;});stage.style.aspectRatio=String(image.naturalWidth/image.naturalHeight);draw();};
     image.onerror=()=>{error.textContent='원본 사진을 불러오지 못했어. 취소하고 다시 시도해줘.';};
     image.src=attachment.url;draw();dialog.showModal();
   });

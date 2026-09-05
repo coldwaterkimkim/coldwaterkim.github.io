@@ -61,6 +61,7 @@ assert.ok(!entries.some(entry => entry.category === 'album' || entry.category ==
 assert.ok(!entries.some(entry => entry.category === 'program'), 'programs room is a utility desk, not archive content');
 
 const home = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+const pageView = fs.readFileSync(new URL('../page-view.html', import.meta.url), 'utf8');
 const site = fs.readFileSync(new URL('../js/site.js', import.meta.url), 'utf8');
 const pb = fs.readFileSync(new URL('../js/pb.js', import.meta.url), 'utf8');
 const archivePage = fs.readFileSync(new URL('../all/index.html', import.meta.url), 'utf8');
@@ -78,12 +79,14 @@ for (const loader of ['getPublishedNasajabSummaries', 'getAnsweredGuestbookSumma
   assert.match(pb, new RegExp(`function ${loader}[\\s\\S]*?fields: '[^']*first_published_at`), `${loader} must request first publication time`);
 }
 
-assert.match(home, /id="recent-all-table"/);
-assert.match(home, /최근 글 8개/, 'home heading must describe the eight rendered recent rows');
+assert.match(home, /id="records-app"/, 'default home must expose the mixed record feed');
+assert.doesNotMatch(home, /id="recent-all-table"|id="recent-album-table"/, 'default home replaces summary previews with the feed');
+assert.match(pageView, /id="recent-all-table"/);
+assert.match(pageView, /최근 글 8개/, 'page view heading must describe the eight rendered recent rows');
 for (const removed of ['recent-daily-table', 'recent-posts-table', 'recent-programs-table', 'recent-nasajab-table']) {
   assert.ok(!home.includes(removed), `${removed} must be removed from home`);
 }
-assert.match(home, /id="recent-album-table"/, 'album preview remains separate from written-content aggregation');
+assert.match(pageView, /id="recent-album-table"/, 'page view retains album preview separate from written-content aggregation');
 assert.match(site, /buildArchiveEntries[\s\S]*\.slice\(0, 8\)/, 'home must use the shared archive ordering and take its first eight rows');
 assert.doesNotMatch(site, /getPublishedProgramSummaryTimeline/, 'home and entry update checks must not query retired program posts');
 assert.doesNotMatch(archiveScript, /getPublishedProgramSummaryTimeline/, 'archive must not query retired program posts');

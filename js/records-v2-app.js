@@ -10,6 +10,7 @@ import { observeEditorMediaDuringUploads } from './editor-media-quiescence.mjs';
 
 const app = document.querySelector('#records-app');
 const categoryNames = { posts: '글방', daily: '나으 하루' };
+const albumUrl = typeof __RECORDS_PREVIEW__ !== 'undefined' && __RECORDS_PREVIEW__ === true ? '#album' : '/album/';
 let page = 0, hasMore = true, loading = false, generation = 0, observer;
 let route = '', records = [], draft = null, baseline = '', busy = false;
 let previousRoute = '#home', previousScroll = 0, editorRoot, uploadStatus;
@@ -168,7 +169,7 @@ function legacyView(record, open = false, preview = false) {
 function entry(record, targetAttachment = '', isDetail = false) {
   const article = e('article',{class:`rv-entry${isDetail?' is-detail':''}`,'data-record-id':record.id},isDetail?recordMeta(record,'rv-meta rv-detail-meta'):person(record));
   const title=String(record.legacySource?.title||'').trim();
-  if(title&&!/^\d{4}-\d{2}-\d{2} 나으 하루(?:\s|$)/.test(title)&&title!==record.body?.trim())article.append(e(isDetail?'h1':'h2',{class:'rv-record-title'},isDetail?title:link(title,idHash(record.id))));
+  if(title&&!/^\d{4}-\d{2}-\d{2} 나으 하루(?:\s|$)/.test(title)&&!record.body?.trim().startsWith(title))article.append(e(isDetail?'h1':'h2',{class:'rv-record-title'},isDetail?title:link(title,idHash(record.id))));
   if(isDetail)article.append(person(record,true,false));
   const visuals = (record.attachments||[]).filter(a=>a.kind==='image'||a.kind==='video');
   const text = e('p',{class:'rv-body'});
@@ -256,7 +257,7 @@ function openNavigation() {
   const previous=document.activeElement;
   const dialog=e('dialog',{class:'rv-navigation','aria-label':'페이지 메뉴'});
   const close=()=>dialog.close();
-  const items=[['홈','#home'],['나으 하루','#daily'],['글방','#posts'],['앨범','#album'],['나사잡','/nasajab/'],['프로그램실','/programs/'],['방명록','/guestbook.html'],['Ask Me','/askme.html'],['About / Contact','/about.html']];
+  const items=[['홈','#home'],['나으 하루','#daily'],['글방','#posts'],['앨범',albumUrl],['나사잡','/nasajab/'],['프로그램실','/programs/'],['방명록','/guestbook.html'],['Ask Me','/askme.html'],['About / Contact','/about.html'],['페이지뷰 전환','/page-view.html']];
   if(service.isOwner())items.push(['임시 저장한 기록','#drafts']);
   dialog.append(e('div',{class:'rv-row'},e('strong',{},'어느 방으로 갈까?'),button('닫기',close)),e('nav',{},items.map(([label,url])=>link(label,url,{onClick:close}))));
   dialog.addEventListener('click',event=>{if(event.target===dialog){const r=dialog.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)close();}});
@@ -264,6 +265,11 @@ function openNavigation() {
   document.body.append(dialog);dialog.showModal();
 }
 async function hydrateHomeShell() {
+  if (!(typeof __RECORDS_PREVIEW__ !== 'undefined' && __RECORDS_PREVIEW__ === true)) {
+    // Production reuses the complete profile, scheduled BGM, owner settings and visitor shell.
+    await import('./site.js');
+    return;
+  }
   await Promise.all([...document.querySelectorAll('[data-key]')].map(async node=>{
     const value=await getSetting(node.dataset.key);if(value)node.innerHTML=sanitizeLegacyHtml(value);
   }));
@@ -280,12 +286,13 @@ async function hydrateHomeShell() {
 }
 function renderMenu() {
   shell('메뉴','기록을 모아 보거나, 다른 방으로 이동해.');
-  const items=[['나으 하루','#daily'],['글방','#posts'],['앨범','#album'],['전체 기록','#home'],['나사잡','/nasajab/'],['프로그램실','/programs/'],['방명록','/guestbook.html'],['Ask Me','/askme.html'],['About','/about.html'],['기존 홈페이지','/index.html']];
+  const items=[['나으 하루','#daily'],['글방','#posts'],['앨범',albumUrl],['전체 기록','#home'],['나사잡','/nasajab/'],['프로그램실','/programs/'],['방명록','/guestbook.html'],['Ask Me','/askme.html'],['About','/about.html'],['페이지뷰 전환','/page-view.html']];
   if(service.isOwner())items.unshift(['임시 저장한 기록','#drafts']);
   app.append(e('ul',{class:'rv-menu'},items.map(([label,url])=>e('li',{},link(label,url)))));
 }
 async function renderRoute() {
   const next=location.hash||'#home';
+  if(next==='#album' && albumUrl !== '#album'){ location.assign(albumUrl); return; }
   if(draft){if(busy||dirty()&&!confirm('저장하지 않은 변경을 닫을까?')){history.replaceState(null,'','#compose');return;}draft=null;}
   document.body.classList.toggle('rv-composing',next==='#compose');
   rememberView();positions.set(route,window.scrollY);route=next;generation++;observer?.disconnect();carouselResizeObserver?.disconnect();loading=false;page=0;hasMore=true;records=[];
@@ -293,9 +300,18 @@ async function renderRoute() {
   if(cached){app.replaceChildren(...cached.nodes);page=cached.page;hasMore=cached.hasMore;records=[...cached.records];observeMore();observeCarousels();window.scrollTo(0,cached.scroll);return;}
   if(route==='#compose'){await openEditor();return;}
   if(route==='#menu'){renderMenu();window.scrollTo(0,positions.get(route)||0);return;}
+  if(route.startsWith('#edit/')) {
+    shell();
+    try{const record=await service.getRecord(decodeURIComponent(route.slice(6)));await openEditor(record);}
+    catch(error){app.append(e('p',{class:'rv-status rv-error'},`기록을 열지 못했어. ${error.message}`));}
+    return;
+  }
   if(route.startsWith('#record/')) {
     shell();const token=generation;const status=e('p',{class:'rv-status'},'기록을 불러오는 중…');app.append(status);
-    try{const [,id,attachment]=route.split('/');const record=await service.getRecord(decodeURIComponent(id));if(token!==generation)return;status.replaceWith(e('div',{class:'rv-heading rv-detail-back'},link('← 피드로','#home')),entry(record,decodeURIComponent(attachment||''),true));}
+    try{const [,id,attachment]=route.split('/');const record=await service.getRecord(decodeURIComponent(id));if(token!==generation)return;const detail=entry(record,decodeURIComponent(attachment||''),true);status.replaceWith(e('div',{class:'rv-heading rv-detail-back'},link('← 피드로','#home')),detail);
+      service.recordDetailView?.(record).catch(()=>{});
+      if(record.legacySource?.url)detail.append(e('p',{class:'rv-meta'},link('고유 주소',safeURL(record.legacySource.url))));
+      if(service.isOwner()&&service.recordDetailCount){const count=await service.recordDetailCount(record);if(token===generation&&count!==null)detail.append(e('p',{class:'rv-meta'},`조회 ${count} · OWNER에게만 표시`));}}
     catch(error){status.textContent=`기록을 열지 못했어. ${error.message}`;}
     scrollToRouteContent();return;
   }
@@ -339,6 +355,13 @@ async function openEditor(record = null) {
   editorRoot.append(file,media,e('div',{class:'rv-editor-tools'},button('사진 · 영상',()=>media.click()),button('링크',showLinkForm),button('파일 · 오디오',()=>file.click())));
   uploadStatus=e('div',{class:'rv-status','aria-live':'polite'});editorRoot.append(uploadStatus,e('div',{id:'rv-embeds'}));renderEditorEmbeds();
   editorRoot.append(e('details',{class:'rv-editor-options'},e('summary',{},`기록 날짜 · ${draft.recordDate||'미지정'}`),e('label',{class:'rv-date'},'기록 날짜',e('input',{type:'date',value:draft.recordDate||dayNow(),onChange:event=>{draft.recordDate=event.target.value;event.target.closest('details').querySelector('summary').textContent=`기록 날짜 · ${draft.recordDate||'미지정'}`;syncSaveState();}}))));
+  if(draft.id&&!draft.id.includes(':'))editorRoot.append(button('기록 삭제',async()=>{
+    if(busy||!confirm('이 기록을 삭제할까? 게시된 글도 함께 삭제돼. 첨부 원본은 보존돼.'))return;
+    setBusy(true,true);
+    try{await service.deleteRecord(draft);draft=null;views.clear();history.replaceState(null,'','#home');route='';await renderRoute();}
+    catch(error){uploadStatus.textContent=`삭제하지 못했어. ${error.message}`;}
+    finally{setBusy(false);}
+  },{class:'rv-link'}));
   if(draft.legacyHtml)editorRoot.append(e('p',{class:'rv-muted'},'기존 원문은 별도로 보존돼. 여기서 본문과 첨부를 바꿔도 기존 원문은 변경되지 않아.'),legacyView(draft,false,true));
   editorRoot.addEventListener('dragover',event=>{if(event.dataTransfer?.types.includes('Files'))event.preventDefault();});
   editorRoot.addEventListener('drop',event=>{if(event.dataTransfer?.files.length){event.preventDefault();attachFiles([...event.dataTransfer.files]);}});
@@ -347,6 +370,8 @@ async function openEditor(record = null) {
 function closeEditor(){if(busy)return;if(dirty()&&!confirm('저장하지 않은 변경을 닫을까?'))return;draft=null;history.replaceState(null,'',previousRoute);route='';renderRoute().then(()=>window.scrollTo(0,previousScroll));}
 function syncSaveState(){
   if(!draft)return;
+  const categorySelect=app.querySelector('select[aria-label="기록 분류"]');
+  if(categorySelect)categorySelect.disabled=busy||Boolean(draft.legacySource);
   const empty=!draft.body?.trim()&&!draft.attachments.length&&!draft.embeds.length&&!draft.legacyHtml;
   app.querySelectorAll('[data-save]').forEach(node=>{node.disabled=busy||empty||!draft.recordDate;});
 }

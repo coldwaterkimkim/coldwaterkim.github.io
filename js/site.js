@@ -114,7 +114,7 @@ const entryGateController = initEntryGate();
   initBgmOwnerTools(player, audio, trackTitle);
 })();
 
-initSpaRouter();
+if (!document.querySelector('#records-app')) initSpaRouter();
 initWebRing();
 initContentContinuationTracking();
 initSiteVersionRefresh();
@@ -518,7 +518,7 @@ async function checkSiteVersionAndRefresh(reason = 'manual') {
 }
 
 function refreshForSiteVersion(latestVersion) {
-  if (document.querySelector('[data-version-refresh-block="true"]')) return;
+  if (document.querySelector('[data-version-refresh-block="true"], .rv-editor')) return;
 
   const refreshKey = `cwk-version-refresh:${SITE_VERSION}->${latestVersion}`;
   try {
@@ -1692,7 +1692,7 @@ function initSpaRouter() {
 function shouldHandleSpaLink(link, event) {
   if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return false;
   if (link.target && link.target !== '_self') return false;
-  if (link.hasAttribute('download')) return false;
+  if (link.hasAttribute('download') || link.hasAttribute('data-full-navigation')) return false;
 
   const rawHref = link.getAttribute('href') || '';
   if (!rawHref || rawHref.startsWith('#') || rawHref.startsWith('mailto:') || rawHref.startsWith('tel:')) return false;
@@ -1700,6 +1700,7 @@ function shouldHandleSpaLink(link, event) {
 
   const url = new URL(link.href, window.location.href);
   if (url.origin !== window.location.origin) return false;
+  if (isFeedDocument(url.pathname)) return false;
   if (url.pathname.startsWith('/admin/') || url.pathname.startsWith('/assets/')) return false;
   if (!url.pathname.endsWith('/') && !url.pathname.endsWith('.html')) return false;
 
@@ -1710,11 +1711,16 @@ function shouldHandleSpaLink(link, event) {
   return true;
 }
 
+function isFeedDocument(pathname) {
+  return ['/', '/index.html', '/records/', '/records/index.html'].includes(pathname);
+}
+
 async function navigateSpa(href, options = {}) {
   const token = ++spaNavigationToken;
   const url = new URL(href, window.location.href);
   const content = document.querySelector('.content');
-  if (!content) {
+  // Feed and page layouts own different application lifecycles and must load whole documents.
+  if (isFeedDocument(url.pathname) || url.pathname === '/page-view.html' || !content) {
     window.location.href = url.href;
     return;
   }
@@ -1970,6 +1976,7 @@ function scheduleHomeAlbumPreview(scope = document) {
 }
 
 function initHomeOwnerTools(scope = document) {
+  if (document.querySelector('#records-app')) return;
   const tools = scope.querySelector('#homeOwnerTools');
   if (!tools || tools.dataset.ownerToolsReady === 'true') return;
   tools.dataset.ownerToolsReady = 'true';
