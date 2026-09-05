@@ -1,0 +1,12 @@
+<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="robots" content="noindex,nofollow"><title>로컬 기록 이관 검증</title><body><h1>로컬 복사본 이관</h1><pre id="result">준비 중</pre><a href="/records/">검토 화면으로</a><script type="module">
+import {initSession,saveRecord,listRecords} from '../js/records-v2-service.js';
+import {importHTMLRecord} from '../js/records-v2-model.mjs';
+const out=document.getElementById('result');
+if(typeof __RECORDS_PREVIEW__==='undefined'||!__RECORDS_PREVIEW__)throw new Error('Local preview required');
+await initSession();
+const sources=await fetch('/__preview/sources').then(r=>r.json());
+const existing=new Map();let page=1;while(true){const batch=await listRecords({page,perPage:100});for(const record of batch.items){if(record.legacySource)existing.set(record.legacySource.collection+':'+record.legacySource.id,record);}if(!batch.hasMore)break;page++;}
+let saved=0,legacy=0,duplicate=0;const failures=[];
+for(const source of sources){try{const doc=importHTMLRecord(source,source.sourceCollection==='daily_entries'?'daily':'posts');const old=existing.get(doc.legacySource.collection+':'+doc.legacySource.id);if(old){duplicate++;continue;}await saveRecord(doc);saved++;if(doc.legacyHtml)legacy++;}catch(e){if(e.status===409)duplicate++;else failures.push({id:source.id,error:e.message,data:e.data});}out.textContent=JSON.stringify({total:sources.length,saved,legacy,duplicate,failures},null,2);}
+out.dataset.complete='true';
+</script></body></html>

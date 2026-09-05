@@ -37,3 +37,5 @@ pb_migrations/*
 !pb_migrations/1787580600_create_album_tags.js
 !pb_migrations/1787830200_lock_users_public_signup.js
 !pb_migrations/1787830300_retire_program_records.js
+
+dist-records-preview/

@@ -95,7 +95,10 @@
     "qa:video-processor": "/usr/bin/python3 scripts/verify-video-processor.py",
     "qa:uppy-tus-client": "node scripts/verify-uppy-tus-client.mjs",
     "qa:upload-ab": "node scripts/verify-upload-ab-diagnostics.mjs",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "dev:records": "vite --config vite.records.config.js",
+    "build:records": "vite build --config vite.records.config.js",
+    "qa:records": "node scripts/verify-records-v2.mjs"
   },
   "dependencies": {
     "@blocknote/core": "^0.51.4",

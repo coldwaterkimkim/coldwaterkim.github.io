@@ -175,6 +175,12 @@ func main() {
 	})
 
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
+		if os.Getenv("CWK_RECORDS_V2") == "1" {
+			if err := ensureRecordsV2(app); err != nil {
+				return err
+			}
+			(&recordsV2Service{app: app, ownerUserID: fileTools.ownerUserID}).registerRoutes(e)
+		}
 		resumableUploads.registerRoutes(e)
 		bgmTrimmer.registerRoutes(e)
 		askQuestions.registerRoutes(e)
