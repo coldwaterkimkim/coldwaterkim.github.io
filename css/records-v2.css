@@ -94,7 +94,7 @@
 .rv-date { margin:14px 0; display:flex; gap:10px; align-items:center; }
 .rv-date input { max-width:100%; }
 .rv-empty { padding:45px 18px; text-align:center; }
-@media(min-width:760px) { .records-v2 #records-app { margin:22px auto 0; border-top:1px solid black; } .rv-entry { padding:25px 28px; } .rv-header { padding:15px 22px; } }
+@media(min-width:641px) { .records-v2 #records-app { margin:22px auto 0; border-top:1px solid black; } .rv-entry { padding:25px 28px; } .rv-header { padding:15px 22px; } }
 @media(prefers-reduced-motion:reduce) { .rv-slides { scroll-behavior:auto; } }
 
 /* The desktop keeps the original homepage table; only its record list changes. */
@@ -115,7 +115,7 @@ body.records-v2 { background:repeating-linear-gradient(45deg,var(--cwk-bg-stripe
 .records-v2 .rv-navigation .rv-row { margin:-14px -14px 6px; padding:9px 12px; background:var(--cwk-surface-banner); border-bottom:1px solid var(--cwk-ink); }
 .records-v2 .rv-navigation nav { display:flex; flex-direction:column; }
 .records-v2 .rv-navigation nav a { padding:10px 3px; border-bottom:1px dotted var(--cwk-border-dashed); }
-@media(min-width:760px) {
+@media(min-width:641px) {
   .records-v2 .rv-shell-content #records-app { padding-bottom:0; }
   .records-v2 .rv-bottom { display:none; }
   .records-v2 .rv-header { min-height:45px; padding:5px 12px; background:var(--cwk-surface-table-head); }
@@ -124,7 +124,7 @@ body.records-v2 { background:repeating-linear-gradient(45deg,var(--cwk-bg-stripe
   .records-v2 .rv-header .rv-hamburger { display:none; }
   .records-v2 .rv-entry { padding:22px 24px; }
 }
-@media(max-width:759px) {
+@media(max-width:640px) {
   body.records-v2 { padding-top:64px; background:var(--cwk-surface-preview); }
   .records-v2 .rv-site-shell { width:100%; margin:0; padding:0; }
   .records-v2 .rv-site-shell > marquee { width:100% !important; margin:0; padding:3px 6px; font-size:12px; }
