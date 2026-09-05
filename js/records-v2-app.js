@@ -1,3 +1,4 @@
+import { getSetting } from './pb.js';
 import * as service from './records-v2-service.js';
 import { sanitizeLegacyHtml } from './records-v2-model.mjs';
 import { openPhotoEditor } from './records-v2-crop.js';
@@ -55,16 +56,17 @@ function observeMore(){
 
 function header(title = null) {
   return e('header', { class:'rv-header' },
-    title ? button('닫기', closeEditor) : e('h1', {}, link("coldwaterkim’s HOME", '#home')),
+    title ? button('닫기', closeEditor) : button('☰', openNavigation, {class:'rv-hamburger','aria-label':'메뉴 열기','aria-haspopup':'dialog'}),
+    !title ? e('h1', {}, link("coldwaterkim’s HOME", '#home')) : null,
     title ? e('h1', {}, title) : null,
     title ? button('게시', () => persist('published'), {'data-save':'published'}) : service.isOwner() ? button('+', () => openEditor(), {class:'rv-plus', 'aria-label':'새 기록 남기기'}) : null);
 }
 function bottom() {
   return e('nav', { class:'rv-bottom', 'aria-label':'주 메뉴' },
-    ...[['홈','#home'],['앨범','#album'],['글방','#posts'],['메뉴','#menu']].map(([text,hash]) => link(text,hash,{'aria-current':route===hash?'page':null})));
+    ...[['홈','#home'],['앨범','#album'],['글방','#posts']].map(([text,hash]) => link(text,hash,{'aria-current':route===hash?'page':null})));
 }
 function shell(title, subtitle) {
-  app.replaceChildren(header(), e('div',{class:'rv-tagline'}, 'OPEN 24H, UPDATED SOMETIMES'));
+  app.replaceChildren(header());
   if(typeof __RECORDS_PREVIEW__!=='undefined'&&__RECORDS_PREVIEW__===true)app.append(e('p',{class:'rv-preview-note'},'로컬 검토본 · 운영 미반영'));
   if (title) app.append(e('section',{class:'rv-heading'},e('h2',{},title),subtitle?e('p',{class:'rv-muted'},subtitle):null));
   app.append(bottom());
@@ -112,12 +114,12 @@ function legacyView(record, open = false, preview = false) {
   decorateChatGptMarkdown(body);
   body.querySelectorAll('video,audio').forEach(media=>{media.preload='none';media.controls=true;});
   body.querySelectorAll('img').forEach(img=>{img.loading='lazy';});
-  const details=e('details',{class:'rv-legacy',open},e('summary',{},'기존 원문 펼치기'),body);
+  const details=e('section',{class:'rv-legacy'},body);
   if(preview){
     body.classList.add('rv-legacy-preview');
-    const more=button('더 보기',()=>{body.classList.remove('rv-legacy-preview');more.remove();},{class:'rv-link rv-legacy-more',hidden:true,'aria-label':'기존 원문 전체 더 보기'});
+    const more=button('더 보기',()=>{body.classList.remove('rv-legacy-preview');more.remove();},{class:'rv-link rv-legacy-more',hidden:true,'aria-label':'더 보기'});
     const measure=()=>{if(more.isConnected)more.hidden=body.scrollHeight<=602;};
-    details.append(more);details.addEventListener('toggle',measure,true);body.querySelectorAll('img,video').forEach(media=>media.addEventListener('load',measure,{once:true}));
+    details.append(more);body.querySelectorAll('img,video').forEach(media=>media.addEventListener('load',measure,{once:true}));
     requestAnimationFrame(measure);
   }
   return details;
@@ -193,6 +195,35 @@ async function loadMore() {
   }catch(error){if(token===generation){const status=document.querySelector('#rv-feed-status');status.textContent=`기록을 불러오지 못했어. ${error.message}`;status.classList.add('rv-error');if(loadButton){loadButton.disabled=false;loadButton.textContent='다시 불러오기';}}}
   finally{if(token===generation)loading=false;}
 }
+function openNavigation() {
+  const previous=document.activeElement;
+  const dialog=e('dialog',{class:'rv-navigation','aria-label':'페이지 메뉴'});
+  const close=()=>dialog.close();
+  const items=[['홈','#home'],['나으 하루','#daily'],['글방','#posts'],['앨범','#album'],['나사잡','/nasajab/'],['프로그램실','/programs/'],['방명록','/guestbook.html'],['Ask Me','/askme.html'],['About / Contact','/about.html']];
+  if(service.isOwner())items.push(['임시 저장한 기록','#drafts']);
+  dialog.append(e('div',{class:'rv-row'},e('strong',{},'어느 방으로 갈까?'),button('닫기',close)),e('nav',{},items.map(([label,url])=>link(label,url,{onClick:close}))));
+  dialog.addEventListener('click',event=>{if(event.target===dialog){const r=dialog.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)close();}});
+  dialog.addEventListener('close',()=>{dialog.remove();previous?.focus();},{once:true});
+  document.body.append(dialog);dialog.showModal();
+}
+async function hydrateHomeShell() {
+  const profile=document.querySelector('.rv-profile-more');
+  const mobile=matchMedia('(max-width:759px)');
+  const resize=()=>{if(profile)profile.open=!mobile.matches;};resize();mobile.addEventListener('change',resize);
+  await Promise.all([...document.querySelectorAll('[data-key]')].map(async node=>{
+    const value=await getSetting(node.dataset.key);if(value)node.innerHTML=sanitizeLegacyHtml(value);
+  }));
+  const photo=await getSetting('profile_photo_url');
+  if(safeURL(photo))document.querySelectorAll('.profile-photo').forEach(img=>{img.src=safeURL(photo);});
+  const audio=document.querySelector('[data-bgm]');
+  if(audio){
+    const [raw,legacy]=await Promise.all([getSetting('bgm_playlist'),getSetting('bgm_audio_url')]);
+    let tracks=[];try{tracks=JSON.parse(raw||'[]');}catch{}
+    const urls=[...new Set([legacy,...(Array.isArray(tracks)?tracks.map(t=>t.url):[])].map(safeURL).filter(Boolean))];
+    audio.removeAttribute('autoplay');audio.loop=urls.length===1;
+    if(urls.length){let index=0;audio.src=urls[0];audio.addEventListener('ended',()=>{index=(index+1)%urls.length;audio.src=urls[index];audio.play().catch(()=>{});});}
+  }
+}
 function renderMenu() {
   shell('메뉴','기록을 모아 보거나, 다른 방으로 이동해.');
   const items=[['나으 하루','#daily'],['글방','#posts'],['앨범','#album'],['전체 기록','#home'],['나사잡','/nasajab/'],['프로그램실','/programs/'],['방명록','/guestbook.html'],['Ask Me','/askme.html'],['About','/about.html'],['기존 홈페이지','/index.html']];
@@ -202,6 +233,7 @@ function renderMenu() {
 async function renderRoute() {
   const next=location.hash||'#home';
   if(draft){if(busy||dirty()&&!confirm('저장하지 않은 변경을 닫을까?')){history.replaceState(null,'','#compose');return;}draft=null;}
+  document.body.classList.toggle('rv-composing',next==='#compose');
   rememberView();positions.set(route,window.scrollY);route=next;generation++;observer?.disconnect();loading=false;page=0;hasMore=true;records=[];
   const cached=views.get(route);
   if(cached){app.replaceChildren(...cached.nodes);page=cached.page;hasMore=cached.hasMore;records=[...cached.records];observeMore();window.scrollTo(0,cached.scroll);return;}
@@ -232,6 +264,7 @@ async function openEditor(record = null) {
   draft.attachments ||= [];draft.embeds ||= [];
   baseline=JSON.stringify(draft);busy=false;
   history.pushState(null,'','#compose');route='#compose';
+  document.body.classList.add('rv-composing');
   app.replaceChildren(header('기록 남기기'));
   if(typeof __RECORDS_PREVIEW__!=='undefined'&&__RECORDS_PREVIEW__===true)app.append(e('p',{class:'rv-preview-note'},'로컬 검토본 · 운영 미반영'));
   editorRoot=e('main',{class:'rv-editor'});app.append(editorRoot);
@@ -247,7 +280,7 @@ async function openEditor(record = null) {
   editorRoot.append(file,media,e('div',{class:'rv-editor-tools'},button('사진 · 영상',()=>media.click()),button('링크',showLinkForm),button('파일 · 오디오',()=>file.click())));
   uploadStatus=e('div',{class:'rv-status','aria-live':'polite'});editorRoot.append(uploadStatus,e('div',{id:'rv-embeds'}));renderEditorEmbeds();
   editorRoot.append(e('label',{class:'rv-date'},'기록 날짜',e('input',{type:'date',value:draft.recordDate||dayNow(),onChange:event=>{draft.recordDate=event.target.value;}})));
-  if(draft.legacyHtml)editorRoot.append(e('p',{class:'rv-muted'},'기존 원문은 별도로 보존돼. 여기서 본문과 첨부를 바꿔도 기존 원문은 변경되지 않아.'),legacyView(draft));
+  if(draft.legacyHtml)editorRoot.append(e('p',{class:'rv-muted'},'기존 원문은 별도로 보존돼. 여기서 본문과 첨부를 바꿔도 기존 원문은 변경되지 않아.'),legacyView(draft,false,true));
   editorRoot.addEventListener('dragover',event=>{if(event.dataTransfer?.types.includes('Files'))event.preventDefault();});
   editorRoot.addEventListener('drop',event=>{if(event.dataTransfer?.files.length){event.preventDefault();attachFiles([...event.dataTransfer.files]);}});
   window.scrollTo(0,0);textarea.focus({preventScroll:true});
@@ -312,5 +345,5 @@ async function persist(status){
 }
 window.addEventListener('beforeunload',event=>{if(dirty()||busy){event.preventDefault();event.returnValue='';}});
 window.addEventListener('hashchange',renderRoute);
-try{await service.initSession();await renderRoute();}
+try{await service.initSession();await hydrateHomeShell();await renderRoute();}
 catch(error){app.replaceChildren(e('header',{class:'rv-header'},e('h1',{},'coldwaterkim’s HOME')),e('p',{class:'rv-status rv-error'},`기록을 연결하지 못했어. ${error.message}`),button('다시 시도',()=>location.reload()));}
