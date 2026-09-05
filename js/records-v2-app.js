@@ -207,9 +207,6 @@ function openNavigation() {
   document.body.append(dialog);dialog.showModal();
 }
 async function hydrateHomeShell() {
-  const profile=document.querySelector('.rv-profile-more');
-  const mobile=matchMedia('(max-width:759px)');
-  const resize=()=>{if(profile)profile.open=!mobile.matches;};resize();mobile.addEventListener('change',resize);
   await Promise.all([...document.querySelectorAll('[data-key]')].map(async node=>{
     const value=await getSetting(node.dataset.key);if(value)node.innerHTML=sanitizeLegacyHtml(value);
   }));
