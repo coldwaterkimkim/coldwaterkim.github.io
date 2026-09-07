@@ -11,14 +11,13 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <meta name="robots" content="noindex,follow">
   <script type="module" crossorigin src="/assets/modulepreload-polyfill-Dezn_h7o.js"></script>
-  <script type="module" crossorigin src="/assets/maintenance-gate-rLcQ_c85.js"></script>
-  <script type="module" crossorigin src="/assets/album-logic-C28WyJlV.js"></script>
+  <script type="module" crossorigin src="/assets/unified-shell-D7S5PWh2.js"></script>
+  <script type="module" crossorigin src="/assets/album-logic-f35g3jRG.js"></script>
   <script type="module" crossorigin src="/assets/preload-helper-CZgWQFsJ.js"></script>
-  <script type="module" crossorigin src="/assets/pb-BypsnA2H.js"></script>
-  <script type="module" crossorigin src="/assets/site-DdNruMrP.js"></script>
-  <script type="module" crossorigin src="/assets/unified-shell-BNfS0z_E.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/unified-shell-CjUEhmZ5.css">
-  <link rel="stylesheet" crossorigin href="/assets/styles-DppN4rZm.css">
+  <script type="module" crossorigin src="/assets/pb-Ck1Egqnf.js"></script>
+  <script type="module" crossorigin src="/assets/site-DR6gIoSV.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/unified-shell-BMUPi68w.css">
+  <link rel="stylesheet" crossorigin href="/assets/styles-B-uAcM2x.css">
 </head>
 
 <body class="cwk-unified page-subpage" background="" bgcolor="#e0e0e0">
@@ -140,7 +139,8 @@
                     <small>비워두면 자동으로 익명 이름이 붙습니다.</small>
                   </p>
                   <label for="message"><b>메시지</b></label><br>
-                  <textarea id="message" rows="4" style="width: 100%;" maxlength="1000" required></textarea>
+                  <textarea id="message" rows="4" style="width: 100%;" maxlength="1000" aria-describedby="guestbookMessageHelp" required></textarea>
+                  <p id="guestbookMessageHelp" class="note">최대 1,000자 · <span id="guestbookMessageCount">0</span> / 1,000자</p>
                   <p>
                     <button type="submit" id="guestbookSubmit" aria-busy="false"
                       style="padding: 8px; font-weight: bold; cursor: pointer;">
