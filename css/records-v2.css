@@ -193,6 +193,7 @@ body.cwk-unified { margin:0; font-family:var(--cwk-font-main); }
 .cwk-unified .rv-shell-table > tbody > tr > td { min-width:0; border:1px solid var(--cwk-ink); }
 .cwk-unified .rv-shell-table .banner { grid-column:1 / -1; padding:6px 8px; text-align:center; }
 .cwk-unified .rv-shell-sidebar { width:auto; padding:8px; background:var(--cwk-surface-sidebar); font-size:14px; }
+.cwk-unified .cwk-scroll-content::-webkit-scrollbar { display:none; }
 .cwk-unified .cwk-scroll-content { min-width:0; padding:var(--cwk-cell-padding); overflow-wrap:anywhere; }
 .cwk-unified .cwk-navigation-cell { padding:8px; background:var(--cwk-surface-sidebar); }
 .cwk-main-nav { display:flex; flex-direction:column; gap:8px; }
@@ -217,7 +218,7 @@ body.cwk-unified { margin:0; font-family:var(--cwk-font-main); }
   .cwk-unified .rv-site-shell > marquee { flex:none; }
   body.cwk-unified .rv-shell-table { display:grid; grid-template-columns:var(--cwk-home-sidebar-width) minmax(0,1fr) var(--cwk-unified-nav-width); grid-template-rows:auto minmax(0,1fr); flex:1; min-height:0; overflow:hidden; }
   .cwk-unified .rv-shell-sidebar,.cwk-unified .cwk-navigation-cell { min-height:0; overflow:hidden; }
-  .cwk-unified .cwk-scroll-content { overflow-y:auto; overflow-x:hidden; overscroll-behavior:contain; min-height:0; scrollbar-gutter:stable; }
+  .cwk-unified .cwk-scroll-content { overflow-y:auto; overflow-x:hidden; overscroll-behavior:contain; min-height:0; scrollbar-width:none; }
   .cwk-unified .rv-shell-sidebar.is-compact-profile .profile-photo { width:var(--cwk-profile-compact-photo-size); height:var(--cwk-profile-compact-photo-size); object-fit:cover; }
   .cwk-unified .rv-shell-sidebar.is-compact-profile .profile-card { margin:0; }
   .cwk-unified .rv-shell-sidebar.is-compact-profile .profile-email { margin:4px 0; font-size:11px; }
@@ -269,8 +270,8 @@ body.cwk-unified { margin:0; font-family:var(--cwk-font-main); }
 .records-v2 .rv-filters { border-bottom:0; }
 .records-v2 .rv-entry[data-record-id]:not(.is-detail) {
   --rv-panel-padding:var(--cwk-record-gutter);
-  width:calc(100% - var(--cwk-cell-padding) * 2);
-  max-width:calc(var(--cwk-record-width) + var(--rv-panel-padding) * 2 + 2px);
+  width:100%;
+  max-width:none;
   margin:var(--cwk-feed-post-gap) auto;
   padding:0 var(--rv-panel-padding) 20px;
   border:1px solid var(--cwk-feed-post-border);
