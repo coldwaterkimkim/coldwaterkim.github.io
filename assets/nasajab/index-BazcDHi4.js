@@ -1,0 +1,1 @@
+import"../modulepreload-polyfill-Dezn_h7o.js";var e=``;try{e=decodeURIComponent(location.hash.slice(1))}catch{}var t=e?`/#record/`+encodeURIComponent(`nasajab:`+e):`/#nasajab`;document.getElementById(`recordDestination`).href=t,location.replace(t);

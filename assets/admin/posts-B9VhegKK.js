@@ -1,0 +1,1 @@
+import"../modulepreload-polyfill-Dezn_h7o.js";/* empty css               */var e=new URLSearchParams(location.search),t=e.get(`id`),n=t?`/#edit/`+encodeURIComponent(`posts:`+t):e.get(`new`)===`1`?`/#compose`:`/#posts`;document.getElementById(`writerDestination`).href=n,location.replace(n);
