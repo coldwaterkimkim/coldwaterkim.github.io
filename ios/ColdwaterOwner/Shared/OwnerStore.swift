@@ -7,6 +7,7 @@ import UIKit
     @Published public private(set) var isAuthenticated = false
     @Published public private(set) var accountEmail = ""
     @Published public var lastError: String?
+    @Published public private(set) var unreadableDraftIDs: [UUID] = []
     @Published public private(set) var isBusy = false
     @Published public private(set) var progress: [UUID: Double] = [:]
     @Published public private(set) var records: [RecordDocument] = []
@@ -90,7 +91,15 @@ import UIKit
         guard let next = fields["token"]?.string else { throw OwnerError.message("로그인을 다시 해 줘.") }
         token = next; try keychain?.save(next)
     }
-    private func reload() throws { if let repository { drafts = try repository.loadAll() } }
+    private func reload() throws {
+        guard let repository else { return }
+        drafts = try repository.loadAll()
+        unreadableDraftIDs = repository.unreadableDraftIDs
+        if !unreadableDraftIDs.isEmpty {
+            let identifiers = unreadableDraftIDs.map(\.uuidString).joined(separator: ", ")
+            lastError = "일부 초안을 읽지 못했어. 원본 파일은 그대로 보관했고 나머지 초안은 사용할 수 있어. 복구 대상: " + identifiers
+        }
+    }
     public func createDraft() -> LocalDraft? {
         do { guard let repository else { throw OwnerError.message("공유 저장소가 준비되지 않았어.") }; var draft = LocalDraft(); draft.uploadSessionIdentifier = transfer?.identifier; try repository.save(draft); try reload(); return draft }
         catch { lastError = error.localizedDescription; return nil }

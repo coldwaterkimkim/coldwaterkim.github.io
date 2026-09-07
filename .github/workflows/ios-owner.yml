@@ -39,7 +39,7 @@ jobs:
         run: |
           set -o pipefail
           mkdir -p ios/build
-          xcodebuild build-for-testing -project ios/ColdwaterOwner.xcodeproj -scheme ColdwaterOwner -destination "platform=iOS Simulator,id=$CWK_SIMULATOR_ID" -derivedDataPath ios/build/DerivedData CODE_SIGNING_ALLOWED=NO 2>&1 | tee ios/build/build.log
+          xcodebuild build-for-testing -project ios/ColdwaterOwner.xcodeproj -scheme ColdwaterOwner -destination "platform=iOS Simulator,id=$CWK_SIMULATOR_ID" -derivedDataPath ios/build/DerivedData CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- 2>&1 | tee ios/build/build.log
       - name: Build isolated backend fixture
         working-directory: deploy/imac/pocketbase-custom
         run: go test -c -o ../../../ios/build/ios-fixture .
@@ -56,7 +56,14 @@ jobs:
             sleep 1
           done
           test -f ios/build/fixture-ready.json
-          xcodebuild test-without-building -project ios/ColdwaterOwner.xcodeproj -scheme ColdwaterOwner -destination "platform=iOS Simulator,id=$CWK_SIMULATOR_ID" -derivedDataPath ios/build/DerivedData -resultBundlePath ios/build/OwnerTests.xcresult -parallel-testing-enabled NO -test-timeouts-enabled YES -default-test-execution-time-allowance 180 CODE_SIGNING_ALLOWED=NO 2>&1 | tee ios/build/test.log
+          xcodebuild test-without-building -project ios/ColdwaterOwner.xcodeproj -scheme ColdwaterOwner -destination "platform=iOS Simulator,id=$CWK_SIMULATOR_ID" -derivedDataPath ios/build/DerivedData -resultBundlePath ios/build/OwnerTests.xcresult -parallel-testing-enabled NO -test-timeouts-enabled YES -default-test-execution-time-allowance 180 CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- 2>&1 | tee ios/build/test.log
+      - name: Export screenshots and background transfer diagnostics
+        if: always()
+        run: |
+          if [[ -d ios/build/OwnerTests.xcresult ]]; then
+            xcrun xcresulttool export attachments --path ios/build/OwnerTests.xcresult --output-path ios/build/screenshots || true
+          fi
+          xcrun simctl spawn "$CWK_SIMULATOR_ID" log show --last 15m --style compact --predicate 'process == "nsurlsessiond"' > ios/build/background-service.log 2>&1 || true
       - name: Preserve simulator evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -65,4 +72,5 @@ jobs:
           path: |
             ios/build/*.log
             ios/build/OwnerTests.xcresult
+            ios/build/screenshots
           retention-days: 7

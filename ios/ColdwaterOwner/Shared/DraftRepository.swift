@@ -4,6 +4,14 @@ import Darwin
 
 public final class DraftRepository {
     public let root: URL
+    /// A failed individual draft never hides healthy drafts or removes its original files.
+    public private(set) var unreadableDraftIDs: [UUID] = []
+    #if DEBUG
+    init(testingRoot: URL) throws {
+        root = testingRoot
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    }
+    #endif
     public init(appGroup: String) throws {
         let container: URL?
         #if DEBUG && targetEnvironment(simulator)
@@ -23,10 +31,22 @@ public final class DraftRepository {
     public func directory(_ id: UUID) -> URL { root.appendingPathComponent(id.uuidString, isDirectory: true) }
     public func file(_ id: UUID, _ name: String) -> URL { directory(id).appendingPathComponent(URL(fileURLWithPath: name).lastPathComponent) }
     public func loadAll() throws -> [LocalDraft] {
-        try FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: [.isDirectoryKey]).compactMap { url in
-            guard UUID(uuidString: url.lastPathComponent) != nil else { return nil }
-            return try read(UUID(uuidString: url.lastPathComponent)!)
-        }.sorted { $0.updatedAt > $1.updatedAt }
+        let entries = try FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: [.isDirectoryKey])
+        var valid: [LocalDraft] = []
+        var unreadable: [UUID] = []
+        for url in entries {
+            guard let id = UUID(uuidString: url.lastPathComponent) else { continue }
+            do {
+                let draft = try read(id)
+                guard draft.id == id else { throw OwnerError.message("초안 식별자가 폴더와 달라.") }
+                valid.append(draft)
+            } catch {
+                // Preserve all evidence and source media for recovery; never rename or delete here.
+                unreadable.append(id)
+            }
+        }
+        unreadableDraftIDs = unreadable.sorted { $0.uuidString < $1.uuidString }
+        return valid.sorted { $0.updatedAt > $1.updatedAt }
     }
     public func read(_ id: UUID) throws -> LocalDraft {
         let url = file(id, "draft.json")
