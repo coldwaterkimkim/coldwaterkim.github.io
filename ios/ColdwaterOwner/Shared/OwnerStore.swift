@@ -16,12 +16,17 @@ import UIKit
     private var transfer: BackgroundTransfer?
     private var restored: [String: BackgroundTransfer] = [:]
     private var token: String?
+    private var leases: [String: SessionLease] = [:]
+    private var isExtension = false
     private var scheduling: Set<UUID> = []
     public init(sessionIdentifier: String = "com.coldwaterkim.owner.uploads") {
         do {
             let e = try OwnerEnvironment(); environment = e
             repository = try DraftRepository(appGroup: e.appGroup); keychain = OwnerKeychain(group: e.keychainGroup)
-            transfer = makeTransfer(sessionIdentifier, group: e.appGroup)
+            isExtension = sessionIdentifier.hasPrefix("com.coldwaterkim.owner.share.uploads")
+            let actualIdentifier = isExtension ? sessionIdentifier + "." + UUID().uuidString : sessionIdentifier
+            leases[actualIdentifier] = try SessionLease(root: repository!.root, identifier: actualIdentifier)
+            transfer = makeTransfer(actualIdentifier, group: e.appGroup)
         } catch { lastError = error.localizedDescription }
     }
     private func makeTransfer(_ identifier: String, group: String) -> BackgroundTransfer {
@@ -31,25 +36,35 @@ import UIKit
         return t
     }
     public func restoreBackgroundSession(identifier: String, completionHandler: @escaping () -> Void) {
-        guard let e = environment else { completionHandler(); return }
-        let t: BackgroundTransfer
-        if transfer?.identifier == identifier { t = transfer! }
-        else if let existing = restored[identifier] { t = existing }
-        else { t = makeTransfer(identifier, group: e.appGroup); restored[identifier] = t }
-        t.finishedEvents = completionHandler
-        Task { _ = await t.tasks() }
+        do {
+            guard let e = environment, let repository else { throw OwnerError.message("공유 저장소가 준비되지 않았어.") }
+            // SwiftUI .task may never run on a background launch.
+            try reload(); token = try keychain?.token(); isAuthenticated = token != nil
+            let t: BackgroundTransfer
+            if transfer?.identifier == identifier { t = transfer! }
+            else if let existing = restored[identifier] { t = existing }
+            else {
+                leases[identifier] = try SessionLease(root: repository.root, identifier: identifier)
+                t = makeTransfer(identifier, group: e.appGroup); restored[identifier] = t
+            }
+            t.finishedEvents = completionHandler
+            Task { _ = await t.tasks() }
+        } catch { lastError = error.localizedDescription; completionHandler() }
     }
     public var publishedRecords: [RecordDocument] { records }
     public func refreshPublished() async { await loadRecords() }
     public func bootstrap() async {
         do {
-            if transfer?.identifier == "com.coldwaterkim.owner.uploads", let e = environment, restored["com.coldwaterkim.owner.share.uploads"] == nil {
-                restored["com.coldwaterkim.owner.share.uploads"] = makeTransfer("com.coldwaterkim.owner.share.uploads", group: e.appGroup)
-            }
             try reload(); token = try keychain?.token(); isAuthenticated = token != nil
             if isAuthenticated {
                 do { try await refreshToken() } catch { lastError = error.localizedDescription }
-                for draft in drafts where [.preparing, .uploading, .publishing, .verifying].contains(draft.state) { await schedule(draft.id) }
+                if !isExtension {
+                    for draft in drafts where [.preparing, .uploading, .publishing, .verifying].contains(draft.state) {
+                        // A live extension keeps its lease, so foreground launch does not touch its task/body.
+                        do { _ = try transferFor(draft) } catch { continue }
+                        await schedule(draft.id)
+                    }
+                }
             }
         } catch { lastError = error.localizedDescription }
     }
@@ -77,15 +92,19 @@ import UIKit
     }
     private func reload() throws { if let repository { drafts = try repository.loadAll() } }
     public func createDraft() -> LocalDraft? {
-        do { guard let repository else { throw OwnerError.message("공유 저장소가 준비되지 않았어.") }; let draft = LocalDraft(); try repository.save(draft); try reload(); return draft }
+        do { guard let repository else { throw OwnerError.message("공유 저장소가 준비되지 않았어.") }; var draft = LocalDraft(); draft.uploadSessionIdentifier = transfer?.identifier; try repository.save(draft); try reload(); return draft }
         catch { lastError = error.localizedDescription; return nil }
     }
     public func saveDraft(_ draft: LocalDraft) throws {
         guard let repository else { throw OwnerError.message("공유 저장소가 준비되지 않았어.") }
-        if let old = try? repository.read(draft.id), old.hasSubmitted { throw OwnerError.message("전송한 초안은 수정할 수 없어. 게시물에서 다시 편집해 줘.") }
+        if let old = try? repository.read(draft.id) {
+            _ = try transferFor(old)
+            if old.hasSubmitted { throw OwnerError.message("전송한 초안은 수정할 수 없어. 게시물에서 다시 편집해 줘.") }
+        }
         var copy = draft; copy.updatedAt = Date(); try repository.save(copy); try reload()
     }
     public func deleteDraft(_ draft: LocalDraft) throws {
+        _ = try transferFor(draft)
         guard [.editing, .failed, .published].contains(draft.state) else { throw OwnerError.message("전송 중에는 초안을 지울 수 없어.") }
         try repository?.delete(draft.id); try reload()
     }
@@ -101,15 +120,33 @@ import UIKit
         guard let repository else { return }; isBusy = true; defer { isBusy = false }
         do {
             let before = try repository.read(id)
+            _ = try transferFor(before)
+            guard before.photos.count < 100 else { throw OwnerError.message("사진은 글 하나에 최대 100장까지 추가할 수 있어.") }
             guard !before.hasSubmitted else { throw OwnerError.message("새 초안에 사진을 추가해 줘.") }
             let photo = try await operation(repository.directory(id))
-            var draft = try repository.read(id); draft.photos.append(photo); lastError = nil; draft.updatedAt = Date(); try repository.save(draft); try reload()
+            var draft = try repository.read(id)
+            guard !draft.hasSubmitted, draft.photos.count < 100 else {
+                for filename in [photo.originalFilename, photo.displayFilename, photo.thumbnailFilename] { try? FileManager.default.removeItem(at: repository.file(id, filename)) }
+                throw OwnerError.message("초안의 상태가 바뀌었어. 새 초안에 사진을 추가해 줘.")
+            }
+            draft.photos.append(photo); lastError = nil; draft.updatedAt = Date(); try repository.save(draft); try reload()
         } catch { lastError = error.localizedDescription }
     }
     public func publish(_ draftID: UUID) async {
         do {
             guard isAuthenticated, let repository else { throw OwnerError.message("먼저 OWNER 로그인을 해 줘.") }
             var d = try repository.read(draftID)
+            _ = try transferFor(d)
+            var existingCount = 0
+            if case .array(let existing) = d.record?.fields["attachments"] { existingCount = existing.count }
+            guard d.body.utf8.count <= 500_000 else { throw OwnerError.message("본문이 너무 길어. 조금 줄여 줘.") }
+            guard existingCount + d.photos.count <= 100 else { throw OwnerError.message("사진과 첨부는 합쳐서 100개까지 게시할 수 있어.") }
+            for photo in d.photos {
+                for name in [photo.originalFilename, photo.displayFilename] {
+                    let size = try repository.file(draftID, name).resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
+                    guard size > 0, size <= 64 * 1024 * 1024 else { throw OwnerError.message("사진 한 장은 64MB 이하여야 해.") }
+                }
+            }
             guard ["posts", "daily", "nasajab", "projects"].contains(d.category) else { throw OwnerError.message("분류를 선택해 줘.") }
             let hasExistingAttachments: Bool
             if case .array(let attachments) = d.record?.fields["attachments"] { hasExistingAttachments = !attachments.isEmpty } else { hasExistingAttachments = false }
@@ -127,18 +164,30 @@ import UIKit
     public func editRecord(_ record: RecordDocument) -> LocalDraft? {
         do {
             guard let repository else { throw OwnerError.message("공유 저장소가 준비되지 않았어.") }
-            var d = LocalDraft(); d.body = record.body; d.category = record.category; d.record = record; d.recordID = record.id
+            var d = LocalDraft(); d.uploadSessionIdentifier = transfer?.identifier; d.body = record.body; d.category = record.category; d.record = record; d.recordID = record.id
             try repository.save(d); try reload(); return d
         } catch { lastError = error.localizedDescription; return nil }
     }
+    private func transferFor(_ draft: LocalDraft) throws -> BackgroundTransfer {
+        guard let primary = transfer, let repository, let environment else { throw OwnerError.message("전송 준비가 되지 않았어.") }
+        let identifier = draft.uploadSessionIdentifier ?? "com.coldwaterkim.owner.uploads"
+        if identifier == primary.identifier { return primary }
+        if let existing = restored[identifier] { return existing }
+        guard !isExtension else { throw OwnerError.message("이 초안은 앱에서 전송을 계속해 줘.") }
+        leases[identifier] = try SessionLease(root: repository.root, identifier: identifier)
+        let recovered = makeTransfer(identifier, group: environment.appGroup)
+        restored[identifier] = recovered
+        return recovered
+    }
     private func schedule(_ id: UUID) async {
-        guard !scheduling.contains(id), let repository, let transfer, let environment, let token else { return }
+        guard !scheduling.contains(id), let repository, let environment else { return }
+        guard let token else { fail(id, "OWNER 로그인이 필요해. 초안과 전송한 사진은 보관돼 있어."); return }
         scheduling.insert(id); defer { scheduling.remove(id) }
         do {
             var d = try repository.read(id)
+            let transfer = try transferFor(d)
             if d.state == .verifying, let recordID = d.recordID { try await verify(id, recordID: recordID); return }
-            var active = await transfer.tasks()
-            for t in restored.values { active += await t.tasks() }
+            let active = await transfer.tasks()
             let names = Set(active.compactMap(\.taskDescription))
             if names.contains(where: { $0.hasPrefix(id.uuidString + "/") }) { return }
             if let photo = d.photos.first(where: { $0.mediaID == nil }) {
@@ -168,11 +217,15 @@ import UIKit
         let parts = result.description.split(separator: "/").map(String.init)
         guard parts.count == 2, let id = UUID(uuidString: parts[0]), let repository else { return }
         do {
+            if token == nil { token = try keychain?.token(); isAuthenticated = token != nil }
             guard result.error == nil else { throw OwnerError.message("전송이 중단됐어. 초안은 보관돼 있어. 다시 시도해 줘.") }
             if result.status == 409, parts[1] == "publish", let recordID = try repository.read(id).recordID {
                 try await verify(id, recordID: recordID); return
             }
-            guard (200...299).contains(result.status) else { throw serverError(result.status) }
+            guard (200...299).contains(result.status) else {
+                if result.status == 401 || result.status == 403 { isAuthenticated = false }
+                throw serverError(result.status)
+            }
             var d = try repository.read(id)
             if parts[1] == "publish" {
                 let record = try JSONDecoder().decode(RecordDocument.self, from: result.data)

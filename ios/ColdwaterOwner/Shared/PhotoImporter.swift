@@ -8,6 +8,8 @@ public enum PhotoImporter {
         try await Task.detached(priority: .userInitiated) {
             let scoped = source.startAccessingSecurityScopedResource()
             defer { if scoped { source.stopAccessingSecurityScopedResource() } }
+            let fileSize = try source.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
+            guard fileSize > 0, fileSize <= 64 * 1024 * 1024 else { throw OwnerError.message("사진 한 장은 64MB 이하여야 해.") }
             guard let imageSource = CGImageSourceCreateWithURL(source as CFURL, nil), let type = CGImageSourceGetType(imageSource) as String?,
                   [UTType.heic.identifier, UTType.heif.identifier, UTType.jpeg.identifier, UTType.png.identifier].contains(type) else {
                 throw OwnerError.message("HEIC, JPEG, PNG 사진만 올릴 수 있어.")
@@ -45,6 +47,8 @@ public enum PhotoImporter {
             provider.loadFileRepresentation(forTypeIdentifier: type) { url, error in
                 guard let url else { continuation.resume(throwing: error ?? OwnerError.message("사진을 가져오지 못했어.")); return }
                 do {
+                    let fileSize = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
+                    guard fileSize > 0, fileSize <= 64 * 1024 * 1024 else { throw OwnerError.message("사진 한 장은 64MB 이하여야 해.") }
                     let staging = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathExtension(url.pathExtension)
                     try FileManager.default.copyItem(at: url, to: staging)
                     continuation.resume(returning: staging)

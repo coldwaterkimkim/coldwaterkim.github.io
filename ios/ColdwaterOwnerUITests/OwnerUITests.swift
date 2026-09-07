@@ -10,10 +10,10 @@ final class OwnerUITests: XCTestCase {
         let compose = app.buttons["drafts.compose"]
         XCTAssertTrue(compose.waitForExistence(timeout: 15))
         compose.tap()
-        let body = app.textViews["compose.body"]
+        let body = app.descendants(matching: .any)["compose.body"].firstMatch
         XCTAssertTrue(body.waitForExistence(timeout: 5))
         body.tap()
-        let text = "자동 저장 확인 " + UUID().uuidString
+        let text = "Draft restore " + UUID().uuidString
         body.typeText(text)
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = "Native photo composer"; screenshot.lifetime = .keepAlways

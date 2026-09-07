@@ -1,5 +1,6 @@
 import XCTest
 import UIKit
+import ImageIO
 @testable import ColdwaterOwner
 
 final class OwnerIntegrationTests: XCTestCase {
@@ -11,6 +12,7 @@ final class OwnerIntegrationTests: XCTestCase {
         await store.bootstrap()
         await store.login(email: "owner@example.test", password: "ColdwaterCI-Photo-9!")
         XCTAssertTrue(store.isAuthenticated, store.lastError ?? "login failed")
+        guard store.isAuthenticated else { throw OwnerError.message(store.lastError ?? "login failed") }
         var draft = try XCTUnwrap(store.createDraft(), store.lastError ?? "draft failed")
         draft.body = "iOS photo E2E " + UUID().uuidString
         draft.category = "daily"
@@ -24,8 +26,18 @@ final class OwnerIntegrationTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: file) }
         await store.importPhoto(from: file, into: draft.id)
         XCTAssertEqual(store.drafts.first { $0.id == draft.id }?.photos.count, 1, store.lastError ?? "import failed")
+        let imported = try XCTUnwrap(store.drafts.first { $0.id == draft.id }?.photos.first)
+        let original = try XCTUnwrap(store.fileURL(for: draft.id, filename: imported.originalFilename))
+        XCTAssertEqual(try Data(contentsOf: original), try Data(contentsOf: file))
+        let display = try XCTUnwrap(store.fileURL(for: draft.id, filename: imported.displayFilename))
+        let source = try XCTUnwrap(CGImageSourceCreateWithURL(display as CFURL, nil))
+        let metadata = try XCTUnwrap(CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [String: Any])
+        XCTAssertNil(metadata[kCGImagePropertyGPSDictionary as String])
         await store.publish(draft.id)
         let published = try await waitForPublished(store, id: draft.id)
+        var changedAfterSubmission = published
+        changedAfterSubmission.body = "must not change an already submitted request"
+        XCTAssertThrowsError(try store.saveDraft(changedAfterSubmission))
         let recordID = try XCTUnwrap(published.recordID)
         let publicURL = URL(string: "http://127.0.0.1:18119/api/cwk/records-v2/" + recordID)!
         let (data, response) = try await URLSession.shared.data(from: publicURL)

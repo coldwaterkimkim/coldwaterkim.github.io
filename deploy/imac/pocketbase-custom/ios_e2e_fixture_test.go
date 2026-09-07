@@ -34,6 +34,11 @@ func TestIOSFixtureServer(t *testing.T) {
  if err = ensureRecordsV2(app); err != nil { t.Fatal(err) }
  if err = ensureMobile(app, "aaaaaaaaaaaaaaa"); err != nil { t.Fatal(err) }
  users,err:=app.FindCollectionByNameOrId("users"); if err!=nil {t.Fatal(err)}
+ // PocketBase's bundled test dataset enables MFA; this isolated fixture models
+ // the site's password-auth OWNER collection without changing production settings.
+ users.MFA.Enabled=false
+ users.PasswordAuth.Enabled=true
+ if err=app.Save(users);err!=nil {t.Fatal(err)}
  owner:=core.NewRecord(users); owner.Id="aaaaaaaaaaaaaaa"
  owner.SetEmail("owner@example.test"); owner.SetPassword("ColdwaterCI-Photo-9!"); owner.SetVerified(true)
  if err=app.Save(owner);err!=nil {t.Fatal(err)}

@@ -1,5 +1,6 @@
 import Foundation
 import Security
+import Darwin
 
 public final class DraftRepository {
     public let root: URL
@@ -78,4 +79,20 @@ final class OwnerKeychain {
         guard status == errSecSuccess else { throw OwnerError.message("로그인 정보를 갱신하지 못했어.") }
     }
     func clear() throws { if OwnerEnvironment.isUITesting { testToken = nil; return }; let s = SecItemDelete(query as CFDictionary); guard s == errSecSuccess || s == errSecItemNotFound else { throw OwnerError.message("로그인 정보를 지우지 못했어.") } }
+}
+
+/// Process lifetime ownership; the kernel releases the lock on suspension termination/crash.
+final class SessionLease {
+    private let descriptor: Int32
+    init(root: URL, identifier: String) throws {
+        let safe = identifier.replacingOccurrences(of: "/", with: "_")
+        let url = root.appendingPathComponent("session-" + safe + ".lock")
+        descriptor = open(url.path, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR)
+        guard descriptor >= 0 else { throw OwnerError.message("전송 잠금을 만들지 못했어.") }
+        guard flock(descriptor, LOCK_EX | LOCK_NB) == 0 else {
+            close(descriptor)
+            throw OwnerError.message("공유 화면에서 전송을 준비 중이야. 공유 화면을 닫은 뒤 다시 시도해 줘.")
+        }
+    }
+    deinit { flock(descriptor, LOCK_UN); close(descriptor) }
 }

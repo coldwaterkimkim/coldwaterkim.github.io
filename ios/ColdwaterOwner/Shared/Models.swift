@@ -54,6 +54,7 @@ public struct LocalDraft: Codable, Identifiable {
     public var error: String?
     public var recordID: String?
     public var record: RecordDocument?
+    public var uploadSessionIdentifier: String?
     public var hasSubmitted = false
     public var clientRequestId = UUID().uuidString.lowercased()
     public var createdAt = Date()
