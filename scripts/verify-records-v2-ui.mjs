@@ -180,14 +180,28 @@ const slides = article.querySelector('.rv-slides');
 Object.defineProperty(slides, 'clientWidth', { value: 390 });
 slides.scrollBy = ({ left }) => { slides.scrollLeft += left; event(slides, 'scroll'); };
 slides.scrollLeft = 0;
-assert.equal(article.querySelector('.rv-body').textContent, '첫 사진 코멘트');
+assert.equal(article.querySelector('.rv-photo-comment').textContent, '첫 사진 코멘트');
 slides.scrollLeft = 390; event(slides, 'scroll');
-assert.equal(article.querySelector('.rv-body').textContent, '공통 본문');
+assert.equal(article.querySelector('.rv-photo-comment').textContent, '');
 assert.equal(article.querySelector('.rv-count').textContent, '2 / 2');
 assert.equal(article.querySelectorAll('.rv-dot')[1].getAttribute('aria-current'), 'true');
 const key = new window.Event('keydown', { bubbles: true, cancelable: true }); key.key = 'ArrowLeft'; slides.dispatchEvent(key);
-assert.equal(article.querySelector('.rv-body').textContent, '첫 사진 코멘트');
+assert.equal(article.querySelector('.rv-photo-comment').textContent, '첫 사진 코멘트');
 assert.equal(article.querySelector('.rv-count').textContent, '1 / 2');
+
+assert.equal(article.querySelector('.rv-global-comment').textContent, '공통 본문');
+assert.ok(article.querySelector('.rv-image-link img'));
+assert.equal(article.querySelector('.rv-slide-original'),null);
+const single=app.entry({...record,attachments:[attachment('single')]});
+assert.ok(!single.textContent.includes('null'));
+assert.equal(single.querySelector('.rv-photo-comment').textContent,'');
+
+await app.openEditor({...record,recordDate:'2026-09-07'});
+const individual=root.querySelector('textarea[aria-label="1번째 사진·영상 개별 코멘트"]');
+individual.value='수정된 개별 코멘트';event(individual,'input');
+click(root.querySelector('button[aria-label="1번째 첨부 뒤로"]'));
+assert.equal(root.querySelector('textarea[aria-label="2번째 사진·영상 개별 코멘트"]').value,'수정된 개별 코멘트');
+assert.equal(root.querySelector('.rv-compose-body').value,'공통 본문');
 
 // Non-photo attachments and embeds are preserved by the same entry renderer.
 const mixed = app.entry({ ...record, attachments: [
@@ -230,5 +244,5 @@ assert.equal(previewVideo.querySelector('video').getAttribute('src'), 'https://c
 assert.equal(previewVideo.querySelector('video').getAttribute('poster'), 'https://coldwaterkim.com/api/files/media/testvideoid0001/poster.jpg');
 event(previewVideo.querySelector('video'), 'error');
 assert.equal(previewVideo.querySelector('video').getAttribute('src'), originalVideo, 'Derivative error falls back to unchanged original media URL');
-console.log('Records V2 actual DOM handlers passed: reactive save state, embed fidelity/removal, upload and save failure recovery, legacy excerpt/full source/crop, carousel comment fallback.');
+console.log('Records V2 actual DOM handlers passed: reactive save state, embed fidelity/removal, upload and save failure recovery, legacy excerpt/full source/crop, fixed global and per-media comments.');
 console.log('Scope: DOM events with injected I/O; no layout, touch physics, real crop pointer gestures, network transfer, or persistence claims.');

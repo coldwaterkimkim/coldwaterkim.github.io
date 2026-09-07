@@ -180,8 +180,11 @@ function entry(record, targetAttachment = '', isDetail = false) {
   if(title&&!/^\d{4}-\d{2}-\d{2} 나으 하루(?:\s|$)/.test(title)&&!record.body?.trim().startsWith(title))article.append(e(isDetail?'h1':'h2',{class:'rv-record-title'},isDetail?title:link(title,idHash(record.id))));
   if(isDetail)article.append(person(record,true,false));
   const visuals = (record.attachments||[]).filter(a=>a.kind==='image'||a.kind==='video');
-  const text = e('p',{class:'rv-body'});
-  const setText = i => {text.textContent=visuals[i]?.comment?.trim() ? visuals[i].comment : record.body||'';text.hidden=!text.textContent;};
+  const globalText = e('p',{class:'rv-body rv-global-comment'},record.body || '');
+  globalText.hidden = !record.body;
+  article.append(globalText);
+  const text = e('p',{class:'rv-body rv-photo-comment'});
+  const setText = i => {text.textContent=visuals[i]?.comment?.trim() ? visuals[i].comment : '';};
   setText(0);
   if (visuals.length) {
     const slides = e('div',{class:'rv-slides',tabIndex:0,'aria-label':`사진·영상 ${visuals.length}개. 좌우로 넘겨 보기`});
@@ -189,8 +192,9 @@ function entry(record, targetAttachment = '', isDetail = false) {
     const dots = e('div',{class:'rv-dots','aria-hidden':'true'},visuals.map((_,i)=>e('span',{class:'rv-dot','aria-current':i===0?'true':'false'})));
     visuals.forEach((attachment,i)=>{
       const media = attachment.kind==='image' ? croppedImage(attachment) : e('video',{src:safeURL(attachment.playbackUrl||attachment.url),poster:safeURL(attachment.posterUrl)||undefined,controls:true,playsInline:true,preload:'none'});
-      const slide=e('figure',{class:'rv-slide','aria-label':`${i+1} / ${visuals.length}`},media);
-      if(attachment.kind==='image') slide.append(link('원본',safeURL(attachment.url),{class:'rv-slide-original',target:'_blank',rel:'noopener noreferrer'}));
+      const imageLink=attachment.kind==='image' ? link('',safeURL(attachment.url),{class:'rv-image-link',target:'_blank',rel:'noopener noreferrer','aria-label':'사진 원본 열기'}) : null;
+      if(imageLink) imageLink.append(media);
+      const slide=e('figure',{class:'rv-slide','aria-label':`${i+1} / ${visuals.length}`},imageLink || media);
       slides.append(slide);
     });
     let current=0;
@@ -220,11 +224,12 @@ function entry(record, targetAttachment = '', isDetail = false) {
       if(!['ArrowLeft','ArrowRight'].includes(event.key)||event.target!==slides)return;
       event.preventDefault();slides.scrollBy({left:(event.key==='ArrowRight'?1:-1)*slides.clientWidth,behavior:'auto'});
     });
-    article.append(e('div',{class:'rv-carousel'},slides,visuals.length>1?count:null),visuals.length>1?dots:null);
+    article.append(e('div',{class:'rv-carousel'},slides,visuals.length>1?count:null));
+    if(visuals.length>1)article.append(dots);
     const requested=visuals.findIndex(a=>a.id===targetAttachment || (targetAttachment.startsWith('media:') && (a.mediaId===targetAttachment.slice(6)||a.url.includes('/'+targetAttachment.slice(6)+'/'))));
     requestAnimationFrame(()=>{if(requested>0)slides.scrollLeft=requested*slides.clientWidth;observeCarousels();});
   }
-  article.append(text);
+  if(visuals.length)article.append(text);
   for(const attachment of record.attachments||[]) {
     if(['image','video'].includes(attachment.kind))continue;
     article.append(e('div',{class:'rv-attachment'},attachment.kind==='audio'?e('audio',{src:safeURL(attachment.url),controls:true,preload:'none'}):null,external(attachment.name||'첨부 파일',attachment.url)));
@@ -327,12 +332,12 @@ async function openEditor(record = null) {
   editorRoot=e('main',{class:'rv-editor'});app.append(editorRoot);
   const select=e('select',{'aria-label':'기록 분류',onChange:event=>{draft.category=event.target.value;syncSaveState();}},e('option',{value:'',selected:!draft.category},'분류 선택'),Object.entries(categoryNames).map(([value,label])=>e('option',{value,selected:draft.category===value},label)));
   editorRoot.append(e('div',{class:'rv-person'},e('img',{class:'rv-avatar',src:'/assets/profile-crop.jpg',alt:''}),e('div',{class:'rv-compose-person'},e('strong',{},'김찬수'),e('span',{class:'rv-muted'},'새로운 기록')),button('임시 저장',()=>persist('draft'),{class:'rv-link rv-draft','data-save':'draft'})));
-  const textarea=e('textarea',{class:'rv-compose-body','aria-label':'게시물 공통 본문',placeholder:'지금 남기고 싶은 이야기…',value:draft.body||'',onInput:event=>{draft.body=event.target.value;growComposer(event.target);syncSaveState();}});
+  const textarea=e('textarea',{class:'rv-compose-body','aria-label':'전역 코멘트 — 사진 위에 항상 표시',placeholder:'지금 남기고 싶은 이야기…',value:draft.body||'',onInput:event=>{draft.body=event.target.value;growComposer(event.target);syncSaveState();}});
   textarea.addEventListener('paste',event=>{const files=[...(event.clipboardData?.files||[])];if(files.length){event.preventDefault();attachFiles(files);}});
-  editorRoot.append(textarea,e('div',{id:'rv-thumbs',class:'rv-thumbs'}));
+  editorRoot.append(e('label',{},'전역 코멘트 · 사진 위',textarea),e('p',{class:'rv-muted'},'사진을 넘겨도 이 글은 위에 그대로 보여.'),e('div',{id:'rv-thumbs',class:'rv-thumbs'}));
   requestAnimationFrame(()=>growComposer(textarea));
   renderThumbs();
-  editorRoot.append(e('p',{class:'rv-muted rv-attachment-help',hidden:!draft.attachments.some(item=>item.kind==='image')},'사진을 누르면 자르기 · 사진별 코멘트'));
+  editorRoot.append(e('p',{class:'rv-muted rv-attachment-help',hidden:!draft.attachments.some(item=>item.kind==='image')},'사진을 누르면 자르기. 아래 개별 코멘트는 해당 사진·영상 아래에만 표시돼.'));
   const file=e('input',{type:'file',multiple:true,hidden:true,onChange:event=>{attachFiles([...event.target.files]);event.target.value='';}});
   const media=e('input',{type:'file',accept:'image/*,video/*',multiple:true,hidden:true,onChange:event=>{attachFiles([...event.target.files]);event.target.value='';}});
   editorRoot.append(file,media,e('div',{class:'rv-editor-tools'},button('사진 · 영상',()=>media.click()),button('링크',showLinkForm),button('파일 · 오디오',()=>file.click())));
@@ -373,12 +378,12 @@ function renderThumbs(){
     if(attachment.kind==='image')preview.append(button('사진 편집',()=>editPhoto(index),{class:'rv-thumb-edit','aria-label':`사진 ${index+1} 자르기와 코멘트`}));
     preview.append(e('span',{class:'rv-thumb-number'},index+1),button('×',()=>{draft.attachments.splice(index,1);renderThumbs();},{'aria-label':`${index+1}번째 첨부에서 빼기`}));
     const move=direction=>{const other=index+direction;if(other<0||other>=draft.attachments.length)return;[draft.attachments[index],draft.attachments[other]]=[draft.attachments[other],draft.attachments[index]];renderThumbs();};
-    root.append(e('div',{class:'rv-thumb'},preview,e('div',{class:'rv-thumb-tools'},button('←',()=>move(-1),{disabled:index===0,'aria-label':`${index+1}번째 첨부 앞으로`}),button(attachment.kind==='image'?'편집':'코멘트',()=>editPhoto(index),{class:'rv-link'}),button('→',()=>move(1),{disabled:index===draft.attachments.length-1,'aria-label':`${index+1}번째 첨부 뒤로`})),attachment.comment?e('small',{},'코멘트 있음'):null));
+    root.append(e('div',{class:'rv-thumb'},preview,e('div',{class:'rv-thumb-tools'},button('←',()=>move(-1),{disabled:index===0,'aria-label':`${index+1}번째 첨부 앞으로`}),button(attachment.kind==='image'?'편집':'코멘트',()=>editPhoto(index),{class:'rv-link'}),button('→',()=>move(1),{disabled:index===draft.attachments.length-1,'aria-label':`${index+1}번째 첨부 뒤로`})),['image','video'].includes(attachment.kind)?e('label',{},'개별 코멘트 · 아래',e('textarea',{'aria-label':`${index+1}번째 사진·영상 개별 코멘트`,rows:3,maxLength:10000,placeholder:'비워두면 아래는 빈칸',value:attachment.comment||'',onInput:event=>{attachment.comment=event.target.value;syncSaveState();}})):null));
   });
 }
 async function editPhoto(index){
   if(busy)return;const attachment=draft.attachments[index];
-  if(attachment.kind!=='image'){const comment=prompt('이 첨부의 코멘트 (비워두면 공통 본문)',attachment.comment||'');if(comment!==null){attachment.comment=comment;renderThumbs();}return;}
+  if(attachment.kind!=='image'){const comment=prompt('이 첨부의 코멘트 (비워두면 아래 영역은 빈칸)',attachment.comment||'');if(comment!==null){attachment.comment=comment;renderThumbs();}return;}
   const result=await openPhotoEditor(attachment,{body:draft.body});if(result){Object.assign(attachment,result);renderThumbs();}
 }
 async function attachFiles(files){
