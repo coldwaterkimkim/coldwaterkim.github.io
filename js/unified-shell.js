@@ -64,3 +64,16 @@ if (sidebar) {
   sidebar.querySelectorAll('img').forEach(img => img.addEventListener('load', fitProfile));
   fitProfile();
 }
+
+const content = document.querySelector('.cwk-unified .cwk-scroll-content');
+if (content) {
+  const hint = document.createElement('p');
+  hint.className = 'cwk-scroll-hint';
+  hint.textContent = '이 가운데 영역을 스크롤해서 읽어주세요 ↓';
+  content.prepend(hint);
+  const updateHint = () => { hint.hidden = content.scrollHeight <= content.clientHeight + 2; };
+  new ResizeObserver(updateHint).observe(content);
+  new MutationObserver(updateHint).observe(content, { childList:true, subtree:true });
+  content.addEventListener('load', updateHint, true);
+  updateHint();
+}

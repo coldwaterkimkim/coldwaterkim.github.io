@@ -64,6 +64,8 @@
 .rv-status { margin:20px 18px; white-space:pre-wrap; }
 .rv-error { color:#980000; }
 .rv-more { display:block; margin:20px auto; }
+.rv-more[hidden] { display:none; }
+.rv-record-open { margin:4px 0 10px; font-size:14px; }
 .rv-menu { margin:0; padding:0 18px; list-style:none; }
 .rv-menu li { padding:14px 0; border-bottom:1px dotted #999; }
 .rv-menu a { display:inline-block; padding:4px; }
@@ -182,7 +184,7 @@ body.records-v2 { background:repeating-linear-gradient(45deg,var(--cwk-bg-stripe
   .records-v2 .rv-header .rv-plus { font-size:18px; }
 }
 
-@media(min-width:641px) { .records-v2 .rv-detail-back { display:none; } }
+.records-v2 .rv-detail-back { display:block; }
 
 /* Unified four-page shell: retro table surfaces, independent central scrolling. */
 body.cwk-unified { margin:0; font-family:var(--cwk-font-main); }
@@ -245,7 +247,7 @@ body.cwk-unified { margin:0; font-family:var(--cwk-font-main); }
   .cwk-unified .rv-shell-sidebar { display:block !important; padding:8px; }
   .cwk-unified .cwk-scroll-content { overflow:visible; padding:0; }
   .cwk-unified:not(.records-v2) .cwk-scroll-content { padding:12px; }
-  .cwk-unified .rv-shell-sidebar .profile-details { display:block !important; }
+  .cwk-unified .rv-shell-sidebar .profile-details { display:none !important; }
   .cwk-unified .cwk-profile-more { display:none !important; }
   .cwk-unified .cwk-navigation-cell { position:fixed; inset:auto 0 0; z-index:20; padding:0 4px env(safe-area-inset-bottom); border:0 !important; border-top:1px solid var(--cwk-ink) !important; background:var(--cwk-surface-sidebar); }
   .cwk-main-nav { flex-direction:row; gap:0; }

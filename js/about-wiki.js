@@ -199,6 +199,10 @@ function render(state) {
     ${isOwner ? ownerBarHtml(state) : ''}
     <div class="about-wiki-head">
       <h1>${escapeHtml(doc.title)}</h1>
+      <nav class="about-quick-links" aria-label="About 본문 바로가기">
+        <a href="#about-toc">목차로 ↓</a>
+        ${doc.sections[0] ? `<a href="#about-section-${escapeAttribute(doc.sections[0].id)}">${escapeHtml(doc.sections[0].title)} 바로가기 ↓</a>` : ''}
+      </nav>
     </div>
     <div class="about-wiki-status" data-about-status role="status" aria-live="polite" hidden></div>
     <div class="about-profile-block">
@@ -265,7 +269,7 @@ function tocHtml(sections, isOwner) {
   `).join('');
 
   return `
-    <table class="about-toc" border="1" cellspacing="0" cellpadding="6">
+    <table id="about-toc" class="about-toc" border="1" cellspacing="0" cellpadding="6">
       <tr bgcolor="#f0f0f0">
         <th>목차</th>
       </tr>

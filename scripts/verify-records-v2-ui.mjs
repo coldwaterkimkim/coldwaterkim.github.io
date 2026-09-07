@@ -63,7 +63,10 @@ const service = {
   resolveChatGptShare: () => shareJob.promise,
   saveRecord: () => { saves++; return saveJob.promise; },
 };
+const sessionValues = new Map();
+const sessionStorage = {getItem:key=>sessionValues.get(key)||null};
 const dependencies = {
+  sessionStorage,
   reviewMediaValue:value=>value,
   getContentScroller:()=>null,readContentScroll:()=>0,scrollContentTo:()=>{},scrollContentIntoView:()=>{},
   document, window, Node: window.Node, location, history, service,
@@ -84,7 +87,7 @@ assert.equal(source.split(bootstrap).length, 2, 'App startup boundary changed: r
 const handlers = source.slice(0, source.indexOf(bootstrap)).replace(/^import[^\n]+;\n/gm, '');
 assert.doesNotMatch(handlers, /^import\b/m, 'New multiline imports need explicit test dependency injection.');
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
-const app = await new AsyncFunction(...Object.keys(dependencies), `${handlers}\nreturn { openEditor, attachFiles, entry, legacyView };`)(...Object.values(dependencies));
+const app = await new AsyncFunction(...Object.keys(dependencies), `${handlers}\nreturn { openEditor, attachFiles, entry, legacyView, detailBackLink, recordLoadError, setRoute:value=>{route=value;} };`)(...Object.values(dependencies));
 const root = document.querySelector('#records-app');
 const tick = () => new Promise(resolve => setImmediate(resolve));
 const event = (node, type) => node.dispatchEvent(new window.Event(type, { bubbles: true, cancelable: true }));
@@ -94,6 +97,17 @@ const publish = () => root.querySelector('[data-save="published"]');
 const write = value => { const node = root.querySelector('textarea.rv-compose-body'); node.value = value; event(node, 'input'); };
 const attachment = (id, comment = '') => ({ id, mediaId: id, kind: 'image', name: `${id}.jpg`, url: `https://example.test/${id}.jpg`, comment, crop: null });
 
+app.setRoute('#record/test/media%3Atest');
+sessionValues.set('cwk:album:return',JSON.stringify({recordHash:'#record/test/media%3Atest',url:'/album/?tag=food&page=3',at:Date.now()}));
+assert.equal(app.detailBackLink().getAttribute('href'),'/album/?tag=food&page=3');
+assert.equal(app.detailBackLink().textContent,'← 앨범으로');
+sessionValues.set('cwk:album:return',JSON.stringify({recordHash:'#record/other',url:'/album/',at:Date.now()}));
+assert.equal(app.detailBackLink().textContent,'← 피드로');
+sessionValues.set('cwk:album:return',JSON.stringify({recordHash:'#record/test/media%3Atest',url:'https://elsewhere.test/album/',at:Date.now()}));
+assert.equal(app.detailBackLink().textContent,'← 피드로');
+assert.match(app.recordLoadError({status:404,message:'Record not found'}),/이 기록을 찾을 수 없어/);
+assert.doesNotMatch(app.recordLoadError({message:'Internal SQL error'}),/SQL/);
+app.setRoute('#home');
 await app.openEditor();
 assert.equal(publish().disabled, true, 'Empty composer must disable publishing');
 assert.equal(root.querySelector('.rv-attachment-help').hidden, true);
@@ -168,10 +182,31 @@ assert.ok(legacy.querySelector('.cwk-media-crop-frame'), 'First photo must retai
 assert.equal(legacy.querySelector('img').getAttribute('data-cwk-image-crop'), crop);
 assert.ok(legacy.querySelector('.rv-legacy-excerpt .rv-body').textContent.length <= 361);
 click(byText('더 보기', legacy));
-assert.equal(legacy.querySelectorAll('button').length, 0);
+assert.equal(legacy.querySelectorAll('button').length, 1);
+assert.equal(byText('접기', legacy).getAttribute('aria-expanded'), 'true');
 assert.equal(legacy.querySelectorAll('img').length, 2); assert.equal(legacy.querySelectorAll('video').length, 1);
 assert.match(legacy.textContent, /사진 사이 문장/); assert.match(legacy.textContent, /마지막 원문/);
 assert.equal(legacyRecord.legacyHtml, html, 'Excerpt and expansion must never mutate stored source');
+legacy.querySelectorAll('video,audio').forEach(media=>{media.pause=()=>{};});
+click(byText('접기', legacy));
+assert.equal(legacy.querySelectorAll('img').length, 1);
+assert.equal(byText('더 보기', legacy).getAttribute('aria-expanded'), 'false');
+click(byText('더 보기', legacy));
+assert.equal(legacy.querySelectorAll('img').length, 2);
+const unnamed=app.entry({id:'untitled',category:'daily',body:'오늘의 기록',attachments:[attachment('IMG_1234')]});
+assert.equal(unnamed.querySelector('.rv-record-open a').textContent,'기록 보기');
+assert.equal(unnamed.querySelector('.rv-slide img').alt,'오늘의 기록 · 첨부 사진 1');
+const filenameAlt=app.legacyView({category:'daily',legacyHtml:'<img src="https://example.test/test.jpg" alt="IMG_1234.jpg">'});
+assert.equal(filenameAlt.querySelector('img').alt,'나으하루 · 첨부 사진 1');
+for(const originalAlt of ['IMG_8210','DSC_0123','image','9d12f1e0-182a-43c7-9e70-b952cd22bcf5']){
+  const source={legacySource:{title:'주말 산책'},legacyHtml:`<img src="https://example.test/test.jpg" alt="${originalAlt}">`};
+  const rendered=app.legacyView(source);
+  assert.equal(rendered.querySelector('img').alt,'주말 산책 · 첨부 사진 1');
+  assert.ok(source.legacyHtml.includes(originalAlt),'Saved source alt must remain untouched');
+}
+const descriptiveAlt=app.legacyView({legacyHtml:'<img src="https://example.test/test.jpg" alt="공원에서 만난 고양이">'});
+assert.equal(descriptiveAlt.querySelector('img').alt,'공원에서 만난 고양이');
+
 
 // Actual carousel scroll/keyboard handlers: count, dot, comment and fallback.
 const record = { id: 'test-record', category: 'daily', body: '공통 본문', attachments: [attachment('a', '첫 사진 코멘트'), attachment('b', ' \n ')], embeds: [] };

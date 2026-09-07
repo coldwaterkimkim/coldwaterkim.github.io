@@ -18,6 +18,7 @@
   --cwk-compose-min-height: 140px;
   --cwk-guestbook-sidebar-width: 300px;
   --cwk-cell-padding: 8px;
+  --cwk-touch-target: 44px;
   --cwk-list-cell-padding: 6px;
   --cwk-bg-stripe-step: 8px;
   --cwk-bg-tile-size: 16px;
@@ -3911,3 +3912,17 @@ body > center > table[width="1140"] > tbody > tr > td {
     font-size: 9px;
   }
 }
+
+/* Audit: readable navigation without changing the retro shell. */
+.album-pagination, .about-quick-links { display:flex; flex-wrap:wrap; justify-content:center; gap:var(--cwk-cell-padding); }
+.about-quick-links { justify-content:flex-start; }
+.album-pagination a, .album-pagination [aria-current="page"], .about-quick-links a {
+  display:inline-flex; align-items:center; justify-content:center;
+  min-width:var(--cwk-touch-target); min-height:var(--cwk-touch-target); box-sizing:border-box;
+}
+.album-pagination-gap { align-self:center; }
+#about-section-history .about-wiki-table-scroll :is(th,td):first-child { white-space:nowrap; overflow-wrap:normal; word-break:normal; }
+.cwk-scroll-hint[hidden] { display:none; }
+.cwk-scroll-hint { margin:0; color:var(--cwk-muted); font-size:var(--cwk-note-size); text-align:center; }
+@media (max-width:640px) { .cwk-scroll-hint { display:none; } }
+@media (prefers-reduced-motion:reduce) { .blink { animation:none !important; visibility:visible; } html { scroll-behavior:auto; } }

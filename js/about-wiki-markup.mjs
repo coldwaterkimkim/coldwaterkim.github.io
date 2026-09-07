@@ -11,7 +11,7 @@ export function normalizeAboutWikiSource(value = '') {
     .replace(/\r\n?/g, '\n')
     .replace(/[\uE000\uE001]/g, '\uFFFD')
     .replace(/[ \t]+$/gm, '')
-    .trim();
+    .replace(/^\n+|\n+$/g, '');
 }
 
 export function renderAboutWikiMarkup(value = '', options = {}) {
@@ -21,6 +21,7 @@ export function renderAboutWikiMarkup(value = '', options = {}) {
   const context = {
     footnotes: [],
     headingIds: new Map(),
+    headingLevels: [],
     idPrefix: safeId(options.idPrefix || 'section'),
   };
   const body = renderBlocks(source.split('\n'), context, 0);
@@ -86,7 +87,7 @@ function renderBlocks(lines, context, quoteDepth = 0) {
 
   for (let index = 0; index < lines.length;) {
     const line = lines[index];
-    if (!line.trim()) {
+    if (!line.trim() || /^\s*(?:\*|\d+\.)\s*$/.test(line)) {
       flushParagraph();
       index += 1;
       continue;
@@ -95,7 +96,14 @@ function renderBlocks(lines, context, quoteDepth = 0) {
     const heading = line.match(/^(={2,6})\s*(.*?)\s*\1$/);
     if (heading) {
       flushParagraph();
-      const level = Math.min(6, heading[1].length + 1);
+      // Sections already have h2 headings. Preserve relative source nesting,
+      // including legacy sources that start with ====, without skipped levels.
+      const markerLevel = heading[1].length;
+      while (context.headingLevels.length && context.headingLevels.at(-1).markerLevel >= markerLevel) {
+        context.headingLevels.pop();
+      }
+      const level = Math.min(6, (context.headingLevels.at(-1)?.level || 2) + 1);
+      context.headingLevels.push({ markerLevel, level });
       const headingText = stripMarkupForLabel(heading[2]);
       const headingId = uniqueHeadingId(headingText, context);
       html.push(`<h${level} id="${escapeAttribute(headingId)}">${renderInline(heading[2], context)}</h${level}>`);
@@ -149,10 +157,10 @@ function renderBlocks(lines, context, quoteDepth = 0) {
       continue;
     }
 
-    if (/^\s+(?:\*|\d+\.)\s+/.test(line)) {
+    if (/^\s*(?:\*|\d+\.)\s+/.test(line)) {
       flushParagraph();
       const listLines = [];
-      while (index < lines.length && /^\s+(?:\*|\d+\.)\s+/.test(lines[index])) {
+      while (index < lines.length && /^\s*(?:\*|\d+\.)\s+/.test(lines[index])) {
         listLines.push(lines[index]);
         index += 1;
       }
@@ -295,7 +303,7 @@ function renderList(lines, context) {
   const stack = [{ indent: -1, children: roots }];
 
   for (const line of lines) {
-    const match = line.match(/^(\s+)(\*|\d+\.)\s+(.*)$/);
+    const match = line.match(/^(\s*)(\*|\d+\.)\s+(.*)$/);
     if (!match) continue;
     const item = {
       indent: match[1].replace(/\t/g, '  ').length,
@@ -436,7 +444,7 @@ function convertNode(node, depth) {
   if (tag === 'hr') return '\n----\n\n';
   if (tag === 'blockquote') return block(children().split('\n').filter(Boolean).map(line => `> ${line}`).join('\n'));
   if (/^h[1-6]$/.test(tag)) {
-    const marker = '='.repeat(Math.min(6, Math.max(2, Number(tag.slice(1)) + 1)));
+    const marker = '='.repeat(Math.min(6, Math.max(2, Number(tag.slice(1)) - 1)));
     return block(`${marker} ${children().trim()} ${marker}`);
   }
   if (tag === 'a') {

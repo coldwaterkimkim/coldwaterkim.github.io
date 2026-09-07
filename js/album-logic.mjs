@@ -61,3 +61,26 @@ export function albumBrowseUrl({ page = 1, kind = '', tag = '' } = {}) {
   const query = params.toString();
   return `/album/index.html${query ? `?${query}` : ''}`;
 }
+
+export function albumPageNumbers(currentPage, totalPages) {
+  const total = normalizeAlbumPage(totalPages);
+  const current = Math.min(normalizeAlbumPage(currentPage), total);
+  const pages = new Set([1, total]);
+  for (let page = Math.max(1, current - 1); page <= Math.min(total, current + 1); page += 1) pages.add(page);
+  const result = [];
+  for (const page of [...pages].sort((a, b) => a - b)) {
+    const previous = result.at(-1);
+    if (previous && page - previous === 2) result.push(previous + 1);
+    else if (previous && page - previous > 2) result.push(null);
+    result.push(page);
+  }
+  return result;
+}
+
+export function albumTileLabel(item = {}, ordinal = 1) {
+  const kind = item.is_video ? '영상' : '사진';
+  const date = String(item.source_published_at || item.uploaded_at || '').match(/^\d{4}-\d{2}-\d{2}/)?.[0];
+  const title = String(item.source_title || '').replace(/\s+/g, ' ').trim();
+  const context = [date, title].filter(Boolean).join(' · ');
+  return `${context ? `${context} · ` : ''}${kind} ${ordinal}, 원문으로 이동`;
+}

@@ -14,7 +14,9 @@ import {
   ALBUM_PAGE_SIZE,
   albumBrowseUrl,
   albumMediaKey,
+  albumPageNumbers,
   albumSourceUrl,
+  albumTileLabel,
   normalizeAlbumKind,
   normalizeAlbumPage,
 } from './album-logic.mjs';
@@ -90,7 +92,7 @@ function bindAlbumEvents(state) {
     const tile = event.target.closest('[data-album-source]');
     if (!tile) return;
     if (!state.editMode) {
-      rememberAlbumScroll();
+      rememberAlbumScroll(tile.href);
       return;
     }
     event.preventDefault();
@@ -149,26 +151,26 @@ function renderGrid(grid, items, compact = false, state = null) {
     grid.innerHTML = '<p class="album-message">아직 앨범에 담긴 미디어가 없습니다.</p>';
     return;
   }
-  grid.innerHTML = items.map(item => tileMarkup(item, state)).join('');
+  const offset = state ? (state.page - 1) * (state.editMode ? OWNER_PAGE_SIZE : ALBUM_PAGE_SIZE) : 0;
+  grid.innerHTML = items.map((item, index) => tileMarkup(item, state, offset + index + 1)).join('');
 }
 
 function appendGridItems(grid, items, state) {
   if (!items.length) return;
   grid.querySelector('.album-message')?.remove();
-  grid.insertAdjacentHTML('beforeend', items.map(item => tileMarkup(item, state)).join(''));
+  const offset = state.items.length - items.length;
+  grid.insertAdjacentHTML('beforeend', items.map((item, index) => tileMarkup(item, state, offset + index + 1)).join(''));
 }
 
-function tileMarkup(item, state = null) {
+function tileMarkup(item, state = null, ordinal = 1) {
   const previewFile = item.is_video ? item.video_poster : item.file;
   if (!previewFile) return '';
   const fileRecord = { id: item.media, collectionName: item.file_collection || 'media' };
   const previewUrl = new URL(getMediaUrl(fileRecord, previewFile), location.href);
   previewUrl.searchParams.set('thumb', '400x400');
-  const label = item.is_video ? '영상' : '사진';
-  const sourceLabel = item.source_kind === 'nasajab' ? '나사잡 항목' : '원문 글';
   const mediaKey = albumMediaKey(item);
   const selected = Boolean(state?.selectedKeys.has(mediaKey));
-  return `<a class="album-tile${selected ? ' album-tile--selected' : ''}" href="${escapeAttribute(albumSourceUrl(item))}" aria-label="${label}이 있는 ${sourceLabel}으로 이동" data-album-source data-album-key="${escapeAttribute(mediaKey)}"${state?.editMode ? ` aria-pressed="${selected}"` : ''}>
+  return `<a class="album-tile${selected ? ' album-tile--selected' : ''}" href="${escapeAttribute(albumSourceUrl(item))}" aria-label="${escapeAttribute(albumTileLabel(item, ordinal))}" data-album-source data-album-key="${escapeAttribute(mediaKey)}"${state?.editMode ? ` aria-pressed="${selected}"` : ''}>
     <img src="${escapeAttribute(previewUrl.href)}" alt="" loading="lazy" decoding="async">
     ${item.is_video ? '<span class="album-video-badge" aria-hidden="true">VIDEO</span>' : ''}
     ${state?.editMode ? '<span class="album-select-mark" aria-hidden="true">✓</span>' : ''}
@@ -197,11 +199,15 @@ function renderPagination(container, result, state) {
     return;
   }
   const links = [];
-  if (result.page > 1) links.push(`<a href="${albumBrowseUrl({ page: result.page - 1, kind: state.kind, tag: state.tagId })}">[이전]</a>`);
-  for (let page = 1; page <= result.totalPages; page += 1) {
-    links.push(page === result.page ? `<b>[${page}]</b>` : `<a href="${albumBrowseUrl({ page, kind: state.kind, tag: state.tagId })}">[${page}]</a>`);
+  if (result.page > 1) links.push(`<a rel="prev" href="${albumBrowseUrl({ page: result.page - 1, kind: state.kind, tag: state.tagId })}" aria-label="이전 페이지">[이전]</a>`);
+  for (const page of albumPageNumbers(result.page, result.totalPages)) {
+    if (page === null) {
+      links.push('<span class="album-pagination-gap" aria-hidden="true">…</span>');
+      continue;
+    }
+    links.push(page === result.page ? `<b aria-current="page" aria-label="${page}페이지, 현재 페이지">[${page}]</b>` : `<a href="${albumBrowseUrl({ page, kind: state.kind, tag: state.tagId })}" aria-label="${page}페이지">[${page}]</a>`);
   }
-  if (result.page < result.totalPages) links.push(`<a href="${albumBrowseUrl({ page: result.page + 1, kind: state.kind, tag: state.tagId })}">[다음]</a>`);
+  if (result.page < result.totalPages) links.push(`<a rel="next" href="${albumBrowseUrl({ page: result.page + 1, kind: state.kind, tag: state.tagId })}" aria-label="다음 페이지">[다음]</a>`);
   container.innerHTML = links.join(' ');
 }
 
@@ -441,9 +447,14 @@ function homePreviewCount() {
   return 5;
 }
 
-function rememberAlbumScroll() {
+function rememberAlbumScroll(sourceUrl) {
   try {
-    sessionStorage.setItem(ALBUM_SCROLL_KEY, JSON.stringify({ url: location.pathname + location.search, y: readContentScroll() }));
+    sessionStorage.setItem(ALBUM_SCROLL_KEY, JSON.stringify({
+      recordHash: new URL(sourceUrl, location.href).hash,
+      url: location.pathname + location.search,
+      y: readContentScroll(),
+      at: Date.now(),
+    }));
   } catch {}
 }
 

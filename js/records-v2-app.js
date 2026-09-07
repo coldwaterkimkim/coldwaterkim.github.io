@@ -77,7 +77,7 @@ function header(title = null) {
   return e('header', { class:'rv-header' },
     title ? button('닫기', closeEditor) : null,
     !title ? e('h1', {}, link("coldwaterkim’s HOME", '#home')) : null,
-    !title ? e('span',{class:'rv-header-label'},route.startsWith('#record/') ? link('← 피드로',feedReturnRoute) : ({'#posts':'글방','#daily':'나으하루','#nasajab':'나사잡','#projects':'프로젝트','#album':'앨범','#drafts':'임시 저장','#menu':'메뉴'}[route] || '최근 기록')) : null,
+    !title ? e('span',{class:'rv-header-label'},route.startsWith('#record/') ? '기록' : ({'#posts':'글방','#daily':'나으하루','#nasajab':'나사잡','#projects':'프로젝트','#album':'앨범','#drafts':'임시 저장','#menu':'메뉴'}[route] || '최근 기록')) : null,
     title ? e('h1', {}, title) : null,
     !title && service.isOwner() ? link('임시 저장','#drafts',{class:'rv-drafts-link'}) : null,
     title ? button('게시', () => persist('published'), {'data-save':'published'}) : service.isOwner() ? button(['+',e('span',{class:'rv-plus-label'},' 기록')], () => openEditor(), {class:'rv-plus', 'aria-label':'새 기록 남기기'}) : null);
@@ -96,8 +96,32 @@ function person(record, editable = true, showMeta = true) {
     e('div',{class:'rv-person-info'},e('strong',{class:'rv-person-name'},'김찬수'),showMeta ? recordMeta(record) : null),
     editable && service.isOwner() ? button('편집',()=>openEditor(record),{class:'rv-link rv-edit'}) : null);
 }
-function croppedImage(attachment, {lazy=true} = {}) {
-  const img = e('img',{src:safeURL(attachment.url),alt:attachment.alt||attachment.name||'기록 사진',loading:lazy?'lazy':'eager',decoding:'async'});
+function photoDescription(record, index, supplied = '') {
+  const alt=String(supplied||'').trim();
+  const placeholder=/^(?:image|img|photo|picture|사진|이미지)(?:[ _-]*\d+)?$/i.test(alt);
+  const cameraName=/^(?:IMG|DSC|DSCF|DSCN|PXL|KakaoTalk|Screenshot)[ _-]?\d[\w -]*$/i.test(alt);
+  const opaqueName=/^(?:[a-f\d]{8}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{12}|[a-f\d]{24,})$/i.test(alt);
+  if(alt && !placeholder && !cameraName && !opaqueName && !/^(?:https?:|data:|blob:)/i.test(alt) && !/\.(?:jpe?g|png|gif|webp|heic|avif)(?:[?#].*)?$/i.test(alt))return alt;
+  const context=String(record.legacySource?.title||record.body||'').replace(/\s+/g,' ').trim().slice(0,80);
+  return `${context || (categoryNames[record.category]||'기록')} · 첨부 사진 ${index+1}`;
+}
+function detailBackLink() {
+  try {
+    const saved=JSON.parse(sessionStorage.getItem('cwk:album:return')||'null');
+    if(saved && saved.recordHash===route && Date.now()-saved.at>=0 && Date.now()-saved.at<86400000){
+      const url=new URL(saved.url,location.origin);
+      if(url.origin===location.origin && ['/album/','/album/index.html'].includes(url.pathname))return link('← 앨범으로',url.pathname+url.search+url.hash);
+    }
+  } catch {}
+  return link('← 피드로',feedReturnRoute);
+}
+function recordLoadError(error) {
+  return error?.status===404 || /record not found/i.test(error?.message||'')
+    ? '이 기록을 찾을 수 없어. 주소가 바뀌었거나 더 이상 공개되지 않는 기록일 수 있어.'
+    : '기록을 불러오지 못했어. 잠시 후 다시 시도해 줘.';
+}
+function croppedImage(attachment, {lazy=true, alt='기록 사진'} = {}) {
+  const img = e('img',{src:safeURL(attachment.url),alt,loading:lazy?'lazy':'eager',decoding:'async'});
   const styles = imageCropStyle(attachment.crop || {});
   if (!styles) return img;
   const frame = e('div',{class:'rv-cropped'},img);
@@ -134,7 +158,7 @@ function legacyView(record, open = false, preview = false) {
     enhanceEmbeddedMedia(root, {videoMetadataOrigin: typeof __RECORDS_PREVIEW__!=='undefined' && __RECORDS_PREVIEW__===true ? location.origin : undefined});
     decorateChatGptMarkdown(root);
     root.querySelectorAll('video,audio').forEach(media=>{media.preload='none';media.controls=true;});
-    root.querySelectorAll('img').forEach(img=>{img.loading='lazy';});
+    root.querySelectorAll('img').forEach((img,index)=>{img.loading='lazy';img.alt=photoDescription(record,index,img.getAttribute('alt'));});
   };
   const details=e('section',{class:'rv-legacy'});
   if(preview){
@@ -165,7 +189,15 @@ function legacyView(record, open = false, preview = false) {
         excerpt.append(e('div',{class:'rv-legacy-media'},previewMedia));
       }
       prepare(excerpt);
-      const more=button('더 보기',()=>{prepare(body);excerpt.replaceWith(body);more.remove();},{class:'rv-link rv-legacy-more','aria-label':'더 보기'});
+      let expanded=false, prepared=false;
+      const more=button('더 보기',()=>{
+        expanded=!expanded;
+        if(expanded){if(!prepared){prepare(body);prepared=true;}excerpt.replaceWith(body);}
+        else {body.querySelectorAll('video,audio').forEach(media=>media.pause());body.replaceWith(excerpt);}
+        more.textContent=expanded?'접기':'더 보기';
+        more.setAttribute('aria-expanded',String(expanded));
+        if(!expanded)scrollContentIntoView(details);
+      },{class:'rv-link rv-legacy-more','aria-expanded':'false'});
       details.append(excerpt,more);
       return details;
     }
@@ -177,7 +209,9 @@ function entry(record, targetAttachment = '', isDetail = false) {
   const article = e('article',{class:`rv-entry${isDetail?' is-detail':''}`,'data-record-id':record.id},isDetail?recordMeta(record,'rv-meta rv-detail-meta'):person(record));
   const title=String(record.legacySource?.title||'').trim();
   if(record.legacySource?.sourceUrl)article.append(e('p',{class:'rv-meta'},external('출처',record.legacySource.sourceUrl)));
-  if(title&&!/^\d{4}-\d{2}-\d{2} 나으 하루(?:\s|$)/.test(title)&&!record.body?.trim().startsWith(title))article.append(e(isDetail?'h1':'h2',{class:'rv-record-title'},isDetail?title:link(title,idHash(record.id))));
+  const visibleTitle=title&&!/^\d{4}-\d{2}-\d{2} 나으 하루(?:\s|$)/.test(title)&&!record.body?.trim().startsWith(title);
+  if(visibleTitle)article.append(e(isDetail?'h1':'h2',{class:'rv-record-title'},isDetail?title:link(title,idHash(record.id))));
+  if(!isDetail&&!visibleTitle)article.append(e('p',{class:'rv-record-open'},link('기록 보기',idHash(record.id),{'aria-label':`${dateLabel(record.firstPublishedAt||record.recordDate)} 기록 보기` })));
   if(isDetail)article.append(person(record,true,false));
   const visuals = (record.attachments||[]).filter(a=>a.kind==='image'||a.kind==='video');
   const globalText = e('p',{class:'rv-body rv-global-comment'},record.body || '');
@@ -191,8 +225,8 @@ function entry(record, targetAttachment = '', isDetail = false) {
     const count = e('span',{class:'rv-count'},`1 / ${visuals.length}`);
     const dots = e('div',{class:'rv-dots','aria-hidden':'true'},visuals.map((_,i)=>e('span',{class:'rv-dot','aria-current':i===0?'true':'false'})));
     visuals.forEach((attachment,i)=>{
-      const media = attachment.kind==='image' ? croppedImage(attachment) : e('video',{src:safeURL(attachment.playbackUrl||attachment.url),poster:safeURL(attachment.posterUrl)||undefined,controls:true,playsInline:true,preload:'none'});
-      const imageLink=attachment.kind==='image' ? link('',safeURL(attachment.url),{class:'rv-image-link',target:'_blank',rel:'noopener noreferrer','aria-label':'사진 원본 열기'}) : null;
+      const media = attachment.kind==='image' ? croppedImage(attachment,{alt:photoDescription(record,i,attachment.alt||attachment.comment)}) : e('video',{src:safeURL(attachment.playbackUrl||attachment.url),poster:safeURL(attachment.posterUrl)||undefined,controls:true,playsInline:true,preload:'none'});
+      const imageLink=attachment.kind==='image' ? link('',safeURL(attachment.url),{class:'rv-image-link',target:'_blank',rel:'noopener noreferrer','aria-label':`${photoDescription(record,i,attachment.alt||attachment.comment)} 원본 열기`}) : null;
       if(imageLink) imageLink.append(media);
       const slide=e('figure',{class:'rv-slide','aria-label':`${i+1} / ${visuals.length}`},imageLink || media);
       slides.append(slide);
@@ -263,7 +297,7 @@ async function loadMore() {
     else if(route==='#album'&&!feed.children.length&&!hasMore)feed.append(e('p',{class:'rv-empty'},'사진이나 영상이 아직 없어.'));
     if(loadButton){loadButton.hidden=!hasMore;loadButton.disabled=false;loadButton.textContent='이전 기록 더 보기';}
     if(!hasMore)observer?.disconnect();
-  }catch(error){if(token===generation){const status=document.querySelector('#rv-feed-status');status.textContent=`기록을 불러오지 못했어. ${error.message}`;status.classList.add('rv-error');if(loadButton){loadButton.disabled=false;loadButton.textContent='다시 불러오기';}}}
+  }catch(error){if(token===generation){const status=document.querySelector('#rv-feed-status');status.textContent=recordLoadError(error);status.classList.add('rv-error');if(loadButton){loadButton.disabled=false;loadButton.textContent='다시 불러오기';}}}
   finally{if(token===generation)loading=false;}
 }
 async function hydrateHomeShell() { await import('./site.js'); }
@@ -288,12 +322,12 @@ async function renderRoute() {
     return;
   }
   if(route.startsWith('#record/')) {
-    shell();const token=generation;const status=e('p',{class:'rv-status'},'기록을 불러오는 중…');app.append(status);
-    try{const [,id,attachment]=route.split('/');const record=await service.getRecord(decodeURIComponent(id));if(token!==generation)return;const detail=entry(record,decodeURIComponent(attachment||''),true);status.replaceWith(e('div',{class:'rv-heading rv-detail-back'},link('← 피드로',feedReturnRoute)),detail);
+    shell();const token=generation;const status=e('p',{class:'rv-status'},'기록을 불러오는 중…');app.append(e('div',{class:'rv-heading rv-detail-back'},detailBackLink()),status);
+    try{const [,id,attachment]=route.split('/');const record=await service.getRecord(decodeURIComponent(id));if(token!==generation)return;const detail=entry(record,decodeURIComponent(attachment||''),true);status.replaceWith(detail);
       service.recordDetailView?.(record).catch(()=>{});
       if(record.legacySource?.url)detail.append(e('p',{class:'rv-meta'},link('고유 주소',safeURL(record.legacySource.url))));
       if(service.isOwner()&&service.recordDetailCount){const count=await service.recordDetailCount(record);if(token===generation&&count!==null)detail.append(e('p',{class:'rv-meta'},`조회 ${count} · OWNER에게만 표시`));}}
-    catch(error){status.textContent=`기록을 열지 못했어. ${error.message}`;}
+    catch(error){status.textContent=recordLoadError(error);}
     scrollToRouteContent();
     const mediaTarget=decodeURIComponent(route.split('/')[2]||'');
     if(mediaTarget.startsWith('media:')){const id=mediaTarget.slice(6);const media=[...app.querySelectorAll('.rv-legacy img,.rv-legacy video')].find(node=>(node.getAttribute('src')||'').includes('/'+id+'/'));if(media)scrollContentIntoView(media);}

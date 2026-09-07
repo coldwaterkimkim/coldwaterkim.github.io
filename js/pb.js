@@ -59,7 +59,7 @@ const API_URL = CONFIGURED_API_URL
 export const pb = new PocketBase(API_URL);
 pb.autoCancellation(false);
 
-const ALBUM_RENDER_FIELDS = 'id,collectionId,collectionName,media,file_collection,uploaded_at,file,video_poster,is_video,source_kind,source_id,source_slug,source_published_at';
+const ALBUM_RENDER_FIELDS = 'id,collectionId,collectionName,media,file_collection,uploaded_at,file,video_poster,is_video,source_kind,source_id,source_slug,source_published_at,source_title';
 
 export async function getAlbumItems(page = 1, perPage = 60, mediaKind = '', tagId = '') {
     const options = {

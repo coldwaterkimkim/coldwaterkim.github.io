@@ -1,3 +1,4 @@
+import './motion-preferences.js';
 import { reviewMediaValue } from './review-media.js';
 import { readContentScroll, scrollContentTo } from './content-scroll.js';
 /**
@@ -2266,6 +2267,11 @@ function initGuestbookPage(scope = document) {
   guestbookForm.dataset.guestbookReady = 'true';
   const submitButton = guestbookForm.querySelector('button[type="submit"]');
   const submitStatus = guestbookForm.querySelector('#guestbookSubmitStatus');
+  const messageInput = guestbookForm.querySelector('#message');
+  const messageCount = guestbookForm.querySelector('#guestbookMessageCount');
+  const updateMessageCount = () => { if (messageCount) messageCount.textContent = String(messageInput?.value.length || 0); };
+  messageInput?.addEventListener('input', updateMessageCount);
+  updateMessageCount();
 
   function setGuestbookSubmitting(isSubmitting) {
     guestbookForm.dataset.guestbookSubmitting = String(isSubmitting);
@@ -2307,6 +2313,7 @@ function initGuestbookPage(scope = document) {
         action: 'submit'
       }).catch(error => console.warn('Anonymous analytics failed:', cmsErrorMessage(error)));
       guestbookForm.reset();
+      updateMessageCount();
       await loadGuestbook(guestbookEntries);
       setGuestbookSubmitStatus('방명록을 남겼습니다.');
     } catch (e) {

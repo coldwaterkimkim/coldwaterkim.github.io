@@ -48,6 +48,17 @@ check(richHtml.includes('<th scope="col">시기</th>'), 'bold first table row be
 check(richHtml.includes('<details class="about-wiki-fold">'), 'folding markup renders as details');
 check(richHtml.includes('about-footnote-overview-1'), 'footnote ids are section-scoped');
 
+const sparseHeadings = renderAboutWikiMarkup('==== 첫 하위 ====\n====== 그 아래 ======\n==== 다음 하위 ====');
+check([...sparseHeadings.matchAll(/<h([3-6]) /g)].map(match => match[1]).join(',') === '3,4,3', 'legacy heading depths start at h3 and retain nesting without skipped levels');
+const ordinaryHeadings = renderAboutWikiMarkup('== 하위 ==\n=== 더 아래 ===\n== 다음 ==');
+check([...ordinaryHeadings.matchAll(/<h([3-6]) /g)].map(match => match[1]).join(',') === '3,4,3', 'ordinary heading syntax keeps its existing hierarchy');
+const emptyMarkers = renderAboutWikiMarkup('앞 문단\n * \n1.\n뒤 문단');
+check(emptyMarkers === '<p>앞 문단</p><p>뒤 문단</p>', 'empty list markers do not appear in public text');
+check(renderAboutWikiMarkup('{{{\n *\n}}}').includes('<code> *'), 'literal list markers remain visible in code blocks');
+const leadingList = renderAboutWikiMarkup(' * 첫 항목\n  * 하위 항목\n * 둘째 항목');
+check(leadingList === '<ul><li>첫 항목<ul><li>하위 항목</li></ul></li><li>둘째 항목</li></ul>', 'a list at the start of a section retains indentation and sibling hierarchy');
+check(renderAboutWikiMarkup('* 항목').includes('<li>항목</li>'), 'unindented first list items render as a list');
+
 const unsafeSource = [
   '<script>alert(1)</script>',
   '<img src=x onerror=alert(1)>',

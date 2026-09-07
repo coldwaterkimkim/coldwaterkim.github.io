@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ALBUM_PAGE_SIZE, albumBrowseUrl, albumMediaAnchorId, albumMediaKey, albumSourceUrl, normalizeAlbumKind, normalizeAlbumPage, pocketBaseMediaReference } from '../js/album-logic.mjs';
+import { ALBUM_PAGE_SIZE, albumBrowseUrl, albumMediaAnchorId, albumMediaKey, albumPageNumbers, albumSourceUrl, albumTileLabel, normalizeAlbumKind, normalizeAlbumPage, pocketBaseMediaReference } from '../js/album-logic.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
@@ -19,6 +19,23 @@ check(albumSourceUrl({ source_kind: 'nasajab', source_id: 'nasa item', media: 'n
 check(albumMediaKey({ file_collection: 'media', media: 'media1' }) === 'media:media1', 'media assignment key');
 check(albumMediaKey({ file_collection: 'nasajab', media: 'nasa1' }) === 'nasajab:nasa1', 'nasajab assignment key');
 check(albumBrowseUrl({ page: 3, kind: 'image', tag: 'tag 1' }) === '/album/index.html?page=3&kind=image&tag=tag+1', 'album filters stay shareable');
+for (let total = 1; total <= 60; total += 1) {
+  for (let current = 1; current <= total; current += 1) {
+    const pages = albumPageNumbers(current, total);
+    const numbers = pages.filter(Number.isInteger);
+    assert.equal(numbers[0], 1);
+    assert.equal(numbers.at(-1), total);
+    assert.ok(numbers.includes(current));
+    assert.ok(numbers.length <= 7);
+    assert.deepEqual(numbers, [...new Set(numbers)].sort((a, b) => a - b));
+    assert.ok(numbers.every(page => page >= 1 && page <= total));
+  }
+}
+check(true, 'pagination stays bounded and includes current/first/last across every position in 1–60 pages');
+check(JSON.stringify(albumPageNumbers(20, 46)) === '[1,null,19,20,21,null,46]', 'long albums skip distant pages');
+check(albumTileLabel({ source_title: '제목 없는 하루', source_published_at: '2026-09-07 12:00:00Z' }, 25) === '2026-09-07 · 제목 없는 하루 · 사진 25, 원문으로 이동', 'tile name uses real source metadata and page offset');
+check(albumTileLabel({ is_video: true }, 2) === '영상 2, 원문으로 이동', 'missing metadata has an honest numbered fallback');
+check(albumTileLabel({ source_title: '  첫 줄\n둘째 줄 ' }, 3).startsWith('첫 줄 둘째 줄 · 사진 3'), 'tile titles normalize whitespace');
 check(pocketBaseMediaReference('https://coldwaterkim.com/api/files/pbc/abc123/photo.JPG')?.kind === 'image', 'image reference');
 check(pocketBaseMediaReference('/api/files/pbc/abc123/movie.mov')?.kind === 'video', 'video reference');
 check(pocketBaseMediaReference('https://youtube.com/watch?v=x') === null, 'external media excluded');
