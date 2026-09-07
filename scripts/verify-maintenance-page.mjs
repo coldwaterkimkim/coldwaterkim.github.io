@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import vm from 'node:vm';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (file) => readFile(path.join(root, file), 'utf8');
@@ -38,31 +39,33 @@ check(caddyfile.includes('handle_errors'), 'Caddy error handler is missing');
 check(caddyfile.includes('rewrite * /maintenance.html'), 'Caddy maintenance rewrite is missing');
 check(JSON.parse(packageJson).scripts['qa:maintenance'], 'maintenance QA script is not registered');
 
-const publicHtmlFiles = [
-  'index.html',
-  'page-view.html',
-  'records/index.html',
-  'posts/index.html',
-  'posts/view.html',
-  'daily/index.html',
-  'daily/view.html',
-  'album/index.html',
-  'programs/index.html',
-  'nasajab/index.html',
-  'guestbook.html',
-  'askme.html',
-  'about.html',
-  'all/index.html',
-  'all/view.html',
-];
-
+const publicHtmlFiles = ['index.html','records/index.html','album/index.html','guestbook.html','about.html','all/view.html'];
 for (const file of publicHtmlFiles) {
   const source = await read(file);
   check(source.includes('/js/maintenance-gate.js'), `${file} does not load the maintenance gate`);
 }
+for (const file of ['page-view.html','posts/index.html','daily/index.html','all/index.html']) {
+  const source = await read(file);
+  check(source.includes('http-equiv="refresh"') && source.includes('url=/#'), `${file} must redirect to the health-gated feed`);
+}
+for (const file of ['posts/view.html','daily/view.html']) {
+  const source = await read(file);
+  check(source.includes('redirect'), `${file} must resolve old record URLs instead of running a removed viewer`);
+}
+const nasajabRedirect = await read('nasajab/index.html');
+check(nasajabRedirect.includes('location.hash') && nasajabRedirect.includes('/#record/') && nasajabRedirect.includes('encodeURIComponent'), 'nasajab old hashes must preserve their individual record identity');
+const nasajabScript = nasajabRedirect.match(/<script type="module">([\s\S]*?)<\/script>/)[1];
+for (const [hash, expected] of [['', '/#nasajab'], ['#abc123', '/#record/nasajab%3Aabc123'], ['#nasa%20item', '/#record/nasajab%3Anasa%20item'], ['#%broken', '/#nasajab']]) {
+  let target; const link = {};
+  vm.runInNewContext(nasajabScript, {decodeURIComponent, encodeURIComponent, location:{hash,replace:value=>target=value}, document:{getElementById:()=>link}});
+  check(target === expected && link.href === expected, `nasajab legacy fragment ${hash} must resolve safely`);
+}
 
-const retiredProgramDetail = await read('programs/view.html');
-check(retiredProgramDetail.includes('http-equiv="refresh"') && retiredProgramDetail.includes('/programs/index.html'), 'retired program detail must immediately redirect instead of running the maintenance gate');
+for (const file of ['programs/index.html','programs/view.html','askme.html']) {
+  const source = await read(file);
+  check(source.includes('서비스는 종료') && source.includes('noindex'), `${file} must remain an independent retired-service notice`);
+  check(!source.includes('maintenance-gate.js'), `${file} retired notice must not depend on a healthy backend`);
+}
 
 if (failures.length > 0) {
   console.error(`Maintenance QA failed (${failures.length}/${assertions})`);

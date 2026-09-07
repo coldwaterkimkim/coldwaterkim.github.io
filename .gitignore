@@ -39,3 +39,6 @@ pb_migrations/*
 !pb_migrations/1787830300_retire_program_records.js
 
 dist-records-preview/
+
+dist-unified-review/
+.playwright-cli/

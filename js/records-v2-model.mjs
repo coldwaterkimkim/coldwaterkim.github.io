@@ -1,3 +1,4 @@
+import { reviewMediaValue } from './review-media.js';
 import { normalizeImageCrop, parseImageCrop } from './image-crop.mjs';
 import { normalizeChatGptSnapshot, chatGptShareInfo } from './chatgpt-embeds.mjs';
 export const stableOccurrenceId = () => globalThis.crypto?.randomUUID?.() || `occ-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -13,7 +14,7 @@ export function mediaKind(mime = '', name = '') {
 }
 export function normalizeRecord(input = {}) {
   return {
-    id: String(input.id || ''), created: String(input.created || ''), updated: String(input.updated || ''), sourceUpdated: String(input.sourceUpdated || ''), category: input.category === 'daily' ? 'daily' : 'posts', body: String(input.body || ''),
+    id: String(input.id || ''), created: String(input.created || ''), updated: String(input.updated || ''), sourceUpdated: String(input.sourceUpdated || ''), category: ['posts','daily','nasajab','projects'].includes(input.category) ? input.category : '', body: String(input.body || ''),
     attachments: Array.from(input.attachments || []).map(a => ({ id: String(a.id || stableOccurrenceId()), mediaId: String(a.mediaId || ''), url: safeMediaUrl(a.url), name: String(a.name || ''), mime: String(a.mime || ''), kind: ['image','video','audio','file'].includes(a.kind) ? a.kind : mediaKind(a.mime, a.name), crop: a.crop?.enabled ? normalizeImageCrop(a.crop) : null, comment: String(a.comment || ''), ...(a.playbackUrl ? {playbackUrl:safeMediaUrl(a.playbackUrl)} : {}), ...(a.posterUrl ? {posterUrl:safeMediaUrl(a.posterUrl)} : {}) })),
     embeds: Array.from(input.embeds || []).filter(e => ['chatgpt','youtube'].includes(e.type)).map(e => ({ id: String(e.id || stableOccurrenceId()), type: e.type, url: safeMediaUrl(e.url), snapshot: e.type === 'chatgpt' ? normalizeChatGptSnapshot(e.snapshot) : null })),
     ...(input.legacyHtml != null ? { legacyHtml: String(input.legacyHtml) } : {}),
@@ -40,7 +41,7 @@ export function sanitizeLegacyHtml(html, Parser = globalThis.DOMParser) {
     if (!allowedTags.has(tag)) { if (['script','style','iframe','object','embed','form','input','button','svg','math','template'].includes(tag)) el.remove(); else el.replaceWith(...el.childNodes); continue; }
     for (const attr of Array.from(el.attributes)) {
       if (!allowedAttrs.has(attr.name)) el.removeAttribute(attr.name);
-      else if (['src','href','poster'].includes(attr.name)) { const url = safeMediaUrl(attr.value); if (url) el.setAttribute(attr.name, url); else el.removeAttribute(attr.name); }
+      else if (['src','href','poster'].includes(attr.name)) { const url = safeMediaUrl(attr.value); if (url) el.setAttribute(attr.name, ['src','poster'].includes(attr.name)?reviewMediaValue(url):url); else el.removeAttribute(attr.name); }
     }
     if (tag === 'a') { el.setAttribute('target','_blank'); el.setAttribute('rel','noopener noreferrer'); }
     if (tag === 'img') { el.setAttribute('loading','lazy'); el.setAttribute('decoding','async'); }

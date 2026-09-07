@@ -14,8 +14,8 @@ check(normalizeAlbumPage('-2') === 1 && normalizeAlbumPage('3') === 3, 'page nor
 check(normalizeAlbumKind('video') === 'video' && normalizeAlbumKind('other') === '', 'kind normalization');
 check(albumMediaAnchorId('source1', 'media1') === 'cwk-media-source1-media1', 'stable first-media anchor');
 check(albumMediaAnchorId('source1', 'media1', 2).endsWith('-2'), 'repeated-media anchor');
-check(albumSourceUrl({ source_kind: 'daily', source_id: 'source1', source_slug: 'a b', media: 'media1' }) === '/daily/view.html?slug=a%20b#cwk-media-source1-media1', 'daily deep link');
-check(albumSourceUrl({ source_kind: 'nasajab', source_id: 'nasa item', media: 'nasa item' }) === '/nasajab/index.html#nasa%20item', 'nasajab deep link');
+check(albumSourceUrl({ source_kind: 'daily', source_id: 'source1', source_slug: 'a b', media: 'media1' }) === '/#record/daily_entries%3Asource1/media:media1', 'daily deep link');
+check(albumSourceUrl({ source_kind: 'nasajab', source_id: 'nasa item', media: 'nasa item' }) === '/#record/nasajab%3Anasa%20item/media:nasa%20item', 'nasajab deep link');
 check(albumMediaKey({ file_collection: 'media', media: 'media1' }) === 'media:media1', 'media assignment key');
 check(albumMediaKey({ file_collection: 'nasajab', media: 'nasa1' }) === 'nasajab:nasa1', 'nasajab assignment key');
 check(albumBrowseUrl({ page: 3, kind: 'image', tag: 'tag 1' }) === '/album/index.html?page=3&kind=image&tag=tag+1', 'album filters stay shareable');
@@ -49,6 +49,7 @@ check(migration.includes('ROW_NUMBER() OVER'), 'duplicate media are collapsed');
 check(migration.includes("'nasajab' AS source_kind") && migration.includes('n.image AS file'), 'public nasajab images join the album');
 check(migration.includes("'media' AS file_collection") && migration.includes("'nasajab' AS file_collection"), 'album keeps each file storage collection');
 check(migration.includes('image.thumbs = ["400x400"]'), 'nasajab album thumbnails are enabled');
-check(read('posts/view.html').includes('scrollToAlbumMediaHash') && read('daily/view.html').includes('scrollToAlbumMediaHash'), 'source pages scroll to media anchors');
+check(read('js/legacy-record-redirect.js').includes('mediaAnchor') && read('js/records-v2-app.js').includes('media:'), 'old and new media links preserve the selected attachment');
+check(albumHtml.includes('cwk-scroll-content') && albumJs.includes('getContentScroller'), 'album pagination and restoration use the shared central scroller');
 
 console.log(`Album QA passed: ${assertions} assertions`);

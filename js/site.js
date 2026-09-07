@@ -1,3 +1,5 @@
+import { reviewMediaValue } from './review-media.js';
+import { readContentScroll, scrollContentTo } from './content-scroll.js';
 /**
  * coldwaterkim.com - Public Site JavaScript
  * PocketBase 연동 버전
@@ -93,6 +95,29 @@ const ABOUT_DOCUMENT_SETTING_KEY = 'about_wiki_document';
 let spaNavigationToken = 0;
 let activeSidebarProfileRows = defaultSidebarProfileRows();
 const entryGateController = initEntryGate();
+function restoreNavigationBgm(audio) {
+  if (!audio || !document.body.classList.contains('cwk-unified')) return;
+  let saved; try { saved=JSON.parse(sessionStorage.getItem('cwk:bgm:navigation')||'null'); } catch {}
+  if(!saved || Date.now()-saved.at>120000) return;
+  const tracks=getBgmPlaylist(audio);
+  const index=tracks.findIndex(track=>reviewMediaValue(track.url)===saved.src);
+  if(index<0) return;
+  playBgmTrackForNavigation(audio,index,saved);
+}
+function playBgmTrackForNavigation(audio,index,saved) {
+  const tracks=getBgmPlaylist(audio);
+  audio._bgmTrackIndex=index; audio.src=reviewMediaValue(tracks[index].url);
+  if(audio._bgmTrackTitle) audio._bgmTrackTitle.textContent=tracks[index].title || defaultBgmTitle(audio);
+  audio.autoplay=!saved.paused;
+  const seek=()=>{if(Number.isFinite(saved.time))audio.currentTime=saved.time; if(saved.paused)audio.pause();};
+  audio.addEventListener('loadedmetadata',seek,{once:true});
+  audio.dataset.navigationPaused=String(saved.paused);
+}
+window.addEventListener('pagehide',()=>{
+  const audio=document.querySelector('[data-bgm]');
+  if(!audio || !document.body.classList.contains('cwk-unified'))return;
+  try { sessionStorage.setItem('cwk:bgm:navigation',JSON.stringify({src:audio.currentSrc||audio.src,time:audio.currentTime,paused:audio.paused,at:Date.now()})); } catch {}
+});
 
 (async function initProfileMedia() {
   const photo = document.querySelector('.profile-photo');
@@ -101,6 +126,7 @@ const entryGateController = initEntryGate();
   const trackTitle = ensureTrackTitle(player, audio);
 
   await loadProfileMediaSettings(photo, audio, trackTitle);
+  restoreNavigationBgm(audio);
 
   if (audio && entryGateController) {
     entryGateController.connectAudio(audio, getBgmPlaylist(audio));
@@ -108,13 +134,14 @@ const entryGateController = initEntryGate();
     initBgmAutoplay(audio);
   }
 
+  if(audio?.dataset.navigationPaused==='true')audio.pause();
   if (!isLoggedIn()) return;
 
   initProfilePhotoUpload(photo);
   initBgmOwnerTools(player, audio, trackTitle);
 })();
 
-if (!document.querySelector('#records-app')) initSpaRouter();
+if (!document.querySelector('#records-app') && !document.body.classList.contains('cwk-unified')) initSpaRouter();
 initWebRing();
 initContentContinuationTracking();
 initSiteVersionRefresh();
@@ -244,7 +271,7 @@ function initEntryGate() {
 
     gate.remove();
     if (!destination) {
-      window.scrollTo(0, 0);
+      scrollContentTo(0);
     }
     initBgmAutoplay(state.audio);
     window.dispatchEvent(new CustomEvent('coldwaterkim:entry-admitted', {
@@ -541,7 +568,7 @@ async function loadProfileMediaSettings(photo, audio, trackTitle) {
     tasks.push((async () => {
       const savedPhotoUrl = await getSetting(PROFILE_PHOTO_SETTING_KEY);
       if (savedPhotoUrl) {
-        photo.src = savedPhotoUrl;
+        photo.src = reviewMediaValue(savedPhotoUrl);
       }
     })());
   }
@@ -867,7 +894,7 @@ function loadBgmTrack(audio, index) {
   const currentUrl = audio.currentSrc || audio.src || '';
 
   if (bgmTrackKey({ url: currentUrl }) !== bgmTrackKey(track)) {
-    audio.src = nextUrl;
+    audio.src = reviewMediaValue(nextUrl);
     audio.load();
   } else if (audio.ended) {
     audio.currentTime = 0;
@@ -985,7 +1012,7 @@ function initProfilePhotoUpload(photo) {
       const media = await uploadMedia(file, 'coldwaterkim profile photo', 'Profile photo');
       const url = getMediaUrl(media, media.file);
       await setSetting(PROFILE_PHOTO_SETTING_KEY, url);
-      photo.src = url;
+      photo.src = reviewMediaValue(url);
       flashSaved(photo);
     } catch (e) {
       alert('프로필 사진 저장 실패: ' + cmsErrorMessage(e));
@@ -1763,7 +1790,7 @@ async function navigateSpa(href, options = {}) {
     initAnonymousAnalytics(url).catch(error => console.warn('Anonymous analytics failed:', cmsErrorMessage(error)));
 
     if (!options.restoreScroll) {
-      window.scrollTo(0, 0);
+      scrollContentTo(0);
     }
   } catch (error) {
     console.warn('SPA navigation failed, falling back to full load:', error);

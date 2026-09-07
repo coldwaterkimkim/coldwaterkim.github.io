@@ -29,19 +29,11 @@ export function albumMediaAnchorId(sourceId, mediaId, occurrence = 1) {
 }
 
 export function albumSourceUrl(item = {}) {
-  if (item.source_kind === 'nasajab') {
-    return `/nasajab/index.html#${encodeURIComponent(item.source_id || '')}`;
-  }
-
-  const anchor = albumMediaAnchorId(item.source_id, item.media);
-  if (item.source_kind === 'daily') {
-    const dayKey = String(item.source_published_at || '').slice(0, 10);
-    const base = /^\d{4}-\d{2}-\d{2}$/.test(dayKey)
-      ? `/daily/${dayKey}/`
-      : `/daily/view.html?slug=${encodeURIComponent(item.source_slug || '')}`;
-    return `${base}#${anchor}`;
-  }
-  return `/posts/${encodeURIComponent(item.source_slug || '')}/#${anchor}`;
+  const collection = item.source_kind === 'nasajab' ? 'nasajab' : item.source_kind === 'daily' ? 'daily_entries' : 'posts';
+  if (!item.source_id) return '/';
+  const record = encodeURIComponent(`${collection}:${item.source_id}`);
+  const media = item.media ? `/media:${encodeURIComponent(item.media)}` : '';
+  return `/#record/${record}${media}`;
 }
 
 export function normalizeAlbumKind(value = '') {

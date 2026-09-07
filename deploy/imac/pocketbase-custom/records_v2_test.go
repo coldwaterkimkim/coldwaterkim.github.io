@@ -7,6 +7,8 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -194,7 +196,12 @@ func TestRecordsV2LifecycleAndReferences(t *testing.T) {
 	}
 	incompatible := d
 	incompatible.Category = "posts"
-	request("PUT", recordPath, token, incompatible, http.StatusBadRequest)
+	oldSource := *d.LegacySource
+	rr = request("PUT", recordPath, token, incompatible, http.StatusOK)
+	json.Unmarshal(rr.Body.Bytes(), &d)
+	if *d.LegacySource != oldSource || d.Category != "posts" || d.FirstPublishedAt != first {
+		t.Fatal("reclassification changed identity")
+	}
 	refs, _ = app.CountRecords("records_v2_media")
 	if refs != 1 {
 		t.Fatal("failed write lost references")
@@ -203,7 +210,7 @@ func TestRecordsV2LifecycleAndReferences(t *testing.T) {
 	d.Attachments = nil
 	rr = request("PUT", recordPath, token, d, http.StatusOK)
 	json.Unmarshal(rr.Body.Bytes(), &d)
-	if d.FirstPublishedAt != first || d.Revision != 3 {
+	if d.FirstPublishedAt != first || d.Revision != 4 {
 		t.Fatal("first publication was changed")
 	}
 	refs, _ = app.CountRecords("records_v2_media")
@@ -366,4 +373,182 @@ func TestRecordsV2CompatibilityRendering(t *testing.T) {
 	if strings.Contains(output, "<script>") || strings.Contains(output, `alt="" onerror=`) {
 		t.Fatal("structured text escaped its HTML boundary")
 	}
+}
+
+func TestRecordsV2NasajabAndUnclassifiedDraft(t *testing.T) {
+	app, err := tests.NewTestApp()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Cleanup()
+	for _, name := range []string{"posts", "daily_entries", "nasajab"} {
+		c := core.NewBaseCollection(name)
+		c.Fields.Add(&core.TextField{Name: "title"}, &core.TextField{Name: "slug"}, &core.TextField{Name: "day_key"}, &core.TextField{Name: "content", Max: 4000000}, &core.TextField{Name: "status"}, &core.DateField{Name: "first_published_at"}, &core.DateField{Name: "published_at"}, &core.AutodateField{Name: "created", OnCreate: true}, &core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true})
+		if name == "nasajab" {
+			c.Fields.Add(&core.TextField{Name: "memo"}, &core.TextField{Name: "image"}, &core.TextField{Name: "source_url"}, &core.DateField{Name: "display_at"}, &core.BoolField{Name: "is_public"})
+		}
+		if err = app.Save(c); err != nil {
+			t.Fatal(err)
+		}
+	}
+	media := core.NewBaseCollection("media")
+	media.Fields.Add(&core.TextField{Name: "file"}, &core.TextField{Name: "video_poster"}, &core.TextField{Name: "video_status"}, &core.TextField{Name: "alt_text"}, &core.AutodateField{Name: "created", OnCreate: true})
+	if err = app.Save(media); err != nil {
+		t.Fatal(err)
+	}
+	fixture, err := os.ReadFile("../../../pb_migrations/1787490000_include_nasajab_in_album.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	query := strings.SplitN(string(fixture), "return `", 2)[1]
+	query = strings.SplitN(query, "`\n}", 2)[0]
+	query = strings.ReplaceAll(query, "${includeNasajab ? `", "")
+	query = strings.ReplaceAll(query, "` : ''}", "")
+	album := core.NewViewCollection("album_items")
+	album.ViewQuery = query
+	if err = app.Save(album); err != nil {
+		t.Fatal(err)
+	}
+	if err = ensureRecordsV2(app); err != nil {
+		t.Fatal(err)
+	}
+	if err = ensureRecordsV2(app); err != nil {
+		t.Fatal("album upgrade not idempotent", err)
+	}
+	c, _ := app.FindCollectionByNameOrId("nasajab")
+	native := core.NewRecord(c)
+	native.Set("memo", "옛 사진")
+	native.Set("image", "original.jpg")
+	native.Set("source_url", "https://example.com/source")
+	native.Set("is_public", true)
+	native.Set("display_at", "2025-02-03 00:00:00.000Z")
+	native.Set("first_published_at", "2025-02-03 00:00:00.000Z")
+	if err = app.Save(native); err != nil {
+		t.Fatal(err)
+	}
+	users, _ := app.FindCollectionByNameOrId("users")
+	owner, token := createFileToolAuthRecord(t, app, users, "aaaaaaaaaaaaaaa", "unified@example.com")
+	router, _ := apis.NewRouter(app)
+	service := recordsV2Service{app: app, ownerUserID: owner.Id}
+	service.registerRoutes(&core.ServeEvent{App: app, Router: router})
+	mux, _ := router.BuildMux()
+	request := func(method, path string, d any, want int, auth bool) *httptest.ResponseRecorder {
+		t.Helper()
+		data, _ := json.Marshal(d)
+		req := httptest.NewRequest(method, path, bytes.NewReader(data))
+		req.Header.Set("Content-Type", "application/json")
+		if auth {
+			req.Header.Set("Authorization", token)
+		}
+		rr := httptest.NewRecorder()
+		mux.ServeHTTP(rr, req)
+		if rr.Code != want {
+			t.Fatalf("%s %s %d want%d: %s", method, path, rr.Code, want, rr.Body.String())
+		}
+		return rr
+	}
+	path := "/api/cwk/records-v2"
+	rr := request("GET", path+"/nasajab:"+native.Id, nil, 200, false)
+	var d recordsV2Document
+	json.Unmarshal(rr.Body.Bytes(), &d)
+	if len(d.Attachments) != 1 || d.Body != "옛 사진" || d.LegacySource.SourceURL != "https://example.com/source" {
+		t.Fatal("native data lost")
+	}
+	albumRows, err := app.FindRecordsByFilter("album_items", "", "", 0, 0)
+	if err != nil || len(albumRows) != 1 {
+		t.Fatalf("original album row absent: %v %v", albumRows, err)
+	}
+	added := core.NewRecord(media)
+	added.Set("file", "new.jpg")
+	if err = app.Save(added); err != nil {
+		t.Fatal(err)
+	}
+	first := d.FirstPublishedAt
+	d.Category = "projects"
+	d.Body = "프로젝트 설명"
+	d.Attachments = []recordsV2Attachment{{ID: "new-photo", MediaID: added.Id, URL: siteOrigin + "/api/files/media/" + added.Id + "/new.jpg", Kind: "image"}}
+	rr = request("PUT", path+"/nasajab:"+native.Id, d, 201, true)
+	json.Unmarshal(rr.Body.Bytes(), &d)
+	if d.Category != "projects" || d.LegacySource.Collection != "nasajab" || d.FirstPublishedAt != first {
+		t.Fatal("category bound to source")
+	}
+	albumRows, err = app.FindRecordsByFilter("album_items", "", "", 0, 0)
+	if err != nil || len(albumRows) != 1 || albumRows[0].Id != added.Id {
+		t.Fatalf("album omitted original/addition mismatch: %+v want %s %v", albumRows[0].PublicExport(), added.Id, err)
+	}
+	if err = app.Delete(added); err == nil {
+		t.Fatal("nasajab referenced media deletion allowed")
+	}
+	rows, _, err := service.unifiedList("published", "", 100, 0)
+	if err != nil || len(rows) != 1 || rows[0].ID != d.ID {
+		t.Fatalf("duplicate/missing: %+v %v", rows, err)
+	}
+	request("GET", path+"/nasajab:"+native.Id, nil, 200, false)
+	original, _ := app.FindRecordById("nasajab", native.Id)
+	if original.GetString("image") != "original.jpg" || original.GetString("source_url") != "https://example.com/source" {
+		t.Fatal("native media altered")
+	}
+	request("DELETE", path+"/"+d.ID+"?revision="+strconv.Itoa(d.Revision+1), nil, 409, true)
+	request("DELETE", path+"/"+d.ID+"?revision="+strconv.Itoa(d.Revision), nil, 204, true)
+	request("GET", path+"/nasajab:"+native.Id, nil, 404, true)
+	original, err = app.FindRecordById("nasajab", native.Id)
+	if err != nil || original.GetString("image") != "original.jpg" || original.GetBool("is_public") {
+		t.Fatal("deletion failed to preserve file/hide source")
+	}
+	rows, _, err = service.unifiedList("draft", "", 100, 0)
+	if err != nil || len(rows) != 0 {
+		t.Fatal("deleted source resurrected as draft")
+	}
+	draft := recordsV2Document{Status: "draft", RecordDate: "2026-09-07", Body: "미분류"}
+	rr = request("POST", path, draft, 201, true)
+	json.Unmarshal(rr.Body.Bytes(), &draft)
+	request("GET", path+"/"+draft.ID, nil, 404, false)
+	draft.Status = "published"
+	request("PUT", path+"/"+draft.ID, draft, 400, true)
+	draft.Category = "nasajab"
+	rr = request("PUT", path+"/"+draft.ID, draft, 200, true)
+	json.Unmarshal(rr.Body.Bytes(), &draft)
+	if draft.LegacySource.Collection != "posts" {
+		t.Fatal("blank draft projection identity changed")
+	}
+	// Untouched records can be deleted directly, without an intermediate save.
+	for _, kind := range []string{"posts", "daily_entries", "nasajab"} {
+		collection, _ := app.FindCollectionByNameOrId(kind)
+		untouched := core.NewRecord(collection)
+		untouched.Set("status", "published")
+		untouched.Set("title", "삭제할 원본")
+		untouched.Set("slug", "delete-original")
+		untouched.Set("day_key", "2026-09-07")
+		untouched.Set("first_published_at", "2026-09-07 00:00:00.000Z")
+		if kind == "nasajab" {
+			untouched.Set("memo", "삭제할 사진")
+			untouched.Set("image", "preserved.jpg")
+			untouched.Set("is_public", true)
+		}
+		if err = app.Save(untouched); err != nil {
+			t.Fatal(err)
+		}
+		deletePath := path + "/" + kind + ":" + untouched.Id + "?revision=0&sourceUpdated="
+		request("DELETE", deletePath+"stale", nil, 409, true)
+		request("DELETE", deletePath+url.QueryEscape(untouched.GetString("updated")), nil, 401, false)
+		request("DELETE", deletePath+url.QueryEscape(untouched.GetString("updated")), nil, 204, true)
+		request("GET", path+"/"+kind+":"+untouched.Id, nil, 404, true)
+		remaining, lookupErr := app.FindRecordById(kind, untouched.Id)
+		if kind == "nasajab" {
+			if lookupErr != nil || remaining.GetString("image") != "preserved.jpg" || remaining.GetBool("is_public") {
+				t.Fatal("synthetic delete lost native file")
+			}
+			request("DELETE", deletePath+url.QueryEscape(untouched.GetString("updated")), nil, 409, true)
+			drafts, _, listErr := service.unifiedList("draft", "nasajab", 100, 0)
+			if listErr != nil || len(drafts) != 0 {
+				t.Fatal("synthetic tombstone resurfaced")
+			}
+		} else if !errors.Is(lookupErr, sql.ErrNoRows) {
+			t.Fatal("synthetic source not deleted")
+		}
+	}
+	if _, err = app.FindRecordById("media", added.Id); err != nil {
+		t.Fatal("synthetic deletion affected media")
+	}
+
 }

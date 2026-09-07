@@ -1,3 +1,4 @@
+import { reviewMediaValue } from './review-media.js';
 import { normalizeImageCrop, fitImageCropToAspect, cropAspectFromRect, cropPixelWidthFromRect } from './image-crop.mjs';
 import './records-v2-crop.css';
 export function openPhotoEditor(attachment, {body = ''} = {}) {
@@ -38,6 +39,6 @@ export function openPhotoEditor(attachment, {body = ''} = {}) {
     save.disabled=true;imageControls.forEach(button=>{button.disabled=true;});
     image.onload=()=>{ready=true;save.disabled=false;imageControls.forEach(button=>{button.disabled=false;});stage.style.aspectRatio=String(image.naturalWidth/image.naturalHeight);draw();};
     image.onerror=()=>{error.textContent='원본 사진을 불러오지 못했어. 취소하고 다시 시도해줘.';};
-    image.src=attachment.url;draw();dialog.showModal();
+    image.src=reviewMediaValue(attachment.url);draw();dialog.showModal();
   });
 }

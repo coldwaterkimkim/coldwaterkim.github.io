@@ -44,7 +44,7 @@ for (const file of files) {
 for (const [entry, expected] of [
   ['index.html', 'id="records-app"'],
   ['records/index.html', 'id="records-app"'],
-  ['page-view.html', 'id="recent-all-table"'],
+  ['page-view.html', 'url=/#home'],
 ]) {
   const file = path.join(dist, entry);
   if (!fs.existsSync(file) || !fs.readFileSync(file, 'utf8').includes(expected)) {

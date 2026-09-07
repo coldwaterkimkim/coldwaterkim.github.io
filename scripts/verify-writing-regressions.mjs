@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import vm from 'node:vm';
 import { preferredTransferFiles, preferredTransferImageFiles, uniqueSupportedFiles, uniqueTransferFiles } from '../js/editor-file-transfer.mjs';
 import { createEditorUploadCoordinator, editorFileFingerprint } from '../js/editor-upload-coordinator.mjs';
 import {
@@ -534,54 +535,22 @@ const sortedPosts = pbModule.sortPostsForDisplay([
 assert.equal(sortedPosts[0].id, 'newer-published', 'July 19 must remain above a newly-created July 17 post');
 assert.equal(pbModule.getKstDateKey(new Date('2026-07-19T16:30:00Z')), '2026-07-20');
 
-const adminPosts = fs.readFileSync(new URL('../admin/posts.html', import.meta.url), 'utf8');
-assert.match(adminPosts, /published_at'\)\.value = getKstDateKey\(\)/, 'new posts must default to the KST date');
-assert.match(adminPosts, /hasEditorFileTransfer\(event\.dataTransfer\)/, 'post editor drag and drop must detect supported media files');
-assert.match(adminPosts, /markdownEditor\.insertFiles\(insertIndex, uploadedFiles\)/, 'post editor must insert uploaded videos as media blocks');
-assert.match(adminPosts, /markdownEditor\.withUploadActivity\(async \(\) =>/, 'post batch uploads must share the editor upload activity guard');
-assert.match(adminPosts, /onFilesPaste: files => insertEditorFiles/, 'BlockNote must own post file paste handling');
-assert.doesNotMatch(adminPosts, /markdownEditor\.root\.addEventListener\('paste'/, 'post file paste must not have a second DOM owner');
-assert.match(adminPosts, /navigateToPublishedEntry\('posts', saved\)/, 'published posts must leave the editor for the public viewer');
-assert.match(adminPosts, /formData\.append\('pending_media_ids', JSON\.stringify\(pendingMediaIds\)\)/, 'post drafts must persist the captured media candidates');
-assert.match(adminPosts, /finalizePublishedEditorMedia\(\{\s*collectionName: 'posts'/, 'post cleanup must run only from the explicit publish path');
-assert.doesNotMatch(adminPosts, /document\.getElementById\('status'\)\.value = 'published'/, 'a failed post publish must not leave the editor status changed to published');
-assert.match(adminPosts, /savePost\(\{[\s\S]*statusOverride: 'published',[\s\S]*contentOverride: publishContent,[\s\S]*pendingMediaIdsOverride: publishPendingMediaIds[\s\S]*\}\)/, 'post publishing must save one immutable content and media snapshot');
-assert.match(adminPosts, /const status = statusOverride \?\? document\.getElementById\('status'\)\.value/, 'ordinary post saves must keep using the persisted editor status');
-
-function assertEditorMutationSafety(source, label) {
-  assert.match(source, /let editorActionInFlight = false;/, `${label} editor mutations must share one in-flight gate`);
-  assert.match(source, /if \(editorActionInFlight\) return null;/, `${label} editor mutations must ignore duplicate in-flight actions`);
-  assert.match(source, /async function runEditorAction\(action\) \{[\s\S]*try \{[\s\S]*return await action\(\);[\s\S]*\} finally \{[\s\S]*setEditorActionBusy\(false\);[\s\S]*\}/, `${label} editor mutations must always reopen retry after success or failure`);
-  assert.match(source, /id="backToListBtn"[^>]*aria-busy="false"/, `${label} editor must expose a controllable back-to-list button`);
-  assert.match(source, /postForm\.querySelectorAll\('button, input, select, textarea'\)[\s\S]*control\.disabled = isBusy;/, `${label} all mutable form controls must be frozen together while a mutation is running`);
-  assert.match(source, /editorContainer\.inert = isBusy;/, `${label} editor input must be frozen while a mutation is running`);
-  assert.match(source, /if \(markdownEditor\.hasUploadActivity\(\)\) \{[\s\S]*return null;/, `${label} mutations must wait for active media uploads`);
-  assert.match(source, /\[backToListButton, saveButton, publishButton, deleteButton\][\s\S]*button\.setAttribute\('aria-busy', String\(isBusy\)\)/, `${label} every editor navigation and mutation button must expose the shared busy state`);
-  assert.match(source, /button\.setAttribute\('aria-busy', String\(isBusy\)\)/, `${label} mutation buttons must expose their busy state`);
-  assert.match(source, /function showList\(\) \{\s*if \(editorActionInFlight\) return false;/, `${label} list navigation must reject an in-flight editor mutation`);
-  assert.match(source, /function showEditor\(post = null, expectedLoadGeneration = null\) \{\s*if \(editorActionInFlight\) return false;/, `${label} editor replacement must reject an in-flight editor mutation`);
-  assert.match(source, /async function editPost\(id\) \{\s*if \(editorActionInFlight\) return false;/, `${label} record loading must reject an in-flight editor mutation`);
-  assert.match(source, /let editorLoadGeneration = 0;/, `${label} record loads must share a navigation generation`);
-  assert.match(source, /function showList\(\)[\s\S]*?editorLoadGeneration \+= 1;/, `${label} list navigation must invalidate pending record loads`);
-  assert.match(source, /function showEditor\(post = null, expectedLoadGeneration = null\)[\s\S]*?expectedLoadGeneration !== editorLoadGeneration[\s\S]*?expectedLoadGeneration === null\) editorLoadGeneration \+= 1;/, `${label} editor replacement must invalidate or verify pending record loads`);
-  assert.match(source, /async function editPost\(id\)[\s\S]*?const loadGeneration = \+\+editorLoadGeneration;[\s\S]*?await pb\.collection\([\s\S]*?if \(loadGeneration !== editorLoadGeneration\) return false;[\s\S]*?showEditor\(post, loadGeneration\)/, `${label} stale record responses must not replace the current editor`);
-  assert.match(source, /catch \(e\) \{\s*if \(loadGeneration !== editorLoadGeneration\) return false;/, `${label} stale record failures must not replace current feedback`);
-  assert.match(source, /await runEditorAction\(\(\) => savePost\(\)\);/, `${label} ordinary save must use the shared mutation gate`);
-  assert.match(source, /async function saveAndPublish\(\) \{\s*return runEditorAction\(async \(\) => \{/, `${label} publishing and its cleanup must stay inside the shared mutation gate`);
-  assert.match(source, /const publishContent = markdownEditor\.root\.innerHTML;\s*const publishPendingMediaIds = pendingMediaTracker\.values\(\);/, `${label} publish must capture content and media together before the request`);
-  assert.match(source, /content: publishContent,\s*pendingMediaIds: publishPendingMediaIds/, `${label} cleanup must use the exact snapshot sent to the server`);
-  assert.match(source, /const deleted = await runEditorAction\(\(\) =>\s*confirmDelete\(editingPostId, \{ reloadList: false \}\)\s*\);\s*if \(deleted\) showList\(\);/, `${label} successful deletion must navigate only after the mutation gate has reopened`);
-  assert.doesNotMatch(source, /runEditorAction\(async \(\) => \{\s*const deleted[\s\S]*?if \(deleted\) showList\(\);/, `${label} deletion must not attempt an internally blocked view transition`);
-  assert.match(source, /if \(!confirm\([\s\S]*?\)\) return false;/, `${label} cancelled deletion must explicitly report failure to delete`);
-  assert.match(source, /showAlert\('삭제 실패:[\s\S]*?return false;/, `${label} failed deletion must explicitly keep the editor open`);
+// The old independent writers are now redirects; exercise their actual mapping code.
+for (const [file, collection, category] of [['admin/posts.html','posts','posts'], ['admin/daily.html','daily_entries','daily']]) {
+  const source = fs.readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
+  assert.doesNotMatch(source, /markdownEditor|postForm/, 'old writers must not retain an independent mutation surface');
+  const script = source.match(/<script type="module">([\s\S]*?)<\/script>/)[1];
+  for (const [search, expected] of [['', `/#${category}`], ['?new=1', '/#compose'], ['?id=abc123', '/#edit/' + encodeURIComponent(`${collection}:abc123`)], ['?id=a%2Fb%3Fc', '/#edit/' + encodeURIComponent(`${collection}:a/b?c`)]]) {
+    let destination; const link = {};
+    vm.runInNewContext(script, { URLSearchParams, encodeURIComponent, location: {search, replace: value => destination=value}, document: {getElementById: () => link} });
+    assert.equal(destination, expected, `${file} must preserve its old URL intent`);
+    assert.equal(link.href, expected, 'fallback link matches redirect');
+  }
 }
-
-assertEditorMutationSafety(adminPosts, 'post');
-
+const writerEntry = fs.readFileSync(new URL('../admin/write.html', import.meta.url), 'utf8');
+assert.match(writerEntry, /url=\/#compose/, 'common writer entry must open the category-neutral composer');
 const postsIndex = fs.readFileSync(new URL('../posts/index.html', import.meta.url), 'utf8');
-assert.match(postsIndex, /postListEntryUrl\(post, \{ ownerMode \}\)/, 'post list titles must resolve draft and published destinations by status');
-assert.match(postsIndex, /href="\/admin\/posts\.html\?id=\$\{post\.id\}"/, 'post list owner edit links must be root-relative');
-assert.doesNotMatch(postsIndex, /href="\.\.\/admin\//, 'post list must not resolve owner links relative to its public route');
+assert.match(postsIndex, /url=\/#posts/, 'legacy post listing enters the feed filter');
 
 const globalWriter = fs.readFileSync(new URL('../js/global-writer.js', import.meta.url), 'utf8');
 assert.match(globalWriter, /onFilesPaste: files => insertEditorFiles/, 'BlockNote must own global writer file paste handling');
@@ -594,19 +563,6 @@ assert.match(globalWriter, /if \(markdownEditor\.hasUploadActivity\(\)\) \{[\s\S
 assert.match(globalWriter, /const content = editorHtml\(\);\s*const pendingMediaIds = pendingMediaTracker\.values\(\);/, 'global writer must capture content and media as one save snapshot');
 assert.match(globalWriter, /recordId: saved\.id,\s*content,\s*pendingMediaIds/, 'global writer cleanup must reuse the captured publish snapshot');
 assert.match(globalWriter, /editorContainer\.inert = saving;/, 'global writer editor input must be frozen during save');
-
-const adminDaily = fs.readFileSync(new URL('../admin/daily.html', import.meta.url), 'utf8');
-assert.match(adminDaily, /onFilesPaste: files => insertEditorFiles/, 'BlockNote must own daily file paste handling');
-assert.match(adminDaily, /markdownEditor\.withUploadActivity\(async \(\) =>/, 'daily batch uploads must share the editor upload activity guard');
-assert.doesNotMatch(adminDaily, /markdownEditor\.root\.addEventListener\('paste'/, 'daily file paste must not have a second DOM owner');
-assert.match(adminDaily, /navigateToPublishedEntry\('daily', saved\)/, 'published daily entries must leave the editor for the day viewer');
-assert.match(adminDaily, /formData\.append\('pending_media_ids', JSON\.stringify\(pendingMediaIds\)\)/, 'daily drafts must persist the captured media candidates');
-assert.match(adminDaily, /finalizePublishedEditorMedia\(\{\s*collectionName: 'daily_entries'/, 'daily cleanup must run only from the explicit publish path');
-assert.doesNotMatch(adminDaily, /document\.getElementById\('status'\)\.value = 'published'/, 'a failed daily publish must not leave the editor status changed to published');
-assert.match(adminDaily, /savePost\(\{[\s\S]*statusOverride: 'published',[\s\S]*contentOverride: publishContent,[\s\S]*pendingMediaIdsOverride: publishPendingMediaIds[\s\S]*\}\)/, 'daily publishing must save one immutable content and media snapshot');
-assert.match(adminDaily, /const status = statusOverride \?\? document\.getElementById\('status'\)\.value/, 'ordinary daily saves must keep using the persisted editor status');
-assert.match(adminDaily, /const slug = currentSlug \|\| \(id[\s\S]*newDailyEntrySlug\(dayKey\)\);/, 'a new daily save must reuse the slug already created by the editor');
-assertEditorMutationSafety(adminDaily, 'daily');
 
 const adminLogin = fs.readFileSync(new URL('../admin/login.html', import.meta.url), 'utf8');
 assert.match(adminLogin, /import \{ normalizeAdminNext \} from '\.\.\/js\/admin-navigation\.mjs'/, 'admin login redirects must use the shared same-origin path normalizer');
@@ -678,24 +634,17 @@ assert.match(markdownEditorSource, /adapter\.withUploadActivity\(\(\) => adapter
 const aboutWikiSource = fs.readFileSync(new URL('../js/about-wiki.js', import.meta.url), 'utf8');
 assert.match(aboutWikiSource, /observeEditorMediaDuringUploads\(container, \{\s*mediaRoot: state\.root/, 'About uploads must also quiesce media rendered beside the source editor');
 
-const postsView = fs.readFileSync(new URL('../posts/view.html', import.meta.url), 'utf8');
-assert.match(postsView, /prepareEmbeddedMediaForDisplay\(post\.content/, 'post HTML must be optimized before it enters the live DOM');
-assert.match(postsView, /href="\/admin\/posts\.html\?id=\$\{targetPost\.id\}"/, 'pretty post owner edit links must target the root admin route');
-assert.doesNotMatch(postsView, /href="\.\.\/admin\//, 'pretty post pages must not create nested /posts/admin routes');
-for (const route of ['/index.html', '/posts/index.html', '/daily/index.html', '/album/index.html', '/programs/index.html', '/nasajab/index.html', '/guestbook.html', '/askme.html', '/about.html']) {
-  assert.match(postsView, new RegExp(`href="${route.replaceAll('.', '\\.')}"`), `pretty post navigation must use root route ${route}`);
+const legacyRedirect = fs.readFileSync(new URL('../js/legacy-record-redirect.js', import.meta.url), 'utf8');
+for (const file of ['posts/view.html','daily/view.html']) {
+  const source = fs.readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
+  assert.match(source, /legacy-record-redirect\.js/, 'old shared article URL must resolve into the common record screen');
+  assert.match(source, /CWK:SSR_CONTENT_START/, 'server-rendered article remains available without JavaScript');
+  assert.doesNotMatch(source, /href="\.\.\/admin\//, 'old routes must not create nested admin URLs');
 }
-assert.doesNotMatch(postsView, /<div class="top-nav">[\s\S]*?href="(?:\.\.\/|index\.html)/, 'pretty post public navigation must not depend on a missing SPA base');
-
-const dailyIndexSource = fs.readFileSync(new URL('../daily/index.html', import.meta.url), 'utf8');
-const dailyViewSource = fs.readFileSync(new URL('../daily/view.html', import.meta.url), 'utf8');
-assert.doesNotMatch(dailyIndexSource, /href="\.\.\/admin\//, 'daily list owner links must not depend on the current public path');
-assert.doesNotMatch(dailyViewSource, /href="\.\.\/admin\//, 'pretty daily pages must not create nested /daily/admin routes');
-assert.match(dailyViewSource, /href="\/admin\/daily\.html\?id=\$\{encodeURIComponent\(entry\.id\)\}"/, 'pretty daily owner edit links must target the root admin route');
-for (const route of ['/index.html', '/posts/index.html', '/daily/index.html', '/album/index.html', '/programs/index.html', '/nasajab/index.html', '/guestbook.html', '/askme.html', '/about.html']) {
-  assert.match(dailyViewSource, new RegExp(`href="${route.replaceAll('.', '\\.')}"`), `pretty daily navigation must use root route ${route}`);
-}
-assert.doesNotMatch(dailyViewSource, /<div class="top-nav">[\s\S]*?href="(?:\.\.\/|index\.html)/, 'pretty daily public navigation must not depend on a missing SPA base');
+assert.match(legacyRedirect, /status = 'published'/, 'public legacy lookup must not reveal drafts');
+assert.match(legacyRedirect, /pb\.filter/, 'legacy lookup binds untrusted URL selectors');
+assert.match(legacyRedirect, /mediaAnchor/, 'old photo anchors survive the redirect');
+assert.match(legacyRedirect, /encodeURIComponent\(`\$\{collection\}:\$\{id\}`\)/, 'redirect encodes the original identity');
 
 const schema = JSON.parse(fs.readFileSync(new URL('../pb_schema.json', import.meta.url), 'utf8'));
 const mediaCollection = schema.collections.find(collection => collection.name === 'media');

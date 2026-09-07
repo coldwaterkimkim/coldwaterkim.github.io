@@ -130,18 +130,9 @@ func main() {
 	}
 	seoPages := newSEORenderer(app, siteDir)
 	bgmTrimmer := newBGMTrimService(app)
-	askQuestions := newAskQuestionService(app)
 	albumTags := newAlbumTagService(app)
-	fileTools, err := newFileToolService(app, toolJobDir, ownerUserID)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer fileTools.close()
-	chatGptShares := newChatGptShareService(fileTools.ownerUserID)
-	app.OnTerminate().BindFunc(func(e *core.TerminateEvent) error {
-		fileTools.close()
-		return e.Next()
-	})
+	resolvedOwnerID := resolveFileToolOwnerUserID(toolJobDir, ownerUserID)
+	chatGptShares := newChatGptShareService(resolvedOwnerID)
 	app.Cron().MustAdd("cleanup-tus-uploads", "17 4 * * *", func() {
 		if err := resumableUploads.cleanupStaleUploads(time.Now()); err != nil {
 			app.Logger().Warn("Failed to clean stale tus uploads", "error", err.Error())
@@ -175,17 +166,19 @@ func main() {
 	})
 
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
+		registerRetiredSectionRoutes(e)
+		if err := ensureRetiredSections(app); err != nil {
+			return err
+		}
 		if os.Getenv("CWK_RECORDS_V2") != "0" {
 			if err := ensureRecordsV2(app); err != nil {
 				return err
 			}
-			(&recordsV2Service{app: app, ownerUserID: fileTools.ownerUserID}).registerRoutes(e)
+			(&recordsV2Service{app: app, ownerUserID: resolvedOwnerID}).registerRoutes(e)
 		}
 		resumableUploads.registerRoutes(e)
 		bgmTrimmer.registerRoutes(e)
-		askQuestions.registerRoutes(e)
 		albumTags.registerRoutes(e)
-		fileTools.registerRoutes(e)
 		chatGptShares.registerRoutes(e)
 		seoPages.registerRoutes(e)
 		return e.Next()

@@ -8,6 +8,14 @@
   --cwk-record-mobile-gutter: 16px;
   --cwk-record-header-height: 56px;
   --cwk-home-sidebar-width: 180px;
+  --cwk-unified-nav-width: 144px;
+  --cwk-unified-tablet-nav-width: 74px;
+  --cwk-unified-tablet-sidebar-width: 160px;
+  --cwk-unified-bottom-nav-height: 60px;
+  --cwk-unified-shell-gap: 8px;
+  --cwk-profile-compact-photo-size: 56px;
+  --cwk-profile-dialog-width: 440px;
+  --cwk-compose-min-height: 140px;
   --cwk-guestbook-sidebar-width: 300px;
   --cwk-cell-padding: 8px;
   --cwk-list-cell-padding: 6px;

@@ -27,8 +27,8 @@ function check(condition, message) {
 }
 
 check(homeSource.includes('id="records-app"'), 'Home must expose the default record feed');
-check(pageViewSource.includes('id="recent-all-table"'), 'Preserved page view must expose the unified recent table');
-check(homeSource.includes('data-bgm') && pageViewSource.includes('data-bgm'), 'Both layouts must retain the BGM player');
+check(pageViewSource.includes('url=/#home') && !pageViewSource.includes('data-bgm'), 'Retired page view must redirect without a second BGM player');
+for (const file of ['index.html', 'records/index.html', 'album/index.html', 'guestbook.html', 'about.html']) check(fs.readFileSync(path.join(root,file),'utf8').includes('data-bgm'), `${file} must retain the shared BGM player`);
 check(feedSource.includes("await import('./site.js')"), 'Production feed must reuse the full BGM and shared shell module');
 check(!homeSource.includes('id="recent-daily-table"'), 'the retired per-category recent tables must stay removed');
 check(siteSource.includes('randomBgmCandidateIndex(scheduledBgmTrackIndexes('), 'initial BGM selection must use the active time slot');

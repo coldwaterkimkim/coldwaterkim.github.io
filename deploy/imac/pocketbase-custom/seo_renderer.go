@@ -168,12 +168,7 @@ func (renderer *seoRenderer) serveSitemap(event *core.RequestEvent) error {
 
 	entries := []sitemapEntry{
 		{Location: siteOrigin + "/"},
-		{Location: siteOrigin + "/all/index.html"},
-		{Location: siteOrigin + "/posts/index.html"},
-		{Location: siteOrigin + "/daily/index.html"},
 		{Location: siteOrigin + "/album/index.html"},
-		{Location: siteOrigin + "/programs/index.html"},
-		{Location: siteOrigin + "/nasajab/index.html"},
 		{Location: siteOrigin + "/about.html"},
 	}
 	for _, record := range posts {

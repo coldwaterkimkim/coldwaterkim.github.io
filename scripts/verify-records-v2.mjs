@@ -48,3 +48,12 @@ if (process.env.CWK_DOM_PARSER_MODULE) {
   assert.ok(document.querySelector('.cwk-chatgpt-message .cwk-chatgpt-message-text'),'enhanceChatGPT selectors must survive sanitation');
   console.log('Records V2 real DOM import, crop, ChatGPT fidelity and sanitizer checks passed.');
 }
+
+// Review rendering must not contaminate preserved source URLs in serialized records.
+globalThis.__RECORDS_PREVIEW__ = true;
+globalThis.location = {hostname:'127.0.0.1',origin:'http://127.0.0.1:5197'};
+const originalUrl='https://coldwaterkim.com/api/files/media/original/source.jpg';
+assert.equal(normalizeRecord({category:'nasajab',attachments:[{url:originalUrl,kind:'image'}]}).attachments[0].url,originalUrl);
+assert.equal(normalizeRecord({category:'projects'}).category,'projects');
+assert.equal(normalizeRecord({category:''}).category,'');
+delete globalThis.__RECORDS_PREVIEW__;delete globalThis.location;

@@ -64,6 +64,8 @@ const service = {
   saveRecord: () => { saves++; return saveJob.promise; },
 };
 const dependencies = {
+  reviewMediaValue:value=>value,
+  getContentScroller:()=>null,readContentScroll:()=>0,scrollContentTo:()=>{},scrollContentIntoView:()=>{},
   document, window, Node: window.Node, location, history, service,
   requestAnimationFrame: callback => callback(), matchMedia: () => ({ matches: false }),
   confirm: () => true, prompt: () => null,
@@ -96,7 +98,11 @@ await app.openEditor();
 assert.equal(publish().disabled, true, 'Empty composer must disable publishing');
 assert.equal(root.querySelector('.rv-attachment-help').hidden, true);
 write('  \n '); assert.equal(publish().disabled, true, 'Whitespace cannot enable publishing');
-write('# Plain **text**'); assert.equal(publish().disabled, false);
+write('# Plain **text**'); assert.equal(publish().disabled, true, 'Classification required only at publish');
+assert.equal(root.querySelector('[data-save="draft"]').disabled,false,'Unclassified draft allowed');
+const category=root.querySelector('select[aria-label="기록 분류"]');
+assert.equal(category.value,'','New writing starts without automatic category');
+category.querySelectorAll('option').forEach(option=>{option.selected=option.value==='projects';});event(category,'change');assert.equal(publish().disabled,false);
 const date = root.querySelector('input[type="date"]');
 const validDate = date.value;
 date.value = ''; event(date, 'change'); assert.equal(publish().disabled, true, 'Missing record date disables save');

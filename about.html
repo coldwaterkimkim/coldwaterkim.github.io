@@ -13,31 +13,32 @@
   <script type="module" src="/js/maintenance-gate.js"></script>
   <script type="module" src="js/site.js"></script>
   <script type="module" src="js/about-wiki.js"></script>
+  <link rel="stylesheet" href="/css/records-v2.css">
 </head>
 
-<body class="page-subpage" background="" bgcolor="#e0e0e0">
-  <center>
+<body class="cwk-unified page-subpage" background="" bgcolor="#e0e0e0">
+  <center class="rv-site-shell">
     <marquee behavior="alternate" scrollamount="4" width="1140">
       <span class="marquee-text">★ WELCOME TO <a href="/admin/login.html?next=/about.html" class="secret-login"><b>coldwaterkim</b></a>'s HOME PAGE ★</span>
     </marquee>
 
-    <table width="1140" border="1" cellspacing="0" cellpadding="8" bgcolor="#ffffff">
+    <table class="rv-shell-table" width="1140" border="1" cellspacing="0" cellpadding="8" bgcolor="#ffffff">
       <colgroup>
         <col class="shell-sidebar-col">
         <col class="shell-content-col">
       </colgroup>
       <tr>
-        <td colspan="2" align="center" class="banner">
+        <td colspan="3" align="center" class="banner">
           <span class="blink">UNDER CONSTRUCTION</span> ·
           <span id="visitorBannerStatus" class="banner-status">OPEN 24H, UPDATED SOMETIMES</span>
         </td>
       </tr>
       <tr>
-        <td width="180" valign="top" class="sidebar">
+        <td width="180" valign="top" class="sidebar rv-shell-sidebar">
           <div class="profile-card">
             <div class="profile-person">
               <center>
-                <img class="profile-photo" src="assets/profile-crop.jpg" alt="coldwaterkim profile"><br>
+                <img class="profile-photo" src="/assets/profile-crop.jpg" alt="coldwaterkim profile"><br>
                 <b>김찬수</b><br>
                 <span class="note">밀레니엄 베이비</span>
               </center>
@@ -57,7 +58,6 @@
               </center>
             </div>
           </div>
-
           <div class="profile-details">
             <table class="profile-detail-table" border="1" cellspacing="0" cellpadding="3" width="100%">
               <tr>
@@ -111,23 +111,9 @@
               </tr>
             </table>
           </div>
-
         </td>
-        <td valign="top" class="content">
-          <center>
-            <div class="top-nav">
-              [ <a href="index.html">Home</a> |
-              <a href="all/index.html">모아보기</a> |
-              <a href="posts/index.html">글방</a> |
-              <a href="daily/index.html">나으 하루</a> |
-              <a href="album/index.html">앨범</a> |
-              <a href="programs/index.html">프로그램실</a> |
-              <a href="nasajab/index.html">나사잡</a> |
-              <a href="guestbook.html">Guestbook</a> |
-              <a href="askme.html">Ask Me</a> |
-              <a href="about.html">About / Contact</a> ]
-            </div>
-          </center>
+        <td valign="top" class="content rv-shell-content cwk-scroll-content" tabindex="0" aria-label="콘텐츠">
+
 
           <div id="aboutWikiApp" class="about-wiki" data-about-wiki-root>
             <div class="about-wiki-owner-slot" data-about-owner-tools></div>
@@ -216,7 +202,7 @@
 
             <div class="about-section" id="about-section-things">
               <h2>2. 만든 것</h2>
-              <p>글방, 나으 하루, 파일 작업실이 된 프로그램실, 나사잡을 운영하며 기록과 쓸모 있는 도구를 계속 쌓고 있다.</p>
+              <p>글방, 나으 하루, 나사잡, 프로젝트의 기록을 하나의 피드에 쌓고 있다.</p>
             </div>
 
             <div class="about-section" id="about-section-contact">
@@ -230,9 +216,11 @@
             <small>© coldwaterkim — powered by me</small>
           </center>
         </td>
+        <td class="cwk-navigation-cell"><nav class="cwk-main-nav" aria-label="주 메뉴"><a href="/#home"><span class="cwk-nav-icon" aria-hidden="true">⌂</span><span>피드</span></a><a href="/album/"><span class="cwk-nav-icon" aria-hidden="true">▦</span><span>앨범</span></a><a href="/guestbook.html"><span class="cwk-nav-icon" aria-hidden="true">✎</span><span>방명록</span></a><a href="/about.html" aria-current="page"><span class="cwk-nav-icon" aria-hidden="true">☺</span><span>About Me</span></a></nav></td>
       </tr>
     </table>
   </center>
+  <script type="module" src="/js/unified-shell.js"></script>
 </body>
 
 </html>

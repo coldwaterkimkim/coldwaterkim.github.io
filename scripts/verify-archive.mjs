@@ -43,7 +43,7 @@ const sources = {
 };
 
 const entries = buildArchiveEntries(sources);
-assert.equal(entries.length, 4, 'four public content categories must be merged while file tools and unanswered guestbook entries stay out');
+assert.equal(entries.length, 4, 'legacy archive compatibility keeps its four-source history while file tools and unanswered guestbook stay out');
 assert.equal(entries[0].category, 'post');
 assert.equal(entries[0].date, sources.posts[0].first_published_at, 'posts must use their first public upload time, not their chosen article date');
 assert.equal(entries.filter(entry => entry.category === 'daily').length, 1, 'same-day daily records must share one canonical row');
@@ -81,21 +81,16 @@ for (const loader of ['getPublishedNasajabSummaries', 'getAnsweredGuestbookSumma
 
 assert.match(home, /id="records-app"/, 'default home must expose the mixed record feed');
 assert.doesNotMatch(home, /id="recent-all-table"|id="recent-album-table"/, 'default home replaces summary previews with the feed');
-assert.match(pageView, /id="recent-all-table"/);
-assert.match(pageView, /최근 글 8개/, 'page view heading must describe the eight rendered recent rows');
+assert.match(pageView, /url=\/#home/);
+assert.doesNotMatch(pageView, /recent-all-table|recent-album-table/, 'retired page view cannot expose old previews');
 for (const removed of ['recent-daily-table', 'recent-posts-table', 'recent-programs-table', 'recent-nasajab-table']) {
   assert.ok(!home.includes(removed), `${removed} must be removed from home`);
 }
-assert.match(pageView, /id="recent-album-table"/, 'page view retains album preview separate from written-content aggregation');
+assert.match(home, /href="\/album\/"/, 'album remains a separate main destination');
 assert.match(site, /buildArchiveEntries[\s\S]*\.slice\(0, 8\)/, 'home must use the shared archive ordering and take its first eight rows');
 assert.doesNotMatch(site, /getPublishedProgramSummaryTimeline/, 'home and entry update checks must not query retired program posts');
 assert.doesNotMatch(archiveScript, /getPublishedProgramSummaryTimeline/, 'archive must not query retired program posts');
-assert.match(archivePage, /id="archive-list"/);
-assert.match(
-  archivePage,
-  /<th class="archive-category-cell">분류<\/th><th align="left">제목<\/th><th class="date-cell">Date<\/th>/,
-  'archive columns must be category, title, then date',
-);
+assert.match(archivePage, /url=\/#home/, 'legacy archive listing is replaced by the unified feed');
 assert.match(
   archiveScript,
   /row\.append\(categoryCell, titleCell, dateCell\)/,

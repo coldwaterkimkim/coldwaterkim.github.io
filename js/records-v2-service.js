@@ -5,6 +5,7 @@ const endpoint = '/api/cwk/records-v2';
 export const isOwner = () => isLoggedIn();
 export async function initSession() {
   const enabled = typeof __RECORDS_PREVIEW__ !== 'undefined' && __RECORDS_PREVIEW__ === true;
+  if(enabled){const params=new URLSearchParams(location.search);if(params.has('guest'))sessionStorage.setItem('cwk:review:guest','1');if(params.has('owner'))sessionStorage.removeItem('cwk:review:guest');if(sessionStorage.getItem('cwk:review:guest')==='1'){pb.authStore.clear();return false;}}
   if (enabled && ['localhost','127.0.0.1','::1'].includes(location.hostname)) {
     const response = await fetch('/__preview/session', {cache:'no-store'});
     if (!response.ok) throw new Error('로컬 미리보기 로그인을 불러오지 못했어.');
@@ -25,12 +26,13 @@ export async function saveRecord(record) {
   const body = normalizeRecord(record);
   return normalizeRecord(await pb.send(body.id ? `${endpoint}/${encodeURIComponent(body.id)}` : endpoint,{method:body.id?'PUT':'POST',body,requestKey:null}));
 }
-export const deleteRecord = record => pb.send(`${endpoint}/${encodeURIComponent(record.id)}`,{method:'DELETE',query:{revision:record.revision},requestKey:null});
+export const deleteRecord = record => pb.send(`${endpoint}/${encodeURIComponent(record.id)}`,{method:'DELETE',query:{revision:record.revision,...(record.id.includes(':')?{sourceUpdated:record.sourceUpdated}:{})},requestKey:null});
 export const resolveChatGptShare = url => getChatGptSharePreview(url);
 export function recordViewTarget(record) {
   const source=record.legacySource;
   if (!source?.id) return null;
-  return record.category==='daily'
+  if(source.collection==='nasajab') return {kind:'nasajab',id:source.id,published:record.status==='published'};
+  return source.collection==='daily_entries'
     ? {kind:'daily',id:record.recordDate,slug:record.recordDate,published:record.status==='published'}
     : {kind:'post',id:source.id,slug:source.slug||'',published:record.status==='published'};
 }

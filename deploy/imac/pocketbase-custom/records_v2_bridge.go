@@ -16,6 +16,9 @@ import (
 // Structured documents are authoritative; legacy rows remain transactional projections.
 func recordsV2FromLegacy(r *core.Record) recordsV2Document {
 	c := r.Collection().Name
+	if c == "nasajab" {
+		return recordsV2FromNasajab(r)
+	}
 	category := "posts"
 	day := r.GetString("day_key")
 	if c == "daily_entries" {
@@ -35,7 +38,7 @@ func recordsV2FromLegacy(r *core.Record) recordsV2Document {
 }
 func (s *recordsV2Service) document(id string) (recordsV2Document, error) {
 	if c, key, ok := strings.Cut(id, ":"); ok {
-		if (c != "posts" && c != "daily_entries") || !isPocketBaseRecordID(key) {
+		if (c != "posts" && c != "daily_entries" && c != "nasajab") || !isPocketBaseRecordID(key) {
 			return recordsV2Document{}, sql.ErrNoRows
 		}
 		mapped, err := s.app.FindFirstRecordByFilter("records_v2", "source_key={:key}", dbx.Params{"key": id})
@@ -63,11 +66,23 @@ func (s *recordsV2Service) unifiedList(status, category string, size, offset int
 		order = "updated"
 	}
 	clauses := []string{fmt.Sprintf("SELECT 'records_v2' AS kind,id,%s AS stamp FROM records_v2 WHERE status={:status} AND ({:category}='' OR category={:category})", order)}
-	for _, c := range []string{"posts", "daily_entries"} {
+	for _, c := range []string{"posts", "daily_entries", "nasajab"} {
 		if _, err := s.app.FindCollectionByNameOrId(c); errors.Is(err, sql.ErrNoRows) {
 			continue
 		} else if err != nil {
 			return nil, false, err
+		}
+		if c == "nasajab" {
+			condition := "is_public = true"
+			if status == "draft" {
+				condition = "is_public = false"
+			}
+			stamp := "COALESCE(NULLIF(first_published_at,''),NULLIF(display_at,''),created)"
+			if status == "draft" {
+				stamp = "updated"
+			}
+			clauses = append(clauses, fmt.Sprintf("SELECT 'nasajab' AS kind,id,%s AS stamp FROM nasajab legacy WHERE %s AND ({:category}='' OR {:category}='nasajab') AND NOT EXISTS (SELECT 1 FROM records_v2 v WHERE v.source_key='nasajab:' || legacy.id)", stamp, condition))
+			continue
 		}
 		kind := "posts"
 		if c == "daily_entries" {
@@ -121,13 +136,7 @@ func (s *recordsV2Service) projectLegacy(tx core.App, r *core.Record, d *records
 		if d.SourceUpdated != "" && source.GetString("updated") != d.SourceUpdated {
 			return errRecordsV2Revision
 		}
-		expected := "posts"
-		if d.LegacySource.Collection == "daily_entries" {
-			expected = "daily"
-		}
-		if expected != d.Category {
-			return fmt.Errorf("Linked record category cannot change")
-		}
+
 	} else {
 		name := "posts"
 		if d.Category == "daily" {
@@ -149,9 +158,24 @@ func (s *recordsV2Service) projectLegacy(tx core.App, r *core.Record, d *records
 		source.Set("title", title)
 		source.Set("slug", "record-"+r.Id)
 	}
-	source.Set("content", recordsV2CompatibilityHTML(*d))
+	if source.Collection().Name == "nasajab" {
+		// The original file row and album key remain stable. Rich content is
+		// projected into an additive field consumed by album discovery.
+		source.Set("content", recordsV2CompatibilityHTML(*d))
+		memo := []rune(d.Body)
+		if len(memo) > 600 {
+			memo = memo[:600]
+		}
+		source.Set("memo", string(memo))
+		source.Set("is_public", d.Status == "published")
+		if !strings.HasPrefix(source.GetString("display_at"), d.RecordDate) {
+			source.Set("display_at", d.RecordDate+" 00:00:00.000Z")
+		}
+	} else {
+		source.Set("content", recordsV2CompatibilityHTML(*d))
+	}
 	source.Set("status", d.Status)
-	if d.Category == "daily" {
+	if source.Collection().Name == "daily_entries" {
 		source.Set("day_key", d.RecordDate)
 	}
 	if source.GetString("first_published_at") == "" && d.FirstPublishedAt != "" {
@@ -222,4 +246,70 @@ func recordsV2AssignID(r *core.Record) {
 	if r.Id == "" {
 		r.Id = security.RandomStringWithAlphabet(15, "abcdefghijklmnopqrstuvwxyz0123456789")
 	}
+}
+
+func recordsV2FromNasajab(r *core.Record) recordsV2Document {
+	stamp := firstNonEmpty(r.GetString("first_published_at"), r.GetString("display_at"), r.GetString("created"))
+	day := firstNonEmpty(r.GetString("display_at"), stamp)
+	if len(day) >= 10 {
+		day = day[:10]
+	}
+	status := "draft"
+	first := r.GetString("first_published_at")
+	if r.GetBool("is_public") {
+		status = "published"
+		first = stamp
+	}
+	attachments := []recordsV2Attachment{}
+	if name := r.GetString("image"); name != "" {
+		attachments = append(attachments, recordsV2Attachment{ID: "nasajab-" + r.Id, URL: siteOrigin + "/api/files/" + r.Collection().Id + "/" + r.Id + "/" + url.PathEscape(name), Name: name, Kind: "image"})
+	}
+	return recordsV2Document{SchemaVersion: 1, ID: "nasajab:" + r.Id, Category: "nasajab", Body: r.GetString("memo"), Status: status, RecordDate: day, FirstPublishedAt: first, Created: r.GetString("created"), Updated: r.GetString("updated"), SourceUpdated: r.GetString("updated"), Attachments: attachments, Embeds: []recordsV2Embed{}, LegacySource: &recordsV2Source{Collection: "nasajab", ID: r.Id, URL: siteOrigin + "/nasajab/#" + r.Id, SourceURL: r.GetString("source_url")}}
+}
+
+// Extend the existing recursive media index rather than replacing its ranking,
+// tag IDs, original-image branch, or source identity rules.
+func ensureRecordsV2Album(tx core.App) error {
+	album, err := tx.FindCollectionByNameOrId("album_items")
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	query := album.ViewQuery
+	marker := "), refs("
+	if strings.Contains(query, "n.content AS content") && strings.Contains(query, "cwk_native_image") {
+		return nil
+	}
+	pos := strings.Index(query, marker)
+	if pos < 0 {
+		return fmt.Errorf("album_items sources CTE is unsupported; refusing to overwrite view")
+	}
+	if !strings.Contains(query, "n.content AS content") {
+		query = query[:pos] + `
+    UNION ALL
+    SELECT 'nasajab' AS source_kind, n.id AS source_id, '' AS source_slug,
+      n.memo AS source_title,
+      COALESCE(NULLIF(n.first_published_at,''),NULLIF(n.display_at,''),n.created) AS source_published_at,
+      n.updated AS source_updated_at, n.content AS content
+    FROM nasajab n WHERE n.is_public = TRUE
+    ` + query[pos:]
+	}
+	// Hide an original image from the album when its occurrence is removed,
+	// without deleting the nasajab file or changing its tag identity.
+	needle := "n.is_public = TRUE AND n.image != ''"
+	if !strings.Contains(query, "cwk_native_image") {
+		if !strings.Contains(query, needle) {
+			return fmt.Errorf("album native image predicate unsupported")
+		}
+		query = strings.Replace(query, needle, needle+` AND (
+          NOT EXISTS (SELECT 1 FROM records_v2 cwk_native_image WHERE source_key='nasajab:' || n.id)
+          OR EXISTS (SELECT 1 FROM records_v2 cwk_native_image, json_each(cwk_native_image.document, '$.attachments') a
+            WHERE cwk_native_image.source_key='nasajab:' || n.id AND cwk_native_image.status='published'
+            AND json_extract(a.value,'$.url') LIKE '%/api/files/%/' || n.id || '/' || n.image)
+        )`, 1)
+	}
+	album.ViewQuery = query
+	return tx.Save(album)
 }

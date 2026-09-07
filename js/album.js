@@ -1,3 +1,4 @@
+import { getContentScroller, readContentScroll, scrollContentTo } from './content-scroll.js';
 import {
   applyAlbumTag,
   createAlbumTag,
@@ -415,7 +416,7 @@ function updateInfiniteScroll(state) {
     } catch (error) {
       showOwnerError(state, error);
     }
-  }, { rootMargin: '600px 0px' });
+  }, { root: getContentScroller(), rootMargin: '600px 0px' });
   state.observer.observe(sentinel);
 }
 
@@ -442,7 +443,7 @@ function homePreviewCount() {
 
 function rememberAlbumScroll() {
   try {
-    sessionStorage.setItem(ALBUM_SCROLL_KEY, JSON.stringify({ url: location.pathname + location.search, y: scrollY }));
+    sessionStorage.setItem(ALBUM_SCROLL_KEY, JSON.stringify({ url: location.pathname + location.search, y: readContentScroll() }));
   } catch {}
 }
 
@@ -451,7 +452,7 @@ function restoreAlbumScroll() {
     const saved = JSON.parse(sessionStorage.getItem(ALBUM_SCROLL_KEY) || 'null');
     if (saved?.url !== location.pathname + location.search) return;
     sessionStorage.removeItem(ALBUM_SCROLL_KEY);
-    requestAnimationFrame(() => scrollTo({ top: Number(saved.y) || 0 }));
+    requestAnimationFrame(() => scrollContentTo(Number(saved.y) || 0));
   } catch {}
 }
 

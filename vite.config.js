@@ -88,7 +88,6 @@ function staticSeoPlugin() {
         '/posts/index.html': ['글방 — coldwaterkim', '김찬수가 쓴 생각과 긴 기록을 모은 글방입니다.'],
         '/daily/index.html': ['나으 하루 — coldwaterkim', '김찬수의 날짜별 일상과 사진, 영상을 모은 생활 기록입니다.'],
         '/album/index.html': ['앨범 — coldwaterkim', '공개된 글과 하루 기록, 나사잡에 담긴 사진과 영상을 한곳에서 둘러보는 앨범입니다.'],
-        '/programs/index.html': ['프로그램실 — coldwaterkim', '문서, PDF, 이미지, 엑셀과 CSV를 외부 사이트 없이 바로 처리하는 개인 파일 작업실입니다.'],
         '/nasajab/index.html': ['나사잡 — coldwaterkim', '김찬수를 사로잡은 사진, 캡처, 장면을 한 장씩 모은 기록입니다.'],
         '/about.html': ['About / Contact — coldwaterkim', 'coldwaterkim 개인 홈페이지의 주인장 김찬수 소개와 연락처입니다.'],
     }

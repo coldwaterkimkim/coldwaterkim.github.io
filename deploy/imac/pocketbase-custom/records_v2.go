@@ -43,6 +43,7 @@ type recordsV2Embed struct {
 	Snapshot *chatGptShareSnapshot `json:"snapshot,omitempty"`
 }
 type recordsV2Source struct {
+	SourceURL  string `json:"sourceUrl,omitempty"`
 	Title      string `json:"title,omitempty"`
 	Slug       string `json:"slug,omitempty"`
 	Collection string `json:"collection"`
@@ -69,10 +70,18 @@ type recordsV2Document struct {
 
 func ensureRecordsV2(app core.App) error {
 	return app.RunInTransaction(func(tx core.App) error {
+		if legacy, err := tx.FindCollectionByNameOrId("nasajab"); err == nil && legacy.Fields.GetByName("content") == nil {
+			legacy.Fields.Add(&core.TextField{Name: "content", Max: 4000000})
+			if err = tx.Save(legacy); err != nil {
+				return err
+			}
+		} else if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
 		records, err := tx.FindCollectionByNameOrId("records_v2")
 		if errors.Is(err, sql.ErrNoRows) {
 			records = core.NewBaseCollection("records_v2")
-			records.Fields.Add(&core.JSONField{Name: "document", MaxSize: 4 * 1024 * 1024}, &core.TextField{Name: "category", Required: true}, &core.TextField{Name: "status", Required: true}, &core.DateField{Name: "first_published_at"}, &core.NumberField{Name: "revision", OnlyInt: true}, &core.TextField{Name: "source_key"}, &core.AutodateField{Name: "created", OnCreate: true}, &core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true})
+			records.Fields.Add(&core.JSONField{Name: "document", MaxSize: 4 * 1024 * 1024}, &core.TextField{Name: "category"}, &core.TextField{Name: "status", Required: true}, &core.DateField{Name: "first_published_at"}, &core.NumberField{Name: "revision", OnlyInt: true}, &core.TextField{Name: "source_key"}, &core.AutodateField{Name: "created", OnCreate: true}, &core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true})
 			records.AddIndex("idx_records_v2_feed", false, "status, category, first_published_at", "")
 			records.AddIndex("idx_records_v2_source", true, "source_key", "source_key != ''")
 			if err = tx.Save(records); err != nil {
@@ -81,19 +90,31 @@ func ensureRecordsV2(app core.App) error {
 		} else if err != nil {
 			return err
 		}
+		if field, ok := records.Fields.GetByName("category").(*core.TextField); ok && field.Required {
+			field.Required = false
+			if err = tx.Save(records); err != nil {
+				return err
+			}
+		}
 		if _, err = tx.FindCollectionByNameOrId("records_v2_media"); errors.Is(err, sql.ErrNoRows) {
 			refs := core.NewBaseCollection("records_v2_media")
 			// Media IDs are explicit references, validated against media on every write.
 			// A text key avoids cascade deletion from legacy media cleanup.
 			refs.Fields.Add(&core.RelationField{Name: "record", CollectionId: records.Id, MaxSelect: 1, Required: true, CascadeDelete: true}, &core.TextField{Name: "media", Required: true}, &core.TextField{Name: "occurrence", Required: true})
 			refs.AddIndex("idx_records_v2_occurrence", true, "record, occurrence", "")
-			return tx.Save(refs)
+			if err = tx.Save(refs); err != nil {
+				return err
+			}
+			return ensureRecordsV2Album(tx)
 		}
-		return err
+		if err != nil {
+			return err
+		}
+		return ensureRecordsV2Album(tx)
 	})
 }
 func (s *recordsV2Service) registerRoutes(e *core.ServeEvent) {
-	for _, collection := range []string{"posts", "daily_entries"} {
+	for _, collection := range []string{"posts", "daily_entries", "nasajab"} {
 		protect := func(event *core.RecordRequestEvent) error {
 			mapped, err := s.app.FindFirstRecordByFilter("records_v2", "source_key={:key}", dbx.Params{"key": event.Record.Collection().Name + ":" + event.Record.Id})
 			if err == nil {
@@ -144,7 +165,7 @@ func (s *recordsV2Service) get(e *core.RequestEvent) error {
 	if err != nil {
 		return err
 	}
-	if d.Status != "published" && !s.owner(e) {
+	if d.Status == "deleted" || (d.Status != "published" && !s.owner(e)) {
 		return e.NotFoundError("Record not found", nil)
 	}
 	return e.JSON(http.StatusOK, d)
@@ -159,7 +180,7 @@ func (s *recordsV2Service) list(e *core.RequestEvent) error {
 		status = "draft"
 	}
 	category := q.Get("category")
-	if category != "" && category != "posts" && category != "daily" {
+	if category != "" && !recordsV2Category(category) {
 		return e.BadRequestError("Invalid category", nil)
 	}
 	page, _ := strconv.Atoi(q.Get("page"))
@@ -190,12 +211,15 @@ func recordsV2SafeURL(raw string) bool {
 	u, err := url.Parse(raw)
 	return err == nil && (u.Scheme == "https" || u.Scheme == "http") && u.Hostname() != "" && u.User == nil
 }
+func recordsV2Category(category string) bool {
+	return category == "posts" || category == "daily" || category == "nasajab" || category == "projects"
+}
 func validateRecordsV2(d *recordsV2Document) error {
 	if d.SchemaVersion != 0 && d.SchemaVersion != 1 {
 		return fmt.Errorf("Unsupported schemaVersion")
 	}
 	d.SchemaVersion = 1
-	if d.Category != "posts" && d.Category != "daily" {
+	if !recordsV2Category(d.Category) && !(d.Category == "" && d.Status == "draft") {
 		return fmt.Errorf("Invalid category")
 	}
 	if d.Status != "draft" && d.Status != "published" {
@@ -319,7 +343,7 @@ func validateRecordsV2(d *recordsV2Document) error {
 		if len(d.LegacySource.Title) > 4096 || len(d.LegacySource.Slug) > 2048 {
 			return fmt.Errorf("Legacy source metadata too large")
 		}
-		if d.LegacySource.Collection != "posts" && d.LegacySource.Collection != "daily_entries" {
+		if d.LegacySource.Collection != "posts" && d.LegacySource.Collection != "daily_entries" && d.LegacySource.Collection != "nasajab" {
 			return fmt.Errorf("Invalid legacy collection")
 		}
 		if !isPocketBaseRecordID(d.LegacySource.ID) || !recordsV2SafeURL(d.LegacySource.URL) {
@@ -369,6 +393,9 @@ func (s *recordsV2Service) write(e *core.RequestEvent) error {
 			if err != nil {
 				return err
 			}
+			if r.GetString("status") == "deleted" {
+				return sql.ErrNoRows
+			}
 			if d.Revision != r.GetInt("revision") {
 				return errRecordsV2Revision
 			}
@@ -384,7 +411,7 @@ func (s *recordsV2Service) write(e *core.RequestEvent) error {
 			if synthetic && source.GetString("updated") != d.SourceUpdated {
 				return errRecordsV2Revision
 			}
-			if !synthetic && source.GetString("status") != "published" {
+			if !synthetic && recordsV2FromLegacy(source).Status != "published" {
 				return fmt.Errorf("Only published legacy records can be imported")
 			}
 			authentic := recordsV2FromLegacy(source)
@@ -392,13 +419,11 @@ func (s *recordsV2Service) write(e *core.RequestEvent) error {
 			if synthetic {
 				d.LegacyHTML = authentic.LegacyHTML
 			}
-			first = source.GetString("first_published_at")
-			if first == "" && source.GetString("status") == "published" {
+			first = authentic.FirstPublishedAt
+			if first == "" && authentic.Status == "published" {
 				return fmt.Errorf("Legacy record has no evidenced first publication timestamp")
 			}
-			if (d.LegacySource.Collection == "posts" && d.Category != "posts") || (d.LegacySource.Collection == "daily_entries" && d.Category != "daily") {
-				return fmt.Errorf("Legacy category mismatch")
-			}
+
 		}
 		if first == "" && d.Status == "published" {
 			first = time.Now().UTC().Format("2006-01-02 15:04:05.000Z")
@@ -416,9 +441,7 @@ func (s *recordsV2Service) write(e *core.RequestEvent) error {
 		if !r.IsNew() && r.GetString("source_key") != source {
 			return fmt.Errorf("Legacy source cannot change")
 		}
-		if !r.IsNew() && r.GetString("category") != d.Category {
-			return fmt.Errorf("Linked record category cannot change")
-		}
+
 		if err := s.projectLegacy(tx, r, &d); err != nil {
 			return err
 		}
@@ -531,11 +554,16 @@ func (s *recordsV2Service) delete(e *core.RequestEvent) error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 	revision, err := strconv.Atoi(e.Request.URL.Query().Get("revision"))
-	if err != nil || revision < 1 {
+	id := e.Request.PathValue("id")
+	synthetic := strings.Contains(id, ":")
+	if err != nil || (!synthetic && revision < 1) || (synthetic && revision != 0) {
 		return e.BadRequestError("revision query parameter required", nil)
 	}
 	err = s.app.RunInTransaction(func(tx core.App) error {
-		r, err := tx.FindRecordById("records_v2", e.Request.PathValue("id"))
+		if synthetic {
+			return recordsV2DeleteLegacy(tx, id, e.Request.URL.Query().Get("sourceUpdated"))
+		}
+		r, err := tx.FindRecordById("records_v2", id)
 		if err != nil {
 			return err
 		}
@@ -552,6 +580,18 @@ func (s *recordsV2Service) delete(e *core.RequestEvent) error {
 				return err
 			}
 			if err == nil {
+				if d.LegacySource.Collection == "nasajab" {
+					source.Set("is_public", false)
+					if err = tx.Save(source); err != nil {
+						return err
+					}
+					d.Status = "deleted"
+					d.Revision++
+					r.Set("status", "deleted")
+					r.Set("revision", d.Revision)
+					r.Set("document", d)
+					return tx.Save(r)
+				}
 				if err = tx.Delete(source); err != nil {
 					return err
 				}
@@ -572,3 +612,50 @@ func (s *recordsV2Service) delete(e *core.RequestEvent) error {
 }
 
 var recordsV2LegacyMediaPattern = regexp.MustCompile(`/api/files/([a-zA-Z0-9_]+)/([a-z0-9]{15})/`)
+
+// First edits are not required to delete an untouched legacy record. The source
+// timestamp and mapping check run in the same transaction as the deletion.
+func recordsV2DeleteLegacy(tx core.App, id, sourceUpdated string) error {
+	collection, key, ok := strings.Cut(id, ":")
+	if !ok || (collection != "posts" && collection != "daily_entries" && collection != "nasajab") || !isPocketBaseRecordID(key) {
+		return sql.ErrNoRows
+	}
+	_, err := tx.FindFirstRecordByFilter("records_v2", "source_key={:key}", dbx.Params{"key": id})
+	if err == nil {
+		return errRecordsV2Revision
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	source, err := tx.FindRecordById(collection, key)
+	if err != nil {
+		return err
+	}
+	if sourceUpdated == "" || source.GetString("updated") != sourceUpdated {
+		return errRecordsV2Revision
+	}
+	if collection != "nasajab" {
+		return tx.Delete(source)
+	}
+	document := recordsV2FromNasajab(source)
+	source.Set("is_public", false)
+	if err = tx.Save(source); err != nil {
+		return err
+	}
+	c, err := tx.FindCollectionByNameOrId("records_v2")
+	if err != nil {
+		return err
+	}
+	tombstone := core.NewRecord(c)
+	recordsV2AssignID(tombstone)
+	document.ID = tombstone.Id
+	document.Status = "deleted"
+	document.Revision = 1
+	tombstone.Set("document", document)
+	tombstone.Set("category", document.Category)
+	tombstone.Set("status", "deleted")
+	tombstone.Set("revision", 1)
+	tombstone.Set("source_key", id)
+	tombstone.Set("first_published_at", document.FirstPublishedAt)
+	return tx.Save(tombstone)
+}
