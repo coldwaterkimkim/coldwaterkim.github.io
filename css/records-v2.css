@@ -263,3 +263,40 @@ body.cwk-unified { margin:0; font-family:var(--cwk-font-main); }
 .cwk-profile-dialog .profile-info { display:block; }
 
 .rv-compose-person .rv-muted { display:block; font-size:12px; }
+
+/* Approved phpBB feed panels: keep media, detail and composer behavior intact. */
+.records-v2 .rv-shell-content #records-app { background:var(--cwk-surface-page); }
+.records-v2 .rv-entry[data-record-id]:not(.is-detail) {
+  --rv-panel-padding:var(--cwk-record-gutter);
+  width:calc(100% - var(--cwk-cell-padding) * 2);
+  max-width:calc(var(--cwk-record-width) + var(--rv-panel-padding) * 2 + 2px);
+  margin:var(--cwk-feed-post-gap) auto;
+  padding:0 var(--rv-panel-padding) 20px;
+  border:1px solid var(--cwk-feed-post-border);
+  background:var(--cwk-feed-post-bg);
+}
+.records-v2 .rv-entry[data-record-id]:not(.is-detail) > .rv-person {
+  display:grid;
+  grid-template-columns:28px max-content max-content minmax(0,1fr) auto;
+  gap:4px 10px;
+  margin:0 calc(-1 * var(--rv-panel-padding)) 16px;
+  padding:10px var(--rv-panel-padding);
+  border-bottom:1px solid var(--cwk-feed-post-border);
+  background:var(--cwk-feed-post-header-bg);
+}
+.records-v2 .rv-entry:not(.is-detail) > .rv-person :is(.rv-person-info,.rv-meta) { display:contents; }
+.records-v2 .rv-entry:not(.is-detail) > .rv-person .rv-avatar { grid-column:1; grid-row:1; }
+.records-v2 .rv-entry:not(.is-detail) > .rv-person .rv-person-name { grid-column:2; grid-row:1; }
+.records-v2 .rv-entry:not(.is-detail) > .rv-person .rv-meta > a { font-size:12px; }
+.records-v2 .rv-entry:not(.is-detail) > .rv-person .rv-meta > a:first-child { grid-column:3; grid-row:1; }
+.records-v2 .rv-entry:not(.is-detail) > .rv-person .rv-meta > a:last-child {
+  grid-column:4; grid-row:1; justify-self:end;
+  color:var(--cwk-meta); text-decoration:none;
+}
+.records-v2 .rv-entry:not(.is-detail) > .rv-person .rv-meta > a:last-child:hover { text-decoration:underline; }
+.records-v2 .rv-entry:not(.is-detail) > .rv-person .rv-edit { grid-column:5; grid-row:1; }
+.records-v2 .rv-entry:not(.is-detail) .rv-slide { background:var(--cwk-feed-post-bg); }
+@media(max-width:900px) {
+  .records-v2 .rv-entry[data-record-id]:not(.is-detail) { --rv-panel-padding:var(--cwk-record-mobile-gutter); }
+  .records-v2 .rv-entry:not(.is-detail) > .rv-person .rv-meta > a:last-child { grid-column:2 / 5; grid-row:2; justify-self:start; }
+}

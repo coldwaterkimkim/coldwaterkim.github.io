@@ -33,6 +33,10 @@
   --cwk-surface-table-head: #f0f0f0;
   --cwk-surface-entry: #fcfcf0;
   --cwk-surface-preview: #fffef6;
+  --cwk-feed-post-bg: #edf2f7;
+  --cwk-feed-post-header-bg: #dce5ee;
+  --cwk-feed-post-border: #8c9cae;
+  --cwk-feed-post-gap: 12px;
   --cwk-code-block-bg: #f5f5f5;
   --cwk-ink: #000000;
   --cwk-muted: #666666;
