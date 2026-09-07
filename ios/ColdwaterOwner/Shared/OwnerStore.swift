@@ -96,12 +96,20 @@ import UIKit
         drafts = try repository.loadAll()
         unreadableDraftIDs = repository.unreadableDraftIDs
         if !unreadableDraftIDs.isEmpty {
-            let identifiers = unreadableDraftIDs.map(\.uuidString).joined(separator: ", ")
-            lastError = "일부 초안을 읽지 못했어. 원본 파일은 그대로 보관했고 나머지 초안은 사용할 수 있어. 복구 대상: " + identifiers
+            lastError = "초안 \(unreadableDraftIDs.count)개를 읽지 못했어. 원본 사진은 보관돼 있고 나머지 초안은 계속 사용할 수 있어."
         }
     }
+    /// Update only the successfully persisted draft. Full disk scans belong to external-state refresh.
+    private func upsert(_ draft: LocalDraft) {
+        var next = drafts
+        if let index = next.firstIndex(where: { $0.id == draft.id }) { next[index] = draft }
+        else { next.append(draft) }
+        next.sort { $0.updatedAt > $1.updatedAt }
+        drafts = next
+        unreadableDraftIDs.removeAll { $0 == draft.id }
+    }
     public func createDraft() -> LocalDraft? {
-        do { guard let repository else { throw OwnerError.message("공유 저장소가 준비되지 않았어.") }; var draft = LocalDraft(); draft.uploadSessionIdentifier = transfer?.identifier; try repository.save(draft); try reload(); return draft }
+        do { guard let repository else { throw OwnerError.message("공유 저장소가 준비되지 않았어.") }; var draft = LocalDraft(); draft.uploadSessionIdentifier = transfer?.identifier; try repository.save(draft); upsert(draft); return draft }
         catch { lastError = error.localizedDescription; return nil }
     }
     public func saveDraft(_ draft: LocalDraft) throws {
@@ -110,12 +118,12 @@ import UIKit
             _ = try transferFor(old)
             if old.hasSubmitted { throw OwnerError.message("전송한 초안은 수정할 수 없어. 게시물에서 다시 편집해 줘.") }
         }
-        var copy = draft; copy.updatedAt = Date(); try repository.save(copy); try reload()
+        var copy = draft; copy.updatedAt = Date(); try repository.save(copy); upsert(copy)
     }
     public func deleteDraft(_ draft: LocalDraft) throws {
         _ = try transferFor(draft)
         guard [.editing, .failed, .published].contains(draft.state) else { throw OwnerError.message("전송 중에는 초안을 지울 수 없어.") }
-        try repository?.delete(draft.id); try reload()
+        try repository?.delete(draft.id); drafts.removeAll { $0.id == draft.id }; unreadableDraftIDs.removeAll { $0 == draft.id }
     }
     public func fileURL(for draftID: UUID, filename: String) -> URL? { repository?.file(draftID, filename) }
     public func siteURL(for recordID: String) -> URL? { environment.flatMap { URL(string: "/#record/\(recordID)", relativeTo: $0.baseURL) } }
@@ -138,7 +146,7 @@ import UIKit
                 for filename in [photo.originalFilename, photo.displayFilename, photo.thumbnailFilename] { try? FileManager.default.removeItem(at: repository.file(id, filename)) }
                 throw OwnerError.message("초안의 상태가 바뀌었어. 새 초안에 사진을 추가해 줘.")
             }
-            draft.photos.append(photo); lastError = nil; draft.updatedAt = Date(); try repository.save(draft); try reload()
+            draft.photos.append(photo); lastError = nil; draft.updatedAt = Date(); try repository.save(draft); upsert(draft)
         } catch { lastError = error.localizedDescription }
     }
     public func publish(_ draftID: UUID) async {
@@ -162,7 +170,7 @@ import UIKit
             guard !d.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !d.photos.isEmpty || hasExistingAttachments else { throw OwnerError.message("사진이나 글을 추가해 줘.") }
             d.hasSubmitted = true
             if d.recordID != nil, d.record == nil { d.state = .verifying } else { d.state = .preparing }
-             d.error = nil; try repository.save(d); try reload(); await schedule(draftID)
+             d.error = nil; try repository.save(d); upsert(d); await schedule(draftID)
         } catch { lastError = error.localizedDescription }
     }
     public func retry(_ draftID: UUID) async { await publish(draftID) }
@@ -174,7 +182,7 @@ import UIKit
         do {
             guard let repository else { throw OwnerError.message("공유 저장소가 준비되지 않았어.") }
             var d = LocalDraft(); d.uploadSessionIdentifier = transfer?.identifier; d.body = record.body; d.category = record.category; d.record = record; d.recordID = record.id
-            try repository.save(d); try reload(); return d
+            try repository.save(d); upsert(d); return d
         } catch { lastError = error.localizedDescription; return nil }
     }
     private func transferFor(_ draft: LocalDraft) throws -> BackgroundTransfer {
@@ -200,7 +208,7 @@ import UIKit
             let names = Set(active.compactMap(\.taskDescription))
             if names.contains(where: { $0.hasPrefix(id.uuidString + "/") }) { return }
             if let photo = d.photos.first(where: { $0.mediaID == nil }) {
-                d.state = .uploading; try repository.save(d); try reload()
+                d.state = .uploading; try repository.save(d); upsert(d)
                 let boundary = "cwk-" + photo.id.uuidString
                 let body = repository.file(id, "upload-\(photo.id).multipart")
                 let display = repository.file(id, photo.displayFilename), original = repository.file(id, photo.originalFilename)
@@ -208,7 +216,7 @@ import UIKit
                 var req = URLRequest(url: environment.baseURL.appendingPathComponent("api/cwk/mobile/media")); req.httpMethod = "POST"; req.setValue(token, forHTTPHeaderField: "Authorization"); req.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
                 transfer.enqueue(request: req, file: body, description: id.uuidString + "/" + photo.id.uuidString)
             } else {
-                d.state = .publishing; try repository.save(d); try reload()
+                d.state = .publishing; try repository.save(d); upsert(d)
                 var fields = d.record?.fields ?? ["schemaVersion": .number(1), "embeds": .array([]), "recordDate": .string(Self.dateString(d.createdAt))]
                 fields["body"] = .string(d.body); fields["category"] = .string(d.category); fields["status"] = .string("published")
                 var attachments: [JSONValue] = []; if case .array(let existing) = fields["attachments"] { attachments = existing }
@@ -239,13 +247,13 @@ import UIKit
             if parts[1] == "publish" {
                 let record = try JSONDecoder().decode(RecordDocument.self, from: result.data)
                 guard !record.id.isEmpty else { throw OwnerError.message("게시 확인 응답이 올바르지 않아.") }
-                d.recordID = record.id; d.state = .verifying; try repository.save(d); try reload(); try await verify(id, recordID: record.id)
+                d.recordID = record.id; d.state = .verifying; try repository.save(d); upsert(d); try await verify(id, recordID: record.id)
             } else {
                 struct Media: Decodable { let id: String; let collectionId: String; let file: String }
                 let media = try JSONDecoder().decode(Media.self, from: result.data)
                 guard let index = d.photos.firstIndex(where: { $0.id.uuidString == parts[1] }), let base = environment?.baseURL else { throw OwnerError.message("전송한 사진의 초안을 찾지 못했어.") }
                 d.photos[index].mediaID = media.id; d.photos[index].mediaURL = base.appendingPathComponent("api/files/\(media.collectionId)/\(media.id)/\(media.file)").absoluteString
-                try repository.save(d); try? FileManager.default.removeItem(at: repository.file(id, "upload-\(parts[1]).multipart")); try reload(); await schedule(id)
+                try repository.save(d); upsert(d); try? FileManager.default.removeItem(at: repository.file(id, "upload-\(parts[1]).multipart")); await schedule(id)
             }
         } catch { fail(id, error.localizedDescription) }
     }
@@ -263,9 +271,9 @@ import UIKit
         if case .array(let existing) = d.record?.fields["attachments"] { expectedIDs = existing.compactMap { if case .object(let fields) = $0 { return fields["mediaId"]?.string }; return nil } }
         expectedIDs += d.photos.compactMap(\.mediaID)
         guard attachmentIDs == expectedIDs else { throw OwnerError.message("게시된 글의 사진을 모두 확인하지 못했어.") }
-        d.state = .published; d.error = nil; d.recordID = record.id; d.updatedAt = Date(); try repository.save(d); try reload(); progress[id] = 1
+        d.state = .published; d.error = nil; d.recordID = record.id; d.updatedAt = Date(); try repository.save(d); upsert(d); progress[id] = 1
     }
-    private func fail(_ id: UUID, _ message: String) { do { if var d = try repository?.read(id) { d.state = .failed; d.error = message; try repository?.save(d); try reload() } } catch { lastError = error.localizedDescription }; lastError = message }
+    private func fail(_ id: UUID, _ message: String) { do { if var d = try repository?.read(id) { d.state = .failed; d.error = message; try repository?.save(d); upsert(d) } } catch { lastError = error.localizedDescription }; lastError = message }
     private func request(_ path: String, method: String = "GET", body: [String: JSONValue]? = nil, authenticated: Bool = true) async throws -> Data {
         guard let environment, let url = URL(string: path, relativeTo: environment.baseURL.appendingPathComponent("/")) else { throw OwnerError.message("서버 주소가 없어.") }
         var req = URLRequest(url: url); req.httpMethod = method; req.timeoutInterval = 30
