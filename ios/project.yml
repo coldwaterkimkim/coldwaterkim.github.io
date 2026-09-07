@@ -1,0 +1,117 @@
+name: ColdwaterOwner
+options:
+  minimumXcodeGenVersion: 2.46.0
+  deploymentTarget:
+    iOS: '17.0'
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: '5.0'
+    IPHONEOS_DEPLOYMENT_TARGET: '17.0'
+    TARGETED_DEVICE_FAMILY: '1'
+    CODE_SIGN_STYLE: Automatic
+    MARKETING_VERSION: '1.0.0'
+    CURRENT_PROJECT_VERSION: '1'
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    SWIFT_STRICT_CONCURRENCY: targeted
+targets:
+  ColdwaterOwner:
+    type: application
+    platform: iOS
+    sources:
+      - path: ColdwaterOwner/App
+      - path: ColdwaterOwner/UI
+      - path: ColdwaterOwner/Shared
+        excludes: ['*.md']
+      - path: ColdwaterOwner/Resources
+    info:
+      path: ColdwaterOwner/App/Info.plist
+      properties:
+        CFBundleDisplayName: Coldwater
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        AppGroupIdentifier: group.com.coldwaterkim.owner
+        KeychainAccessGroup: $(AppIdentifierPrefix)com.coldwaterkim.owner
+        ITSAppUsesNonExemptEncryption: false
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+    entitlements:
+      path: ColdwaterOwner/App/ColdwaterOwner.entitlements
+      properties:
+        com.apple.security.application-groups: [group.com.coldwaterkim.owner]
+        keychain-access-groups: ['$(AppIdentifierPrefix)com.coldwaterkim.owner']
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.coldwaterkim.owner
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    dependencies:
+      - target: ColdwaterShare
+        embed: true
+  ColdwaterShare:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: ColdwaterOwner/Share
+        excludes: ['*.plist']
+      - path: ColdwaterOwner/Shared
+        excludes: ['*.md']
+      - path: ColdwaterOwner/UI/OwnerStyle.swift
+      - path: ColdwaterOwner/Resources/PrivacyInfo.xcprivacy
+    info:
+      path: ColdwaterOwner/Share/Info.plist
+      properties:
+        CFBundleDisplayName: Coldwater에 올리기
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        AppGroupIdentifier: group.com.coldwaterkim.owner
+        KeychainAccessGroup: $(AppIdentifierPrefix)com.coldwaterkim.owner
+        ITSAppUsesNonExemptEncryption: false
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.share-services
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
+          NSExtensionAttributes:
+            NSExtensionActivationRule:
+              NSExtensionActivationSupportsImageWithMaxCount: 30
+    entitlements:
+      path: ColdwaterOwner/App/ColdwaterShare.entitlements
+      properties:
+        com.apple.security.application-groups: [group.com.coldwaterkim.owner]
+        keychain-access-groups: ['$(AppIdentifierPrefix)com.coldwaterkim.owner']
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.coldwaterkim.owner.share
+        APPLICATION_EXTENSION_API_ONLY: YES
+        SKIP_INSTALL: YES
+  ColdwaterOwnerTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [ColdwaterOwnerTests]
+    dependencies: [{target: ColdwaterOwner}]
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.coldwaterkim.owner.tests
+  ColdwaterOwnerUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [ColdwaterOwnerUITests]
+    dependencies: [{target: ColdwaterOwner}]
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.coldwaterkim.owner.uitests
+schemes:
+  ColdwaterOwner:
+    build:
+      targets:
+        ColdwaterOwner: all
+    test:
+      targets: [ColdwaterOwnerTests, ColdwaterOwnerUITests]
+      gatherCoverageData: true
+      parallelizeBuild: false
+    archive:
+      config: Release

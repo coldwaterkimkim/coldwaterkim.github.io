@@ -176,6 +176,10 @@ func main() {
 			}
 			(&recordsV2Service{app: app, ownerUserID: resolvedOwnerID}).registerRoutes(e)
 		}
+		if err := ensureMobile(app, resolvedOwnerID); err != nil {
+			return err
+		}
+		(&mobileService{app: app, ownerUserID: resolvedOwnerID}).registerRoutes(e)
 		resumableUploads.registerRoutes(e)
 		bgmTrimmer.registerRoutes(e)
 		albumTags.registerRoutes(e)
