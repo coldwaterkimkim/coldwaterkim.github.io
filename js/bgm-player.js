@@ -17,7 +17,7 @@ export function initBgmPlayer(audio, shuffle) {
   status.setAttribute('role', 'status');
   status.hidden = true;
   audio.before(controls);
-  controls.append(audio, next);
+  controls.append(next, audio);
   controls.after(status);
   audio._bgmControls = controls;
   const update = () => { next.disabled = !(audio._bgmPlaylist?.length > 0); };
