@@ -3911,3 +3911,45 @@ body > center > table[width="1140"] > tbody > tr > td {
     font-size: 9px;
   }
 }
+
+/* First visit: the webmaster asks before playing music. */
+.bgm-consent {
+  box-sizing: border-box;
+  width: min(var(--cwk-profile-dialog-width), calc(100% - 2 * var(--cwk-record-mobile-gutter)));
+  max-height: calc(100dvh - 2 * var(--cwk-record-mobile-gutter));
+  padding: 0;
+  border: 2px solid var(--cwk-ink);
+  border-radius: 0;
+  background: var(--cwk-surface-entry);
+  color: var(--cwk-ink);
+  font-family: var(--cwk-font-main);
+  font-size: var(--cwk-post-size);
+  line-height: var(--cwk-post-line-height);
+  overflow: auto;
+}
+.bgm-consent::backdrop { background: var(--cwk-ink); opacity: .5; }
+.bgm-consent h2 {
+  margin: 0;
+  padding: var(--cwk-cell-padding) var(--cwk-record-mobile-gutter);
+  background: var(--cwk-owner-reply-accent);
+  color: var(--cwk-surface-page);
+  font-size: var(--cwk-post-size);
+}
+.bgm-consent-body { padding: var(--cwk-record-mobile-gutter); }
+.bgm-consent-body > p:first-child { margin-top: 0; }
+.bgm-consent-actions { display: grid; gap: var(--cwk-cell-padding); }
+.bgm-consent-actions button {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 44px;
+  padding: var(--cwk-cell-padding);
+  font: inherit;
+  color: var(--cwk-ink);
+  background: var(--cwk-surface-table-head);
+  border: 2px outset var(--cwk-border-dashed);
+  border-radius: 0;
+  cursor: pointer;
+}
+.bgm-consent-actions button:focus-visible { outline: 2px solid var(--cwk-link); outline-offset: 2px; }
+.bgm-consent-actions button:hover { background: var(--cwk-surface-banner); }
+.bgm-consent-note { margin-bottom: 0; color: var(--cwk-meta); font-size: var(--cwk-preview-size); }
