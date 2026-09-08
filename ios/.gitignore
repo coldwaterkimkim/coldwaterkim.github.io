@@ -1,0 +1,10 @@
+build/
+.tools/
+*.xcuserstate
+xcuserdata/
+Local.xcconfig
+ColdwaterOwner.xcodeproj/
+*.xcresult/
+*.ipa
+*.xcarchive/
+

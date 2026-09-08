@@ -1,0 +1,81 @@
+name: iPhone Owner App
+on:
+  push:
+    branches: ['codex/iphone-owner-app']
+  pull_request:
+    paths: ['ios/**', 'deploy/imac/pocketbase-custom/**', '.github/workflows/ios-owner.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ios-owner-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  simulator:
+    runs-on: macos-15
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: deploy/imac/pocketbase-custom/go.mod
+          cache-dependency-path: deploy/imac/pocketbase-custom/go.sum
+      - name: Generate Xcode project
+        run: bash ios/scripts/generate-project.sh
+      - name: Select simulator
+        run: |
+          if [[ -d /Applications/Xcode_26.2.app ]]; then sudo xcode-select -s /Applications/Xcode_26.2.app/Contents/Developer; fi
+          xcodebuild -version
+          xcrun simctl list devices available --json > /tmp/cwk-simulators.json
+          python3 - <<'PY'
+          import json,os
+          devices=json.load(open('/tmp/cwk-simulators.json'))['devices']
+          phones=[d for runtime,items in sorted(devices.items(),reverse=True) if 'iOS' in runtime for d in items if d.get('isAvailable') and d['name'].startswith('iPhone')]
+          if not phones: raise SystemExit('No iPhone simulator available')
+          with open(os.environ['GITHUB_ENV'],'a') as f: f.write('CWK_SIMULATOR_ID='+phones[0]['udid']+'\n')
+          print(phones[0]['name'])
+          PY
+      - name: Compile app, share extension and tests
+        run: |
+          set -o pipefail
+          mkdir -p ios/build
+          xcodebuild build-for-testing -project ios/ColdwaterOwner.xcodeproj -scheme ColdwaterOwner -destination "platform=iOS Simulator,id=$CWK_SIMULATOR_ID" -derivedDataPath ios/build/DerivedData CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- 2>&1 | tee ios/build/build.log
+      - name: Compile device release archive
+        run: |
+          set -o pipefail
+          xcodebuild archive -project ios/ColdwaterOwner.xcodeproj -scheme ColdwaterOwner -configuration Release -destination 'generic/platform=iOS' -archivePath ios/build/ColdwaterOwner.xcarchive CODE_SIGNING_ALLOWED=NO 2>&1 | tee ios/build/archive.log
+      - name: Build isolated backend fixture
+        working-directory: deploy/imac/pocketbase-custom
+        run: go test -c -o ../../../ios/build/ios-fixture .
+      - name: Test real photo publication and native UI
+        timeout-minutes: 12
+        run: |
+          set -o pipefail
+          CWK_IOS_FIXTURE_READY="$PWD/ios/build/fixture-ready.json" ios/build/ios-fixture -test.run '^TestIOSFixtureServer$' -test.timeout 30m > ios/build/fixture.log 2>&1 &
+          fixture_pid=$!
+          trap 'kill -TERM "$fixture_pid" 2>/dev/null || true' EXIT
+          for attempt in {1..60}; do
+            [[ -f ios/build/fixture-ready.json ]] && break
+            kill -0 "$fixture_pid" || { cat ios/build/fixture.log; exit 1; }
+            sleep 1
+          done
+          test -f ios/build/fixture-ready.json
+          xcodebuild test-without-building -project ios/ColdwaterOwner.xcodeproj -scheme ColdwaterOwner -destination "platform=iOS Simulator,id=$CWK_SIMULATOR_ID" -derivedDataPath ios/build/DerivedData -resultBundlePath ios/build/OwnerTests.xcresult -parallel-testing-enabled NO -test-timeouts-enabled YES -default-test-execution-time-allowance 180 CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- 2>&1 | tee ios/build/test.log
+      - name: Export screenshots and background transfer diagnostics
+        if: always()
+        run: |
+          if [[ -d ios/build/OwnerTests.xcresult ]]; then
+            xcrun xcresulttool export attachments --path ios/build/OwnerTests.xcresult --output-path ios/build/screenshots || true
+          fi
+          xcrun simctl spawn "$CWK_SIMULATOR_ID" log show --last 15m --style compact --predicate 'process == "nsurlsessiond"' > ios/build/background-service.log 2>&1 || true
+      - name: Preserve simulator evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: iphone-owner-evidence
+          path: |
+            ios/build/*.log
+            ios/build/OwnerTests.xcresult
+            ios/build/screenshots
+            ios/build/ColdwaterOwner.xcarchive
+          retention-days: 7

@@ -1,3 +1,4 @@
+import { requestBgmPlay, pauseBgmInternally } from './bgm-consent.js';
 // Shared navigation is static HTML, so the four destinations work before hydration.
 const sidebar = document.querySelector('.cwk-unified .rv-shell-sidebar');
 if (sidebar) {
@@ -11,8 +12,9 @@ if (sidebar) {
     else {
       const audio = node.querySelector('audio');
       const wasPlaying = audio && !audio.paused;
+      if (wasPlaying) pauseBgmInternally(audio);
       parent.append(node);
-      if (wasPlaying) audio.play().catch(() => {});
+      if (wasPlaying) requestBgmPlay(audio).catch(() => {});
     }
   }
   const button = document.createElement('button');

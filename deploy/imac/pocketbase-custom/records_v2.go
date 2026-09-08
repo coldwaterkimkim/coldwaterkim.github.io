@@ -51,6 +51,7 @@ type recordsV2Source struct {
 	URL        string `json:"url"`
 }
 type recordsV2Document struct {
+	ClientRequestID  string                `json:"clientRequestId,omitempty"`
 	SchemaVersion    int                   `json:"schemaVersion"`
 	ID               string                `json:"id"`
 	Category         string                `json:"category"`
@@ -89,6 +90,13 @@ func ensureRecordsV2(app core.App) error {
 			}
 		} else if err != nil {
 			return err
+		}
+		if records.Fields.GetByName("client_request_id") == nil {
+			records.Fields.Add(&core.TextField{Name: "client_request_id", Hidden: true}, &core.TextField{Name: "client_request_hash", Hidden: true})
+			records.AddIndex("idx_records_v2_client_request", true, "client_request_id", "client_request_id != ''")
+			if err = tx.Save(records); err != nil {
+				return err
+			}
 		}
 		if field, ok := records.Fields.GetByName("category").(*core.TextField); ok && field.Required {
 			field.Required = false
@@ -366,6 +374,30 @@ func (s *recordsV2Service) write(e *core.RequestEvent) error {
 		return e.BadRequestError(err.Error(), nil)
 	}
 	id := e.Request.PathValue("id")
+	requestHash := ""
+	if id == "" && d.ClientRequestID != "" {
+		if !mobileUUID.MatchString(d.ClientRequestID) {
+			return e.BadRequestError("clientRequestId must be a UUID", nil)
+		}
+		requestHash = mobileHash(d)
+		prior, err := s.app.FindFirstRecordByFilter("records_v2", "client_request_id={:id}", dbx.Params{"id": d.ClientRequestID})
+		if err == nil {
+			if prior.GetString("client_request_hash") != requestHash {
+				return e.JSON(http.StatusConflict, map[string]string{"message": errMobileConflict.Error()})
+			}
+			if prior.GetString("status") == "deleted" {
+				return e.JSON(http.StatusConflict, map[string]string{"message": "Record was deleted"})
+			}
+			out, err := recordsV2Decode(prior)
+			if err != nil {
+				return err
+			}
+			return e.JSON(http.StatusOK, out)
+		}
+		if !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+	}
 	synthetic := strings.Contains(id, ":")
 	if synthetic {
 		original, err := s.document(id)
@@ -446,6 +478,10 @@ func (s *recordsV2Service) write(e *core.RequestEvent) error {
 			return err
 		}
 		source = d.LegacySource.Collection + ":" + d.LegacySource.ID
+		if requestHash != "" {
+			r.Set("client_request_id", d.ClientRequestID)
+			r.Set("client_request_hash", requestHash)
+		}
 		r.Set("document", d)
 		r.Set("category", d.Category)
 		r.Set("status", d.Status)

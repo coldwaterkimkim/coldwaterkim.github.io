@@ -71,7 +71,7 @@
     "qa:service-smoke": "node scripts/verify-imac-service-smoke.mjs",
     "qa:service-smoke:local": "node scripts/verify-imac-service-smoke.mjs --origin http://127.0.0.1:18081",
     "qa:split-dns": "bash scripts/verify-split-dns.sh",
-    "qa:home-bgm": "node scripts/verify-home-bgm.mjs",
+    "qa:home-bgm": "node scripts/verify-home-bgm.mjs && node scripts/verify-bgm-consent.mjs",
     "qa:about-wiki": "node scripts/verify-about-wiki.mjs && node scripts/verify-about-wiki-markup.mjs",
     "qa:guestbook-replies": "node scripts/verify-guestbook-replies.mjs",
     "qa:askme": "node scripts/verify-askme.mjs",
