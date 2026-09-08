@@ -1,3 +1,4 @@
+import { initBgmPlayer } from './bgm-player.js';
 import './motion-preferences.js';
 import { bgmAllowed, initBgmConsent, requestBgmPlay, pauseBgmInternally } from './bgm-consent.js';
 import { reviewMediaValue } from './review-media.js';
@@ -127,6 +128,7 @@ window.addEventListener('pagehide',()=>{
   const player = audio?.closest('.mini-player');
   initBgmConsent(audio);
   const trackTitle = ensureTrackTitle(player, audio);
+  initBgmPlayer(audio, () => advanceBgmTrack(audio, true));
 
   await loadProfileMediaSettings(photo, audio, trackTitle);
   restoreNavigationBgm(audio);
@@ -845,6 +847,7 @@ function setBgmPlaylist(audio, trackTitle, playlist, startIndex = 0) {
   audio._bgmTrackTitle = trackTitle || null;
   setBgmSchedule(audio, audio._bgmSchedule, tracks);
   audio.loop = tracks.length <= 1;
+  audio.dispatchEvent(new Event('bgm-playlist-changed'));
 
   bindBgmPlaylist(audio);
 
@@ -891,8 +894,8 @@ function loadBgmTrack(audio, index) {
   }
 }
 
-async function advanceBgmTrack(audio) {
-  if (!bgmAllowed()) return;
+async function advanceBgmTrack(audio, explicit = false) {
+  if (!explicit && !bgmAllowed()) return;
   const playlist = getBgmPlaylist(audio);
   if (playlist.length === 0) return;
 
@@ -902,10 +905,11 @@ async function advanceBgmTrack(audio) {
 
   const prompt = ensureBgmPrompt(audio.closest('.mini-player'), audio);
   try {
-    await requestBgmPlay(audio);
+    await requestBgmPlay(audio, explicit);
     setBgmPromptVisible(prompt, false);
   } catch (e) {
     setBgmPromptVisible(prompt, true);
+    if (explicit) throw e;
   }
 }
 

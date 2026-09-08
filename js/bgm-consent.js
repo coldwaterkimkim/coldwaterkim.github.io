@@ -67,7 +67,6 @@ export function initBgmConsent(audio) {
         <button type="button" data-bgm-yes>일단 믿어볼게요</button>
         <button type="button" data-bgm-no autofocus>제 귀는 제가 지킬게요</button>
       </div>
-      <p class="bgm-consent-note">음악 켜기 / 무음 입장<br>이 브라우저에 선택을 기억해요.<br>나중에 BGM 플레이어에서 바꿀 수 있어요.</p>
     </div>`;
   document.body.append(dialog);
   const close = () => {

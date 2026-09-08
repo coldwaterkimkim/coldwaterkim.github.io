@@ -19,6 +19,9 @@
   --cwk-guestbook-sidebar-width: 300px;
   --cwk-cell-padding: 8px;
   --cwk-touch-target: 44px;
+  --cwk-bgm-controls-bg: #f1f3f4;
+  --cwk-bgm-controls-radius: 24px;
+  --cwk-welcome-marquee-duration: 24s;
   --cwk-list-cell-padding: 6px;
   --cwk-bg-stripe-step: 8px;
   --cwk-bg-tile-size: 16px;
@@ -3966,4 +3969,40 @@ body > center > table[width="1140"] > tbody > tr > td {
 }
 .bgm-consent-actions button:focus-visible { outline: 2px solid var(--cwk-link); outline-offset: 2px; }
 .bgm-consent-actions button:hover { background: var(--cwk-surface-banner); }
-.bgm-consent-note { margin-bottom: 0; color: var(--cwk-meta); font-size: var(--cwk-preview-size); }
+
+
+/* The native audio controls and shuffle form one quiet, grey player. */
+.bgm-controls {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  background: var(--cwk-bgm-controls-bg);
+  border-radius: var(--cwk-bgm-controls-radius);
+  color: var(--cwk-ink);
+}
+.mini-player .bgm-controls audio {
+  flex: 1 1 0;
+  width: 0;
+  min-width: 0;
+  height: var(--cwk-touch-target);
+}
+.bgm-shuffle {
+  display: flex;
+  flex: 0 0 var(--cwk-touch-target);
+  align-items: center;
+  justify-content: center;
+  min-width: var(--cwk-touch-target);
+  min-height: var(--cwk-touch-target);
+  padding: 0;
+  border: 0;
+  border-radius: var(--cwk-bgm-controls-radius);
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+.bgm-shuffle:disabled { opacity: .4; cursor: default; }
+.bgm-shuffle:hover:not(:disabled) { background: var(--cwk-border-soft); }
+.bgm-shuffle:focus-visible { outline: 2px solid var(--cwk-link); outline-offset: -3px; }
+.bgm-player-status { display: block; font-size: var(--cwk-note-size); }
+.bgm-player-status[hidden] { display: none; }

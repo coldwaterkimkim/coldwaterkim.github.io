@@ -76,16 +76,14 @@ function observeMore(){
 function header(title = null) {
   return e('header', { class:'rv-header' },
     title ? button('닫기', closeEditor) : null,
-    !title ? e('h1', {}, link("coldwaterkim’s HOME", '#home')) : null,
-    !title ? e('span',{class:'rv-header-label'},route.startsWith('#record/') ? '기록' : ({'#posts':'글방','#daily':'나으하루','#nasajab':'나사잡','#projects':'프로젝트','#album':'앨범','#drafts':'임시 저장','#menu':'메뉴'}[route] || '최근 기록')) : null,
     title ? e('h1', {}, title) : null,
     !title && service.isOwner() ? link('임시 저장','#drafts',{class:'rv-drafts-link'}) : null,
     title ? button('게시', () => persist('published'), {'data-save':'published'}) : service.isOwner() ? button(['+',e('span',{class:'rv-plus-label'},' 기록')], () => openEditor(), {class:'rv-plus', 'aria-label':'새 기록 남기기'}) : null);
 }
 function shell(title, subtitle) {
-  app.replaceChildren(header());
+  app.replaceChildren();
+  if (service.isOwner()) app.append(header());
   if(typeof __RECORDS_PREVIEW__!=='undefined'&&__RECORDS_PREVIEW__===true)app.append(e('p',{class:'rv-preview-note'},'로컬 검토본 · 운영 미반영'));
-  if (!title && !route.startsWith('#record/')) app.append(e('p',{class:'rv-feed-label'},'최근 기록'));
   if (title) app.append(e('section',{class:'rv-heading'},e('h2',{},title),subtitle?e('p',{class:'rv-muted'},subtitle):null));
 }
 function recordMeta(record, className = 'rv-meta') {
@@ -211,7 +209,6 @@ function entry(record, targetAttachment = '', isDetail = false) {
   if(record.legacySource?.sourceUrl)article.append(e('p',{class:'rv-meta'},external('출처',record.legacySource.sourceUrl)));
   const visibleTitle=title&&!/^\d{4}-\d{2}-\d{2} 나으 하루(?:\s|$)/.test(title)&&!record.body?.trim().startsWith(title);
   if(visibleTitle)article.append(e(isDetail?'h1':'h2',{class:'rv-record-title'},isDetail?title:link(title,idHash(record.id))));
-  if(!isDetail&&!visibleTitle)article.append(e('p',{class:'rv-record-open'},link('기록 보기',idHash(record.id),{'aria-label':`${dateLabel(record.firstPublishedAt||record.recordDate)} 기록 보기` })));
   if(isDetail)article.append(person(record,true,false));
   const visuals = (record.attachments||[]).filter(a=>a.kind==='image'||a.kind==='video');
   const globalText = e('p',{class:'rv-body rv-global-comment'},record.body || '');
@@ -302,7 +299,7 @@ async function loadMore() {
 }
 async function hydrateHomeShell() { await import('./site.js'); }
 function feedFilters() {
-  return e('nav',{class:'rv-filters','aria-label':'피드 분류'}, [['home','전체'],...Object.entries(categoryNames)].map(([key,label])=>link(label,`#${key}`,{'aria-current':route===`#${key}`?'page':undefined})));
+  return e('nav',{class:'rv-filters','aria-label':'따로보기'}, e('strong',{class:'rv-filter-label'},'따로보기'), [['home','전체'],...Object.entries(categoryNames)].map(([key,label])=>link(label,`#${key}`,{'aria-current':route===`#${key}`?'page':undefined})));
 }
 async function renderRoute() {
   let next=location.hash||'#home';
@@ -459,13 +456,9 @@ async function persist(status){
   catch(error){uploadStatus.textContent=`저장하지 못했어. ${error.message}`;}
   finally{setBusy(false);if(draft)renderThumbs();}
 }
-document.querySelector('.rv-feed-jump')?.addEventListener('click',()=>{
-  const target=document.querySelector('#records-content');
-  scrollContentIntoView(target);target?.focus({preventScroll:true});
-});
 window.addEventListener('pagehide',()=>{ if(draft)return;if(route==='#home'||categoryNames[route.slice(1)])feedReturnRoute=route;positions.set(route,readContentScroll());pageDepth.set(route,page);try{sessionStorage.setItem('cwk:feed:position',JSON.stringify({at:Date.now(),positions:[...positions],depth:[...pageDepth],feedReturnRoute}));}catch{} });
 window.addEventListener('beforeunload',event=>{if(dirty()||busy){event.preventDefault();event.returnValue='';}});
 window.addEventListener('hashchange',renderRoute);
 window.addEventListener('resize',()=>requestAnimationFrame(()=>{observeCarousels();observeMore();}));
 try{await service.initSession();await hydrateHomeShell();await renderRoute();}
-catch(error){app.replaceChildren(e('header',{class:'rv-header'},e('h1',{},'coldwaterkim’s HOME')),e('p',{class:'rv-status rv-error'},`기록을 연결하지 못했어. ${error.message}`),button('다시 시도',()=>location.reload()));}
+catch(error){app.replaceChildren(e('p',{class:'rv-status rv-error'},`기록을 연결하지 못했어. ${error.message}`),button('다시 시도',()=>location.reload()));}

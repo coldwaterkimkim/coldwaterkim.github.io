@@ -194,7 +194,8 @@ assert.equal(byText('더 보기', legacy).getAttribute('aria-expanded'), 'false'
 click(byText('더 보기', legacy));
 assert.equal(legacy.querySelectorAll('img').length, 2);
 const unnamed=app.entry({id:'untitled',category:'daily',body:'오늘의 기록',attachments:[attachment('IMG_1234')]});
-assert.equal(unnamed.querySelector('.rv-record-open a').textContent,'기록 보기');
+assert.equal(unnamed.querySelector('.rv-record-open'),null,'Untitled records omit the redundant open link');
+assert.ok(unnamed.querySelector('.rv-meta a[href="#record/untitled"]'),'The record date retains detail access');
 assert.equal(unnamed.querySelector('.rv-slide img').alt,'오늘의 기록 · 첨부 사진 1');
 const filenameAlt=app.legacyView({category:'daily',legacyHtml:'<img src="https://example.test/test.jpg" alt="IMG_1234.jpg">'});
 assert.equal(filenameAlt.querySelector('img').alt,'나으하루 · 첨부 사진 1');
