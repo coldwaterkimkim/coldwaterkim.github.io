@@ -1,3 +1,4 @@
+import { bgmAllowed, initBgmConsent, requestBgmPlay, pauseBgmInternally } from './bgm-consent.js';
 import { reviewMediaValue } from './review-media.js';
 import { readContentScroll, scrollContentTo } from './content-scroll.js';
 /**
@@ -106,12 +107,12 @@ function restoreNavigationBgm(audio) {
 }
 function playBgmTrackForNavigation(audio,index,saved) {
   const tracks=getBgmPlaylist(audio);
+  pauseBgmInternally(audio);
   audio._bgmTrackIndex=index; audio.src=reviewMediaValue(tracks[index].url);
   if(audio._bgmTrackTitle) audio._bgmTrackTitle.textContent=tracks[index].title || defaultBgmTitle(audio);
-  audio.autoplay=!saved.paused;
-  const seek=()=>{if(Number.isFinite(saved.time))audio.currentTime=saved.time; if(saved.paused)audio.pause();};
+  audio.autoplay=false;
+  const seek=()=>{if(Number.isFinite(saved.time))audio.currentTime=saved.time;};
   audio.addEventListener('loadedmetadata',seek,{once:true});
-  audio.dataset.navigationPaused=String(saved.paused);
 }
 window.addEventListener('pagehide',()=>{
   const audio=document.querySelector('[data-bgm]');
@@ -123,6 +124,7 @@ window.addEventListener('pagehide',()=>{
   const photo = document.querySelector('.profile-photo');
   const audio = document.querySelector('[data-bgm]');
   const player = audio?.closest('.mini-player');
+  initBgmConsent(audio);
   const trackTitle = ensureTrackTitle(player, audio);
 
   await loadProfileMediaSettings(photo, audio, trackTitle);
@@ -134,7 +136,6 @@ window.addEventListener('pagehide',()=>{
     initBgmAutoplay(audio);
   }
 
-  if(audio?.dataset.navigationPaused==='true')audio.pause();
   if (!isLoggedIn()) return;
 
   initProfilePhotoUpload(photo);
@@ -650,29 +651,12 @@ function ensureTrackTitle(player, audio) {
 }
 
 function initBgmAutoplay(audio) {
-  audio.autoplay = true;
+  audio.autoplay = false;
   audio.loop = getBgmPlaylist(audio).length <= 1;
-  const player = audio.closest('.mini-player');
-  const prompt = ensureBgmPrompt(player, audio);
-
-  const tryPlay = async () => {
-    if (!audio.currentSrc && !audio.src) return;
-
-    try {
-      await audio.play();
-      setBgmPromptVisible(prompt, false);
-    } catch (e) {
-      // 브라우저가 소리 있는 autoplay를 막으면 버튼과 첫 사용자 입력으로 다시 시도한다.
-      setBgmPromptVisible(prompt, true);
-    }
-  };
-
-  tryPlay();
-  if (audio.dataset.bgmAutoplayBound === 'true') return;
-
-  audio.dataset.bgmAutoplayBound = 'true';
-  document.addEventListener('pointerdown', tryPlay, { once: true });
-  document.addEventListener('keydown', tryPlay, { once: true });
+  const prompt = ensureBgmPrompt(audio.closest('.mini-player'), audio);
+  if (!bgmAllowed()) return;
+  requestBgmPlay(audio).then(() => setBgmPromptVisible(prompt, false))
+    .catch(() => setBgmPromptVisible(prompt, true));
 }
 
 function ensureBgmPrompt(player, audio) {
@@ -703,7 +687,7 @@ function ensureBgmPrompt(player, audio) {
     button.dataset.bgmPromptReady = 'true';
     button.addEventListener('click', async () => {
       try {
-        await audio.play();
+        await requestBgmPlay(audio, true);
         setBgmPromptVisible(prompt, false);
       } catch (e) {
         setBgmPromptVisible(prompt, true);
@@ -868,7 +852,7 @@ function setBgmPlaylist(audio, trackTitle, playlist, startIndex = 0) {
     return;
   }
 
-  audio.pause();
+  pauseBgmInternally(audio);
   audio.removeAttribute('src');
   audio.load();
   audio._bgmTrackIndex = -1;
@@ -894,6 +878,7 @@ function loadBgmTrack(audio, index) {
   const currentUrl = audio.currentSrc || audio.src || '';
 
   if (bgmTrackKey({ url: currentUrl }) !== bgmTrackKey(track)) {
+    pauseBgmInternally(audio);
     audio.src = reviewMediaValue(nextUrl);
     audio.load();
   } else if (audio.ended) {
@@ -906,6 +891,7 @@ function loadBgmTrack(audio, index) {
 }
 
 async function advanceBgmTrack(audio) {
+  if (!bgmAllowed()) return;
   const playlist = getBgmPlaylist(audio);
   if (playlist.length === 0) return;
 
@@ -915,7 +901,7 @@ async function advanceBgmTrack(audio) {
 
   const prompt = ensureBgmPrompt(audio.closest('.mini-player'), audio);
   try {
-    await audio.play();
+    await requestBgmPlay(audio);
     setBgmPromptVisible(prompt, false);
   } catch (e) {
     setBgmPromptVisible(prompt, true);
@@ -1503,7 +1489,7 @@ async function openBgmTrimEditor(panel, audio, uploadButton, triggerButton) {
 			if (!region) return;
 			if (!audio.paused) {
 				resumeMainAudio = true;
-				audio.pause();
+				pauseBgmInternally(audio);
 			}
 			region.play(true);
 		});
@@ -1554,7 +1540,7 @@ async function openBgmTrimEditor(panel, audio, uploadButton, triggerButton) {
 					? trackIndex
 					: Math.max(0, nextPlaylist.findIndex(item => bgmTrackKey(item) === currentKey));
 				setBgmPlaylist(audio, audio._bgmTrackTitle, nextPlaylist, nextIndex);
-				if (wasPlaying) audio.play().catch(() => setBgmPromptVisible(ensureBgmPrompt(audio.closest('.mini-player'), audio), true));
+				if (wasPlaying) requestBgmPlay(audio).catch(() => setBgmPromptVisible(ensureBgmPrompt(audio.closest('.mini-player'), audio), true));
 
 				let cleanupFailed = false;
 				try {
@@ -1601,7 +1587,7 @@ function closeBgmTrimEditor(row, audio, restoreFocus) {
 	delete row._bgmResumeMainAudio;
 	row.hidden = true;
 	row.querySelector('td')?.replaceChildren();
-	if (shouldResume) audio.play().catch(() => {});
+	if (shouldResume) requestBgmPlay(audio).catch(() => {});
 	if (restoreFocus) row.closest('[data-bgm-schedule-editor]')?.querySelector(`[data-bgm-trim="${triggerIndex}"]`)?.focus();
 }
 
