@@ -10,4 +10,3 @@ if [[ ! -x .tools/xcodegen/bin/xcodegen ]]; then
   unzip -oq .tools/xcodegen.zip -d .tools
 fi
 .tools/xcodegen/bin/xcodegen generate --spec project.yml
-

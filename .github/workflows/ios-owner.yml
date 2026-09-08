@@ -1,7 +1,8 @@
 name: iPhone Owner App
 on:
   push:
-    branches: ['codex/iphone-owner-app']
+    branches: [main]
+    paths: ['ios/**', 'deploy/imac/pocketbase-custom/**', '.github/workflows/ios-owner.yml']
   pull_request:
     paths: ['ios/**', 'deploy/imac/pocketbase-custom/**', '.github/workflows/ios-owner.yml']
   workflow_dispatch:
