@@ -1,7 +1,9 @@
-// Playback intent is independent of navigation snapshots and browser autoplay policy.
+// A choice lasts for this tab session, including navigation and reloads.
 const KEY = 'cwk:bgm:preference';
+// Retire the old cross-visit preference without importing it into this session.
+try { localStorage.removeItem(KEY); } catch {}
 let preference;
-try { preference = localStorage.getItem(KEY); } catch {}
+try { preference = sessionStorage.getItem(KEY); } catch {}
 if (!['on', 'off'].includes(preference)) preference = null;
 let revision = 0;
 let leaving = false;
@@ -11,7 +13,7 @@ export function bgmAllowed() { return preference === 'on'; }
 function remember(value) {
   preference = value;
   revision += 1;
-  try { localStorage.setItem(KEY, value); } catch {}
+  try { sessionStorage.setItem(KEY, value); } catch {}
 }
 function stop() {
   remember('off');
@@ -20,12 +22,15 @@ function stop() {
 window.addEventListener('pagehide', () => { leaving = true; });
 window.addEventListener('pageshow', () => {
   leaving = false;
+  // A restored history page must respect a choice made later in this same tab.
   try {
-    if (localStorage.getItem(KEY) === 'off') stop();
+    const saved = sessionStorage.getItem(KEY);
+    if (saved === 'on' || saved === 'off') {
+      preference = saved;
+      revision += 1;
+      if (saved === 'off') for (const audio of players) audio.pause();
+    }
   } catch {}
-});
-window.addEventListener('storage', event => {
-  if (event.key === KEY && event.newValue !== 'on') stop();
 });
 
 export async function requestBgmPlay(audio, explicit = false) {

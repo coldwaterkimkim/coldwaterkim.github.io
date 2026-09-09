@@ -3,9 +3,12 @@ import fs from 'node:fs';
 
 const source = fs.readFileSync(new URL('../js/bgm-consent.js', import.meta.url), 'utf8');
 const storage = new Map([['cwk:bgm:preference', 'off']]);
-globalThis.localStorage = { getItem: key => storage.get(key), setItem: (key, value) => storage.set(key, value) };
+const legacy = new Map([['cwk:bgm:preference', 'on']]);
+globalThis.localStorage = { removeItem: key => legacy.delete(key) };
+globalThis.sessionStorage = { getItem: key => storage.get(key), setItem: (key, value) => storage.set(key, value) };
 globalThis.window = new EventTarget();
 const policy = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
+assert.equal(legacy.size, 0, 'retire the old persistent choice');
 class Audio extends EventTarget {
   paused = true;
   ended = false;
@@ -39,12 +42,23 @@ await Promise.resolve();
 assert.equal(policy.bgmAllowed(), true, 'natural end permits next track');
 audio.ended = false;
 await policy.requestBgmPlay(audio);
-window.dispatchEvent(Object.assign(new Event('storage'), { key: 'cwk:bgm:preference', newValue: 'off' }));
+storage.set('cwk:bgm:preference', 'off');
+window.dispatchEvent(new Event('pageshow'));
 await Promise.resolve();
-assert.equal(audio.paused, true, 'silence in another tab stops current playback');
+assert.equal(audio.paused, true, 'history restore respects silence selected in this tab');
 assert.equal(policy.bgmAllowed(), false);
+const reload = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}#reload`);
+assert.equal(reload.bgmAllowed(), false, 'reload keeps session silence');
+await reload.requestBgmPlay(audio, true);
+assert.equal(storage.get('cwk:bgm:preference'), 'on');
+const navigation = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}#navigation`);
+assert.equal(navigation.bgmAllowed(), true, 'navigation keeps session music consent');
+storage.clear();
+const freshTab = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}#fresh`);
+assert.equal(freshTab.bgmAllowed(), false, 'a fresh tab cannot inherit previous consent');
+assert.equal(storage.size, 0, 'fresh session stays undecided until a choice');
 for (const file of ['index.html', 'records/index.html', 'album/index.html', 'all/view.html', 'guestbook.html', 'about.html']) {
   const html = fs.readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
   assert.doesNotMatch(html.match(/<audio[^>]*data-bgm[^>]*>/)?.[0] || '', /autoplay/);
 }
-console.log('BGM consent QA passed: silence, loading pause, resume, internal pause, natural end, cross-tab stop, HTML defaults.');
+console.log('BGM consent QA passed: silence, loading pause, resume, internal pause, natural end, session reload/navigation, history restore, fresh session, HTML defaults.');
