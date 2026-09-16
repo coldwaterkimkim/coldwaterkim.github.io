@@ -3,8 +3,8 @@
 - 제품·디자인의 최상위 프로젝트 기준: [WEBSITE_DIRECTION.md](WEBSITE_DIRECTION.md). 사용자 제공 22절 원문을 보존한다.
 - Sketchbook + Crayon, 개인 life archive, 홈의 탐색 선택 역할과 새 메뉴 명칭을 채택했다. 정확한 레이아웃·색상·폰트·모바일 구성은 아직 미확정이다. 새 UI는 아직 구현되지 않았다.
 - 과거 철학·디자인 규칙 및 당시 지침/상태는 [heritage/2026-09-16-retro](heritage/2026-09-16-retro/README.md)에 원본 체크섬과 함께 동결했다. 공개 화면 기념사진 8장과 점검 전환 사진 1장을 포함한다.
-- 운영 사이트는 사용자 요청으로 **수동 점검 ENABLED**. 메인/www와 페이지/API가 기존 공사중 화면으로 HTTP 503을 반환한다. 화면 assets는 200, 내부 PocketBase health는 200이다. 서비스 데이터와 원본 미디어는 변경하지 않는다.
-- 점검 모드는 명시적인 재개 요청 전까지 유지한다. [수동 점검 운영 기록](docs/MANUAL_MAINTENANCE_2026-09-16.md)을 참고한다. 배포 시 `imac:sync-runtime`만 사용해 Caddy 점검 override를 유지한다.
+- 운영 사이트는 지원서 참고 링크로 사용 중이므로 사용자 요청에 따라 **수동 점검 DISABLED**, 기존 공개 사이트로 복구했다. 메인/www/앨범/About/API health의 HTTP 200과 실제 브라우저 홈을 확인했다.
+- 철학서와 heritage는 유지한다. 문서·디자인 작업을 이유로 다시 점검 모드를 켜지 않는다. 새 명시적 요청이 필요하다. [수동 점검 운영 기록](docs/MANUAL_MAINTENANCE_2026-09-16.md)을 참고한다.
 - 이번 변경은 문서·기념사진 및 런타임 Caddy 점검 전환이다. 정적 dist 배포는 기존 한 세대 롤백을 보존하며 DB 콜드 백업은 만들지 않는다.
 
 ### 아래는 이전 구현 이력
