@@ -1,16 +1,6 @@
 # coldwaterkim.com
 
-## 현재 방향 · 2026-09-16
-
-[WEBSITE_DIRECTION.md](WEBSITE_DIRECTION.md)가 제품·디자인의 최상위 프로젝트 기준입니다. 미래의 나를 위한 공개 personal life archive이며 시각 방향은 **Sketchbook + Crayon**입니다. 홈페이지는 탐색 방향을 고르는 곳으로 바뀔 예정이며 정확한 배치는 아직 확정하지 않았습니다.
-
-- [구현 연결 기준](design.md) · [새 디자인 검토 기준](design-qa.md)
-- [이전 레트로 문서와 기념사진 보관소](heritage/2026-09-16-retro/README.md)
-- 현재 구현·배포 상태는 [STATUS.md](STATUS.md)를 확인합니다. 새 철학서 채택이 리디자인 구현 완료를 뜻하지 않습니다.
-
-아래 소개는 기존 레트로 구현의 배경과 기능 설명입니다. 새 방향과 충돌하는 시각·홈 구성 설명은 역사적 맥락으로만 읽습니다.
-
-![이전 레트로 홈페이지 참고 화면](docs/screenshots/coldwaterkim-home.png)
+![coldwaterkim.com home](docs/screenshots/coldwaterkim-home.png)
 
 개인 글, 하루 기록, 파일 작업실, 이미지 아카이브, 방명록을 한곳에 모아두기 위해 만든 개인 홈페이지와 CMS입니다.
 

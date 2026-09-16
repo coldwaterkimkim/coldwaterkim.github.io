@@ -1,7 +1,5 @@
 # About / Contact 나무마크 편집기 V1 명세
 
-> 2026-09-16: 이 문서는 기존 About 구현의 기술 참조다. 제품·시각 기준은 [WEBSITE_DIRECTION.md](../WEBSITE_DIRECTION.md)가 우선하며, 90년대 외관 유지 등 이전 표현 기준은 더 이상 새 디자인을 강제하지 않는다. [동결 원문](../heritage/2026-09-16-retro/documents/docs/ABOUT_WIKI_ANALYSIS_AND_V1_SPEC.md)을 보존했다. 저장 형식·편집 안전성은 명시적인 변경 전까지 유지한다.
-
 - 상태: 구현 및 로컬 공개 화면 검증 완료, OWNER 저장 검증은 배포 단계 대기
 - 최종 결정일: 2026-08-02
 - 대상: `about.html`의 About / Contact 통합 문서

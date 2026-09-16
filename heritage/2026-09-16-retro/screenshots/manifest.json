@@ -1,0 +1,107 @@
+{
+  "sourceVersion": "a144506a508c",
+  "sourceBuiltAt": "2026-09-09T07:40:36.367Z",
+  "browser": "Playwright Chromium, isolated public visitor session",
+  "capture": "viewport screenshots; no OWNER login; music declined",
+  "images": [
+    {
+      "file": "01-desktop-entry.png",
+      "label": "데스크톱 첫 입장·음악 선택",
+      "url": "https://coldwaterkim.com/",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "capturedAt": "2026-09-16T15:35:38.086126+09:00",
+      "sha256": "762e4d1dc1358493c2a3174e4fcb7ce4e85afab0c7631fde3ab21331fb62d721"
+    },
+    {
+      "file": "02-desktop-home.png",
+      "label": "데스크톱 홈",
+      "url": "https://coldwaterkim.com/",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "capturedAt": "2026-09-16T15:35:53.789338+09:00",
+      "sha256": "a43be067329fa815e5bebba2a76bf2ab4456469d6ad83a8f8b63e03106f0a23f"
+    },
+    {
+      "file": "03-mobile-home.png",
+      "label": "모바일 홈",
+      "url": "https://coldwaterkim.com/",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "capturedAt": "2026-09-16T15:35:56.214919+09:00",
+      "sha256": "9d1a9f3d2281da83e2fabcc413997636e7a82672e7d1b1c9c1991a28d567199a"
+    },
+    {
+      "file": "04-desktop-record.png",
+      "label": "데스크톱 기록 상세",
+      "url": "https://coldwaterkim.com/#record/daily_entries%3Asqakh9641h06391",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "capturedAt": "2026-09-16T15:36:01.065564+09:00",
+      "sha256": "0b85514759d0edce3c59c70b5c63f160915bd20e7c446379edfdc9ca8f14fb54"
+    },
+    {
+      "file": "05-desktop-album.png",
+      "label": "데스크톱 앨범",
+      "url": "https://coldwaterkim.com/album/",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "capturedAt": "2026-09-16T15:36:20.667848+09:00",
+      "sha256": "a1e75a1a0f2733b524f691d87739f2426170787dc499c00028732f616687d2bb"
+    },
+    {
+      "file": "06-mobile-album.png",
+      "label": "모바일 앨범",
+      "url": "https://coldwaterkim.com/album/",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "capturedAt": "2026-09-16T15:36:23.166921+09:00",
+      "sha256": "0916c7fd342d36fe2d0cb08ca485579b951d2dca4c53a3c2e9141f870b3d479e"
+    },
+    {
+      "file": "07-desktop-about.png",
+      "label": "데스크톱 About",
+      "url": "https://coldwaterkim.com/about.html",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "capturedAt": "2026-09-16T15:36:45.424089+09:00",
+      "sha256": "afc6e4c0bffba30ed4363df3eb51484a91a183279801a2ac64dae45d2ca8a992"
+    },
+    {
+      "file": "08-desktop-guestbook.png",
+      "label": "데스크톱 방명록",
+      "url": "https://coldwaterkim.com/guestbook.html",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "capturedAt": "2026-09-16T15:37:13.782300+09:00",
+      "sha256": "b1e78e1c268c125afb0465eed582661bca3ed48895e51b2de31a932f4fc47a38"
+    },
+    {
+      "file": "09-maintenance-enabled.png",
+      "label": "점검 모드 전환 직후",
+      "url": "https://coldwaterkim.com/maintenance.html?return=%2F",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "capturedAt": "2026-09-16T15:37:41.619507+09:00",
+      "sha256": "dfd0fdb4de341decb37902baf553f3e871347d73520e3a1f1cb6deb6bb32c8ad"
+    }
+  ]
+}
