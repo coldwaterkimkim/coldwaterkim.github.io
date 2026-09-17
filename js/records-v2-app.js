@@ -89,6 +89,11 @@ function shell(title, subtitle) {
       heading.classList.add('rv-crayon-heading');
       heading.innerHTML=`<span class="rv-heading-label"></span><svg aria-hidden="true" viewBox="${x} ${y} ${w} ${h}" style="aspect-ratio:${w}/${h}"><image href="/assets/sketch/${key==='original'?'original':key+'-wire'}.png" width="${key==='original'?1333:1024}" height="${key==='original'?1888:1536}"/></svg>`;
       heading.querySelector('span').textContent=title;
+      if(route==='#nasajab'||route==='#projects') {
+        const label=route==='#nasajab'?'나를 사로잡은 것들':'내가 만든 것들';
+        heading.replaceChildren(e('img',{src:`/assets/sketch/${route==='#nasajab'?'interests':'making'}-title.png`,alt:label}));
+        heading.classList.add('rv-wide-heading');
+      }
     }
     app.append(e('section',{class:'rv-heading'},heading));
   }

@@ -26,3 +26,15 @@ body.sketch-site{--cwk-link-hover-bg:transparent;--cwk-surface-page:transparent;
 @media(prefers-reduced-motion:reduce){.sk-track-scroll{animation:none;will-change:auto}.sk-track-scroll span+span{display:none}}
 /* Legacy heading rasters blend their white paper into the shared surface. */
 .rv-crayon-heading svg,.sketch-page-title svg,.sketch-album-heading svg{mix-blend-mode:multiply}
+
+/* Dense handwriting, without shrinking interactive hit areas. */
+body.sketch-site{letter-spacing:-.075em;word-spacing:-.04em;line-height:1.3}
+.sk-track,.sk-track-scroll,.sk-track-scroll span{font-family:Chansu,'Apple SD Gothic Neo',sans-serif!important;letter-spacing:-.075em;line-height:1.3}
+.sk-dock-play{flex:none;white-space:nowrap}.sk-dock-title{max-width:none;min-width:0;flex:1}
+.sk-seek{appearance:none;-webkit-appearance:none;background:transparent;height:24px;cursor:pointer;--seek-progress:0%;margin:0}
+.sk-seek::-webkit-slider-runnable-track{height:5px;border-radius:45%;background:linear-gradient(to right,#087cff 0 var(--seek-progress),#859bb2 var(--seek-progress) 100%)}
+.sk-seek::-moz-range-track{height:5px;border-radius:45%;background:#859bb2}
+.sk-seek::-moz-range-progress{height:5px;background:#087cff}
+.sk-seek::-webkit-slider-thumb{-webkit-appearance:none;width:24px;height:24px;margin-top:-9.5px;border:0;background:url('/assets/sketch/seek-dot.png') center/contain no-repeat}
+.sk-seek::-moz-range-thumb{width:24px;height:24px;border:0;border-radius:0;background:url('/assets/sketch/seek-dot.png') center/contain no-repeat}
+.sk-seek:disabled{opacity:.5;cursor:wait}

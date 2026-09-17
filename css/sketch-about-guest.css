@@ -1,7 +1,7 @@
 /* Presentation only: saved About markup and guestbook forms keep their hooks. */
 .sketch-about .sketch-content,
 .sketch-guestbook .sketch-content { max-width: 900px; margin: auto; padding: 48px 30px 72px !important; }
-.sketch-about .about-wiki { font: inherit; line-height: 1.8; }
+.sketch-about .about-wiki { font: inherit; line-height: 1.3; }
 .sketch-about .about-wiki-head { border: 0; margin: 0 0 32px; }
 .sketch-about .about-wiki-head h1,
 .sketch-guestbook .sketch-content > h1 { text-align: center; font-size: clamp(44px, 6vw, 70px); font-weight: normal; color: #087cff; margin: 8px 0 36px; }
@@ -10,7 +10,7 @@
 .about-sketch-intro h2 { font-size: 36px; font-weight: normal; margin: 0 0 12px; }
 .about-sketch-intro p { margin: 0; }
 .about-sketch-intro > img { width: 165px; aspect-ratio: 1; object-fit: cover; object-position: 50% 30%; }
-.sketch-about .about-infobox { float: none; width: 100%; margin: 0 0 30px; border: 0; background: transparent; font: inherit; line-height: 1.6; }
+.sketch-about .about-infobox { float: none; width: 100%; margin: 0 0 30px; border: 0; background: transparent; font: inherit; line-height: 1.3; }
 .sketch-about .about-infobox th,
 .sketch-about .about-infobox td { background: transparent; border: 0; border-bottom: 1px solid #ddd; padding: 12px 8px; text-align: left; }
 .sketch-about .about-infobox th { width: 100px; font-weight: normal; color: #666; }
@@ -32,7 +32,7 @@
 .sketch-about .about-wiki-table-scroll table { width: 100%; font: inherit; border: 0; }
 .sketch-about .about-wiki-table-scroll :is(th,td) { padding: 12px 8px; border: 0; border-bottom: 1px solid #ddd; background: transparent; }
 .sketch-about .about-wiki-table-scroll th { font-weight: normal; }
-.sketch-guestbook .sketch-content > .note { text-align: center; font: inherit; font-size: 18px; line-height: 1.8; color: #666; }
+.sketch-guestbook .sketch-content > .note { text-align: center; font: inherit; font-size: 18px; line-height: 1.3; color: #666; }
 .sketch-guestbook #guestbookForm { margin: 36px 0 60px; }
 .sketch-guestbook #guestbookForm table,
 .sketch-guestbook #guestbookForm :is(th,td) { border: 0; background: transparent; padding: 0; }
@@ -66,5 +66,5 @@
 .sketch-page-title svg { display: block; width: 100%; height: auto; overflow: hidden; }
 .sketch-heading-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 
-.sketch-about .sketch-content,.sketch-guestbook .sketch-content{font-size:18px;letter-spacing:-.025em;word-spacing:-.04em;line-height:1.7}
+.sketch-about .sketch-content,.sketch-guestbook .sketch-content{font-size:18px;letter-spacing:-.075em;word-spacing:-.04em;line-height:1.3}
 @media(max-width:640px){.sketch-about .sketch-content,.sketch-guestbook .sketch-content{font-size:17px}}
