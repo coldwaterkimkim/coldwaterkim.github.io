@@ -9,6 +9,8 @@
   <script type="module" src="/js/maintenance-gate.js"></script>
   <script type="module" src="../js/site.js"></script>
   <link rel="stylesheet" href="/css/records-v2.css">
+  <link rel="stylesheet" href="/css/sketch-shell.css">
+  <link rel="stylesheet" href="/css/sketch-album.css">
 </head>
 <body class="cwk-unified page-subpage page-album" bgcolor="#e0e0e0">
   <center class="rv-site-shell">
@@ -99,7 +101,7 @@
         </td>
         <td valign="top" class="content rv-shell-content cwk-scroll-content" tabindex="0" aria-label="콘텐츠">
 
-          <h1>📷 앨범</h1>
+          <h1 class="sketch-album-heading" aria-label="앨범"><svg viewBox="409 126 210 117" aria-hidden="true" focusable="false"><image href="/assets/sketch/album-wire.png" width="1024" height="1536" /></svg></h1>
           <div class="album-toolbar">
             <span id="album-status">불러오는 중...</span>
             <button type="button" id="album-edit-toggle" class="album-owner-only" hidden>분류 편집</button>
@@ -132,6 +134,6 @@
     import { initAlbumPage } from '../js/album.js';
     initAlbumPage();
   </script>
-  <script type="module" src="/js/unified-shell.js"></script>
+  <script type="module" src="/js/sketch-shell.js"></script>
 </body>
 </html>

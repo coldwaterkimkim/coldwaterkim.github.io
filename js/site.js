@@ -1138,7 +1138,7 @@ function toggleBgmScheduleEditor(audio, uploadButton) {
 }
 
 function openBgmScheduleEditor(audio, uploadButton, options = {}) {
-  const content = document.querySelector('.content');
+  const content = document.querySelector('.sketch-content') || document.querySelector('.content');
   if (!content || !audio) return;
 
   const existing = document.querySelector('[data-bgm-schedule-editor]');

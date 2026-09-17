@@ -1,5 +1,6 @@
 // One scroll owner on desktop; normal document scrolling on mobile.
 export function getContentScroller() {
+  if (document.body.classList.contains("sketch-site")) return null;
   return matchMedia('(min-width: 641px)').matches ? document.querySelector('.cwk-scroll-content') : null;
 }
 export function readContentScroll() { return getContentScroller()?.scrollTop ?? window.scrollY; }

@@ -198,13 +198,17 @@ function render(state) {
   root.innerHTML = `
     ${isOwner ? ownerBarHtml(state) : ''}
     <div class="about-wiki-head">
-      <h1>${escapeHtml(doc.title)}</h1>
+      <h1 class="sketch-page-title"><span class="sketch-heading-label">about me</span><svg aria-hidden="true" viewBox="137 141 465 117"><image href="/assets/sketch/about-wire.png" width="1024" height="1536"/></svg></h1>
       <nav class="about-quick-links" aria-label="About 본문 바로가기">
         <a href="#about-toc">목차로 ↓</a>
         ${doc.sections[0] ? `<a href="#about-section-${escapeAttribute(doc.sections[0].id)}">${escapeHtml(doc.sections[0].title)} 바로가기 ↓</a>` : ''}
       </nav>
     </div>
     <div class="about-wiki-status" data-about-status role="status" aria-live="polite" hidden></div>
+    <div class="about-sketch-intro">
+      <div><h2>${escapeHtml(doc.title)}</h2><p>${escapeHtml(doc.profileTitle)}</p></div>
+      <img src="${escapeAttribute(doc.profileImage)}" alt="${escapeAttribute(doc.profileTitle)} profile">
+    </div>
     <div class="about-profile-block">
       ${infoboxHtml(doc, isOwner)}
       ${tocHtml(doc.sections, isOwner)}

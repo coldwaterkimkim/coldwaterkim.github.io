@@ -11,7 +11,7 @@ import { enhanceEmbeddedMedia } from './media-embeds.js';
 import { observeEditorMediaDuringUploads } from './editor-media-quiescence.mjs';
 
 const app = document.querySelector('#records-app');
-const categoryNames = { posts: '글방', daily: '나으하루', nasajab: '나사잡', projects: '프로젝트' };
+const categoryNames = { posts: '나으 생각', daily: '나으 하루', nasajab: '나사잡', projects: '나으 만듦' };
 const albumUrl = '/album/';
 let page = 0, hasMore = true, loading = false, generation = 0, observer;
 let route = '', records = [], draft = null, baseline = '', busy = false;
@@ -84,7 +84,17 @@ function shell(title, subtitle) {
   app.replaceChildren();
   if (service.isOwner()) app.append(header());
   if(typeof __RECORDS_PREVIEW__!=='undefined'&&__RECORDS_PREVIEW__===true)app.append(e('p',{class:'rv-preview-note'},'로컬 검토본 · 운영 미반영'));
-  if (title) app.append(e('section',{class:'rv-heading'},e('h2',{},title),subtitle?e('p',{class:'rv-muted'},subtitle):null));
+  if (title) {
+    const heading=e('h2',{},title);
+    const art={ '#posts':['thought',326,151,385,140], '#daily':['daily',307,104,410,138], '#projects':['making',294,197,440,134], '#nasajab':['interests',315,137,403,150], '#home':['all',374,88,282,88] }[route];
+    if(art && document.body.classList.contains('sketch-site')) {
+      const [key,x,y,w,h]=art;
+      heading.classList.add('rv-crayon-heading');
+      heading.innerHTML=`<span class="rv-heading-label"></span><svg aria-hidden="true" viewBox="${x} ${y} ${w} ${h}" style="aspect-ratio:${w}/${h}"><image href="/assets/sketch/${key}-wire.png" width="1024" height="1536"/></svg>`;
+      heading.querySelector('span').textContent=title;
+    }
+    app.append(e('section',{class:'rv-heading'},heading,subtitle?e('p',{class:'rv-muted'},subtitle):null));
+  }
 }
 function recordMeta(record, className = 'rv-meta') {
   return e('div',{class:className},link(categoryNames[record.category]||'기록',`#${record.category||'daily'}`),link(dateLabel(record.firstPublishedAt || record.recordDate),idHash(record.id)));
@@ -260,7 +270,10 @@ function entry(record, targetAttachment = '', isDetail = false) {
     const requested=visuals.findIndex(a=>a.id===targetAttachment || (targetAttachment.startsWith('media:') && (a.mediaId===targetAttachment.slice(6)||a.url.includes('/'+targetAttachment.slice(6)+'/'))));
     requestAnimationFrame(()=>{if(requested>0)slides.scrollLeft=requested*slides.clientWidth;observeCarousels();});
   }
-  if(visuals.length)article.append(text);
+  if(visuals.length){
+    if(record.category==='nasajab')article.insertBefore(text,article.querySelector('.rv-carousel'));
+    else article.append(text);
+  }
   for(const attachment of record.attachments||[]) {
     if(['image','video'].includes(attachment.kind))continue;
     article.append(e('div',{class:'rv-attachment'},attachment.kind==='audio'?e('audio',{src:safeURL(attachment.url),controls:true,preload:'none'}):null,external(attachment.name||'첨부 파일',attachment.url)));
@@ -268,6 +281,31 @@ function entry(record, targetAttachment = '', isDetail = false) {
   (record.embeds||[]).forEach(embed=>article.append(embedView(embed)));
   if(record.legacyHtml)article.append(legacyView(record,isDetail||!record.body&&!visuals.length,!isDetail));
   return article;
+}
+// Lists use the same record identities and detail route as the feed. Rich content
+// remains intact in entry(); this extracts a lightweight, non-interactive preview.
+function teaser(record) {
+  const legacy = e('div');
+  legacy.innerHTML = sanitizeLegacyHtml(record.legacyHtml || '');
+  const firstImage = legacy.querySelector('img');
+  legacy.querySelectorAll('script,style,video,audio,iframe').forEach(node=>node.remove());
+  legacy.querySelectorAll('p,div,br,li,h1,h2,h3').forEach(node=>node.append(document.createTextNode('\n')));
+  const plain = String(record.body || legacy.textContent || '').trim();
+  const lines = plain.split('\n').map(line=>line.trim()).filter(Boolean);
+  const fullTitle = String(record.legacySource?.title || lines[0] || '제목 없는 기록').trim();
+  const title = record.legacySource?.title || fullTitle.length<=90 ? fullTitle : `${fullTitle.slice(0,90).trimEnd()}…`;
+  const excerpt = plain.startsWith(fullTitle) && fullTitle.length<=90 ? plain.slice(fullTitle.length).trim() : plain;
+  const item = e('article',{class:'rv-entry rv-teaser','data-record-id':record.id},recordMeta(record));
+  const content = e('div',{class:'rv-teaser-content'},e('div',{class:'rv-teaser-copy'},
+    e('h2',{class:'rv-record-title'},link(title,idHash(record.id))),
+    excerpt ? e('p',{class:'rv-teaser-excerpt'},excerpt.slice(0,300)) : null));
+  const visual = (record.attachments||[]).find(a=>a.kind==='image'||(a.kind==='video'&&a.posterUrl));
+  const thumbnailURL = safeURL(visual?.kind==='video' ? visual.posterUrl : visual?.url || firstImage?.getAttribute('src'));
+  if(thumbnailURL) content.append(link('',idHash(record.id),{class:'rv-teaser-thumbnail','aria-label':`${title} 기록 열기`}));
+  if(thumbnailURL) content.lastChild.append(e('img',{src:thumbnailURL,alt:'',loading:'lazy',decoding:'async'}));
+  item.append(content);
+  if(service.isOwner())item.append(button('편집',()=>openEditor(record),{class:'rv-link rv-edit'}));
+  return item;
 }
 async function loadMore() {
   if(loading||!hasMore)return;
@@ -288,7 +326,8 @@ async function loadMore() {
           feed.lastChild.append(media);if(attachment.kind==='video')feed.lastChild.append(e('span',{},'영상'));
         }
       } else if(route==='#drafts')feed.append(e('article',{class:'rv-entry'},e('div',{class:'rv-meta'},categoryNames[record.category]||'기록',record.recordDate),e('p',{class:'rv-body'},record.body||'첨부 기록'),button('이어서 쓰기',()=>openEditor(record))));
-      else feed.append(entry(record));
+      else if(route==='#posts'||route==='#projects')feed.append(teaser(record));
+      else { const view=entry(record); view.classList.toggle('rv-media-first',route==='#nasajab'); feed.append(view); }
     }
     if(!records.length)feed.append(e('p',{class:'rv-empty'},route==='#drafts'?'저장된 초안이 없어.':'아직 기록이 없어.'));
     else if(route==='#album'&&!feed.children.length&&!hasMore)feed.append(e('p',{class:'rv-empty'},'사진이나 영상이 아직 없어.'));
@@ -331,10 +370,10 @@ async function renderRoute() {
     return;
   }
   if(route==='#drafts'&&!service.isOwner()){shell('임시 저장');app.append(e('p',{class:'rv-status'},'주인장 로그인 후 볼 수 있어.'));return;}
-  const headings={'#nasajab':['나사잡','나를 사로잡은 장면과 이야기.'],'#projects':['프로젝트','직접 진행한 프로젝트의 기록.'],'#posts':['글방','글과 생각을 모아 놓은 방.'],'#daily':['나으 하루','하루의 장면과 짧은 이야기.'],'#album':['앨범','기록 속 사진과 영상.'],'#drafts':['임시 저장','아직 게시하지 않은 기록.']};
-  shell(...(route==='#drafts'?headings[route]:[]));
+  const headings={'#nasajab':['나사잡','나를 사로잡은 장면과 이야기.'],'#projects':['나으 만듦','만든 것들과 만들어 가는 과정.'],'#posts':['나으 생각','생각, 고민, 그리고 끄적임.'],'#daily':['나으 하루','하루의 장면과 짧은 이야기.'],'#album':['앨범','기록 속 사진과 영상.'],'#drafts':['임시 저장','아직 게시하지 않은 기록.']};
+  shell(...(headings[route]||['전체 보기','살아가며 남긴 기록들.']));
   if(route!=='#drafts')app.append(feedFilters());
-  app.append(e('main',{id:'rv-feed',class:route==='#album'?'rv-album':''}),e('p',{id:'rv-feed-status',class:'rv-status','aria-live':'polite'}));
+  app.append(e('main',{id:'rv-feed',class:route==='#album'?'rv-album':route==='#posts'||route==='#projects'?'rv-teaser-list':'rv-reading-feed'}),e('p',{id:'rv-feed-status',class:'rv-status','aria-live':'polite'}));
   const more=button('이전 기록 더 보기',loadMore,{class:'rv-more','data-load-more':true});app.append(more);
   await loadMore();
   const restorePages=Math.min(100,pageDepth.get(route)||1);

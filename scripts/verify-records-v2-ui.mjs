@@ -198,7 +198,7 @@ assert.equal(unnamed.querySelector('.rv-record-open'),null,'Untitled records omi
 assert.ok(unnamed.querySelector('.rv-meta a[href="#record/untitled"]'),'The record date retains detail access');
 assert.equal(unnamed.querySelector('.rv-slide img').alt,'오늘의 기록 · 첨부 사진 1');
 const filenameAlt=app.legacyView({category:'daily',legacyHtml:'<img src="https://example.test/test.jpg" alt="IMG_1234.jpg">'});
-assert.equal(filenameAlt.querySelector('img').alt,'나으하루 · 첨부 사진 1');
+assert.equal(filenameAlt.querySelector('img').alt,'나으 하루 · 첨부 사진 1');
 for(const originalAlt of ['IMG_8210','DSC_0123','image','9d12f1e0-182a-43c7-9e70-b952cd22bcf5']){
   const source={legacySource:{title:'주말 산책'},legacyHtml:`<img src="https://example.test/test.jpg" alt="${originalAlt}">`};
   const rendered=app.legacyView(source);
