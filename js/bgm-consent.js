@@ -67,7 +67,7 @@ export function initBgmConsent(audio) {
   dialog.innerHTML = `
     <h2 id="bgm-consent-title">주인장 안내문</h2>
     <div class="bgm-consent-body">
-      <p id="bgm-consent-copy">주인장이 골라놓은 음악이 있습니다.<br>취향에 안 맞을 수도 있습니다.</p>
+      <p id="bgm-consent-copy">주인장이 골라놓은 음악이 있습니다.<br>취향에 맞을 거에요.</p>
       <div class="bgm-consent-actions">
         <button type="button" data-bgm-yes>일단 믿어볼게요</button>
         <button type="button" data-bgm-no autofocus>제 귀는 제가 지킬게요</button>
@@ -87,7 +87,24 @@ export function initBgmConsent(audio) {
     });
     close();
   });
-  const decline = () => { stop(); close(); };
+  const decline = () => {
+    close();
+    const joke = document.createElement('dialog');
+    joke.className = 'bgm-consent bgm-joke';
+    joke.setAttribute('aria-label', '응 그딴 거 없음ㅋ');
+    joke.innerHTML = '<div class="bgm-consent-body"><p>응 그딴 거 없음ㅋ</p><button type="button" autofocus>들어가기</button></div>';
+    document.body.append(joke);
+    const enter = () => {
+      requestBgmPlay(audio, true).catch(() => {
+        const prompt = audio.closest('.mini-player')?.querySelector('[data-bgm-prompt]');
+        if (prompt) prompt.hidden = false;
+      });
+      joke.close(); joke.remove(); previousFocus?.focus({ preventScroll: true });
+    };
+    joke.querySelector('button').addEventListener('click', enter);
+    joke.addEventListener('cancel', event => { event.preventDefault(); enter(); });
+    joke.showModal();
+  };
   dialog.querySelector('[data-bgm-no]').addEventListener('click', decline);
   dialog.addEventListener('cancel', event => { event.preventDefault(); decline(); });
   dialog.showModal();

@@ -9,3 +9,20 @@ body.sketch-site{--cwk-font-body:Chansu,'Apple SD Gothic Neo',sans-serif;--cwk-f
 .sk-track{border:0;border-radius:0;background:url('/assets/sketch/track-border.svg') center/100% 100% no-repeat;padding:7px 18px}
 
 .sk-owner-music[open]{position:absolute;bottom:100%;left:12px;max-width:calc(100vw - 24px);background:white;border:1px solid #aaa;padding:15px}.sketch-site .sk-owner-music .mini-player{display:block!important}.sketch-site .bgm-schedule-editor{max-width:100%;overflow:auto}
+
+/* Shared paper surface; no legacy yellow hover or opaque home cutouts. */
+body.sketch-site{--cwk-link-hover-bg:transparent;--cwk-surface-page:transparent;--cwk-surface-preview:transparent;background:#f7f2e5 url('/assets/sketch/paper.png') repeat;background-size:900px auto}
+.sketch-site .sketch-content{background:transparent}
+.sketch-header,.sketch-site .bgm-consent,.sk-music-dock,.sk-owner-music[open]{background:#f7f2e5 url('/assets/sketch/paper.png') repeat;background-size:900px auto}
+.sketch-site a:hover,.sketch-site a:active,.sketch-site a:focus{background-color:transparent}
+.sketch-site a,.sketch-site button{-webkit-tap-highlight-color:transparent}
+.sketch-site .bgm-consent h2{background:transparent;color:#242424;border-bottom:1px solid #aaa}
+.sketch-site .bgm-consent button,.sk-music-dock button{background:transparent}
+.sk-track{min-width:0;text-overflow:clip}
+.sk-track-window{overflow:hidden;width:100%;height:100%}
+.sk-track-scroll{display:flex;width:max-content;animation:sk-track-marquee 18s linear infinite;will-change:transform}
+.sk-track-scroll span{display:block;flex:none;padding-right:3em;white-space:nowrap}
+@keyframes sk-track-marquee{to{transform:translateX(-50%)}}
+@media(prefers-reduced-motion:reduce){.sk-track-scroll{animation:none;will-change:auto}.sk-track-scroll span+span{display:none}}
+/* Legacy heading rasters blend their white paper into the shared surface. */
+.rv-crayon-heading svg,.sketch-page-title svg,.sketch-album-heading svg{mix-blend-mode:multiply}

@@ -18,7 +18,7 @@
 .sketch-about .about-infobox tr:has(.about-infobox-photo) { display: none; }
 .sketch-about .about-toc { width: 100%; border: 0; margin: 32px 0; font: inherit; background: transparent; }
 .sketch-about .about-toc th,
-.sketch-about .about-toc td { border: 0; background: white; padding: 0; text-align: left; }
+.sketch-about .about-toc td { border: 0; background: transparent; padding: 0; text-align: left; }
 .sketch-about .about-toc th { font-weight: normal; color: #777; font-size: 17px; padding-bottom: 8px; }
 .sketch-about .about-toc ol { display: flex; flex-wrap: wrap; gap: 8px 25px; list-style: none; padding: 0; }
 .sketch-about .about-section { margin: 44px 0; scroll-margin-top: 110px; }
@@ -30,7 +30,7 @@
 .sketch-about .about-section li { margin-bottom: 10px; }
 .sketch-about .about-section img { max-width: 100%; height: auto; }
 .sketch-about .about-wiki-table-scroll table { width: 100%; font: inherit; border: 0; }
-.sketch-about .about-wiki-table-scroll :is(th,td) { padding: 12px 8px; border: 0; border-bottom: 1px solid #ddd; background: white; }
+.sketch-about .about-wiki-table-scroll :is(th,td) { padding: 12px 8px; border: 0; border-bottom: 1px solid #ddd; background: transparent; }
 .sketch-about .about-wiki-table-scroll th { font-weight: normal; }
 .sketch-guestbook .sketch-content > .note { text-align: center; font: inherit; font-size: 18px; line-height: 1.8; color: #666; }
 .sketch-guestbook #guestbookForm { margin: 36px 0 60px; }
@@ -38,7 +38,7 @@
 .sketch-guestbook #guestbookForm :is(th,td) { border: 0; background: transparent; padding: 0; }
 .sketch-guestbook #guestbookForm th { padding-bottom: 24px; font-size: 26px; font-weight: normal; }
 .sketch-guestbook #guestbookForm label { display: inline-block; margin: 12px 0 8px; }
-.sketch-guestbook #guestbookForm :is(input,textarea) { width: 100% !important; box-sizing: border-box; font: inherit; border: 1px solid #777; border-radius: 3px 6px 4px 2px; background: white; padding: 12px 15px; }
+.sketch-guestbook #guestbookForm :is(input,textarea) { width: 100% !important; box-sizing: border-box; font: inherit; border: 1px solid #777; border-radius: 3px 6px 4px 2px; background: transparent; padding: 12px 15px; }
 .sketch-guestbook #guestbookForm textarea { min-height: 160px; resize: vertical; }
 .sketch-guestbook #guestbookForm small,
 .sketch-guestbook #guestbookMessageHelp { font: inherit; font-size: 16px; color: #666; }
