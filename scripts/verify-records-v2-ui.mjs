@@ -1,3 +1,4 @@
+import { displayDate } from '../js/display-date.mjs';
 // Isolated DOM integration: executes the actual app handlers with injected I/O.
 // Run with CWK_DOM_PARSER_MODULE pointing to an installed linkedom ESM entry.
 // No HTTP requests, browser, PocketBase session, uploads, or saved records.
@@ -66,6 +67,7 @@ const service = {
 const sessionValues = new Map();
 const sessionStorage = {getItem:key=>sessionValues.get(key)||null};
 const dependencies = {
+  displayDate,
   sessionStorage,
   reviewMediaValue:value=>value,
   getContentScroller:()=>null,readContentScroll:()=>0,scrollContentTo:()=>{},scrollContentIntoView:()=>{},

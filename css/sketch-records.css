@@ -1,5 +1,5 @@
 /* Reading surfaces reuse the production Records V2 behavior. */
-body.sketch-site #records-app { font-family:inherit; font-size:22px; line-height:1.7; background:transparent; border:0; min-height:0; width:100%; max-width:820px; margin:0 auto; padding:0 0 52px; }
+body.sketch-site #records-app { font-family:inherit; font-size:18px; line-height:1.7; background:transparent; border:0; min-height:0; width:100%; max-width:820px; margin:0 auto; padding:0 0 52px; }
 body.sketch-site .rv-heading { padding:44px 0 30px; border:0; }
 body.sketch-site .rv-heading h2 { font-size:48px; color:#087dff; }
 body.sketch-site .rv-crayon-heading { width:min(340px,78%); margin:0 auto; }
@@ -9,7 +9,7 @@ body.sketch-site .rv-heading:has(.rv-crayon-heading) > p { text-align:center; ma
 body.sketch-site .rv-header { position:static; background:transparent; border:0; padding:14px 0; }
 body.sketch-site .rv-filters { padding:0 0 16px; gap:8px 18px; border-bottom:1px solid #ddd; }
 body.sketch-site .rv-filter-label { display:none; }
-body.sketch-site .rv-filters a { font-size:20px; padding:3px 0; border:0; color:#555; }
+body.sketch-site .rv-filters a { font-size:17px; padding:3px 0; border:0; color:#555; }
 body.sketch-site .rv-filters a[aria-current=page] { background:none; color:#087dff; text-decoration:underline; text-underline-offset:7px; }
 body.sketch-site .rv-entry,
 body.sketch-site .rv-entry[data-record-id]:not(.is-detail) { max-width:none; margin:0; padding:32px 0 38px; border:0; border-bottom:1px solid #ddd; background:transparent; }
@@ -22,24 +22,24 @@ body.sketch-site .rv-entry:not(.is-detail) > .rv-person .rv-meta > a { font-size
 body.sketch-site .rv-meta a { color:inherit; text-decoration:none; }
 body.sketch-site .rv-body,
 body.sketch-site .rv-legacy-excerpt,
-body.sketch-site .rv-legacy-content { font-size:22px; line-height:1.85; }
-body.sketch-site .rv-record-title { font-size:29px; line-height:1.5; margin:12px 0 16px; }
+body.sketch-site .rv-legacy-content { font-size:18px; line-height:1.7; }
+body.sketch-site .rv-record-title { font-size:25px; line-height:1.5; margin:12px 0 16px; }
 body.sketch-site .rv-record-title a { color:inherit; text-decoration:none; }
 body.sketch-site .rv-record-title a:hover { color:#087dff; text-decoration:underline; }
-body.sketch-site .is-detail .rv-record-title { font-size:36px; }
+body.sketch-site .is-detail .rv-record-title { font-size:28px; }
 body.sketch-site .rv-slide { background:transparent; }
 body.sketch-site .rv-carousel { margin-top:20px; }
 body.sketch-site .rv-photo-comment:empty { display:none; }
 body.sketch-site .rv-media-first .rv-photo-comment { margin-bottom:20px; }
-body.sketch-site .rv-detail-back { padding:28px 0 0; font-size:20px; }
+body.sketch-site .rv-detail-back { padding:28px 0 0; font-size:17px; }
 body.sketch-site .rv-entry.is-detail { border:0; }
-body.sketch-site .rv-person strong { font-size:20px; }
+body.sketch-site .rv-person strong { font-size:17px; }
 body.sketch-site .rv-muted { font-size:18px; }
 body.sketch-site .rv-embed { border:1px solid #ddd; padding:18px; }
 body.sketch-site .rv-embed h3 { font-size:25px; }
 body.sketch-site .rv-teaser-content { display:flex; align-items:flex-start; gap:28px; }
 body.sketch-site .rv-teaser-copy { flex:1; min-width:0; }
-body.sketch-site .rv-teaser-excerpt { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:3; overflow:hidden; white-space:pre-line; color:#555; margin:0; font-size:21px; line-height:1.7; }
+body.sketch-site .rv-teaser-excerpt { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:3; overflow:hidden; white-space:pre-line; color:#555; margin:0; font-size:18px; line-height:1.7; }
 body.sketch-site .rv-teaser-thumbnail { flex:0 0 150px; margin-top:16px; }
 body.sketch-site .rv-teaser-thumbnail img { display:block; width:100%; aspect-ratio:1; object-fit:cover; }
 body.sketch-site #records-app button { border:1px solid #999; background:transparent; color:#222; font:inherit; padding:6px 14px; }
@@ -49,17 +49,20 @@ body.sketch-site .rv-editor { padding:22px 0; }
 body.sketch-site .rv-editor .rv-compose-body { font:inherit; line-height:1.7; }
 body.sketch-site .rv-editor select { font:inherit; }
 @media(max-width:640px) {
-  body.sketch-site #records-app { font-size:20px; }
+  body.sketch-site #records-app { font-size:17px; }
   body.sketch-site .rv-heading { padding:30px 0 24px; }
   body.sketch-site .rv-crayon-heading { width:min(280px,75%); }
   body.sketch-site .rv-entry,body.sketch-site .rv-entry[data-record-id]:not(.is-detail) { padding:26px 0 30px; }
-  body.sketch-site .rv-body,body.sketch-site .rv-legacy-excerpt,body.sketch-site .rv-legacy-content { font-size:20px; }
+  body.sketch-site .rv-body,body.sketch-site .rv-legacy-excerpt,body.sketch-site .rv-legacy-content { font-size:17px; }
   body.sketch-site .rv-meta,body.sketch-site .rv-entry:not(.is-detail) > .rv-person .rv-meta > a { font-size:15px; }
   body.sketch-site .rv-teaser-content { gap:14px; }
   body.sketch-site .rv-teaser-thumbnail { flex-basis:88px; }
-  body.sketch-site .rv-teaser-excerpt { font-size:19px; }
+  body.sketch-site .rv-teaser-excerpt { font-size:17px; }
   body.sketch-site .rv-record-title { font-size:25px; }
-  body.sketch-site .is-detail .rv-record-title { font-size:30px; }
+  body.sketch-site .is-detail .rv-record-title { font-size:28px; }
   body.sketch-site .rv-filters { gap:4px 14px; }
   body.sketch-site .rv-filters a { font-size:18px; }
 }
+
+body.sketch-site #records-app{letter-spacing:-.025em;word-spacing:-.04em}
+body.sketch-site .rv-meta{letter-spacing:-.015em}

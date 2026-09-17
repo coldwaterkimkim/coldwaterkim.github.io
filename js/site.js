@@ -1,3 +1,4 @@
+import { displayDate } from './display-date.mjs';
 import { initBgmPlayer } from './bgm-player.js';
 import './motion-preferences.js';
 import { bgmAllowed, initBgmConsent, requestBgmPlay, pauseBgmInternally } from './bgm-consent.js';
@@ -2233,7 +2234,7 @@ async function initGuestbookPreview(scope = document) {
         : '';
       tr.innerHTML = `
         <td class="guestbook-preview-message"><b>${escapeHtml(entry.name)}</b>: ${linkify(escapeHtml(entry.message))}${ownerReplyHtml}</td>
-        <td class="date-cell" align="right">${formatDate(guestbookDisplayDate(entry))}</td>
+        <td class="date-cell" align="right">${displayDate(guestbookDisplayDate(entry))}</td>
       `;
       table.appendChild(tr);
     });
@@ -2333,10 +2334,10 @@ async function loadGuestbook(guestbookEntries) {
     const isAdmin = isLoggedIn();
 
     guestbookEntries.innerHTML = entries.map(entry => {
-      const dateLabel = formatDate(guestbookDisplayDate(entry));
+      const dateLabel = displayDate(guestbookDisplayDate(entry));
       const metaPrefix = dateLabel ? `[${dateLabel}] ` : '';
       const replyMessage = String(entry.owner_reply || '').trim();
-      const replyDate = formatDate(entry.owner_replied_at);
+      const replyDate = displayDate(entry.owner_replied_at);
       const deleteBtn = isAdmin
         ? `<button class="del-btn" data-id="${entry.id}" style="font-size:10px; color:red; border:1px solid red; background:white; cursor:pointer; margin-left:5px;">[삭제]</button>`
         : '';

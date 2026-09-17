@@ -1,3 +1,4 @@
+import { displayDate } from './display-date.mjs';
 import { reviewMediaValue } from './review-media.js';
 import { getContentScroller, readContentScroll, scrollContentTo, scrollContentIntoView } from './content-scroll.js';
 import { getSetting } from './pb.js';
@@ -11,7 +12,7 @@ import { enhanceEmbeddedMedia } from './media-embeds.js';
 import { observeEditorMediaDuringUploads } from './editor-media-quiescence.mjs';
 
 const app = document.querySelector('#records-app');
-const categoryNames = { posts: '나으 생각', daily: '나으 하루', nasajab: '나사잡', projects: '나으 만듦' };
+const categoryNames = { posts: '나으 생각', daily: '나으 하루', nasajab: '나사잡', projects: '내가 만든 것들' };
 const albumUrl = '/album/';
 let page = 0, hasMore = true, loading = false, generation = 0, observer;
 let route = '', records = [], draft = null, baseline = '', busy = false;
@@ -48,11 +49,7 @@ const e = (tag, attrs = {}, ...children) => {
 };
 const button = (label, action, attrs = {}) => e('button', { type: 'button', onClick: action, ...attrs }, label);
 const link = (text, href, attrs = {}) => e('a', { href, ...attrs }, text);
-const dateLabel = value => {
-  if (!value) return '날짜 미상';
-  const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? String(value) : new Intl.DateTimeFormat('ko-KR', { year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit' }).format(d);
-};
+const dateLabel = value => displayDate(value) || '날짜 미상';
 const dayNow = () => new Intl.DateTimeFormat('en-CA', {year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
 const safeURL = value => { if(!String(value||'').trim())return ''; try { const url = new URL(value, location.origin); return ['http:', 'https:'].includes(url.protocol) ? reviewMediaValue(url.href) : ''; } catch { return ''; } };
 const external = (text, url) => link(text, safeURL(url) || '#', { target:'_blank', rel:'noopener noreferrer' });
@@ -86,14 +83,14 @@ function shell(title, subtitle) {
   if(typeof __RECORDS_PREVIEW__!=='undefined'&&__RECORDS_PREVIEW__===true)app.append(e('p',{class:'rv-preview-note'},'로컬 검토본 · 운영 미반영'));
   if (title) {
     const heading=e('h2',{},title);
-    const art={ '#posts':['thought',326,151,385,140], '#daily':['daily',307,104,410,138], '#projects':['making',294,197,440,134], '#nasajab':['interests',315,137,403,150], '#home':['all',374,88,282,88] }[route];
+    const art={ '#posts':['thought',326,151,385,140], '#daily':['daily',307,104,410,138], '#projects':['original',285,780,310,225], '#nasajab':['interests',315,137,403,150], '#home':['all',374,88,282,88] }[route];
     if(art && document.body.classList.contains('sketch-site')) {
       const [key,x,y,w,h]=art;
       heading.classList.add('rv-crayon-heading');
-      heading.innerHTML=`<span class="rv-heading-label"></span><svg aria-hidden="true" viewBox="${x} ${y} ${w} ${h}" style="aspect-ratio:${w}/${h}"><image href="/assets/sketch/${key}-wire.png" width="1024" height="1536"/></svg>`;
+      heading.innerHTML=`<span class="rv-heading-label"></span><svg aria-hidden="true" viewBox="${x} ${y} ${w} ${h}" style="aspect-ratio:${w}/${h}"><image href="/assets/sketch/${key==='original'?'original':key+'-wire'}.png" width="${key==='original'?1333:1024}" height="${key==='original'?1888:1536}"/></svg>`;
       heading.querySelector('span').textContent=title;
     }
-    app.append(e('section',{class:'rv-heading'},heading,subtitle?e('p',{class:'rv-muted'},subtitle):null));
+    app.append(e('section',{class:'rv-heading'},heading));
   }
 }
 function recordMeta(record, className = 'rv-meta') {
@@ -370,7 +367,7 @@ async function renderRoute() {
     return;
   }
   if(route==='#drafts'&&!service.isOwner()){shell('임시 저장');app.append(e('p',{class:'rv-status'},'주인장 로그인 후 볼 수 있어.'));return;}
-  const headings={'#nasajab':['나사잡','나를 사로잡은 장면과 이야기.'],'#projects':['나으 만듦','만든 것들과 만들어 가는 과정.'],'#posts':['나으 생각','생각, 고민, 그리고 끄적임.'],'#daily':['나으 하루','하루의 장면과 짧은 이야기.'],'#album':['앨범','기록 속 사진과 영상.'],'#drafts':['임시 저장','아직 게시하지 않은 기록.']};
+  const headings={'#nasajab':['나사잡','나를 사로잡은 장면과 이야기.'],'#projects':['내가 만든 것들','만든 것들과 만들어 가는 과정.'],'#posts':['나으 생각','생각, 고민, 그리고 끄적임.'],'#daily':['나으 하루','하루의 장면과 짧은 이야기.'],'#album':['앨범','기록 속 사진과 영상.'],'#drafts':['임시 저장','아직 게시하지 않은 기록.']};
   shell(...(headings[route]||['전체 보기','살아가며 남긴 기록들.']));
   if(route!=='#drafts')app.append(feedFilters());
   app.append(e('main',{id:'rv-feed',class:route==='#album'?'rv-album':route==='#posts'||route==='#projects'?'rv-teaser-list':'rv-reading-feed'}),e('p',{id:'rv-feed-status',class:'rv-status','aria-live':'polite'}));

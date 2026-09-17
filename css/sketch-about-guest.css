@@ -65,3 +65,6 @@
 .sketch-about .sketch-page-title, .sketch-guestbook .sketch-page-title { width: min(360px, 85%); margin: 8px auto 36px; }
 .sketch-page-title svg { display: block; width: 100%; height: auto; overflow: hidden; }
 .sketch-heading-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+
+.sketch-about .sketch-content,.sketch-guestbook .sketch-content{font-size:18px;letter-spacing:-.025em;word-spacing:-.04em;line-height:1.7}
+@media(max-width:640px){.sketch-about .sketch-content,.sketch-guestbook .sketch-content{font-size:17px}}
