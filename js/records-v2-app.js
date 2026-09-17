@@ -374,7 +374,7 @@ async function renderRoute() {
   if(route==='#drafts'&&!service.isOwner()){shell('임시 저장');app.append(e('p',{class:'rv-status'},'주인장 로그인 후 볼 수 있어.'));return;}
   const headings={'#nasajab':['나사잡','나를 사로잡은 장면과 이야기.'],'#projects':['내가 만든 것들','만든 것들과 만들어 가는 과정.'],'#posts':['나으 생각','생각, 고민, 그리고 끄적임.'],'#daily':['나으 하루','하루의 장면과 짧은 이야기.'],'#album':['앨범','기록 속 사진과 영상.'],'#drafts':['임시 저장','아직 게시하지 않은 기록.']};
   shell(...(headings[route]||['전체 보기','살아가며 남긴 기록들.']));
-  if(route!=='#drafts')app.append(feedFilters());
+  if(route!=='#drafts'&&!document.body.classList.contains('sketch-site'))app.append(feedFilters());
   app.append(e('main',{id:'rv-feed',class:route==='#album'?'rv-album':route==='#posts'||route==='#projects'?'rv-teaser-list':'rv-reading-feed'}),e('p',{id:'rv-feed-status',class:'rv-status','aria-live':'polite'}));
   const more=button('이전 기록 더 보기',loadMore,{class:'rv-more','data-load-more':true});app.append(more);
   await loadMore();

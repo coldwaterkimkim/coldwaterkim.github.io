@@ -73,3 +73,14 @@ body.sketch-site .rv-wide-heading{width:min(580px,95%)}
 body.sketch-site .rv-wide-heading img{display:block;width:100%;height:auto}
 body.sketch-site .rv-entry[data-record-id]:not(.is-detail){position:relative;border-bottom:0}
 body.sketch-site .rv-entry[data-record-id]:not(.is-detail)::after{content:'';position:absolute;bottom:0;left:0;right:0;height:5px;background:url('/assets/sketch/divider.svg') center/100% 100% no-repeat;pointer-events:none}
+
+body.sketch-site #records-content,body.sketch-site #records-app{height:auto;max-height:none;overflow:visible}
+body.sketch-site :is(.rv-body,.rv-legacy-excerpt,.rv-legacy-content,.rv-teaser-excerpt){font-size:15px;line-height:1.4}
+body.sketch-site .rv-record-title{font-size:20px;line-height:1.3}
+body.sketch-site .is-detail .rv-record-title{font-size:24px}
+body.sketch-site .rv-teaser-thumbnail{order:-1;margin-top:12px}
+.title-slider{position:relative;display:flex;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;scrollbar-width:none;touch-action:pan-x pan-y;cursor:grab;padding-inline:15%;gap:0;overscroll-behavior-x:contain}
+.title-slider::-webkit-scrollbar{display:none}.title-slider.dragging{scroll-snap-type:none;cursor:grabbing}
+.title-slide{flex:0 0 100%;min-width:0;height:150px;padding:12px 6px;display:flex;align-items:center;justify-content:center;scroll-snap-align:center;user-select:none;opacity:.4}
+.title-slide[aria-current]{opacity:1}.title-slide img,.title-slide svg{width:100%;height:100%;object-fit:contain;pointer-events:none;overflow:hidden;mix-blend-mode:multiply}
+@media(max-width:640px){.title-slide{height:115px;padding:10px 6px}}
