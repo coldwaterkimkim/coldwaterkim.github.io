@@ -407,3 +407,12 @@ PocketBase `v0.23.5` 기본 HTTP 읽기/쓰기 제한시간 3분은 느린 외�
 - 서버 및 프론트 운영 반영 승인. 콘텐츠형/문서형 편집기, 보류한 홈/제목 레일/모바일 손잡이를 배포 범위로 확정했다.
 - 배포 전 제목 유실·삭제 후 복귀 회귀를 수정하고 Records V2 Go 및 두 DOM 검사를 통과했다.
 - 기존 운영 DB 온라인 스냅샷 quick_check와 backend/dist 롤백 사본 보관 완료. 실제 운영 반영 결과는 배포 완료 뒤 기록한다.
+
+## 2026-09-18 production editor release
+
+- Code commit `7ede21f1b4a4` pushed to main and deployed as both frontend and PocketBase. New PID 45667; public site-version matches. Public and Tailscale 9443 capabilities report documentEditing/contentEditing=true.
+- Rollback: `~/.local/share/coldwaterkim/home-server/rollbacks/content-editor-20260918-182657` contains verified SQLite snapshots, old backend generation and dist. No DB migration or original media changes.
+- Snapshot-backed rehearsal passed real API create/read/update of mixed content, order/captions, empty titles, document content, unauthorized write rejection and SQLite quick_check. Production user records were not modified by tests.
+- Installer administrator kickstart dialog was cancelled. Verified the old PID 287 belonged to the current user and launchd KeepAlive=true, then sent SIGTERM for normal shutdown. launchd restarted the verified new generation; different PID, direct health and capability checked.
+- Public smoke 33 checks, build 88 artifacts, music and album checks passed. Browser confirmed home archive, actual records/media and track-title loading. Source/runtime dist rsync dry-run has no differences.
+- Production OWNER browser upload/publish was not exercised. Local demo and screenshots in output/ remain untracked and are not in the public build.

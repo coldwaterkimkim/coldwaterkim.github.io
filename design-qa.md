@@ -109,3 +109,7 @@ Base: `/Users/kimchansu/Code/coldwaterkim.github.io/output/content-editor-qa/`
 - 음악 재생·일시중지와 동의 선택을 보존한다.
 - 기록마다 추가 연출을 강요하지 않는다. 랜덤 입구나 기록 미리보기는 필수 기능으로 판정하지 않는다.
 - 브라우저 실측과 정적·자동 검사를 구분하고, 검증하지 못한 플랫폼이나 흐름은 명시한다.
+
+## 2026-09-18 release verification
+
+Production frontend/backend 7ede21f1b4a4 verified. Snapshot-backed server persistence rehearsal passed; public smoke 33 checks passed; browser confirmed home archive and live records load. Public and Tailscale capabilities enabled. Production OWNER browser upload/publish not exercised; no user records changed by tests. Additional material-style mockups were not adopted.
