@@ -124,7 +124,15 @@ func TestRecordsV2LifecycleAndReferences(t *testing.T) {
 		return rr
 	}
 	path := "/api/cwk/records-v2"
+	capabilities := request("GET", path+"/capabilities", "", nil, http.StatusOK)
+	var capabilityBody map[string]bool
+	if err := json.Unmarshal(capabilities.Body.Bytes(), &capabilityBody); err != nil || !capabilityBody["documentEditing"] || !capabilityBody["contentEditing"] {
+		t.Fatal("document editing capability missing")
+	}
 	d := recordsV2Document{Category: "daily", Status: "draft", RecordDate: "2026-09-05", Body: "원본 기록", Attachments: []recordsV2Attachment{{ID: "photo-1", MediaID: file.Id, URL: "https://example.com/a.jpg", Kind: "image", Comment: "사진별 코멘트", PlaybackURL: "https://example.com/playback.mp4", PosterURL: "https://example.com/poster.jpg"}}}
+	d.Title = "콘텐츠 제목"
+	d.Embeds = []recordsV2Embed{{ID: "link-1", Type: "youtube", URL: "https://youtu.be/abcdefghijk", Comment: "콘텐츠 설명"}}
+	d.ContentOrder = []string{"link-1", "photo-1"}
 	request("POST", path, "", d, http.StatusUnauthorized)
 	request("POST", path, otherToken, d, http.StatusForbidden)
 	rr := request("POST", path, token, d, http.StatusCreated)
@@ -133,6 +141,9 @@ func TestRecordsV2LifecycleAndReferences(t *testing.T) {
 	}
 	if len(d.Attachments) != 1 || d.Attachments[0].PlaybackURL != "https://example.com/playback.mp4" || d.Attachments[0].PosterURL != "https://example.com/poster.jpg" {
 		t.Fatal("playback/poster URL lost in response")
+	}
+	if d.Title != "콘텐츠 제목" || len(d.Embeds) != 1 || d.Embeds[0].Comment != "콘텐츠 설명" || strings.Join(d.ContentOrder, ",") != "link-1,photo-1" {
+		t.Fatal("content metadata lost in save response")
 	}
 	if d.ID == "" || d.Revision != 1 || d.FirstPublishedAt != "" {
 		t.Fatalf("unexpected draft: %+v", d)
@@ -150,6 +161,9 @@ func TestRecordsV2LifecycleAndReferences(t *testing.T) {
 	draftProjection, err := app.FindRecordById(d.LegacySource.Collection, d.LegacySource.ID)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if draftProjection.GetString("title") != "콘텐츠 제목" || strings.Index(draftProjection.GetString("content"), "youtu.be") > strings.Index(draftProjection.GetString("content"), "a.jpg") {
+		t.Fatal("content metadata lost in legacy projection")
 	}
 	if draftProjection.GetString("status") != "draft" || draftProjection.GetString("first_published_at") != "" || draftProjection.GetString("published_at") != "" {
 		t.Fatal("draft projection was prematurely published")
@@ -289,8 +303,14 @@ func TestRecordsV2LifecycleAndReferences(t *testing.T) {
 	staleSource.SourceUpdated = "stale"
 	request("PUT", syntheticPath, token, staleSource, http.StatusConflict)
 	imported := recordsV2Document{SourceUpdated: sourceDoc.SourceUpdated, Category: "posts", Status: "published", RecordDate: "2025-01-02", LegacySource: &recordsV2Source{Collection: "posts", ID: legacy.Id, URL: "https://example.com/posts/old", Title: "예전 글의 제목", Slug: "예전-글"}, FirstPublishedAt: "2099-01-01 00:00:00.000Z", LegacyHTML: `<p>before</p><img src="https://example.com/api/files/media/` + file.Id + `/photo.jpg"><p>after</p>`}
+	// An ordinary legacy import must not overwrite the original HTML, even if
+	// an older client sends a transformed or incomplete HTML representation.
+	imported.LegacyHTML = "<p>unrequested replacement</p>"
 	rr = request("PUT", syntheticPath, token, imported, http.StatusCreated)
 	json.Unmarshal(rr.Body.Bytes(), &imported)
+	if imported.LegacyHTML != legacy.GetString("content") {
+		t.Fatal("default import no longer preserves authentic HTML")
+	}
 	if imported.FirstPublishedAt != "2025-01-02 03:04:05.000Z" {
 		t.Fatal("legacy publication evidence not preserved")
 	}
@@ -358,6 +378,72 @@ func TestRecordsV2LifecycleAndReferences(t *testing.T) {
 		t.Fatal("read through became stale")
 	}
 	request("GET", path+"/posts:"+draftLegacy.Id, "", nil, http.StatusNotFound)
+	// The document editor explicitly opts into replacing HTML on its first save.
+	explicitPath := path + "/posts:" + older.Id
+	replacement := recordsV2WriteRequest{recordsV2Document: observed, ReplaceLegacyHTML: true}
+	replacement.LegacyHTML = "<h1>바꾼 문서</h1><p>본문 수정</p>"
+	replacement.LegacySource = &recordsV2Source{Collection: "posts", ID: newer.Id, URL: "https://example.com/forged"}
+	request("PUT", explicitPath, "", replacement, http.StatusUnauthorized)
+	request("PUT", explicitPath, otherToken, replacement, http.StatusForbidden)
+	staleReplacement := replacement
+	staleReplacement.SourceUpdated = "stale"
+	request("PUT", explicitPath, token, staleReplacement, http.StatusConflict)
+	replacementResult := request("PUT", explicitPath, token, replacement, http.StatusCreated)
+	var edited recordsV2Document
+	if err := json.Unmarshal(replacementResult.Body.Bytes(), &edited); err != nil {
+		t.Fatal(err)
+	}
+	if edited.LegacyHTML != replacement.LegacyHTML || edited.LegacySource.ID != older.Id {
+		t.Fatal("explicit HTML replacement lost content or trusted a forged source")
+	}
+	savedSource, err := app.FindRecordById("posts", older.Id)
+	if err != nil || savedSource.GetString("content") != replacement.LegacyHTML {
+		t.Fatal("explicit HTML replacement did not update compatibility content")
+	}
+	stored, err := app.FindRecordById("records_v2", edited.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	storedJSON, _ := json.Marshal(stored.Get("document"))
+	if strings.Contains(string(storedJSON), "replaceLegacyHtml") || strings.Contains(replacementResult.Body.String(), "replaceLegacyHtml") {
+		t.Fatal("transient replacement intent leaked into persisted document")
+	}
+	request("PUT", explicitPath, token, replacement, http.StatusConflict)
+	staleMapped := recordsV2WriteRequest{recordsV2Document: edited, ReplaceLegacyHTML: true}
+	staleMapped.Revision = 0
+	request("PUT", path+"/"+edited.ID, token, staleMapped, http.StatusConflict)
+
+	// Optional titles distinguish explicit clearing from older clients that omit the field.
+	titled := recordsV2Document{Category: "daily", Status: "draft", RecordDate: "2026-09-18", Body: "본문", Title: "선택 제목", TitleExplicit: true}
+	titleResponse := request("POST", path, token, titled, http.StatusCreated)
+	json.Unmarshal(titleResponse.Body.Bytes(), &titled)
+	titlePath := path + "/" + titled.ID
+	titled.Title = ""
+	titleResponse = request("PUT", titlePath, token, titled, http.StatusOK)
+	json.Unmarshal(titleResponse.Body.Bytes(), &titled)
+	if titled.Title != "" || !titled.TitleExplicit {
+		t.Fatal("explicit empty title was not retained")
+	}
+	olderClient := titled
+	olderClient.TitleExplicit = false
+	olderClient.Title = ""
+	olderClient.Body = "older client changed body"
+	titleResponse = request("PUT", titlePath, token, olderClient, http.StatusOK)
+	json.Unmarshal(titleResponse.Body.Bytes(), &titled)
+	if titled.Title != "" || !titled.TitleExplicit {
+		t.Fatal("older client resurrected compatibility title")
+	}
+	titled.Title = "복원 제목"
+	titleResponse = request("PUT", titlePath, token, titled, http.StatusOK)
+	json.Unmarshal(titleResponse.Body.Bytes(), &titled)
+	olderClient = titled
+	olderClient.TitleExplicit = false
+	olderClient.Title = ""
+	titleResponse = request("PUT", titlePath, token, olderClient, http.StatusOK)
+	json.Unmarshal(titleResponse.Body.Bytes(), &titled)
+	if titled.Title != "복원 제목" || !titled.TitleExplicit {
+		t.Fatal("older client erased optional title")
+	}
 	// Generic PocketBase APIs remain locked; custom OWNER route is the only writer.
 	request("GET", "/api/collections/records_v2/records", "", nil, http.StatusForbidden)
 }
@@ -551,4 +637,59 @@ func TestRecordsV2NasajabAndUnclassifiedDraft(t *testing.T) {
 		t.Fatal("synthetic deletion affected media")
 	}
 
+}
+
+func TestRecordsV2ContentEditorContract(t *testing.T) {
+	d := recordsV2Document{Category: "daily", Status: "draft", RecordDate: "2026-09-18", Title: "Optional title", Attachments: []recordsV2Attachment{{ID: "photo", URL: "https://example.com/photo.jpg", Kind: "image", Comment: "Photo caption"}}, Embeds: []recordsV2Embed{{ID: "link", Type: "youtube", URL: "https://youtu.be/abc", Comment: "Link <caption>\nsecond line"}}, ContentOrder: []string{"link", "photo"}}
+	if err := validateRecordsV2(&d); err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := json.Marshal(d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var roundtrip recordsV2Document
+	if err := json.Unmarshal(encoded, &roundtrip); err != nil {
+		t.Fatal(err)
+	}
+	if roundtrip.Title != d.Title || roundtrip.Embeds[0].Comment != d.Embeds[0].Comment || strings.Join(roundtrip.ContentOrder, ",") != "link,photo" {
+		t.Fatalf("lost editor metadata: %s", encoded)
+	}
+	projected := recordsV2CompatibilityHTML(roundtrip)
+	if strings.Index(projected, "youtu.be") > strings.Index(projected, "photo.jpg") || !strings.Contains(projected, "Link &lt;caption&gt;<br>second line") {
+		t.Fatalf("incorrect projection: %s", projected)
+	}
+	d.ContentOrder = nil
+	if err := validateRecordsV2(&d); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(d.ContentOrder, ",") != "photo,link" {
+		t.Fatalf("incorrect old document default: %v", d.ContentOrder)
+	}
+	d.ContentOrder = []string{"link"}
+	if err := validateRecordsV2(&d); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(d.ContentOrder, ",") != "link,photo" {
+		t.Fatalf("missing occurrence not appended: %v", d.ContentOrder)
+	}
+	for _, order := range [][]string{{"unknown"}, {"link", "link"}} {
+		d.ContentOrder = order
+		if err := validateRecordsV2(&d); err != nil {
+			t.Fatal(err)
+		}
+		if len(d.ContentOrder) != 2 || d.ContentOrder[0] == d.ContentOrder[1] {
+			t.Fatalf("order not normalized: %v", d.ContentOrder)
+		}
+	}
+	d.ContentOrder = nil
+	d.Embeds[0].Comment = strings.Repeat("a", 50001)
+	if err := validateRecordsV2(&d); err == nil {
+		t.Fatal("accepted oversized embed caption")
+	}
+	d.Embeds[0].Comment = ""
+	d.Title = strings.Repeat("a", 4097)
+	if err := validateRecordsV2(&d); err == nil {
+		t.Fatal("accepted oversized title")
+	}
 }

@@ -3,7 +3,7 @@ import { reviewMediaValue } from './review-media.js';
 import { getContentScroller, readContentScroll, scrollContentTo, scrollContentIntoView } from './content-scroll.js';
 import { getSetting } from './pb.js';
 import * as service from './records-v2-service.js';
-import { sanitizeLegacyHtml } from './records-v2-model.mjs';
+import { orderedRecordContent, recordTitle, sanitizeLegacyHtml } from './records-v2-model.mjs';
 import { openPhotoEditor } from './records-v2-crop.js';
 import { imageCropStyle } from './image-crop.mjs';
 import { normalizeChatGptSnapshot, chatGptShareInfo } from './chatgpt-embeds.mjs';
@@ -12,6 +12,7 @@ import { enhanceEmbeddedMedia } from './media-embeds.js';
 import { observeEditorMediaDuringUploads } from './editor-media-quiescence.mjs';
 import { installPhotoCarousel } from './photo-carousel.js';
 import '../css/photo-carousel.css';
+import { documentRecordHtml, documentHasContent } from './document-record-content.js';
 
 const app = document.querySelector('#records-app');
 const categoryNames = { posts: '나으 생각', daily: '나으 하루', nasajab: '나사잡', projects: '내가 만든 것들' };
@@ -20,6 +21,8 @@ let page = 0, hasMore = true, loading = false, generation = 0, observer;
 let route = '', records = [], draft = null, baseline = '', busy = false;
 let feedReturnRoute = '#home';
 let previousRoute = '#home', previousScroll = 0, editorRoot, uploadStatus;
+let documentEditor=null, contentEditor=null, documentMode=false, editorGeneration=0;
+function disposeDocumentEditor(){editorGeneration++;contentEditor?.destroy();contentEditor=null;document.body.classList.remove('rv-content-composing');documentEditor?.destroy();documentEditor=null;documentMode=false;}
 const positions = new Map();
 const views = new Map();
 const firstPages = new Map();
@@ -33,8 +36,9 @@ function firstPage(hash) {
   return promise;
 }
 function warmNeighbors(hash) {
-  const index=feedRoutes.indexOf(hash);if(index<0)return;
-  [feedRoutes[(index+4)%5],feedRoutes[(index+1)%5]].forEach(next=>{if(!views.has(next))firstPage(next).catch(()=>{});});
+  const categories=feedRoutes.slice(1);
+  const index=categories.indexOf(hash);if(index<0)return;
+  [categories[(index+3)%4],categories[(index+1)%4]].forEach(next=>{if(!views.has(next))firstPage(next).catch(()=>{});});
 }
 const pageDepth = new Map();
 try { const saved=JSON.parse(sessionStorage.getItem('cwk:feed:position')||'null'); if(saved && Date.now()-saved.at<86400000){for(const [key,value] of saved.positions||[])positions.set(key,value);for(const [key,value] of saved.depth||[])pageDepth.set(key,value);feedReturnRoute=saved.feedReturnRoute||'#home';} } catch {}
@@ -247,12 +251,12 @@ function legacyView(record, open = false, preview = false) {
 }
 function entry(record, targetAttachment = '', isDetail = false) {
   const article = e('article',{class:`rv-entry${isDetail?' is-detail':''}`,'data-record-id':record.id},isDetail?recordMeta(record,'rv-meta rv-detail-meta'):person(record));
-  const title=String(record.legacySource?.title||'').trim();
+  const title=record.legacyHtml?.includes('<!--cwk-document-->')?'':recordTitle(record);
   if(record.legacySource?.sourceUrl)article.append(e('p',{class:'rv-meta'},external('출처',record.legacySource.sourceUrl)));
   const visibleTitle=title&&!/^\d{4}-\d{2}-\d{2} 나으 하루(?:\s|$)/.test(title)&&!record.body?.trim().startsWith(title);
   if(visibleTitle)article.append(e(isDetail?'h1':'h2',{class:'rv-record-title'},isDetail?title:link(title,idHash(record.id))));
   if(isDetail)article.append(person(record,true,false));
-  const visuals = (record.attachments||[]).filter(a=>a.kind==='image'||a.kind==='video');
+  const visuals = orderedRecordContent(record).filter(a=>a.kind==='image'||a.kind==='video'||a.type==='chatgpt'||a.type==='youtube');
   const globalText = e('p',{class:'rv-body rv-global-comment'},record.body || '');
   globalText.hidden = !record.body;
   article.append(globalText);
@@ -264,10 +268,10 @@ function entry(record, targetAttachment = '', isDetail = false) {
     const count = e('span',{class:'rv-count'},`1 / ${visuals.length}`);
     const dots = e('div',{class:'rv-dots','aria-hidden':'true'},visuals.map((_,i)=>e('span',{class:'rv-dot','aria-current':i===0?'true':'false'})));
     visuals.forEach((attachment,i)=>{
-      const media = attachment.kind==='image' ? croppedImage(attachment,{alt:photoDescription(record,i,attachment.alt||attachment.comment)}) : e('video',{src:safeURL(attachment.playbackUrl||attachment.url),poster:safeURL(attachment.posterUrl)||undefined,controls:true,playsInline:true,preload:'none'});
+      const media = attachment.type ? embedView(attachment) : attachment.kind==='image' ? croppedImage(attachment,{alt:photoDescription(record,i,attachment.alt||attachment.comment)}) : e('video',{src:safeURL(attachment.playbackUrl||attachment.url),poster:safeURL(attachment.posterUrl)||undefined,controls:true,playsInline:true,preload:'none'});
       const imageLink=attachment.kind==='image' ? link('',safeURL(attachment.url),{class:'rv-image-link',target:'_blank',rel:'noopener noreferrer','aria-label':`${photoDescription(record,i,attachment.alt||attachment.comment)} 원본 열기`}) : null;
       if(imageLink) imageLink.append(media);
-      const slide=e('figure',{class:'rv-slide','aria-label':`${i+1} / ${visuals.length}`},imageLink || media);
+      const slide=e('figure',{class:`rv-slide${attachment.type?' rv-slide-embed':''}`,'aria-label':`${i+1} / ${visuals.length}`},imageLink || media);
       slides.append(slide);
     });
     let current=0;
@@ -307,7 +311,7 @@ function entry(record, targetAttachment = '', isDetail = false) {
     if(['image','video'].includes(attachment.kind))continue;
     article.append(e('div',{class:'rv-attachment'},attachment.kind==='audio'?e('audio',{src:safeURL(attachment.url),controls:true,preload:'none'}):null,external(attachment.name||'첨부 파일',attachment.url)));
   }
-  (record.embeds||[]).forEach(embed=>article.append(embedView(embed)));
+
   if(record.legacyHtml)article.append(legacyView(record,isDetail||!record.body&&!visuals.length,!isDetail));
   return article;
 }
@@ -321,7 +325,7 @@ function teaser(record) {
   legacy.querySelectorAll('p,div,br,li,h1,h2,h3').forEach(node=>node.append(document.createTextNode('\n')));
   const plain = String(record.body || legacy.textContent || '').trim();
   const lines = plain.split('\n').map(line=>line.trim()).filter(Boolean);
-  const fullTitle = String(record.legacySource?.title || lines[0] || '제목 없는 기록').trim();
+  const fullTitle = String((record.legacyHtml?.includes('<!--cwk-document-->')?lines[0]:recordTitle(record)) || lines[0] || '제목 없는 기록').trim();
   const title = record.legacySource?.title || fullTitle.length<=90 ? fullTitle : `${fullTitle.slice(0,90).trimEnd()}…`;
   const excerpt = plain.startsWith(fullTitle) && fullTitle.length<=90 ? plain.slice(fullTitle.length).trim() : plain;
   const item = e('article',{class:'rv-entry rv-teaser','data-record-id':record.id},recordMeta(record));
@@ -370,16 +374,17 @@ function feedFilters() {
   return e('nav',{class:'rv-filters','aria-label':'따로보기'}, e('strong',{class:'rv-filter-label'},'따로보기'), [['home','전체'],...Object.entries(categoryNames)].map(([key,label])=>link(label,`#${key}`,{'aria-current':route===`#${key}`?'page':undefined})));
 }
 async function renderRoute() {
-  let next=location.hash||'#home';
+  let next=location.hash==='#start'?'#home':location.hash||'#home';
   if(next==='#menu'){next='#home';history.replaceState(null,'',next);}
   if(next==='#album' && albumUrl !== '#album'){ location.assign(albumUrl); return; }
   if(draft){if(busy||dirty()&&!confirm('저장하지 않은 변경을 닫을까?')){history.replaceState(null,'','#compose');return;}draft=null;}
+  disposeDocumentEditor();
   document.body.classList.toggle('rv-composing',next==='#compose');
   if(route==='#home'||categoryNames[route.slice(1)])feedReturnRoute=route;
-  rememberView();positions.set(route,readContentScroll());route=next;generation++;observer?.disconnect();carouselResizeObserver?.disconnect();loading=false;page=0;hasMore=true;records=[];
+  rememberView();positions.set(route,readContentScroll());route=next;window.dispatchEvent(new Event('cwk:route-sync'));generation++;observer?.disconnect();carouselResizeObserver?.disconnect();loading=false;page=0;hasMore=true;records=[];
   const routeToken=generation;
   const cached=views.get(route);
-  if(cached){app.replaceChildren(...cached.nodes);app.dataset.viewRoute=route;delete app.dataset.transitioning;page=cached.page;hasMore=cached.hasMore;records=[...cached.records];observeMore();observeCarousels();scrollContentTo(cached.scroll);warmNeighbors(route);return;}
+  if(cached){app.replaceChildren(...cached.nodes);app.dataset.viewRoute=route;delete app.dataset.transitioning;page=cached.page;hasMore=cached.hasMore;records=[...cached.records];observeMore();observeCarousels();if(route==='#home')scrollToRouteContent();else scrollContentTo(cached.scroll);warmNeighbors(route);return;}
   if(feedRoutes.includes(route)) {
     const token=generation;
     app.dataset.transitioning='true';
@@ -421,6 +426,14 @@ async function renderRoute() {
   scrollToRouteContent();
 }
 function scrollToRouteContent(){
+  if(route==='#home' && document.querySelector('#sketch-home')) {
+    requestAnimationFrame(()=>{
+      if(route!=='#home')return;
+      if(location.hash==='#home')scrollContentIntoView(document.querySelector('#records-content'));
+      else scrollContentTo(0);
+    });
+    return;
+  }
   if(positions.has(route)){scrollContentTo(positions.get(route));return;}
   if(route!=='#home'&&matchMedia('(max-width: 640px)').matches)scrollContentIntoView(document.querySelector('#records-content')||app);
   else scrollContentTo(0);
@@ -431,105 +444,121 @@ async function openEditor(record = null) {
   if(!draft){previousRoute=route==='#compose'?'#home':route;previousScroll=readContentScroll();}
   rememberView();
   generation++;observer?.disconnect();carouselResizeObserver?.disconnect();
-  draft=record?structuredClone(record):{category:'',body:'',attachments:[],embeds:[],status:'draft',recordDate:dayNow()};
+  disposeDocumentEditor();
+  draft=record?structuredClone(record):{category:categoryNames[previousRoute.slice(1)]?previousRoute.slice(1):'',body:'',attachments:[],embeds:[],status:'draft',recordDate:dayNow()};
   draft.attachments ||= [];draft.embeds ||= [];
   baseline=JSON.stringify(draft);busy=false;
-  history.pushState(null,'','#compose');route='#compose';
+  history.pushState(null,'','#compose');route='#compose';window.dispatchEvent(new Event('cwk:route-sync'));
   document.body.classList.add('rv-composing');
   app.replaceChildren(header('기록 남기기'));
   if(typeof __RECORDS_PREVIEW__!=='undefined'&&__RECORDS_PREVIEW__===true)app.append(e('p',{class:'rv-preview-note'},'로컬 검토본 · 운영 미반영'));
   editorRoot=e('main',{class:'rv-editor'});app.append(editorRoot);
-  const select=e('select',{'aria-label':'기록 분류',onChange:event=>{draft.category=event.target.value;syncSaveState();}},e('option',{value:'',selected:!draft.category},'분류 선택'),Object.entries(categoryNames).map(([value,label])=>e('option',{value,selected:draft.category===value},label)));
+  const select=e('select',{'aria-label':'기록 분류',onChange:event=>{
+    draft.category=event.target.value;
+    if(!draft.body?.trim()&&!draft.attachments.length&&!draft.embeds.length&&!documentHasContent(draft.legacyHtml)&&['posts','projects'].includes(draft.category)!==documentMode){delete draft.legacyHtml;void openEditor(draft);return;}
+    syncSaveState();
+  }},e('option',{value:'',selected:!draft.category},'분류 선택'),Object.entries(categoryNames).map(([value,label])=>e('option',{value,selected:draft.category===value},label)));
   editorRoot.append(e('div',{class:'rv-person'},e('img',{class:'rv-avatar',src:'/assets/profile-crop.jpg',alt:''}),e('div',{class:'rv-compose-person'},e('strong',{},'김찬수'),e('span',{class:'rv-muted'},'새로운 기록')),button('임시 저장',()=>persist('draft'),{class:'rv-link rv-draft','data-save':'draft'})));
-  const textarea=e('textarea',{class:'rv-compose-body','aria-label':'전역 코멘트 — 사진 위에 항상 표시',placeholder:'지금 남기고 싶은 이야기…',value:draft.body||'',onInput:event=>{draft.body=event.target.value;growComposer(event.target);syncSaveState();}});
-  textarea.addEventListener('paste',event=>{const files=[...(event.clipboardData?.files||[])];if(files.length){event.preventDefault();attachFiles(files);}});
-  editorRoot.append(e('label',{},'전역 코멘트 · 사진 위',textarea),e('p',{class:'rv-muted'},'사진을 넘겨도 이 글은 위에 그대로 보여.'),e('div',{id:'rv-thumbs',class:'rv-thumbs'}));
-  requestAnimationFrame(()=>growComposer(textarea));
-  renderThumbs();
-  editorRoot.append(e('p',{class:'rv-muted rv-attachment-help',hidden:!draft.attachments.some(item=>item.kind==='image')},'사진을 누르면 자르기. 아래 개별 코멘트는 해당 사진·영상 아래에만 표시돼.'));
-  const file=e('input',{type:'file',multiple:true,hidden:true,onChange:event=>{attachFiles([...event.target.files]);event.target.value='';}});
-  const media=e('input',{type:'file',accept:'image/*,video/*',multiple:true,hidden:true,onChange:event=>{attachFiles([...event.target.files]);event.target.value='';}});
-  editorRoot.append(file,media,e('div',{class:'rv-editor-tools'},button('사진 · 영상',()=>media.click()),button('링크',showLinkForm),button('파일 · 오디오',()=>file.click())));
-  uploadStatus=e('div',{class:'rv-status','aria-live':'polite'});editorRoot.append(uploadStatus,e('div',{id:'rv-embeds'}));renderEditorEmbeds();
-  editorRoot.append(e('label',{class:'rv-category-field'},'이 기록의 분류',select),e('p',{class:'rv-category-hint'},'게시할 때 하나를 선택해줘. 게시한 뒤에도 바꿀 수 있어.'));
-  editorRoot.append(e('details',{class:'rv-editor-options'},e('summary',{},`기록 날짜 · ${draft.recordDate||'미지정'}`),e('label',{class:'rv-date'},'기록 날짜',e('input',{type:'date',value:draft.recordDate||dayNow(),onChange:event=>{draft.recordDate=event.target.value;event.target.closest('details').querySelector('summary').textContent=`기록 날짜 · ${draft.recordDate||'미지정'}`;syncSaveState();}}))));
+  if(['posts','projects'].includes(draft.category)||draft.legacyHtml?.includes('<!--cwk-document-->')){await openDocumentComposer(select);return;}
+  await openContentComposer();
+}
+async function openContentComposer(){
+  const token=editorGeneration;
+  const currentDraft=draft;
+  if(!currentDraft.category)currentDraft.category='daily';
+  baseline=JSON.stringify(currentDraft);
+  document.body.classList.add('rv-content-composing');
+  editorRoot=e('main',{class:'rv-content-editor-host'});
+  app.replaceChildren(editorRoot);
+  const {mountContentEditor}=await import('./content-record-editor.js');
+  if(token!==editorGeneration)return;
+  contentEditor=mountContentEditor(editorRoot,{
+    draft:currentDraft,
+    onChange:()=>{},
+    onBusy:value=>{if(token===editorGeneration)busy=value;},
+    onClose:closeEditor,
+    uploadFiles:(files,options)=>service.uploadFiles(files,options),
+    resolveLink:async value=>{
+      const url=value.trim();
+      if(youtubeInfo(url))return {id:crypto.randomUUID(),type:'youtube',url,comment:''};
+      if(!chatGptShareInfo(url))throw new Error('ChatGPT 공유 링크 또는 YouTube 주소를 넣어줘.');
+      const result=await service.resolveChatGptShare(url);
+      return {...(result.type?result:{type:'chatgpt',url,snapshot:result.snapshot||result}),id:result.id||crypto.randomUUID(),comment:''};
+    },
+    editPhoto:attachment=>openPhotoEditor(attachment,{body:currentDraft.body}),
+    legacyPreview:currentDraft.legacyHtml?legacyView(currentDraft,false,true):null,
+    onSave:async status=>{
+      const saved=await service.saveRecord({...currentDraft,status},{contentEditing:true});
+      if(token!==editorGeneration)return saved;
+      Object.assign(currentDraft,saved);baseline=JSON.stringify(currentDraft);views.clear();firstPages.clear();
+      if(status==='published'){
+        // Release the in-flight guard only after the save has returned.
+        busy=false;draft=null;history.replaceState(null,'',idHash(saved.id));route='';await renderRoute();
+      }
+      return saved;
+    },
+    onDelete:currentDraft.id?async()=>{
+      if(!confirm('이 기록을 삭제할까? 게시된 글도 함께 삭제돼. 첨부 원본은 보존돼.'))return false;
+      await service.deleteRecord(currentDraft);
+      if(token!==editorGeneration)return false;
+      busy=false;draft=null;views.clear();firstPages.clear();history.replaceState(null,'','#home');route='';await renderRoute();return true;
+    }:undefined
+  });
+  scrollContentTo(0);
+}
+
+function growComposer(textarea){textarea.style.height='auto';if(textarea.scrollHeight)textarea.style.height=textarea.scrollHeight+'px';}
+async function openDocumentComposer(select){
+  documentMode=true;
+  const token=editorGeneration;
+  const original=documentRecordHtml(draft);
+  const host=e('div',{class:'rv-document-editor'});
+  editorRoot.append(e('p',{class:'rv-muted'},'문단 사이에 사진·영상·파일을 넣어 자유롭게 작성해줘. / 로 블록을 추가할 수 있어.'),host);
+  uploadStatus=e('div',{class:'rv-status','aria-live':'polite'},'문서 편집기를 여는 중…');
+  editorRoot.append(uploadStatus,e('label',{class:'rv-category-field'},'이 기록의 분류',select));
+  editorRoot.append(e('label',{class:'rv-date'},'기록 날짜',e('input',{type:'date',value:draft.recordDate||dayNow(),onChange:event=>{draft.recordDate=event.target.value;syncSaveState();}})));
   if(draft.id)editorRoot.append(button('기록 삭제',async()=>{
-    if(busy||!confirm('이 기록을 삭제할까? 게시된 글도 함께 삭제돼. 첨부 원본은 보존돼.'))return;
+    if(busy||!confirm('이 기록을 삭제할까? 첨부 원본은 보존돼.'))return;
     setBusy(true,true);
     try{await service.deleteRecord(draft);draft=null;views.clear();firstPages.clear();history.replaceState(null,'','#home');route='';await renderRoute();}
     catch(error){uploadStatus.textContent=`삭제하지 못했어. ${error.message}`;}
     finally{setBusy(false);}
   },{class:'rv-link'}));
-  if(draft.legacyHtml)editorRoot.append(e('p',{class:'rv-muted'},'기존 원문은 별도로 보존돼. 여기서 본문과 첨부를 바꿔도 기존 원문은 변경되지 않아.'),legacyView(draft,false,true));
-  editorRoot.addEventListener('dragover',event=>{if(event.dataTransfer?.types.includes('Files'))event.preventDefault();});
-  editorRoot.addEventListener('drop',event=>{if(event.dataTransfer?.files.length){event.preventDefault();attachFiles([...event.dataTransfer.files]);}});
-  syncSaveState();scrollContentTo(0);textarea.focus({preventScroll:true});
+  setBusy(true,true);
+  try{
+    const {mountDocumentEditor}=await import('./document-record-editor.js');
+    if(token!==editorGeneration)return;
+    const editor=await mountDocumentEditor(host,{
+      html:original,
+      onChange:html=>{if(token!==editorGeneration||!draft)return;draft.legacyHtml=`<!--cwk-document-->${html}`;draft.title='';draft.titleExplicit=true;draft.body='';draft.attachments=[];draft.embeds=[];draft.contentOrder=[];syncSaveState();},
+      uploadFiles:files=>service.uploadFiles(files),
+      onBusy:value=>{if(token===editorGeneration){setBusy(value,true);uploadStatus.textContent=value?'콘텐츠를 처리하는 중…':'';}},
+      onError:error=>{if(token===editorGeneration)uploadStatus.textContent=`처리하지 못했어. ${error.message}`;}
+    });
+    if(token!==editorGeneration){editor.destroy();return;}
+    documentEditor=editor;uploadStatus.textContent='';
+  }catch(error){uploadStatus.textContent=`편집기를 열지 못했어. 원문은 보존되어 있어. ${error.message}`;}
+  finally{if(token===editorGeneration)setBusy(false);}
+  scrollContentTo(0);
 }
-function growComposer(textarea){textarea.style.height='auto';if(textarea.scrollHeight)textarea.style.height=textarea.scrollHeight+'px';}
 function closeEditor(){if(busy)return;if(dirty()&&!confirm('저장하지 않은 변경을 닫을까?'))return;draft=null;history.replaceState(null,'',previousRoute);route='';renderRoute().then(()=>scrollContentTo(previousScroll));}
 function syncSaveState(){
   if(!draft)return;
   const categorySelect=app.querySelector('select[aria-label="기록 분류"]');
   if(categorySelect)categorySelect.disabled=busy;
-  const empty=!draft.body?.trim()&&!draft.attachments.length&&!draft.embeds.length&&!draft.legacyHtml;
+  const empty=!draft.body?.trim()&&!draft.attachments.length&&!draft.embeds.length&&!documentHasContent(draft.legacyHtml);
   app.querySelectorAll('[data-save]').forEach(node=>{node.disabled=busy||empty||!draft.recordDate||(node.dataset.save==='published'&&!categoryNames[draft.category]);});
 }
-function setBusy(value,lockText=false){busy=value;app.querySelectorAll('button,input,select').forEach(node=>{node.disabled=value;});app.querySelectorAll('textarea').forEach(node=>{node.disabled=value&&lockText;});syncSaveState();}
-function renderThumbs(){
-  const root=document.querySelector('#rv-thumbs');if(!root)return;root.replaceChildren();
-  const help=editorRoot?.querySelector('.rv-attachment-help');if(help)help.hidden=!draft.attachments.some(item=>item.kind==='image');
-  syncSaveState();
-  draft.attachments.forEach((attachment,index)=>{
-    const preview=e('div',{class:'rv-thumb-preview'});
-    if(attachment.kind==='image')preview.append(croppedImage(attachment));
-    else if(attachment.kind==='video')preview.append(e('video',{src:safeURL(attachment.url),preload:'none',muted:true}));
-    else preview.append(e('p',{},attachment.name||'첨부 파일'));
-    if(attachment.kind==='image')preview.append(button('사진 편집',()=>editPhoto(index),{class:'rv-thumb-edit','aria-label':`사진 ${index+1} 자르기와 코멘트`}));
-    preview.append(e('span',{class:'rv-thumb-number'},index+1),button('×',()=>{draft.attachments.splice(index,1);renderThumbs();},{'aria-label':`${index+1}번째 첨부에서 빼기`}));
-    const move=direction=>{const other=index+direction;if(other<0||other>=draft.attachments.length)return;[draft.attachments[index],draft.attachments[other]]=[draft.attachments[other],draft.attachments[index]];renderThumbs();};
-    root.append(e('div',{class:'rv-thumb'},preview,e('div',{class:'rv-thumb-tools'},button('←',()=>move(-1),{disabled:index===0,'aria-label':`${index+1}번째 첨부 앞으로`}),button(attachment.kind==='image'?'편집':'코멘트',()=>editPhoto(index),{class:'rv-link'}),button('→',()=>move(1),{disabled:index===draft.attachments.length-1,'aria-label':`${index+1}번째 첨부 뒤로`})),['image','video'].includes(attachment.kind)?e('label',{},'개별 코멘트 · 아래',e('textarea',{'aria-label':`${index+1}번째 사진·영상 개별 코멘트`,rows:3,maxLength:10000,placeholder:'비워두면 아래는 빈칸',value:attachment.comment||'',onInput:event=>{attachment.comment=event.target.value;syncSaveState();}})):null));
-  });
-}
-async function editPhoto(index){
-  if(busy)return;const attachment=draft.attachments[index];
-  if(attachment.kind!=='image'){const comment=prompt('이 첨부의 코멘트 (비워두면 아래 영역은 빈칸)',attachment.comment||'');if(comment!==null){attachment.comment=comment;renderThumbs();}return;}
-  const result=await openPhotoEditor(attachment,{body:draft.body});if(result){Object.assign(attachment,result);renderThumbs();}
-}
-async function attachFiles(files){
-  if(busy||!files.length)return;setBusy(true);uploadStatus.replaceChildren(e('p',{},`${files.length}개 파일을 올리는 중…`));
-  const origins=new Set([location.origin]);app.querySelectorAll('video[src],audio[src]').forEach(media=>{try{origins.add(new URL(media.src).origin);}catch{}});
-  const quiet=[...origins].map(origin=>observeEditorMediaDuringUploads(editorRoot,{mediaRoot:app,origin}));
-  editorRoot.classList.add('is-image-uploading');quiet.forEach(controller=>controller.sync());
-  const progress=e('progress',{class:'rv-progress',max:100,value:0});uploadStatus.append(progress);
-  try{const attachments=await service.uploadFiles(files,{onProgress:(value,file,index,total)=>{const percent=typeof value==='number'?value:value?.percent??value?.progress??0;progress.value=((index||0)+Math.max(0,Math.min(100,percent))/100)/(total||1)*100;uploadStatus.firstChild.textContent=`${(index||0)+1} / ${total||files.length} · ${file?.name||'파일'} · ${value?.phase==='finalizing'?'전송 완료, 등록 중…':value?.phase==='complete'?'등록 완료':`${Math.round(percent)}% 전송 중…`}`;}});draft.attachments.push(...attachments);renderThumbs();uploadStatus.replaceChildren(e('p',{},attachments.errors?.length?`${attachments.length}개 완료. 일부 파일 실패: ${attachments.errors.map(item=>`${item.file?.name||'파일'}: ${item.error?.message||item.message||'전송 실패'}`).join(', ')}`:attachments.duplicate?'이미 처리 중이거나 방금 첨부한 파일이야.':`${attachments.length}개 첨부 완료`));}
-  catch(error){uploadStatus.textContent=`업로드하지 못했어. ${error.message}`;}
-  finally{editorRoot.classList.remove('is-image-uploading');quiet.forEach(controller=>controller.destroy());setBusy(false);renderThumbs();}
-}
+function setBusy(value,lockText=false){busy=value;app.querySelectorAll('button,input,select').forEach(node=>{node.disabled=value;});app.querySelectorAll('textarea').forEach(node=>{node.disabled=value&&lockText;});const host=app.querySelector('.rv-document-editor');if(host)host.inert=value&&lockText;syncSaveState();}
+function renderThumbs(){contentEditor?.refresh();}
 function youtubeInfo(value){try{const url=new URL(value);if(!['youtube.com','www.youtube.com','m.youtube.com','youtu.be'].includes(url.hostname))return null;const id=url.hostname==='youtu.be'?url.pathname.slice(1):url.searchParams.get('v')||url.pathname.match(/^\/(?:shorts|embed)\/([^/]+)/)?.[1];if(!/^[\w-]{11}$/.test(id||''))return null;const raw=url.searchParams.get('t')||url.searchParams.get('start')||'0';let start=/^\d+$/.test(raw)?Number(raw):0;if(!start){for(const [,n,unit]of raw.matchAll(/(\d+)(h|m|s)/g))start+=Number(n)*({h:3600,m:60,s:1}[unit]);}return{id,start};}catch{return null;}}
-function showLinkForm(){
-  if(document.querySelector('#rv-link-form'))return;
-  const input=e('input',{type:'url',placeholder:'ChatGPT 공유 링크 또는 YouTube 주소','aria-label':'첨부할 링크',required:true});
-  const status=e('p',{'aria-live':'polite',class:'rv-muted'});
-  const form=e('form',{id:'rv-link-form',class:'rv-link-form'},e('label',{},'링크 붙여넣기',input),button('첨부',null,{type:'submit'}),' ',button('닫기',()=>form.remove()),status);
-  form.addEventListener('submit',async event=>{
-    event.preventDefault();if(busy)return;const url=input.value.trim();
-    if(!chatGptShareInfo(url)&&!youtubeInfo(url)){status.textContent='ChatGPT 공유 링크 또는 YouTube 주소를 넣어줘.';return;}
-    if(draft.embeds.some(embed=>embed.url===url)){status.textContent='이미 첨부한 링크야.';return;}
-    setBusy(true);status.textContent='미리보기를 가져오는 중…';
-    try{if(youtubeInfo(url))draft.embeds.push({id:crypto.randomUUID(),type:'youtube',url});else{const result=await service.resolveChatGptShare(url);draft.embeds.push(result.type?result:{id:crypto.randomUUID(),type:'chatgpt',url,snapshot:result.snapshot||result});}renderEditorEmbeds();form.remove();}
-    catch(error){status.textContent=`미리보기를 가져오지 못했어. ${error.message}`;}
-    finally{setBusy(false);renderThumbs();}
-  });
-  editorRoot.querySelector('.rv-editor-tools').after(form);input.focus();
-}
-function renderEditorEmbeds(){syncSaveState();const root=document.querySelector('#rv-embeds');if(!root)return;root.replaceChildren();draft.embeds.forEach((embed,index)=>{const view=embedView(embed);view.prepend(button('첨부에서 빼기',()=>{draft.embeds.splice(index,1);renderEditorEmbeds();},{class:'rv-link'}));root.append(view);});}
 async function persist(status){
   if(busy||!draft)return;
-  if(!draft.body?.trim()&&!draft.attachments.length&&!draft.embeds.length&&!draft.legacyHtml){uploadStatus.textContent='글이나 첨부를 하나 이상 남겨줘.';return;}
+  if(!draft.body?.trim()&&!draft.attachments.length&&!draft.embeds.length&&!documentHasContent(draft.legacyHtml)){uploadStatus.textContent='글이나 첨부를 하나 이상 남겨줘.';return;}
   if(!draft.recordDate){uploadStatus.textContent='기록 날짜를 선택해줘.';return;}
   if(status==='published'&&!categoryNames[draft.category]){uploadStatus.textContent='게시할 분류를 선택해줘.';app.querySelector('select[aria-label="기록 분류"]')?.focus();return;}
   setBusy(true,true);uploadStatus.textContent='저장하는 중…';
-  try{const saved=await service.saveRecord({...draft,status});draft={...draft,...saved};baseline=JSON.stringify(draft);views.clear();firstPages.clear();uploadStatus.textContent=status==='draft'?'임시 저장했어.':'게시했어.';
+  try{const saved=await service.saveRecord({...draft,status},{replaceLegacyHtml:documentMode});draft={...draft,...saved};baseline=JSON.stringify(draft);views.clear();firstPages.clear();uploadStatus.textContent=status==='draft'?'임시 저장했어.':'게시했어.';
     if(status==='published'){draft=null;history.replaceState(null,'',idHash(saved.id));route='';await renderRoute();}}
   catch(error){uploadStatus.textContent=`저장하지 못했어. ${error.message}`;}
   finally{setBusy(false);if(draft)renderThumbs();}

@@ -4,12 +4,13 @@ import { displayDate } from '../js/display-date.mjs';
 // No HTTP requests, browser, PocketBase session, uploads, or saved records.
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { sanitizeLegacyHtml } from '../js/records-v2-model.mjs';
+import { orderedRecordContent, recordTitle, sanitizeLegacyHtml } from '../js/records-v2-model.mjs';
 import { imageCropStyle } from '../js/image-crop.mjs';
 import { normalizeChatGptSnapshot, chatGptShareInfo } from '../js/chatgpt-embeds.mjs';
 import { renderChatGptMarkdown, decorateChatGptMarkdown } from '../js/chatgpt-markdown.mjs';
 import { enhanceEmbeddedMedia } from '../js/media-embeds.js';
 import { installPhotoCarousel } from '../js/photo-carousel.js';
+import { documentRecordHtml, documentHasContent } from '../js/document-record-content.js';
 
 assert.ok(process.env.CWK_DOM_PARSER_MODULE, 'Set CWK_DOM_PARSER_MODULE to an installed linkedom ESM entry; this suite must not silently skip.');
 const { parseHTML, DOMParser } = await import(process.env.CWK_DOM_PARSER_MODULE);
@@ -75,12 +76,13 @@ const dependencies = {
   document, window, Node: window.Node, location, history, service,
   requestAnimationFrame: callback => callback(), matchMedia: () => ({ matches: false }),
   confirm: () => true, prompt: () => null,
-  sanitizeLegacyHtml, imageCropStyle, normalizeChatGptSnapshot, chatGptShareInfo,
+  orderedRecordContent, recordTitle, sanitizeLegacyHtml, imageCropStyle, normalizeChatGptSnapshot, chatGptShareInfo,
   renderChatGptMarkdown, decorateChatGptMarkdown,
   // Real media decoration. Fixtures have no PocketBase video paths, and fetch
   // is forbidden above so derivative hydration cannot contact a live server.
   enhanceEmbeddedMedia,
   installPhotoCarousel,
+  documentRecordHtml, documentHasContent,
   observeEditorMediaDuringUploads: () => ({ sync() {}, destroy() {} }),
   openPhotoEditor: async () => null,
   getSetting: async () => '',
@@ -91,14 +93,36 @@ assert.equal(source.split(bootstrap).length, 2, 'App startup boundary changed: r
 const handlers = source.slice(0, source.indexOf(bootstrap)).replace(/^import[^\n]+;\n/gm, '');
 assert.doesNotMatch(handlers, /^import\b/m, 'New multiline imports need explicit test dependency injection.');
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
-const app = await new AsyncFunction(...Object.keys(dependencies), `${handlers}\nreturn { openEditor, attachFiles, entry, legacyView, detailBackLink, recordLoadError, setRoute:value=>{route=value;} };`)(...Object.values(dependencies));
+const app = await new AsyncFunction(...Object.keys(dependencies), `${handlers}\nreturn { entry, legacyView, detailBackLink, recordLoadError, setRoute:value=>{route=value;} };`)(...Object.values(dependencies));
 const root = document.querySelector('#records-app');
+const documentSource={body:'첫 문단\n다음 문단',legacyHtml:'<h2>기존 소제목</h2>',attachments:[{kind:'image',url:'https://example.test/photo.jpg',name:'사진',comment:'사진 설명',crop:{enabled:true,x:0,y:0,width:.5,height:1,aspect:.5,pixelWidth:600}},{kind:'file',url:'https://example.test/file.pdf',name:'자료.pdf'}],embeds:[{type:'chatgpt',url:'https://chatgpt.com/share/6a901ff4-0b9c-83e9-b058-8ecd80b68701',snapshot:{title:'대화',messages:[{role:'user',text:'원문'}]}}]};
+const documentBefore=JSON.stringify(documentSource);
+const documentHtml=documentRecordHtml(documentSource);
+assert.equal(JSON.stringify(documentSource),documentBefore,'Composing the document must not mutate its source');
+assert.ok(documentHtml.includes('data-cwk-image-crop')&&documentHtml.includes('file.pdf')&&documentHtml.includes('data-cwk-chatgpt-snapshot'),'Document conversion retains crop, file and saved conversation');
+assert.ok(documentHtml.indexOf('첫 문단')<documentHtml.indexOf('photo.jpg')&&documentHtml.indexOf('photo.jpg')<documentHtml.indexOf('사진 설명'),'Document preserves text/media/comment ordering');
+assert.equal(documentHasContent('<p><br></p>'),false);
+assert.equal(documentHasContent(documentHtml),true);
+const orderedSource={...documentSource,title:'선택 제목',attachments:documentSource.attachments.map((item,index)=>({...item,id:`media-${index}`})),embeds:documentSource.embeds.map(item=>({...item,id:'chat',comment:'대화에 대한 감상'})),contentOrder:['chat','media-1','media-0']};
+const orderedHtml=documentRecordHtml(orderedSource);
+assert.match(orderedHtml,/<h1>선택 제목<\/h1>/);
+assert.ok(orderedHtml.indexOf('data-cwk-chatgpt-embed')<orderedHtml.indexOf('대화에 대한 감상')&&orderedHtml.indexOf('대화에 대한 감상')<orderedHtml.indexOf('file.pdf')&&orderedHtml.indexOf('file.pdf')<orderedHtml.indexOf('photo.jpg'),'Document conversion keeps mixed order and embed comments');
+assert.equal(orderedRecordContent(documentSource).length,3,'Unnormalized legacy objects must not lose id-less content');
+const legacyTitleRecord={legacySource:{title:'옛 제목'},legacyHtml:'<p>원래 본문</p>'};
+assert.match(documentRecordHtml(legacyTitleRecord),/<h1>옛 제목<\/h1>/,'Document editing imports the existing legacy title');
+const convertedTitleRecord={...legacyTitleRecord,title:'',titleExplicit:true,legacyHtml:'<!--cwk-document--><h1>옛 제목</h1><p>수정 본문</p>'};
+assert.equal((documentRecordHtml(convertedTitleRecord).match(/옛 제목/g)||[]).length,1,'Reopening a document must not duplicate its title');
+for(const legacyTitle of ['삭제한 제목','2026-09-18 기록']){
+ const untitled={id:'cleared-title',category:'daily',title:'',titleExplicit:true,legacySource:{title:legacyTitle},body:'본문',attachments:[],embeds:[]};
+ assert.equal(app.entry(untitled).querySelector('.rv-record-title'),null,'Explicitly empty titles never use compatibility titles');
+}
+assert.equal(recordTitle(legacyTitleRecord),'옛 제목','Untouched legacy source titles remain visible');
+
+
 const tick = () => new Promise(resolve => setImmediate(resolve));
 const event = (node, type) => node.dispatchEvent(new window.Event(type, { bubbles: true, cancelable: true }));
 const click = node => { assert.ok(node, 'Expected UI control'); assert.ok(!node.disabled, 'Cannot click disabled control'); event(node, 'click'); };
 const byText = (text, scope = root) => [...scope.querySelectorAll('button')].find(node => node.textContent === text);
-const publish = () => root.querySelector('[data-save="published"]');
-const write = value => { const node = root.querySelector('textarea.rv-compose-body'); node.value = value; event(node, 'input'); };
 const attachment = (id, comment = '') => ({ id, mediaId: id, kind: 'image', name: `${id}.jpg`, url: `https://example.test/${id}.jpg`, comment, crop: null });
 
 app.setRoute('#record/test/media%3Atest');
@@ -112,70 +136,6 @@ assert.equal(app.detailBackLink().textContent,'← 피드로');
 assert.match(app.recordLoadError({status:404,message:'Record not found'}),/이 기록을 찾을 수 없어/);
 assert.doesNotMatch(app.recordLoadError({message:'Internal SQL error'}),/SQL/);
 app.setRoute('#home');
-await app.openEditor();
-assert.equal(publish().disabled, true, 'Empty composer must disable publishing');
-assert.equal(root.querySelector('.rv-attachment-help').hidden, true);
-write('  \n '); assert.equal(publish().disabled, true, 'Whitespace cannot enable publishing');
-write('# Plain **text**'); assert.equal(publish().disabled, true, 'Classification required only at publish');
-assert.equal(root.querySelector('[data-save="draft"]').disabled,false,'Unclassified draft allowed');
-const category=root.querySelector('select[aria-label="기록 분류"]');
-assert.equal(category.value,'','New writing starts without automatic category');
-category.querySelectorAll('option').forEach(option=>{option.selected=option.value==='projects';});event(category,'change');assert.equal(publish().disabled,false);
-const date = root.querySelector('input[type="date"]');
-const validDate = date.value;
-date.value = ''; event(date, 'change'); assert.equal(publish().disabled, true, 'Missing record date disables save');
-date.value = validDate; event(date, 'change'); assert.equal(publish().disabled, false);
-write(''); assert.equal(publish().disabled, true, 'Clearing the last content disables publishing');
-
-// Real link-form handlers: deferred ChatGPT response, saved snapshot and remove.
-click(byText('링크'));
-shareJob = deferred();
-root.querySelector('#rv-link-form input').value = 'https://chatgpt.com/share/6a901ff4-0b9c-83e9-b058-8ecd80b68701';
-event(root.querySelector('#rv-link-form'), 'submit');
-assert.equal(publish().disabled, true);
-shareJob.resolve({ snapshot: { title: '대화', messages: [{ role: 'user', text: '질문 **원문**' }, { role: 'assistant', text: '답변\n\n|열|\n|--|\n|값|' }] } });
-await tick();
-assert.equal(publish().disabled, false, 'A completed embed enables publishing');
-assert.equal(root.querySelectorAll('.rv-message').length, 0);
-assert.equal(root.querySelectorAll('.rv-chat-preview').length, 1);
-assert.match(root.querySelector('.rv-chat-excerpt').textContent, /질문/);
-assert.ok(root.querySelector('.rv-chat-preview a[href*="chatgpt.com/share/"]'), 'Preview retains the original conversation link');
-click(byText('첨부에서 빼기')); assert.equal(publish().disabled, true, 'Removing the last embed disables publishing');
-
-// An unsuccessful link lookup unlocks controls but cannot enable an empty post.
-click(byText('링크')); shareJob = deferred();
-root.querySelector('#rv-link-form input').value = 'https://chatgpt.com/share/6a901ff4-0b9c-83e9-b058-8ecd80b68701';
-event(root.querySelector('#rv-link-form'), 'submit');
-shareJob.reject(new Error('test preview failure')); await tick();
-assert.match(root.querySelector('#rv-link-form').textContent, /test preview failure/);
-assert.equal(publish().disabled, true); assert.equal(byText('사진 · 영상').disabled, false);
-click(byText('닫기', root.querySelector('#rv-link-form')));
-
-// Upload runs through the real busy/finish/error handlers with only I/O stubbed.
-uploadJob = deferred(); const upload = app.attachFiles([{ name: 'one.jpg' }]);
-assert.equal(byText('닫기').disabled, true);
-assert.equal(publish().disabled, true);
-assert.equal(root.querySelector('textarea').disabled, false, 'Writing may continue during transfer');
-write('업로드 중 쓴 글'); assert.equal(publish().disabled, true, 'Input cannot override upload lock');
-await app.attachFiles([{ name: 'duplicate.jpg' }]); assert.equal(uploads, 1, 'Busy guard prevents concurrent attachment batches');
-uploadJob.resolve([attachment('one')]); await upload;
-assert.equal(publish().disabled, false); assert.equal(byText('닫기').disabled, false);
-assert.equal(root.querySelector('.rv-attachment-help').hidden, false);
-write(''); assert.equal(publish().disabled, false, 'Photo-only records remain valid');
-click(root.querySelector('[aria-label="1번째 첨부에서 빼기"]'));
-assert.equal(publish().disabled, true); assert.equal(root.querySelector('.rv-attachment-help').hidden, true);
-uploadJob = deferred(); const failedUpload = app.attachFiles([{ name: 'broken.jpg' }]);
-uploadJob.reject(new Error('test upload failure')); await failedUpload;
-assert.match(root.querySelector('.rv-status').textContent, /test upload failure/);
-assert.equal(publish().disabled, true); assert.equal(byText('닫기').disabled, false);
-
-// Save failures preserve text and restore editability; no record is written.
-write('보존할 초안'); saveJob = deferred(); click(root.querySelector('[data-save="draft"]'));
-assert.equal(root.querySelector('textarea').disabled, true);
-saveJob.reject(new Error('test revision conflict')); await tick();
-assert.equal(saves, 1); assert.equal(root.querySelector('textarea').value, '보존할 초안');
-assert.equal(root.querySelector('textarea').disabled, false); assert.equal(publish().disabled, false);
-
 // A complete first cropped photo in the excerpt, then every original media item.
 const crop = '0.1,0.2,0.4,0.5,1,1200';
 const html = `<p>${'원문 내용 '.repeat(90)}</p><figure><img src="https://example.test/first.jpg" data-cwk-image-crop="${crop}"><figcaption>첫 사진 설명</figcaption></figure><p>사진 사이 문장</p><img src="https://example.test/second.jpg"><video src="https://example.test/video.mp4"></video><p>마지막 원문</p>`;
@@ -240,12 +200,14 @@ const single=app.entry({...record,attachments:[attachment('single')]});
 assert.ok(!single.textContent.includes('null'));
 assert.equal(single.querySelector('.rv-photo-comment').textContent,'');
 
-await app.openEditor({...record,recordDate:'2026-09-07'});
-const individual=root.querySelector('textarea[aria-label="1번째 사진·영상 개별 코멘트"]');
-individual.value='수정된 개별 코멘트';event(individual,'input');
-click(root.querySelector('button[aria-label="1번째 첨부 뒤로"]'));
-assert.equal(root.querySelector('textarea[aria-label="2번째 사진·영상 개별 코멘트"]').value,'수정된 개별 코멘트');
-assert.equal(root.querySelector('.rv-compose-body').value,'공통 본문');
+const orderedArticle=app.entry({id:'mixed-order',category:'daily',title:'명시한 제목',body:'본문',attachments:[attachment('last')],embeds:[{id:'first',type:'chatgpt',url:'https://chatgpt.com/share/6a901ff4-0b9c-83e9-b058-8ecd80b68701',comment:'대화 감상',snapshot:{title:'공유 대화',messages:[{role:'user',text:'질문'}]}}],contentOrder:['first','last']});
+assert.equal(orderedArticle.querySelector('.rv-record-title').textContent,'명시한 제목');
+assert.ok(orderedArticle.querySelector('.rv-slide').querySelector('.rv-chat-preview'),'Mixed content starts with selected link occurrence');
+assert.equal(orderedArticle.querySelector('.rv-photo-comment').textContent,'대화 감상','Embed caption follows same carousel contract as photo');
+const orderedSlides=orderedArticle.querySelector('.rv-slides');
+Object.defineProperty(orderedSlides,'clientWidth',{value:390});orderedSlides.scrollLeft=390;event(orderedSlides,'scroll');
+assert.equal(orderedArticle.querySelector('.rv-photo-comment').textContent,'');
+assert.equal(orderedArticle.querySelector('.rv-count').textContent,'2 / 2');
 
 // Non-photo attachments and embeds are preserved by the same entry renderer.
 const mixed = app.entry({ ...record, attachments: [
@@ -262,7 +224,7 @@ assert.equal(mixed.querySelector('a[href="https://example.test/document.pdf"]').
 assert.equal(mixed.querySelector('iframe'), null, 'YouTube must wait for the play action');
 click(byText('영상 재생', mixed));
 assert.equal(mixed.querySelector('iframe').getAttribute('src'), 'https://www.youtube-nocookie.com/embed/Abcdef12345?start=62');
-assert.equal(uploads, 2, 'Only the two explicitly stubbed upload attempts occurred');
+assert.equal(uploads, 0, 'Public rendering never uploads media');
 assert.equal(networkAttempts, 0, 'Even caught network attempts must fail this isolated suite');
 
 // Metadata may come from the isolated clone, while every media file still uses
@@ -288,5 +250,5 @@ assert.equal(previewVideo.querySelector('video').getAttribute('src'), 'https://c
 assert.equal(previewVideo.querySelector('video').getAttribute('poster'), 'https://coldwaterkim.com/api/files/media/testvideoid0001/poster.jpg');
 event(previewVideo.querySelector('video'), 'error');
 assert.equal(previewVideo.querySelector('video').getAttribute('src'), originalVideo, 'Derivative error falls back to unchanged original media URL');
-console.log('Records V2 actual DOM handlers passed: reactive save state, embed fidelity/removal, upload and save failure recovery, legacy excerpt/full source/crop, fixed global and per-media comments.');
+console.log('Records V2 actual DOM handlers passed: public title/mixed order/embed captions, document conversion, legacy excerpt/full source/crop, media carousel and video metadata.');
 console.log('Scope: DOM events with injected I/O; no layout, touch physics, real crop pointer gestures, network transfer, or persistence claims.');

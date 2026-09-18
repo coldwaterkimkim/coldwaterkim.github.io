@@ -13,14 +13,35 @@ export function mediaKind(mime = '', name = '') {
   return 'file';
 }
 export function normalizeRecord(input = {}) {
-  return {
+  const record = {
+    title: String(input.title || ''), titleExplicit: input.titleExplicit === true,
     id: String(input.id || ''), created: String(input.created || ''), updated: String(input.updated || ''), sourceUpdated: String(input.sourceUpdated || ''), category: ['posts','daily','nasajab','projects'].includes(input.category) ? input.category : '', body: String(input.body || ''),
     attachments: Array.from(input.attachments || []).map(a => ({ id: String(a.id || stableOccurrenceId()), mediaId: String(a.mediaId || ''), url: safeMediaUrl(a.url), name: String(a.name || ''), mime: String(a.mime || ''), kind: ['image','video','audio','file'].includes(a.kind) ? a.kind : mediaKind(a.mime, a.name), crop: a.crop?.enabled ? normalizeImageCrop(a.crop) : null, comment: String(a.comment || ''), ...(a.playbackUrl ? {playbackUrl:safeMediaUrl(a.playbackUrl)} : {}), ...(a.posterUrl ? {posterUrl:safeMediaUrl(a.posterUrl)} : {}) })),
-    embeds: Array.from(input.embeds || []).filter(e => ['chatgpt','youtube'].includes(e.type)).map(e => ({ id: String(e.id || stableOccurrenceId()), type: e.type, url: safeMediaUrl(e.url), snapshot: e.type === 'chatgpt' ? normalizeChatGptSnapshot(e.snapshot) : null })),
+    embeds: Array.from(input.embeds || []).filter(e => ['chatgpt','youtube'].includes(e.type)).map(e => ({ id: String(e.id || stableOccurrenceId()), type: e.type, comment: String(e.comment || ''), url: safeMediaUrl(e.url), snapshot: e.type === 'chatgpt' ? normalizeChatGptSnapshot(e.snapshot) : null })),
     ...(input.legacyHtml != null ? { legacyHtml: String(input.legacyHtml) } : {}),
     ...(input.legacySource != null ? { legacySource: input.legacySource } : {}),
     status: input.status === 'published' ? 'published' : 'draft', recordDate: String(input.recordDate || ''), firstPublishedAt: String(input.firstPublishedAt || ''), revision: Number(input.revision || 0)
   };
+  const ids = [...record.attachments, ...record.embeds].map(item => item.id);
+  const valid = new Set(ids);
+  record.contentOrder = [...new Set([...(Array.isArray(input.contentOrder) ? input.contentOrder.map(String) : []), ...ids])].filter(id => valid.has(id));
+  return record;
+}
+// Legacy rows carry their title in source metadata; an explicitly empty title stays empty.
+export function recordTitle(record = {}) {
+  return String(record.titleExplicit ? record.title || '' : record.title || record.legacySource?.title || '').trim();
+}
+// Occurrence IDs retain a mixed photo/video/link order without changing storage arrays.
+export function orderedRecordContent(record = {}) {
+  const items = [...(record.attachments || []), ...(record.embeds || [])];
+  const remaining = new Set(items.map((_, index) => index));
+  const ordered = [];
+  for (const id of Array.isArray(record.contentOrder) ? record.contentOrder : []) {
+    const index = items.findIndex((item, index) => remaining.has(index) && item.id && item.id === id);
+    if (index >= 0) { ordered.push(items[index]); remaining.delete(index); }
+  }
+  // Legacy callers may pass unnormalized objects with no IDs. Keep every one.
+  return [...ordered, ...[...remaining].map(index => items[index])];
 }
 const allowedTags = new Set('p br div span section article h1 h2 h3 h4 h5 h6 strong b em i u s del code pre blockquote ul ol li table thead tbody tfoot tr th td hr a img video audio source figure figcaption details summary'.split(' '));
 const allowedAttrs = new Set('href src alt title width height controls preload playsinline colspan rowspan open class data-cwk-image-crop data-cwk-chatgpt-embed data-cwk-chatgpt-snapshot data-cwk-chatgpt-error data-cwk-chatgpt-link data-role poster type'.split(' '));

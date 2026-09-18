@@ -21,9 +21,16 @@ export async function listRecords({page=1,perPage=20,category,status}={}) {
   return {...result,items:Array.from(result.items || []).map(normalizeRecord)};
 }
 export async function getRecord(id) { return normalizeRecord(await pb.send(`${endpoint}/${encodeURIComponent(id)}`,{method:'GET',requestKey:null})); }
-export async function saveRecord(record) {
+export async function saveRecord(record, {replaceLegacyHtml=false,contentEditing=false}={}) {
   if (!isOwner()) throw new Error('OWNER 로그인이 필요해.');
+  if(replaceLegacyHtml||contentEditing){
+    let capabilities;
+    try {capabilities=await pb.send(`${endpoint}/capabilities`,{method:'GET',requestKey:null});}catch{}
+    if(contentEditing&&!capabilities?.contentEditing)throw new Error('새 콘텐츠 편집기의 제목·순서·개별 설명 저장을 지원하는 서버가 아직 연결되지 않았어. 작성 내용은 유지돼. 서버 업데이트 후 다시 저장해줘.');
+    if(replaceLegacyHtml&&!capabilities?.documentEditing)throw new Error('문서 편집 저장을 지원하는 서버가 아직 연결되지 않았어. 본문을 유지한 채 서버 업데이트 후 다시 저장해줘.');
+  }
   const body = normalizeRecord(record);
+  if(replaceLegacyHtml)body.replaceLegacyHtml=true;
   return normalizeRecord(await pb.send(body.id ? `${endpoint}/${encodeURIComponent(body.id)}` : endpoint,{method:body.id?'PUT':'POST',body,requestKey:null}));
 }
 export const deleteRecord = record => pb.send(`${endpoint}/${encodeURIComponent(record.id)}`,{method:'DELETE',query:{revision:record.revision,...(record.id.includes(':')?{sourceUpdated:record.sourceUpdated}:{})},requestKey:null});

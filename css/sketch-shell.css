@@ -154,19 +154,23 @@ body.sketch-site {
 
 .sketch-home-view .sketch-content {
   width: 100%;
-  max-width: 740px;
-  height: calc(100dvh - var(--sk-header-height,90px));
+  max-width: 940px;
+  height: auto;
   min-height: 0;
-  padding: 12px 28px 18px;
+  padding: 0 28px 70px;
   overflow: visible;
 }
 
 .sketch-home-view #sketch-home {
-  height: 100%;
+  height: calc(100dvh - var(--sk-header-height,90px));
+  max-width: 684px;
+  margin: 0 auto;
+  padding: 12px 0 18px;
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
+#records-content { scroll-margin-top: var(--sk-header-height,90px); }
 
 .sk-home-nav {
   flex: 1;
@@ -329,8 +333,9 @@ body.sketch-site {
     padding: 30px 22px 75px;
   }
   .sketch-home-view .sketch-content {
-    padding: 10px 20px 10px;
+    padding: 0 20px 70px;
   }
+  .sketch-home-view #sketch-home { padding: 10px 0; }
   .sk-primary {
     max-width: 370px;
   }
@@ -368,11 +373,12 @@ body.sketch-site {
     padding-bottom: 3px;
   }
   .sketch-home-view .sketch-content {
-    padding-top: 3px;
-    max-width: 620px;
+    padding-top: 0;
   }
   .sketch-home-view #sketch-home {
     gap: 3px;
+    max-width: 564px;
+    padding-top: 3px;
   }
   .sk-secondary {
     height: 35px;
@@ -558,21 +564,32 @@ body.sketch-site {
   background: #087cff;
 }
 
+/* Clip the entire native thumb to the crayon alpha, including Safari's control surface. */
 .sk-seek::-webkit-slider-thumb {
+  appearance: none;
   -webkit-appearance: none;
   width: 24px;
   height: 24px;
   margin-top: -9.5px;
   border: 0;
-  background: url('/assets/sketch/seek-dot.png') center/contain no-repeat;
+  border-radius: 0;
+  box-shadow: none;
+  background: #087cff;
+  -webkit-mask: url('/assets/sketch/seek-dot.png') center/contain no-repeat;
+  mask: url('/assets/sketch/seek-dot.png') center/contain no-repeat;
+  mask-mode: alpha;
 }
 
 .sk-seek::-moz-range-thumb {
+  appearance: none;
   width: 24px;
   height: 24px;
   border: 0;
   border-radius: 0;
-  background: url('/assets/sketch/seek-dot.png') center/contain no-repeat;
+  box-shadow: none;
+  background: #087cff;
+  mask: url('/assets/sketch/seek-dot.png') center/contain no-repeat;
+  mask-mode: alpha;
 }
 
 .sk-seek:disabled {

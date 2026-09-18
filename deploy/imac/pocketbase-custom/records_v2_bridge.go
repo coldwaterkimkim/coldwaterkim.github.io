@@ -147,7 +147,10 @@ func (s *recordsV2Service) projectLegacy(tx core.App, r *core.Record, d *records
 			return err
 		}
 		source = core.NewRecord(c)
-		title := strings.TrimSpace(strings.SplitN(d.Body, "\n", 2)[0])
+		title := strings.TrimSpace(d.Title)
+		if title == "" {
+			title = strings.TrimSpace(strings.SplitN(d.Body, "\n", 2)[0])
+		}
 		if title == "" {
 			title = d.RecordDate + " 기록"
 		}
@@ -157,6 +160,9 @@ func (s *recordsV2Service) projectLegacy(tx core.App, r *core.Record, d *records
 		}
 		source.Set("title", title)
 		source.Set("slug", "record-"+r.Id)
+	}
+	if strings.TrimSpace(d.Title) != "" && source.Collection().Fields.GetByName("title") != nil {
+		source.Set("title", d.Title)
 	}
 	if source.Collection().Name == "nasajab" {
 		// The original file row and album key remain stable. Rich content is
@@ -198,7 +204,14 @@ func recordsV2CompatibilityHTML(d recordsV2Document) string {
 		b.WriteString("<p>" + strings.ReplaceAll(html.EscapeString(d.Body), "\n", "<br>") + "</p>")
 	}
 	b.WriteString(d.LegacyHTML)
-	for _, a := range d.Attachments {
+	parts := map[string]string{}
+	fallbackOrder := []string{}
+	for index, a := range d.Attachments {
+		key := a.ID
+		if key == "" {
+			key = fmt.Sprintf("legacy-attachment-%d", index)
+		}
+		var b strings.Builder
 		src := html.EscapeString(a.URL)
 		label := html.EscapeString(a.Name)
 		b.WriteString("<figure>")
@@ -224,8 +237,15 @@ func recordsV2CompatibilityHTML(d recordsV2Document) string {
 			b.WriteString("<figcaption>" + strings.ReplaceAll(html.EscapeString(a.Comment), "\n", "<br>") + "</figcaption>")
 		}
 		b.WriteString("</figure>")
+		parts[key] = b.String()
+		fallbackOrder = append(fallbackOrder, key)
 	}
-	for _, e := range d.Embeds {
+	for index, e := range d.Embeds {
+		key := e.ID
+		if key == "" {
+			key = fmt.Sprintf("legacy-embed-%d", index)
+		}
+		var b strings.Builder
 		link := html.EscapeString(e.URL)
 		if e.Type == "chatgpt" {
 			snapshot, _ := json.Marshal(e.Snapshot)
@@ -238,6 +258,18 @@ func recordsV2CompatibilityHTML(d recordsV2Document) string {
 			b.WriteString("</div>")
 		} else {
 			b.WriteString(`<video controls preload="none" src="` + link + `" title="YouTube"></video>`)
+		}
+		if e.Comment != "" {
+			b.WriteString("<p>" + strings.ReplaceAll(html.EscapeString(e.Comment), "\n", "<br>") + "</p>")
+		}
+		parts[key] = b.String()
+		fallbackOrder = append(fallbackOrder, key)
+	}
+	written := map[string]bool{}
+	for _, id := range append(append([]string{}, d.ContentOrder...), fallbackOrder...) {
+		if !written[id] {
+			b.WriteString(parts[id])
+			written[id] = true
 		}
 	}
 	return b.String()

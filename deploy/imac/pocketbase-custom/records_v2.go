@@ -37,6 +37,7 @@ type recordsV2Attachment struct {
 	Comment     string         `json:"comment"`
 }
 type recordsV2Embed struct {
+	Comment  string                `json:"comment"`
 	ID       string                `json:"id"`
 	Type     string                `json:"type"`
 	URL      string                `json:"url"`
@@ -51,6 +52,9 @@ type recordsV2Source struct {
 	URL        string `json:"url"`
 }
 type recordsV2Document struct {
+	Title            string                `json:"title"`
+	TitleExplicit    bool                  `json:"titleExplicit,omitempty"`
+	ContentOrder     []string              `json:"contentOrder"`
 	ClientRequestID  string                `json:"clientRequestId,omitempty"`
 	SchemaVersion    int                   `json:"schemaVersion"`
 	ID               string                `json:"id"`
@@ -67,6 +71,12 @@ type recordsV2Document struct {
 	Created          string                `json:"created"`
 	Updated          string                `json:"updated"`
 	SourceUpdated    string                `json:"sourceUpdated,omitempty"`
+}
+
+// Replacement is an explicit write intent, never persistent document metadata.
+type recordsV2WriteRequest struct {
+	recordsV2Document
+	ReplaceLegacyHTML bool `json:"replaceLegacyHtml,omitempty"`
 }
 
 func ensureRecordsV2(app core.App) error {
@@ -148,6 +158,9 @@ func (s *recordsV2Service) registerRoutes(e *core.ServeEvent) {
 	})
 	e.Router.DELETE("/api/cwk/records-v2/{id}", s.delete).Bind(requireOwner(s.ownerUserID))
 	e.Router.GET("/api/cwk/records-v2", s.list)
+	e.Router.GET("/api/cwk/records-v2/capabilities", func(e *core.RequestEvent) error {
+		return e.JSON(http.StatusOK, map[string]bool{"documentEditing": true, "contentEditing": true})
+	})
 	e.Router.GET("/api/cwk/records-v2/{id}", s.get)
 	e.Router.POST("/api/cwk/records-v2", s.write).Unbind(apis.DefaultBodyLimitMiddlewareId).Bind(apis.BodyLimit(4 * 1024 * 1024)).Bind(requireOwner(s.ownerUserID))
 	e.Router.PUT("/api/cwk/records-v2/{id}", s.write).Unbind(apis.DefaultBodyLimitMiddlewareId).Bind(apis.BodyLimit(4 * 1024 * 1024)).Bind(requireOwner(s.ownerUserID))
@@ -236,7 +249,7 @@ func validateRecordsV2(d *recordsV2Document) error {
 	if _, err := time.Parse("2006-01-02", d.RecordDate); err != nil {
 		return fmt.Errorf("Invalid recordDate")
 	}
-	if len(d.Body) > 500000 || len(d.LegacyHTML) > 2000000 || len(d.Attachments) > 100 || len(d.Embeds) > 20 {
+	if len(d.Title) > 4096 || len(d.ContentOrder) > 120 || len(d.Body) > 500000 || len(d.LegacyHTML) > 2000000 || len(d.Attachments) > 100 || len(d.Embeds) > 20 {
 		return fmt.Errorf("Record too large")
 	}
 	if d.Attachments == nil {
@@ -311,6 +324,9 @@ func validateRecordsV2(d *recordsV2Document) error {
 		}
 	}
 	for _, b := range d.Embeds {
+		if len(b.Comment) > 50000 {
+			return fmt.Errorf("Embed comment too large")
+		}
 		if b.ID == "" || len(b.ID) > 128 || seen[b.ID] {
 			return fmt.Errorf("Embed IDs must be unique")
 		}
@@ -347,6 +363,29 @@ func validateRecordsV2(d *recordsV2Document) error {
 			}
 		}
 	}
+	// Old clients omit order; append missing occurrences in their historical order.
+	order := []string{}
+	ordered := map[string]bool{}
+	for _, id := range d.ContentOrder {
+		if !seen[id] || ordered[id] {
+			continue
+		}
+		order = append(order, id)
+		ordered[id] = true
+	}
+	for _, a := range d.Attachments {
+		if !ordered[a.ID] {
+			order = append(order, a.ID)
+			ordered[a.ID] = true
+		}
+	}
+	for _, b := range d.Embeds {
+		if !ordered[b.ID] {
+			order = append(order, b.ID)
+			ordered[b.ID] = true
+		}
+	}
+	d.ContentOrder = order
 	if d.LegacySource != nil {
 		if len(d.LegacySource.Title) > 4096 || len(d.LegacySource.Slug) > 2048 {
 			return fmt.Errorf("Legacy source metadata too large")
@@ -366,10 +405,11 @@ var errRecordsV2Revision = errors.New("Record changed; reload before saving")
 func (s *recordsV2Service) write(e *core.RequestEvent) error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
-	var d recordsV2Document
-	if err := e.BindBody(&d); err != nil {
+	var request recordsV2WriteRequest
+	if err := e.BindBody(&request); err != nil {
 		return e.BadRequestError("Invalid record", err)
 	}
+	d := request.recordsV2Document
 	if err := validateRecordsV2(&d); err != nil {
 		return e.BadRequestError(err.Error(), nil)
 	}
@@ -428,6 +468,17 @@ func (s *recordsV2Service) write(e *core.RequestEvent) error {
 			if r.GetString("status") == "deleted" {
 				return sql.ErrNoRows
 			}
+			// Older clients omit optional-title intent; retain the newer title contract.
+			if !d.TitleExplicit {
+				previous, decodeErr := recordsV2Decode(r)
+				if decodeErr != nil {
+					return decodeErr
+				}
+				if previous.TitleExplicit {
+					d.Title = previous.Title
+					d.TitleExplicit = true
+				}
+			}
 			if d.Revision != r.GetInt("revision") {
 				return errRecordsV2Revision
 			}
@@ -448,7 +499,7 @@ func (s *recordsV2Service) write(e *core.RequestEvent) error {
 			}
 			authentic := recordsV2FromLegacy(source)
 			d.LegacySource = authentic.LegacySource
-			if synthetic {
+			if synthetic && !request.ReplaceLegacyHTML {
 				d.LegacyHTML = authentic.LegacyHTML
 			}
 			first = authentic.FirstPublishedAt

@@ -21,8 +21,8 @@ const update=()=>{const title=audio._bgmTrackTitle?.textContent||audio._bgmPlayl
 ['play','pause','loadedmetadata','timeupdate','bgm-playlist-changed','bgm-track-changed','emptied'].forEach(e=>audio.addEventListener(e,update));update();if(seek)seek.oninput=()=>{seek.style.setProperty("--seek-progress",seek.value+"%");if(Number.isFinite(audio.duration))audio.currentTime=audio.duration*Number(seek.value)/100};
 audio.addEventListener('bgm-error',event=>showMusicError(event.detail));
 }
-function sync(){const onHome=isRoot&&(!location.hash||location.hash==='#start');document.body.classList.toggle('sketch-home-view',onHome);if(home)home.hidden=!onHome;const records=document.querySelector('#records-content');if(records)records.hidden=onHome;dock.hidden=onHome;document.querySelectorAll('.sketch-header nav a').forEach(a=>a.toggleAttribute('aria-current',a.href===location.href));if(onHome)window.scrollTo(0,0)}
-window.addEventListener('hashchange',sync);sync();new ResizeObserver(()=>document.documentElement.style.setProperty('--sk-header-height',header.getBoundingClientRect().height+'px')).observe(header);
+function sync(){const onHome=isRoot&&(!location.hash||location.hash==='#start'||location.hash==='#home');document.body.classList.toggle('sketch-home-view',onHome);if(home)home.hidden=!onHome;const records=document.querySelector('#records-content');if(records)records.hidden=false;dock.hidden=onHome;document.querySelectorAll('.sketch-header nav a').forEach(a=>a.toggleAttribute('aria-current',a.href===location.href));if(onHome&&location.hash!=='#home')window.scrollTo(0,0)}
+window.addEventListener('cwk:route-sync',sync);window.addEventListener('hashchange',sync);sync();new ResizeObserver(()=>document.documentElement.style.setProperty('--sk-header-height',header.getBoundingClientRect().height+'px')).observe(header);
 
 dock.querySelector('.sk-dock-shuffle').onclick=()=>advanceBgmTrack(audio,true).catch(showMusicError);
 installTitleSliders();

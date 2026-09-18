@@ -1,7 +1,6 @@
 import '../css/title-slider.css';
 
 const categories = [
-  ['#home', '전체 보기', 'all', [374, 88, 282, 88]],
   ['#posts', '나으 생각', 'thought', [326, 151, 385, 140]],
   ['#daily', '나으 하루', 'daily', [307, 104, 410, 138]],
   ['#nasajab', '나를 사로잡은 것들', 'interests'],
