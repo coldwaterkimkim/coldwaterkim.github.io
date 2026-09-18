@@ -1,0 +1,12 @@
+.title-navigation { padding: 44px 0 30px; }
+.title-navigation[hidden] { display: none !important; }
+.title-navigation .title-slider-persistent {
+  display: block;
+  overflow: hidden;
+  padding: 0;
+  scroll-snap-type: none;
+  touch-action: pan-y;
+}
+.title-slider-persistent .title-slider-track { display: flex; width: 100%; will-change: transform; }
+.title-slider-persistent .title-slide { flex: 0 0 72%; scroll-snap-align: none; }
+@media (max-width: 640px) { .title-navigation { padding: 24px 0 18px; } }

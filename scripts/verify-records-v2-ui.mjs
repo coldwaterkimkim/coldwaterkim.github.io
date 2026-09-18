@@ -9,6 +9,7 @@ import { imageCropStyle } from '../js/image-crop.mjs';
 import { normalizeChatGptSnapshot, chatGptShareInfo } from '../js/chatgpt-embeds.mjs';
 import { renderChatGptMarkdown, decorateChatGptMarkdown } from '../js/chatgpt-markdown.mjs';
 import { enhanceEmbeddedMedia } from '../js/media-embeds.js';
+import { installPhotoCarousel } from '../js/photo-carousel.js';
 
 assert.ok(process.env.CWK_DOM_PARSER_MODULE, 'Set CWK_DOM_PARSER_MODULE to an installed linkedom ESM entry; this suite must not silently skip.');
 const { parseHTML, DOMParser } = await import(process.env.CWK_DOM_PARSER_MODULE);
@@ -50,7 +51,7 @@ class HTMLParser {
   parseFromString(html) { return new DOMParser().parseFromString(`<!doctype html><html><body>${html}</body></html>`, 'text/html'); }
 }
 const location = { origin: 'http://127.0.0.1:5196', href: 'http://127.0.0.1:5196/records/#home', hash: '#home' };
-Object.assign(globalThis, { document, DOMParser: HTMLParser });
+Object.assign(globalThis, { document, window, DOMParser: HTMLParser, requestAnimationFrame: callback => {callback();return 0;}, cancelAnimationFrame: () => {} });
 let networkAttempts = 0;
 globalThis.fetch = () => { networkAttempts++; throw new Error('Network access is forbidden in Records UI tests'); };
 window.scrollTo = () => {};
@@ -79,6 +80,7 @@ const dependencies = {
   // Real media decoration. Fixtures have no PocketBase video paths, and fetch
   // is forbidden above so derivative hydration cannot contact a live server.
   enhanceEmbeddedMedia,
+  installPhotoCarousel,
   observeEditorMediaDuringUploads: () => ({ sync() {}, destroy() {} }),
   openPhotoEditor: async () => null,
   getSetting: async () => '',
@@ -134,9 +136,10 @@ assert.equal(publish().disabled, true);
 shareJob.resolve({ snapshot: { title: '대화', messages: [{ role: 'user', text: '질문 **원문**' }, { role: 'assistant', text: '답변\n\n|열|\n|--|\n|값|' }] } });
 await tick();
 assert.equal(publish().disabled, false, 'A completed embed enables publishing');
-assert.equal(root.querySelectorAll('.rv-message').length, 2);
-assert.equal(root.querySelector('.rv-message strong + div strong').textContent, '원문');
-assert.ok(root.querySelector('.rv-message table'), 'Saved conversation formatting survives');
+assert.equal(root.querySelectorAll('.rv-message').length, 0);
+assert.equal(root.querySelectorAll('.rv-chat-preview').length, 1);
+assert.match(root.querySelector('.rv-chat-excerpt').textContent, /질문/);
+assert.ok(root.querySelector('.rv-chat-preview a[href*="chatgpt.com/share/"]'), 'Preview retains the original conversation link');
 click(byText('첨부에서 빼기')); assert.equal(publish().disabled, true, 'Removing the last embed disables publishing');
 
 // An unsuccessful link lookup unlocks controls but cannot enable an empty post.
@@ -181,6 +184,7 @@ const legacy = app.legacyView(legacyRecord, false, true); root.replaceChildren(l
 assert.equal(legacy.querySelectorAll('button').length, 1);
 assert.equal(legacy.querySelectorAll('img').length, 1);
 assert.ok(legacy.querySelector('.cwk-media-crop-frame'), 'First photo must retain its actual crop decoration');
+assert.ok(legacy.querySelector('.rv-square-photo .cwk-media-crop-frame'), 'Saved crop fits inside the square letterbox');
 assert.equal(legacy.querySelector('img').getAttribute('data-cwk-image-crop'), crop);
 assert.ok(legacy.querySelector('.rv-legacy-excerpt .rv-body').textContent.length <= 361);
 click(byText('더 보기', legacy));
@@ -199,6 +203,7 @@ const unnamed=app.entry({id:'untitled',category:'daily',body:'오늘의 기록',
 assert.equal(unnamed.querySelector('.rv-record-open'),null,'Untitled records omit the redundant open link');
 assert.ok(unnamed.querySelector('.rv-meta a[href="#record/untitled"]'),'The record date retains detail access');
 assert.equal(unnamed.querySelector('.rv-slide img').alt,'오늘의 기록 · 첨부 사진 1');
+assert.ok(unnamed.querySelector('.rv-square-photo img'), 'Uncropped attachment uses the square contain frame');
 const filenameAlt=app.legacyView({category:'daily',legacyHtml:'<img src="https://example.test/test.jpg" alt="IMG_1234.jpg">'});
 assert.equal(filenameAlt.querySelector('img').alt,'나으 하루 · 첨부 사진 1');
 for(const originalAlt of ['IMG_8210','DSC_0123','image','9d12f1e0-182a-43c7-9e70-b952cd22bcf5']){
@@ -217,6 +222,7 @@ const article = app.entry(record); root.replaceChildren(article);
 const slides = article.querySelector('.rv-slides');
 Object.defineProperty(slides, 'clientWidth', { value: 390 });
 slides.scrollBy = ({ left }) => { slides.scrollLeft += left; event(slides, 'scroll'); };
+slides.scrollTo = ({ left }) => { slides.scrollLeft = left; event(slides, 'scroll'); };
 slides.scrollLeft = 0;
 assert.equal(article.querySelector('.rv-photo-comment').textContent, '첫 사진 코멘트');
 slides.scrollLeft = 390; event(slides, 'scroll');

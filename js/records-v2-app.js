@@ -10,6 +10,8 @@ import { normalizeChatGptSnapshot, chatGptShareInfo } from './chatgpt-embeds.mjs
 import { renderChatGptMarkdown, decorateChatGptMarkdown } from './chatgpt-markdown.mjs';
 import { enhanceEmbeddedMedia } from './media-embeds.js';
 import { observeEditorMediaDuringUploads } from './editor-media-quiescence.mjs';
+import { installPhotoCarousel } from './photo-carousel.js';
+import '../css/photo-carousel.css';
 
 const app = document.querySelector('#records-app');
 const categoryNames = { posts: '나으 생각', daily: '나으 하루', nasajab: '나사잡', projects: '내가 만든 것들' };
@@ -20,6 +22,20 @@ let feedReturnRoute = '#home';
 let previousRoute = '#home', previousScroll = 0, editorRoot, uploadStatus;
 const positions = new Map();
 const views = new Map();
+const firstPages = new Map();
+const feedRoutes=['#home','#posts','#daily','#nasajab','#projects'];
+function firstPage(hash) {
+  const cached=firstPages.get(hash);
+  if(cached && Date.now()-cached.at<30000)return cached.promise;
+  const promise=service.listRecords({page:1,perPage:12,category:categoryNames[hash.slice(1)]?hash.slice(1):undefined,status:'published'});
+  firstPages.set(hash,{at:Date.now(),promise});
+  promise.catch(()=>{if(firstPages.get(hash)?.promise===promise)firstPages.delete(hash);});
+  return promise;
+}
+function warmNeighbors(hash) {
+  const index=feedRoutes.indexOf(hash);if(index<0)return;
+  [feedRoutes[(index+4)%5],feedRoutes[(index+1)%5]].forEach(next=>{if(!views.has(next))firstPage(next).catch(()=>{});});
+}
 const pageDepth = new Map();
 try { const saved=JSON.parse(sessionStorage.getItem('cwk:feed:position')||'null'); if(saved && Date.now()-saved.at<86400000){for(const [key,value] of saved.positions||[])positions.set(key,value);for(const [key,value] of saved.depth||[])pageDepth.set(key,value);feedReturnRoute=saved.feedReturnRoute||'#home';} } catch {}
 const carouselMeasures = new WeakMap();
@@ -56,7 +72,7 @@ const external = (text, url) => link(text, safeURL(url) || '#', { target:'_blank
 const idHash = id => `#record/${encodeURIComponent(id)}`;
 const dirty = () => draft && JSON.stringify(draft) !== baseline;
 function rememberView(){
-  if(!route||route==='#compose'||loading)return;
+  if(!route||route==='#compose'||loading||app.dataset.viewRoute!==route)return;
   app.querySelectorAll('video,audio').forEach(media=>{media.pause();media.preload='none';media.load();});
   pageDepth.set(route,page);
   views.set(route,{nodes:[...app.childNodes],page,hasMore,records:[...records],scroll:readContentScroll()});
@@ -79,6 +95,7 @@ function header(title = null) {
 }
 function shell(title, subtitle) {
   app.replaceChildren();
+  app.dataset.viewRoute=route;
   if (service.isOwner()) app.append(header());
   if(typeof __RECORDS_PREVIEW__!=='undefined'&&__RECORDS_PREVIEW__===true)app.append(e('p',{class:'rv-preview-note'},'로컬 검토본 · 운영 미반영'));
   if (title) {
@@ -133,11 +150,17 @@ function recordLoadError(error) {
 function croppedImage(attachment, {lazy=true, alt='기록 사진'} = {}) {
   const img = e('img',{src:safeURL(attachment.url),alt,loading:lazy?'lazy':'eager',decoding:'async'});
   const styles = imageCropStyle(attachment.crop || {});
-  if (!styles) return img;
+  if (!styles) return e('div',{class:'rv-square-photo'},img);
   const frame = e('div',{class:'rv-cropped'},img);
   frame.style.aspectRatio = styles.frame.aspectRatio;
   Object.assign(img.style,styles.image);
-  return frame;
+  return squarePhoto(frame, styles.frame.aspectRatio);
+}
+function squarePhoto(frame, aspect) {
+  const parts=String(aspect||'1').split('/').map(Number);
+  const ratio=parts[0]/(parts[1]||1);
+  frame.style.width=`${Math.min(1,Number.isFinite(ratio)&&ratio>0?ratio:1)*100}%`;
+  return e('div',{class:'rv-square-photo'},frame);
 }
 function embedView(embed) {
   const box = e('section',{class:'rv-embed'});
@@ -151,24 +174,30 @@ function embedView(embed) {
   }
   const snapshot = normalizeChatGptSnapshot(embed.snapshot);
   box.append(e('div',{class:'rv-muted'},'ChatGPT 공유 대화'),e('h3',{},snapshot?.title||'저장된 대화'),external('원문 열기',embed.url));
-  if (!snapshot) { box.append(e('p',{},'대화 미리보기가 저장되지 않았어. 원문 링크에서 확인할 수 있어.')); return box; }
-  const details = e('details',{},e('summary',{},`대화 펼치기 · ${snapshot.messages.length}개 메시지`));
-  for (const message of snapshot.messages) {
-    const body = e('div');
-    body.innerHTML = renderChatGptMarkdown(message.text);
-    details.append(e('div',{class:'rv-message'},e('strong',{},message.role==='user'?'나':'ChatGPT'),body));
-  }
-  box.append(details);
+  box.classList.add('rv-chat-preview');
+  const excerpt=snapshot?.messages?.find(message=>message.text?.trim())?.text||'';
+  if(excerpt)box.append(e('p',{class:'rv-chat-excerpt'},excerpt.replace(/\s+/g,' ').slice(0,180)));
   return box;
 }
 function legacyView(record, open = false, preview = false) {
   const body = e('div',{class:'rv-legacy-content'});
   body.innerHTML = sanitizeLegacyHtml(record.legacyHtml);
+  body.querySelectorAll('[data-cwk-chatgpt-embed="true"],.cwk-chatgpt-embed').forEach(node=>{
+      const url=node.querySelector('a[data-cwk-chatgpt-link]')?.getAttribute('href');
+      if(chatGptShareInfo(url))node.replaceWith(embedView({type:'chatgpt',url,snapshot:normalizeChatGptSnapshot(node.getAttribute('data-cwk-chatgpt-snapshot'))}));
+  });
   const prepare = root => {
     enhanceEmbeddedMedia(root, {videoMetadataOrigin: typeof __RECORDS_PREVIEW__!=='undefined' && __RECORDS_PREVIEW__===true ? location.origin : undefined});
     decorateChatGptMarkdown(root);
     root.querySelectorAll('video,audio').forEach(media=>{media.preload='none';media.controls=true;});
-    root.querySelectorAll('img').forEach((img,index)=>{img.loading='lazy';img.alt=photoDescription(record,index,img.getAttribute('alt'));});
+    root.querySelectorAll('img').forEach((img,index)=>{
+      img.loading='lazy';img.alt=photoDescription(record,index,img.getAttribute('alt'));
+      if(img.closest('.rv-square-photo'))return;
+      const crop=img.closest('.cwk-media-crop-frame');
+      const target=crop||img;
+      const marker=document.createTextNode('');target.replaceWith(marker);
+      marker.replaceWith(crop?squarePhoto(crop,crop.style.getPropertyValue('--cwk-crop-aspect')||crop.style.aspectRatio):e('div',{class:'rv-square-photo'},img));
+    });
   };
   const details=e('section',{class:'rv-legacy'});
   if(preview){
@@ -192,6 +221,7 @@ function legacyView(record, open = false, preview = false) {
     if(text.length>240 || text.split('\n').filter(line=>line.trim()).length>3 || media.length>1 || body.querySelector('table,details,[data-cwk-chatgpt-embed],iframe')){
       const excerpt=e('div',{class:'rv-legacy-excerpt'});
       if(excerptText)excerpt.append(e('p',{class:'rv-body'},excerptText));
+      body.querySelectorAll('.rv-chat-preview').forEach(card=>excerpt.append(card.cloneNode(true)));
       const first=body.querySelector('img,video');
       if(first){
         const frame=first.closest('figure,.cwk-media-crop-frame');
@@ -263,11 +293,8 @@ function entry(record, targetAttachment = '', isDetail = false) {
       count.textContent=`${index+1} / ${visuals.length}`;
       [...dots.children].forEach((dot,i)=>dot.setAttribute('aria-current',i===index?'true':'false'));
     },{passive:true});
-    slides.addEventListener('keydown',event=>{
-      if(!['ArrowLeft','ArrowRight'].includes(event.key)||event.target!==slides)return;
-      event.preventDefault();slides.scrollBy({left:(event.key==='ArrowRight'?1:-1)*slides.clientWidth,behavior:'auto'});
-    });
-    article.append(e('div',{class:'rv-carousel'},slides,visuals.length>1?count:null));
+    const carousel=e('div',{class:'rv-carousel'},slides,visuals.length>1?count:null);
+    article.append(carousel);installPhotoCarousel(carousel);
     if(visuals.length>1)article.append(dots);
     const requested=visuals.findIndex(a=>a.id===targetAttachment || (targetAttachment.startsWith('media:') && (a.mediaId===targetAttachment.slice(6)||a.url.includes('/'+targetAttachment.slice(6)+'/'))));
     requestAnimationFrame(()=>{if(requested>0)slides.scrollLeft=requested*slides.clientWidth;observeCarousels();});
@@ -314,7 +341,7 @@ async function loadMore() {
   loading=true;const token=generation;const loadButton=document.querySelector('[data-load-more]');
   if(loadButton){loadButton.disabled=true;loadButton.textContent='불러오는 중…';}
   try {
-    const result=await service.listRecords({page:page+1,perPage:12,category:categoryNames[route.slice(1)]?route.slice(1):undefined,status:route==='#drafts'?'draft':'published'});
+    const result=page===0&&feedRoutes.includes(route)?await firstPage(route):await service.listRecords({page:page+1,perPage:12,category:categoryNames[route.slice(1)]?route.slice(1):undefined,status:route==='#drafts'?'draft':'published'});
     if(token!==generation)return;
     page++;hasMore=result.hasMore ?? page<(result.totalPages||1);
     const fresh=(result.items||[]).filter(item=>!records.some(old=>old.id===item.id));records.push(...fresh);
@@ -350,8 +377,16 @@ async function renderRoute() {
   document.body.classList.toggle('rv-composing',next==='#compose');
   if(route==='#home'||categoryNames[route.slice(1)])feedReturnRoute=route;
   rememberView();positions.set(route,readContentScroll());route=next;generation++;observer?.disconnect();carouselResizeObserver?.disconnect();loading=false;page=0;hasMore=true;records=[];
+  const routeToken=generation;
   const cached=views.get(route);
-  if(cached){app.replaceChildren(...cached.nodes);page=cached.page;hasMore=cached.hasMore;records=[...cached.records];observeMore();observeCarousels();scrollContentTo(cached.scroll);return;}
+  if(cached){app.replaceChildren(...cached.nodes);app.dataset.viewRoute=route;delete app.dataset.transitioning;page=cached.page;hasMore=cached.hasMore;records=[...cached.records];observeMore();observeCarousels();scrollContentTo(cached.scroll);warmNeighbors(route);return;}
+  if(feedRoutes.includes(route)) {
+    const token=generation;
+    app.dataset.transitioning='true';
+    try {await firstPage(route);} catch {}
+    if(token!==generation)return;
+    delete app.dataset.transitioning;
+  } else delete app.dataset.transitioning;
   if(route==='#compose'){await openEditor();return;}
   if(route.startsWith('#edit/')) {
     shell();
@@ -378,8 +413,10 @@ async function renderRoute() {
   app.append(e('main',{id:'rv-feed',class:route==='#album'?'rv-album':route==='#posts'||route==='#projects'?'rv-teaser-list':'rv-reading-feed'}),e('p',{id:'rv-feed-status',class:'rv-status','aria-live':'polite'}));
   const more=button('이전 기록 더 보기',loadMore,{class:'rv-more','data-load-more':true});app.append(more);
   await loadMore();
+  if(routeToken!==generation)return;
+  warmNeighbors(route);
   const restorePages=Math.min(100,pageDepth.get(route)||1);
-  while(page<restorePages&&hasMore){const previousPage=page;await loadMore();if(page===previousPage)break;}
+  while(page<restorePages&&hasMore){const previousPage=page;await loadMore();if(routeToken!==generation)return;if(page===previousPage)break;}
   observeMore();
   scrollToRouteContent();
 }
@@ -419,7 +456,7 @@ async function openEditor(record = null) {
   if(draft.id)editorRoot.append(button('기록 삭제',async()=>{
     if(busy||!confirm('이 기록을 삭제할까? 게시된 글도 함께 삭제돼. 첨부 원본은 보존돼.'))return;
     setBusy(true,true);
-    try{await service.deleteRecord(draft);draft=null;views.clear();history.replaceState(null,'','#home');route='';await renderRoute();}
+    try{await service.deleteRecord(draft);draft=null;views.clear();firstPages.clear();history.replaceState(null,'','#home');route='';await renderRoute();}
     catch(error){uploadStatus.textContent=`삭제하지 못했어. ${error.message}`;}
     finally{setBusy(false);}
   },{class:'rv-link'}));
@@ -492,7 +529,7 @@ async function persist(status){
   if(!draft.recordDate){uploadStatus.textContent='기록 날짜를 선택해줘.';return;}
   if(status==='published'&&!categoryNames[draft.category]){uploadStatus.textContent='게시할 분류를 선택해줘.';app.querySelector('select[aria-label="기록 분류"]')?.focus();return;}
   setBusy(true,true);uploadStatus.textContent='저장하는 중…';
-  try{const saved=await service.saveRecord({...draft,status});draft={...draft,...saved};baseline=JSON.stringify(draft);views.clear();uploadStatus.textContent=status==='draft'?'임시 저장했어.':'게시했어.';
+  try{const saved=await service.saveRecord({...draft,status});draft={...draft,...saved};baseline=JSON.stringify(draft);views.clear();firstPages.clear();uploadStatus.textContent=status==='draft'?'임시 저장했어.':'게시했어.';
     if(status==='published'){draft=null;history.replaceState(null,'',idHash(saved.id));route='';await renderRoute();}}
   catch(error){uploadStatus.textContent=`저장하지 못했어. ${error.message}`;}
   finally{setBusy(false);if(draft)renderThumbs();}

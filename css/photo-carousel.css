@@ -1,0 +1,35 @@
+/* Touch keeps the browser's native horizontal rail; mouse adds grab-and-drag. */
+.photo-carousel .rv-slides { cursor: grab; }
+.photo-carousel .rv-slides img { -webkit-user-drag: none; user-select: none; }
+.photo-carousel .rv-slides.photo-carousel-dragging {
+  cursor: grabbing;
+  scroll-snap-type: none;
+  scroll-behavior: auto;
+  user-select: none;
+}
+body.sketch-site #records-app .photo-carousel-arrow {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  transform: translateY(-50%);
+  width: 48px;
+  min-height: 48px;
+  padding: 6px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: #087cff;
+  cursor: pointer;
+  filter: drop-shadow(0 0 2px #ffffffb3);
+  -webkit-tap-highlight-color: transparent;
+}
+.photo-carousel-arrow--previous { left: 3px; }
+.photo-carousel-arrow--next { right: 3px; }
+.photo-carousel-arrow svg { display: block; width: 100%; height: 100%; pointer-events: none; }
+.photo-carousel-arrow--next svg { transform: rotate(180deg); }
+body.sketch-site #records-app .photo-carousel-arrow:disabled { opacity: .22; cursor: default; }
+body.sketch-site #records-app .photo-carousel-arrow:focus-visible { outline: 2px dashed #087cff; outline-offset: -2px; }
+@media (hover: hover) {
+  body.sketch-site #records-app .photo-carousel-arrow:hover:not(:disabled) { color: #0065d8; }
+}

@@ -147,6 +147,44 @@ body.sketch-site .rv-slide {
   background: transparent;
 }
 
+body.sketch-site .rv-square-photo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 1;
+  overflow: hidden;
+  background: #000;
+}
+body.sketch-site .rv-square-photo > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-height: 100%;
+  margin: 0;
+  object-fit: contain;
+}
+body.sketch-site .rv-square-photo > :is(.rv-cropped,.cwk-media-crop-frame) {
+  flex: none;
+  margin: 0;
+  border: 0;
+  max-width: 100%;
+}
+body.sketch-site .rv-chat-excerpt {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-bottom: 0;
+}
+body.sketch-site #records-app[data-transitioning] {
+  opacity: .65;
+}
+body.sketch-site #records-app { transition: opacity 160ms ease; }
+@media (prefers-reduced-motion: reduce) {
+  body.sketch-site #records-app { transition: none; }
+}
+
 body.sketch-site .rv-carousel {
   margin-top: 20px;
 }
