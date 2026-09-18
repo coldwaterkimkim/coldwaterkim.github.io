@@ -114,7 +114,7 @@
 - 선택 제목은 titleExplicit으로 빈 값의 의도까지 보존한다. 기존 문서는 첫 편집 시 레거시 제목을 본문 제목으로 가져오고 재열 때 중복하지 않는다.
 - 바이너리 변경의 복구 범위는 기존 backend 세대·SQLite 온라인 스냅샷·dist다. DB migration과 원본 미디어 변경은 없다.
 
-## ChatGPT conversation preview · 2026-09-18 (local)
+## ChatGPT conversation preview · 2026-09-18 (deployed)
 
 - Selected concept: conversation view with ChatGPT identity, right-aligned user bubbles and left-aligned assistant answers. This is a custom saved-snapshot renderer, not a native iframe.
 - Public document previews grow to 560px maximum (65svh on mobile). Header/title and original-link footer stay outside the inner scroll region. Carousel and content-editor previews fill their existing square frame.

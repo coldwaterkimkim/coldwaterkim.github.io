@@ -417,8 +417,11 @@ PocketBase `v0.23.5` 기본 HTTP 읽기/쓰기 제한시간 3분은 느린 외�
 - Public smoke 33 checks, build 88 artifacts, music and album checks passed. Browser confirmed home archive, actual records/media and track-title loading. Source/runtime dist rsync dry-run has no differences.
 - Production OWNER browser upload/publish was not exercised. Local demo and screenshots in output/ remain untracked and are not in the public build.
 
-## 2026-09-18 ChatGPT conversation preview (local, not deployed)
+## 2026-09-18 ChatGPT conversation preview (deployed)
 
 - Replaced the 180-character excerpt with the selected conversation design in both public records and content editor, retaining square media frames and fixed source links.
 - Browser editor fixture: 14 turns, 310x310 frame, 180px inner viewport, scrollTop reached its 1769px maximum, footer retained and no horizontal page overflow.
 - Local public record: existing 4-turn and 16-turn snapshots render inside 820x560 previews. Production data unchanged.
+
+- Production release `e056250f7ba2`: committed and pushed to main, static dist activated with dist.previous retained. Backend and DB unchanged. Public site-version matches, runtime rsync diff empty, public smoke 33 checks passed.
+- Production browser confirmed 4-turn and 16-turn conversations within 560px previews; first conversation scrolled to the end with footer retained. Shared preview, Records UI and editor DOM regressions passed. Local square editor sizing verification remains documented above.
