@@ -1,3 +1,5 @@
+import { chatGptPreviewHtml } from './chatgpt-preview.js';
+import '../css/chatgpt-preview.css';
 import { displayDate } from './display-date.mjs';
 import { reviewMediaValue } from './review-media.js';
 import { getContentScroller, readContentScroll, scrollContentTo, scrollContentIntoView } from './content-scroll.js';
@@ -176,11 +178,8 @@ function embedView(embed) {
     }));
     return box;
   }
-  const snapshot = normalizeChatGptSnapshot(embed.snapshot);
-  box.append(e('div',{class:'rv-muted'},'ChatGPT 공유 대화'),e('h3',{},snapshot?.title||'저장된 대화'),external('원문 열기',embed.url));
   box.classList.add('rv-chat-preview');
-  const excerpt=snapshot?.messages?.find(message=>message.text?.trim())?.text||'';
-  if(excerpt)box.append(e('p',{class:'rv-chat-excerpt'},excerpt.replace(/\s+/g,' ').slice(0,180)));
+  box.innerHTML = chatGptPreviewHtml(embed);
   return box;
 }
 function legacyView(record, open = false, preview = false) {

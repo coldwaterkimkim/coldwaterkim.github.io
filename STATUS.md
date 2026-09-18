@@ -416,3 +416,9 @@ PocketBase `v0.23.5` 기본 HTTP 읽기/쓰기 제한시간 3분은 느린 외�
 - Installer administrator kickstart dialog was cancelled. Verified the old PID 287 belonged to the current user and launchd KeepAlive=true, then sent SIGTERM for normal shutdown. launchd restarted the verified new generation; different PID, direct health and capability checked.
 - Public smoke 33 checks, build 88 artifacts, music and album checks passed. Browser confirmed home archive, actual records/media and track-title loading. Source/runtime dist rsync dry-run has no differences.
 - Production OWNER browser upload/publish was not exercised. Local demo and screenshots in output/ remain untracked and are not in the public build.
+
+## 2026-09-18 ChatGPT conversation preview (local, not deployed)
+
+- Replaced the 180-character excerpt with the selected conversation design in both public records and content editor, retaining square media frames and fixed source links.
+- Browser editor fixture: 14 turns, 310x310 frame, 180px inner viewport, scrollTop reached its 1769px maximum, footer retained and no horizontal page overflow.
+- Local public record: existing 4-turn and 16-turn snapshots render inside 820x560 previews. Production data unchanged.

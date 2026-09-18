@@ -50,12 +50,12 @@ export function installPhotoCarousel(carousel) {
   listen(carousel, 'keydown', event => {
     if (!['ArrowLeft', 'ArrowRight'].includes(event.key) || event.altKey || event.ctrlKey || event.metaKey) return;
     // A video's own arrow-key seeking and form controls retain their native behavior.
-    if (event.target.closest('video,audio,input,textarea,select,[contenteditable="true"]')) return;
+    if (event.target.closest('.cwk-chat-preview,video,audio,input,textarea,select,[contenteditable="true"]')) return;
     event.preventDefault();
     go(currentIndex() + (event.key === 'ArrowRight' ? 1 : -1));
   });
   listen(slides, 'pointerdown', event => {
-    if (event.pointerType !== 'mouse' || event.button !== 0 || event.target.closest('video,audio,button,input,textarea,select')) return;
+    if (event.pointerType !== 'mouse' || event.button !== 0 || event.target.closest('.cwk-chat-preview,video,audio,button,input,textarea,select')) return;
     clearTimeout(suppressionTimer);
     suppressClick = false;
     drag = {id: event.pointerId, x: event.clientX, left: slides.scrollLeft, index: currentIndex(), moved: false};

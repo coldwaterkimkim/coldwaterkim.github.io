@@ -1,3 +1,4 @@
+import { chatGptPreviewHtml } from '../js/chatgpt-preview.js';
 import { displayDate } from '../js/display-date.mjs';
 // Isolated DOM integration: executes the actual app handlers with injected I/O.
 // Run with CWK_DOM_PARSER_MODULE pointing to an installed linkedom ESM entry.
@@ -69,6 +70,7 @@ const service = {
 const sessionValues = new Map();
 const sessionStorage = {getItem:key=>sessionValues.get(key)||null};
 const dependencies = {
+  chatGptPreviewHtml,
   displayDate,
   sessionStorage,
   reviewMediaValue:value=>value,

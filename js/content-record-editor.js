@@ -1,3 +1,5 @@
+import { chatGptPreviewHtml } from './chatgpt-preview.js';
+import '../css/chatgpt-preview.css';
 import '@phosphor-icons/web/regular';
 import { orderedRecordContent, recordTitle, stableOccurrenceId, safeMediaUrl } from './records-v2-model.mjs';
 import { preferredTransferFiles, uniqueTransferFiles } from './editor-file-transfer.mjs';
@@ -9,7 +11,7 @@ const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;',
 const FiX='x', FiArrowLeft='arrow-left', FiChevronLeft='caret-left', FiChevronRight='caret-right', FiImage='image', FiVideo='video', FiMessageSquare='chat-text', FiFile='file', FiPlus='plus', FiArrowUp='arrow-up', FiArrowDown='arrow-down', FiCrop='crop', FiUploadCloud='cloud-arrow-up';
 const icon = name => `<i class="ph ph-${name}" aria-hidden="true"></i>`;
 const mediaLabel = item => item?.type === 'chatgpt' ? 'ChatGPT' : item?.type === 'youtube' ? 'YouTube' : ({image:'사진',video:'영상',audio:'오디오',file:'파일'}[item?.kind] || '콘텐츠');
-const mediaIcon = item => icon(item?.type === 'chatgpt' ? FiMessageSquare : item?.type === 'youtube' || item?.kind === 'video' ? FiVideo : item?.kind === 'image' ? FiImage : FiFile);
+const mediaIcon = item => icon(item?.type === 'chatgpt' ? 'open-ai-logo' : item?.type === 'youtube' || item?.kind === 'video' ? FiVideo : item?.kind === 'image' ? FiImage : FiFile);
 const categoryOptions = value => [['daily','나으 하루'],['nasajab','나를 사로잡은 것들']].map(([id,label]) => `<option value="${id}" ${value === id ? 'selected' : ''}>${label}</option>`).join('');
 
 /** Owner content composer. Data and upload/save authority remain with the caller. */
@@ -60,8 +62,9 @@ export function mountContentEditor(host, { draft, onChange, onClose, onSave, upl
     }
     else if (item.kind === 'video') content = `<video src="${esc(previewUrl(item.playbackUrl) || url)}" ${item.posterUrl ? `poster="${esc(previewUrl(item.posterUrl))}"` : ''} controls playsinline preload="metadata"></video>`;
     else if (item.kind === 'audio') content = `<audio src="${esc(url)}" controls preload="metadata"></audio>`;
+    else if (item.type === 'chatgpt') content = chatGptPreviewHtml(item);
     else content = `<div class="ce-link-preview">${mediaIcon(item)}<strong>${esc(item.snapshot?.title || item.name || mediaLabel(item))}</strong><p>${esc(item.type === 'chatgpt' ? '공유한 대화도 하나의 콘텐츠로 기록해.' : item.type === 'youtube' ? '공유한 영상을 기록해.' : '첨부한 파일')}</p><a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${item.type ? '원본 열기' : '파일 열기'}</a></div>`;
-    return `<div class="ce-preview ${item.kind === 'image' || item.kind === 'video' ? 'ce-preview-media' : ''}">${content}<span class="ce-counter">${index+1} / ${count}</span>${count>1 ? button('previous','',FiChevronLeft,'ce-preview-previous',`aria-label="이전 콘텐츠" ${index===0?'data-unavailable="true"':''}`)+button('next-item','',FiChevronRight,'ce-preview-next',`aria-label="다음 콘텐츠" ${index===count-1?'data-unavailable="true"':''}`) : ''}</div>${item.kind === 'image' && editPhoto ? button('crop','사진 자르기',FiCrop,'ce-crop') : ''}`;
+    return `<div class="ce-preview ${item.type === 'chatgpt' ? 'ce-preview-chat' : ''} ${item.kind === 'image' || item.kind === 'video' ? 'ce-preview-media' : ''}">${content}<span class="ce-counter">${index+1} / ${count}</span>${count>1 ? button('previous','',FiChevronLeft,'ce-preview-previous',`aria-label="이전 콘텐츠" ${index===0?'data-unavailable="true"':''}`)+button('next-item','',FiChevronRight,'ce-preview-next',`aria-label="다음 콘텐츠" ${index===count-1?'data-unavailable="true"':''}`) : ''}</div>${item.kind === 'image' && editPhoto ? button('crop','사진 자르기',FiCrop,'ce-crop') : ''}`;
   }
   function render() {
     if (destroyed) return;
