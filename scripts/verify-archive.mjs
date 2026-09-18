@@ -62,7 +62,7 @@ assert.ok(!entries.some(entry => entry.category === 'program'), 'programs room i
 
 const home = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const pageView = fs.readFileSync(new URL('../page-view.html', import.meta.url), 'utf8');
-const site = fs.readFileSync(new URL('../js/site.js', import.meta.url), 'utf8');
+const shell = fs.readFileSync(new URL('../js/sketch-shell.js', import.meta.url), 'utf8');
 const pb = fs.readFileSync(new URL('../js/pb.js', import.meta.url), 'utf8');
 const archivePage = fs.readFileSync(new URL('../all/index.html', import.meta.url), 'utf8');
 const archiveView = fs.readFileSync(new URL('../all/view.html', import.meta.url), 'utf8');
@@ -86,9 +86,7 @@ assert.doesNotMatch(pageView, /recent-all-table|recent-album-table/, 'retired pa
 for (const removed of ['recent-daily-table', 'recent-posts-table', 'recent-programs-table', 'recent-nasajab-table']) {
   assert.ok(!home.includes(removed), `${removed} must be removed from home`);
 }
-assert.match(home, /href="\/album\/"/, 'album remains a separate main destination');
-assert.match(site, /buildArchiveEntries[\s\S]*\.slice\(0, 8\)/, 'home must use the shared archive ordering and take its first eight rows');
-assert.doesNotMatch(site, /getPublishedProgramSummaryTimeline/, 'home and entry update checks must not query retired program posts');
+assert.match(shell, /href="\/album\/"/, 'album remains a separate main destination');
 assert.doesNotMatch(archiveScript, /getPublishedProgramSummaryTimeline/, 'archive must not query retired program posts');
 assert.match(archivePage, /url=\/#home/, 'legacy archive listing is replaced by the unified feed');
 assert.match(

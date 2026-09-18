@@ -81,11 +81,11 @@ await pbModule.excludeCurrentVisitorSession();
 assert.equal(deletedSessions, 1, 'owner login must remove the active pre-login guest session');
 assert.equal(localStorage.getItem('cwk_visitor_session'), null, 'removed owner session must be cleared locally');
 
-const siteSource = fs.readFileSync(new URL('../js/site.js', import.meta.url), 'utf8');
-assert.match(
-  siteSource,
-  /const isOwnerMode = isLoggedIn\(\);[\s\S]*if \(!isOwnerMode\)[\s\S]*recordVisitAndGetStats\(\)[\s\S]*await excludeCurrentVisitorSession\(\);[\s\S]*const stats = await getVisitorDisplayStats\(\);/,
-  'owner mode must remove a pre-login session and load stats without recording a visit',
-);
+const runtimeSource = fs.readFileSync(new URL('../js/public-runtime.js', import.meta.url), 'utf8');
+assert.match(runtimeSource, /isLoggedIn\(\) \? excludeCurrentVisitorSession\(\) : recordVisitAndGetStats\(\)/,
+  'owner runtime removes a pre-login session while only guest runtime records a visit');
+assert.doesNotMatch(runtimeSource, /querySelector\(['"](?:#visitor|\.counter)/,
+  'visitor tracking must not depend on a retired banner or counter element');
+assert.match(runtimeSource, /initAnonymousAnalytics\(\)/, 'explicit public startup retains anonymous analytics');
 
-console.log('Visitor counter regression checks passed (9 assertions).');
+console.log('Visitor counter regression checks passed (11 assertions).');

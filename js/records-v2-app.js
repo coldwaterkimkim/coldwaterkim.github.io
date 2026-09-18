@@ -83,12 +83,12 @@ function shell(title, subtitle) {
   if(typeof __RECORDS_PREVIEW__!=='undefined'&&__RECORDS_PREVIEW__===true)app.append(e('p',{class:'rv-preview-note'},'로컬 검토본 · 운영 미반영'));
   if (title) {
     const heading=e('h2',{},title);
-    const art={ '#posts':['thought',326,151,385,140], '#daily':['daily',307,104,410,138], '#projects':['original',285,780,310,225], '#nasajab':['interests',315,137,403,150], '#home':['all',374,88,282,88] }[route];
-    if(art && document.body.classList.contains('sketch-site')) {
-      const [key,x,y,w,h]=art;
+    const art={ '#posts':['thought',326,151,385,140], '#daily':['daily',307,104,410,138], '#home':['all',374,88,282,88] }[route];
+    if((art||route==='#nasajab'||route==='#projects') && document.body.classList.contains('sketch-site')) {
+      const [key,x,y,w,h]=art||[];
       heading.classList.add('rv-crayon-heading');
-      heading.innerHTML=`<span class="rv-heading-label"></span><svg aria-hidden="true" viewBox="${x} ${y} ${w} ${h}" style="aspect-ratio:${w}/${h}"><image href="/assets/sketch/${key==='original'?'original':key+'-wire'}.png" width="${key==='original'?1333:1024}" height="${key==='original'?1888:1536}"/></svg>`;
-      heading.querySelector('span').textContent=title;
+      if(art) heading.innerHTML=`<span class="rv-heading-label"></span><svg aria-hidden="true" viewBox="${x} ${y} ${w} ${h}" style="aspect-ratio:${w}/${h}"><image href="/assets/sketch/${key==='original'?'original':key+'-wire'}.png" width="${key==='original'?1333:1024}" height="${key==='original'?1888:1536}"/></svg>`;
+      if(art) heading.querySelector('span').textContent=title;
       if(route==='#nasajab'||route==='#projects') {
         const label=route==='#nasajab'?'나를 사로잡은 것들':'내가 만든 것들';
         heading.replaceChildren(e('img',{src:`/assets/sketch/${route==='#nasajab'?'interests':'making'}-title.png`,alt:label}));
@@ -338,7 +338,7 @@ async function loadMore() {
   }catch(error){if(token===generation){const status=document.querySelector('#rv-feed-status');status.textContent=recordLoadError(error);status.classList.add('rv-error');if(loadButton){loadButton.disabled=false;loadButton.textContent='다시 불러오기';}}}
   finally{if(token===generation)loading=false;}
 }
-async function hydrateHomeShell() { await import('./site.js'); }
+async function hydrateHomeShell() { const {initPublicRuntime}=await import('./public-runtime.js'); await initPublicRuntime(); }
 function feedFilters() {
   return e('nav',{class:'rv-filters','aria-label':'따로보기'}, e('strong',{class:'rv-filter-label'},'따로보기'), [['home','전체'],...Object.entries(categoryNames)].map(([key,label])=>link(label,`#${key}`,{'aria-current':route===`#${key}`?'page':undefined})));
 }

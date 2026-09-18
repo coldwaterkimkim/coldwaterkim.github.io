@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import { moveItemById } from '../js/about-wiki-logic.mjs';
 
 const aboutSource = fs.readFileSync(new URL('../js/about-wiki.js', import.meta.url), 'utf8');
-const siteSource = fs.readFileSync(new URL('../js/site.js', import.meta.url), 'utf8');
+const siteSource = fs.readFileSync(new URL('../js/site-version.js', import.meta.url), 'utf8');
 const markupSource = fs.readFileSync(new URL('../js/about-wiki-markup.mjs', import.meta.url), 'utf8');
 const profileSource = fs.readFileSync(new URL('../js/profile-data.js', import.meta.url), 'utf8');
 const migrationSource = fs.readFileSync(new URL('../pb_migrations/1785596400_expand_site_settings_value.js', import.meta.url), 'utf8');

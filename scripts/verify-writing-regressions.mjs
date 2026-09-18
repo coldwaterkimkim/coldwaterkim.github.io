@@ -598,10 +598,12 @@ assert.match(adminMedia, /mediaItem\.addEventListener\('keydown'/, 'admin media 
 assert.match(adminMedia, /filename\.textContent = item\.file/, 'admin media filenames must render as text');
 assert.match(adminMedia, /preview\.alt = item\.alt_text \|\| item\.file/, 'admin media alt text must use a DOM property');
 
-const programs = fs.readFileSync(new URL('../js/programs.js', import.meta.url), 'utf8');
-assert.match(programs, /runLocalTool/, 'programs room must run local file tools');
-assert.match(programs, /runServerToolClient/, 'programs room must connect authenticated server tools');
-assert.doesNotMatch(programs, /createProgram|updateProgram|deleteProgram/, 'retired program post editing must stay removed');
+// The file-tools page controller is retired. Retain the reusable engines and
+// authenticated transport, which have their own qa:file-tools coverage.
+const localTools = fs.readFileSync(new URL('../js/program-tools-catalog.mjs', import.meta.url), 'utf8');
+const serverTools = fs.readFileSync(new URL('../js/program-tools-server.mjs', import.meta.url), 'utf8');
+assert.match(localTools, /export async function runLocalTool/, 'local file-tool engine must remain available');
+assert.match(serverTools, /export async function runServerToolClient/, 'authenticated file-tool transport must remain available');
 
 const mediaEmbeds = fs.readFileSync(new URL('../js/media-embeds.js', import.meta.url), 'utf8');
 assert.match(mediaEmbeds, /img\.setAttribute\('loading', 'lazy'\)/, 'rendered images must use native lazy loading');
@@ -697,10 +699,12 @@ const upload20GbMigration = fs.readFileSync(new URL('../pb_migrations/1787224751
 assert.match(upload20GbMigration, /mediaFile\.maxSize = 21474836480/, 'forward migration must raise media originals to 20GiB');
 assert.match(upload20GbMigration, /mediaFile\.maxSize = 8589934592/, 'rollback migration must restore the former 8GiB limit');
 
-const siteSource = fs.readFileSync(new URL('../js/site.js', import.meta.url), 'utf8');
-assert.match(siteSource, /history\.(?:push|replace)State[\s\S]*syncDocumentBase\(nextDoc\)[\s\S]*content\.innerHTML = nextContent\.innerHTML/, 'SPA navigation must apply the fetched page base before inserting relative links');
-assert.match(siteSource, /if \(!nextBase\) \{\s*currentBase\?\.remove\(\)/, 'SPA navigation must remove a stale base when the next page has none');
-assert.match(siteSource, /document\.head\.prepend\(base\)/, 'SPA navigation must install the fetched base for pretty post and daily routes');
+// Cross-page navigation uses normal documents; Records V2 keeps hash navigation.
+// There is no legacy fetch-and-replace SPA or mutable document base anymore.
+const shellSource = fs.readFileSync(new URL('../js/sketch-shell.js', import.meta.url), 'utf8');
+assert.match(shellSource, /href="\/album\/"/, 'shared album link must resolve from the origin root');
+assert.match(shellSource, /href="\/guestbook.html"/, 'shared guestbook link must resolve from the origin root');
+assert.match(shellSource, /href="\/about.html"/, 'shared About link must resolve from the origin root');
 assert.equal(new URL('../album/index.html', 'https://coldwaterkim.com/posts/').pathname, '/album/index.html', 'post detail base must resolve album navigation at the site root');
 assert.equal(new URL('../guestbook.html', 'https://coldwaterkim.com/daily/').pathname, '/guestbook.html', 'daily detail base must resolve root page navigation at the site root');
 

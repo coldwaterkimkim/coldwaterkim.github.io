@@ -25,7 +25,9 @@
 - 하위 표현: `css/sketch-records.css`, `css/sketch-album.css`, `css/sketch-about-guest.css`.
 - 데이터·편집은 기존 Records V2 및 페이지 모듈을 재사용한다. 별도 DB나 테스트 콘텐츠를 공개 데이터 대신 사용하지 않는다.
 - 기록 식별값·URL·발행일·공개 상태·원본 미디어·본문과 OWNER 편집·업로드 계약을 보존한다. 단순 외형 변경을 이유로 DB를 수정하지 않는다.
-- 레트로 코드 일부는 기능 호환을 위해 남아 있다. 과거의 색상·고정 셸·홈 피드 규칙은 새 디자인 기준이 아니다.
+- 공개 페이지는 직접 작성한 `#sketch-content`와 공통 스케치 셸을 사용한다. 숨겨진 레트로 표나 사이드바에서 본문과 음악 UI를 옮기지 않는다.
+- 기능 초기화는 `public-runtime.js`, 음악은 `bgm-runtime.js`, 로그인 후 음악 관리는 `bgm-owner.js`, 방명록은 `guestbook-page.js`, 버전 갱신은 `site-version.js`가 담당한다.
+- 공개 공통 기능 스타일은 `public-base.css`로 분리했다. 기존 `styles.css`와 과거 상세 템플릿은 SSR 및 기존 URL 호환을 위해 유지하며 새 디자인 기준으로 사용하지 않는다.
 - 정적 프론트 배포는 런타임 `dist.previous` 롤백본을 유지한다. DB 콜드 백업을 만들지 않는다.
 
 ## 열린 선택과 후속 범위

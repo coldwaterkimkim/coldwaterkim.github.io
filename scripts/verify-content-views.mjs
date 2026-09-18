@@ -106,21 +106,19 @@ const pbSource = read('js/pb.js');
 assert.match(pbSource, /filter: pb\.filter\('content_key = \{:contentKey\}'/, 'OWNER 집계는 범용 키로 조회해야 함');
 assert.match(pbSource, /Object\.prototype\.hasOwnProperty\.call\(counts, key\) \? counts\[key\] : undefined/, '집계 조회 실패를 실제 0으로 위장하면 안 됨');
 
+// Public entry routes now resolve into Records V2; view accounting belongs to
+// the shared service, not retired per-category page controllers.
 const dailyIndex = read('daily/index.html');
-const dailyView = read('daily/view.html');
-assert.match(dailyIndex, /views-col-head/);
-assert.match(dailyIndex, /kind: 'daily', id: day\.dayKey/);
-assert.match(dailyView, /recordContentView\(\{ kind: 'daily', id: dayKey/);
-assert.match(dailyView, /현재 하루 조회수/);
-
-const programs = read('js/programs.js');
+assert.match(dailyIndex, /url=\/#daily/, 'old daily index must retain its category redirect');
 const programDetail = read('programs/view.html');
-assert.doesNotMatch(programs, /recordContentView/, 'file utility room must not record content views');
-assert.doesNotMatch(programDetail, /recordContentView/, 'retired program detail redirect must not record content views');
-
-const nasajab = read('js/nasajab.js');
-assert.match(nasajab, /kind: 'nasajab', id: item\.id/);
-assert.match(nasajab, /recordNasajabViewAfterEntry\(featured\)/);
-assert.match(nasajab, /!ownerMode && !demoMode/, 'OWNER와 demo mode에서는 나사잡을 집계하지 않아야 함');
+assert.doesNotMatch(programDetail, /recordContentView/, 'retired program redirect must not record content views');
+const recordsService = read('js/records-v2-service.js');
+const recordsApp = read('js/records-v2-app.js');
+assert.match(recordsService, /source.collection==='nasajab'.*kind:'nasajab',id:source.id/, 'shared service must preserve nasajab identities');
+assert.match(recordsService, /source.collection==='daily_entries'[\s\S]*kind:'daily',id:record.recordDate/, 'shared service must preserve daily date identities');
+assert.match(recordsService, /published:record.status==='published'/, 'shared view targets must carry publication status');
+assert.match(recordsService, /recordContentView\(target\)/, 'shared service must call the guarded view recorder');
+assert.match(recordsService, /!target\|\|!isOwner\(\)/, 'content counts remain owner-only');
+assert.match(recordsApp, /recordDetailView(?:\?\.)?\(record\)/, 'record detail must invoke shared view accounting');
 
 console.log('content view verification passed');

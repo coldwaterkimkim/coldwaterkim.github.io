@@ -42,17 +42,16 @@ check(pocketBaseMediaReference('https://youtube.com/watch?v=x') === null, 'exter
 
 const albumHtml = read('album/index.html');
 const albumJs = read('js/album.js');
-const styles = read('css/styles.css');
+const styles = read('css/public-base.css') + read('css/sketch-album.css');
 const migration = read('pb_migrations/1787490000_include_nasajab_in_album.js');
 check(albumHtml.includes('id="album-grid"'), 'album page grid');
 check(albumHtml.includes('id="album-tag-filters"') && albumHtml.includes('id="album-kind-filters"'), 'album exposes tag and media-kind filters');
 check(albumHtml.includes('id="album-edit-toggle"') && albumHtml.includes('class="album-owner-only"'), 'classification editor starts owner-only');
 check(!albumJs.includes('album-tile-title') && !albumJs.includes('album-tile-meta'), 'tiles have no visible metadata rows');
 check(styles.includes('aspect-ratio: 1') && styles.includes('object-fit: cover'), 'square cropped previews');
-check(styles.includes('repeat(5,') && styles.includes('repeat(4,') && styles.includes('repeat(3,'), 'responsive 5/4/3 columns');
+check(read('css/sketch-album.css').includes('repeat(3,'), 'public album keeps three columns');
 check(albumJs.includes('return 5') && !albumJs.includes("return 10"), 'home preview stays at five thumbnails');
 check(read('js/pb.js').includes('collectionId,collectionName,media,file_collection,uploaded_at,file,video_poster'), 'album API requests only render fields');
-check(read('js/site.js').includes('requestIdleCallback(load, { timeout: 1200 })'), 'home album waits for the core content');
 check(albumJs.includes("item.is_video ? item.video_poster : item.file"), 'videos use poster previews');
 check(!albumJs.includes('<video'), 'album never embeds playable video');
 check(albumJs.includes('href="${escapeAttribute(albumSourceUrl(item))}"'), 'normal album tile keeps the source deep link');
@@ -67,6 +66,6 @@ check(migration.includes("'nasajab' AS source_kind") && migration.includes('n.im
 check(migration.includes("'media' AS file_collection") && migration.includes("'nasajab' AS file_collection"), 'album keeps each file storage collection');
 check(migration.includes('image.thumbs = ["400x400"]'), 'nasajab album thumbnails are enabled');
 check(read('js/legacy-record-redirect.js').includes('mediaAnchor') && read('js/records-v2-app.js').includes('media:'), 'old and new media links preserve the selected attachment');
-check(albumHtml.includes('cwk-scroll-content') && albumJs.includes('getContentScroller'), 'album pagination and restoration use the shared central scroller');
+check(albumHtml.includes('id="sketch-content"') && albumJs.includes('getContentScroller') && read('js/content-scroll.js').includes('sketch-site'), 'album pagination and restoration use document scrolling in the sketch shell');
 
 console.log(`Album QA passed: ${assertions} assertions`);

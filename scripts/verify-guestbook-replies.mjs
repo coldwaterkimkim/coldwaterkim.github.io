@@ -4,9 +4,9 @@ import fs from 'node:fs';
 const schema = JSON.parse(fs.readFileSync(new URL('../pb_schema.json', import.meta.url), 'utf8'));
 const migrationSource = fs.readFileSync(new URL('../pb_migrations/1785942000_add_guestbook_owner_reply.js', import.meta.url), 'utf8');
 const pbSource = fs.readFileSync(new URL('../js/pb.js', import.meta.url), 'utf8');
-const siteSource = fs.readFileSync(new URL('../js/site.js', import.meta.url), 'utf8');
+const siteSource = fs.readFileSync(new URL('../js/guestbook-page.js', import.meta.url), 'utf8');
 const guestbookPage = fs.readFileSync(new URL('../guestbook.html', import.meta.url), 'utf8');
-const cssSource = fs.readFileSync(new URL('../css/styles.css', import.meta.url), 'utf8');
+const cssSource = fs.readFileSync(new URL('../css/public-base.css', import.meta.url), 'utf8');
 let assertions = 0;
 
 function check(condition, message) {
@@ -32,8 +32,6 @@ check(pbSource.includes('export async function clearGuestbookReply'), 'PocketBas
 check(siteSource.includes('class="guestbook-owner-reply"'), 'public rendering includes the nested owner reply');
 check(siteSource.includes("const isAdmin = isLoggedIn()"), 'reply controls are gated by owner authentication');
 check(siteSource.includes('linkify(escapeHtml(replyMessage))'), 'reply content is escaped before linkification');
-check(siteSource.includes('class="guestbook-preview-reply"'), 'home preview includes the owner reply when present');
-check(siteSource.includes('escapeHtml(ownerReply)'), 'home preview escapes owner reply content');
 check(siteSource.includes("guestbookEntries.querySelectorAll('.guestbook-reply-form')"), 'reply form submit behavior is wired');
 check(siteSource.includes("guestbookEntries.querySelectorAll('.reply-delete-btn')"), 'reply delete behavior is wired');
 check(guestbookPage.includes('<label for="message"><b>메시지</b></label>'), 'the public message textarea has a visible associated label');
@@ -42,8 +40,5 @@ check(siteSource.includes("if (guestbookForm.dataset.guestbookSubmitting === 'tr
 check(/function setGuestbookSubmitting\(isSubmitting\)[\s\S]*guestbookForm\.querySelectorAll\('button, input, select, textarea'\)[\s\S]*control\.disabled = isSubmitting;[\s\S]*submitButton\.setAttribute\('aria-busy', String\(isSubmitting\)\)/.test(siteSource), 'guestbook submit freezes every mutable field and exposes its complete in-flight state');
 check(/setGuestbookSubmitting\(true\);[\s\S]*try \{[\s\S]*await addGuestbookEntry\(name, message\);[\s\S]*await loadGuestbook\(guestbookEntries\);[\s\S]*\} finally \{[\s\S]*setGuestbookSubmitting\(false\);/.test(siteSource), 'guestbook retry is restored only after the full submit and refresh finishes');
 check(cssSource.includes('.guestbook-owner-reply'), 'owner reply has a dedicated retro nested style');
-check(cssSource.includes('#guestbook-preview-table {\n  table-layout: fixed;'), 'home preview uses a fixed table layout for a bounded text column');
-check(cssSource.includes('.guestbook-preview-reply'), 'home preview reply has a dedicated compact style');
-check(cssSource.includes('text-overflow: ellipsis'), 'home preview reply adapts to the available width with an ellipsis');
 
 console.log(`Guestbook reply QA passed (${assertions} assertions).`);

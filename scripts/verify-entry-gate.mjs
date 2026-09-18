@@ -27,10 +27,10 @@ const publicHtml = [
   'programs/view.html',
   'nasajab/index.html',
 ];
-const siteSource = fs.readFileSync(path.join(root, 'js/site.js'), 'utf8');
+const runtimeSource = fs.readFileSync(path.join(root, 'js/public-runtime.js'), 'utf8');
+const bgmSource = fs.readFileSync(path.join(root, 'js/bgm-runtime.js'), 'utf8');
+const consentSource = fs.readFileSync(path.join(root, 'js/bgm-consent.js'), 'utf8');
 const logicSource = fs.readFileSync(path.join(root, 'js/entry-gate-logic.mjs'), 'utf8');
-const stylesSource = fs.readFileSync(path.join(root, 'css/styles.css'), 'utf8');
-const postViewSource = fs.readFileSync(path.join(root, 'posts/view.html'), 'utf8');
 let assertions = 0;
 
 function check(condition, message) {
@@ -41,36 +41,19 @@ function check(condition, message) {
 for (const relativePath of publicHtml) {
   const source = fs.readFileSync(path.join(root, relativePath), 'utf8');
   check(
-    /<html[^>]*class="[^"]*\bentry-gate-disabled\b[^"]*"/i.test(source),
-    `${relativePath} must keep the preserved entry gate disabled`,
-  );
-  check(
     !/<html[^>]*class="[^"]*\bentry-gate-pending\b[^"]*"/i.test(source),
     `${relativePath} must open the public site without the entry gate`,
   );
 }
 
-check(siteSource.includes('audio.play()'), 'entry must call the real audio play method');
-check(siteSource.includes('coldwaterkim:entry-admitted'), 'entry must publish an admission event');
-check(
-  siteSource.includes('ENTRY_LAST_ADMITTED_STORAGE_KEY') && logicSource.includes(ENTRY_LAST_ADMITTED_STORAGE_KEY),
-  'entry must use its own last-admitted storage key',
-);
-check(
-  siteSource.includes('ENTRY_SESSION_ADMITTED_STORAGE_KEY') && logicSource.includes(ENTRY_SESSION_ADMITTED_STORAGE_KEY),
-  'entry must use its own tab-session storage key',
-);
-check(siteSource.includes('entryWebmasterLineKey'), 'entry must use a KST date-specific webmaster line');
-check(siteSource.includes('getPublishedPostSummaryTimeline'), 'entry must summarize posts without bodies');
-check(siteSource.includes('getPublishedDailySummaryTimeline'), 'entry must summarize daily entries without bodies');
-check(!siteSource.includes('getPublishedProgramSummaryTimeline'), 'entry updates must ignore the file utility room');
-check(siteSource.includes('getPublishedNasajabSummaryTimeline'), 'entry must summarize nasajab without file metadata');
-check(!/quiet|mute|sound off|소리 없이|조용히 입장/i.test(siteSource), 'entry must not offer a silent route');
-check(stylesSource.includes('.entry-gate'), 'entry gate styles must exist');
-check(stylesSource.includes('@media (max-width: 640px)'), 'entry gate must keep the public mobile breakpoint');
-check(postViewSource.includes('coldwaterkim:entry-admitted'), 'post views must wait for successful entry');
-check(postViewSource.includes("dataset.entryAdmitted === 'true'"), 'post views must recognize DOM admission state');
-check(postViewSource.includes('!gateActive'), 'post views must record immediately while the gate is disabled');
+// Retired entry gating must not return; audio admission now belongs to BGM consent.
+check(!runtimeSource.includes('initEntryGate'), 'public runtime must not initialize the retired gate');
+check(bgmSource.includes('initBgmConsent(audio)'), 'real audio must initialize the active consent flow');
+check(consentSource.includes('await audio.play()'), 'active consent must use real audio playback');
+check(consentSource.includes('주인장 안내문'), 'active music admission copy must remain available');
+check(consentSource.includes('응 그딴 거 없음ㅋ'), 'approved second admission dialog must remain available');
+check(logicSource.includes(ENTRY_LAST_ADMITTED_STORAGE_KEY), 'retained compatibility logic preserves historical storage keys');
+check(logicSource.includes(ENTRY_SESSION_ADMITTED_STORAGE_KEY), 'retained compatibility logic preserves historical session keys');
 
 check(
   entryWebmasterLineKey('2026-07-23') === 'entry_webmaster_line_2026-07-23',

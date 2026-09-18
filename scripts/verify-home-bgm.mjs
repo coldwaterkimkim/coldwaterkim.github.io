@@ -18,7 +18,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const homeSource = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const pageViewSource = fs.readFileSync(path.join(root, 'page-view.html'), 'utf8');
 const feedSource = fs.readFileSync(path.join(root, 'js/records-v2-app.js'), 'utf8');
-const siteSource = fs.readFileSync(path.join(root, 'js/site.js'), 'utf8');
+const siteSource = ['bgm-runtime.js','bgm-owner.js'].map(file=>fs.readFileSync(path.join(root,'js',file),'utf8')).join('\n');
 let assertions = 0;
 
 function check(condition, message) {
@@ -29,7 +29,7 @@ function check(condition, message) {
 check(homeSource.includes('id="records-app"'), 'Home must expose the default record feed');
 check(pageViewSource.includes('url=/#home') && !pageViewSource.includes('data-bgm'), 'Retired page view must redirect without a second BGM player');
 for (const file of ['index.html', 'records/index.html', 'album/index.html', 'guestbook.html', 'about.html']) check(fs.readFileSync(path.join(root,file),'utf8').includes('data-bgm'), `${file} must retain the shared BGM player`);
-check(feedSource.includes("await import('./site.js')"), 'Production feed must reuse the full BGM and shared shell module');
+check(feedSource.includes("await import('./public-runtime.js')"), 'Production feed initializes the independent public runtime');
 check(!homeSource.includes('id="recent-daily-table"'), 'the retired per-category recent tables must stay removed');
 check(siteSource.includes('randomBgmCandidateIndex(scheduledBgmTrackIndexes('), 'initial BGM selection must use the active time slot');
 check(
