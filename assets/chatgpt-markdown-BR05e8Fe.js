@@ -1,0 +1,1 @@
+import{t as e}from"./chatgpt-markdown-CLNBUC8R.js";export{e as decorateChatGptMarkdown};
