@@ -432,3 +432,12 @@ PocketBase `v0.23.5` 기본 HTTP 읽기/쓰기 제한시간 3분은 느린 외�
 - 모델/DOM 회귀 검사, 로컬 실제 BlockNote 브라우저의 제목+본문 수정·모의 임시 저장·재열기, 운영 빌드 및 공개 서비스 33개 스모크 검사를 통과했다. 실제 운영 OWNER 게시/저장 테스트는 하지 않았다.
 - 공개 site-version과 배포 버전 일치, API health 정상, dist/runtime 체크섬 차이 없음. 프론트만 원자적으로 교체하고 dist.previous를 유지했다. DB·백엔드·원본 미디어 변경과 전체 콜드 백업은 없다.
 - 작업 전부터 존재하던 문서 정리 변경은 작업 트리에 보존하고 이번 제목 변경분만 별도 커밋했다.
+
+## 편집기 흐름 보완 · 배포 완료 (2026-09-21)
+
+- 프론트 da81a5883400: ZIP 첨부, .app 압축 안내, 서식 아이콘 복구, 초안 제목·요약, 초기 dirty 오탐과 저장 재시도 중복 생성 방지.
+- 운영 media.file에 관리 API로 application/zip만 추가. 다른 필드·크기·권한은 보존 확인. 백엔드 바이너리와 현재 실행 세대 migration은 변경하지 않았다. 재구성용 migration 1789981545_allow_zip_media_attachments.js는 저장소에 보존.
+- 온라인 SQLite 스냅샷과 이전 media 정의: ~/.local/share/coldwaterkim/home-server/deploy-rollbacks/editor-zip-20260921T181042 (quick_check ok). 프론트 롤백본 dist.previous. 전체 미디어 백업 없음.
+- 로컬 브라우저: 폭 0 아이콘 재현 후 정상 폭, 굵게·소제목 변환 확인. 390px에서 툴바 가로 스크롤·페이지 넘침 없음. 관련 console 오류 없음.
+- 격리 PocketBase multipart ZIP 업로드/다운로드 4 MIME 경로에서 바이트·앱 경로·0755 권한 보존 확인. 모델·문서/콘텐츠 DOM·첨부·신규 저장 재시도 검사 통과.
+- 공개 버전 일치, 서비스 스모크 33개 통과, API health 정상, dist/runtime 체크섬 차이 없음. 사용자 운영 글 게시/삭제 및 운영 첨부 업로드 테스트는 하지 않았다. 실제 iPhone Safari 미검증.
