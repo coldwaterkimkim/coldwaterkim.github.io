@@ -250,9 +250,9 @@ function legacyView(record, open = false, preview = false) {
 }
 function entry(record, targetAttachment = '', isDetail = false) {
   const article = e('article',{class:`rv-entry${isDetail?' is-detail':''}`,'data-record-id':record.id},isDetail?recordMeta(record,'rv-meta rv-detail-meta'):person(record));
-  const title=record.legacyHtml?.includes('<!--cwk-document-->')?'':recordTitle(record);
+  const title=recordTitle(record);
   if(record.legacySource?.sourceUrl)article.append(e('p',{class:'rv-meta'},external('출처',record.legacySource.sourceUrl)));
-  const visibleTitle=title&&!/^\d{4}-\d{2}-\d{2} 나으 하루(?:\s|$)/.test(title)&&!record.body?.trim().startsWith(title);
+  const visibleTitle=title&&(record.titleExplicit||(!/^\d{4}-\d{2}-\d{2} 나으 하루(?:\s|$)/.test(title)&&!record.body?.trim().startsWith(title)));
   if(visibleTitle)article.append(e(isDetail?'h1':'h2',{class:'rv-record-title'},isDetail?title:link(title,idHash(record.id))));
   if(isDetail)article.append(person(record,true,false));
   const visuals = orderedRecordContent(record).filter(a=>a.kind==='image'||a.kind==='video'||a.type==='chatgpt'||a.type==='youtube');
@@ -324,7 +324,7 @@ function teaser(record) {
   legacy.querySelectorAll('p,div,br,li,h1,h2,h3').forEach(node=>node.append(document.createTextNode('\n')));
   const plain = String(record.body || legacy.textContent || '').trim();
   const lines = plain.split('\n').map(line=>line.trim()).filter(Boolean);
-  const fullTitle = String((record.legacyHtml?.includes('<!--cwk-document-->')?lines[0]:recordTitle(record)) || lines[0] || '제목 없는 기록').trim();
+  const fullTitle = String(recordTitle(record) || lines[0] || '제목 없는 기록').trim();
   const title = record.legacySource?.title || fullTitle.length<=90 ? fullTitle : `${fullTitle.slice(0,90).trimEnd()}…`;
   const excerpt = plain.startsWith(fullTitle) && fullTitle.length<=90 ? plain.slice(fullTitle.length).trim() : plain;
   const item = e('article',{class:'rv-entry rv-teaser','data-record-id':record.id},recordMeta(record));
@@ -511,6 +511,8 @@ async function openDocumentComposer(select){
   documentMode=true;
   const token=editorGeneration;
   const original=documentRecordHtml(draft);
+  const titleInput=e('input',{type:'text',name:'title',value:recordTitle(draft),placeholder:'제목을 입력해줘',onInput:event=>{draft.title=event.target.value;draft.titleExplicit=true;syncSaveState();}});
+  editorRoot.append(e('label',{class:'rv-document-title'},'제목',titleInput));
   const host=e('div',{class:'rv-document-editor'});
   editorRoot.append(e('p',{class:'rv-muted'},'문단 사이에 사진·영상·파일을 넣어 자유롭게 작성해줘. / 로 블록을 추가할 수 있어.'),host);
   uploadStatus=e('div',{class:'rv-status','aria-live':'polite'},'문서 편집기를 여는 중…');
@@ -529,7 +531,7 @@ async function openDocumentComposer(select){
     if(token!==editorGeneration)return;
     const editor=await mountDocumentEditor(host,{
       html:original,
-      onChange:html=>{if(token!==editorGeneration||!draft)return;draft.legacyHtml=`<!--cwk-document-->${html}`;draft.title='';draft.titleExplicit=true;draft.body='';draft.attachments=[];draft.embeds=[];draft.contentOrder=[];syncSaveState();},
+      onChange:html=>{if(token!==editorGeneration||!draft)return;draft.legacyHtml=`<!--cwk-document-->${html}`;draft.title=titleInput.value;draft.titleExplicit=true;draft.body='';draft.attachments=[];draft.embeds=[];draft.contentOrder=[];syncSaveState();},
       uploadFiles:files=>service.uploadFiles(files),
       onBusy:value=>{if(token===editorGeneration){setBusy(value,true);uploadStatus.textContent=value?'콘텐츠를 처리하는 중…':'';}},
       onError:error=>{if(token===editorGeneration)uploadStatus.textContent=`처리하지 못했어. ${error.message}`;}

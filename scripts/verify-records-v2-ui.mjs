@@ -61,17 +61,21 @@ const history = { pushState(_a, _b, hash) { location.hash = hash; }, replaceStat
 const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; };
 let uploadJob, shareJob, saveJob;
 let uploads = 0, saves = 0;
+const savedRequests = [];
+let documentEditorOptions;
 const service = {
   isOwner: () => true,
   uploadFiles: () => { uploads++; return uploadJob.promise; },
   resolveChatGptShare: () => shareJob.promise,
-  saveRecord: () => { saves++; return saveJob.promise; },
+  saveRecord: (record, options) => { saves++; savedRequests.push({ record: structuredClone(record), options }); return saveJob.promise; },
 };
 const sessionValues = new Map();
 const sessionStorage = {getItem:key=>sessionValues.get(key)||null};
 const dependencies = {
   chatGptPreviewHtml,
   displayDate,
+  Event: window.Event,
+  mountDocumentEditor: async (_host, options) => { documentEditorOptions = options; return { destroy() {} }; },
   sessionStorage,
   reviewMediaValue:value=>value,
   getContentScroller:()=>null,readContentScroll:()=>0,scrollContentTo:()=>{},scrollContentIntoView:()=>{},
@@ -92,10 +96,12 @@ const dependencies = {
 const source = await readFile(new URL('../js/records-v2-app.js', import.meta.url), 'utf8');
 const bootstrap = 'try{await service.initSession();';
 assert.equal(source.split(bootstrap).length, 2, 'App startup boundary changed: review the harness before running it.');
-const handlers = source.slice(0, source.indexOf(bootstrap)).replace(/^import[^\n]+;\n/gm, '');
+const documentImport = "const {mountDocumentEditor}=await import('./document-record-editor.js');";
+assert.equal(source.split(documentImport).length, 2, 'Review the document editor injection boundary if its import changes.');
+const handlers = source.slice(0, source.indexOf(bootstrap)).replace(/^import[^\n]+;\n/gm, '').replace(documentImport, '');
 assert.doesNotMatch(handlers, /^import\b/m, 'New multiline imports need explicit test dependency injection.');
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
-const app = await new AsyncFunction(...Object.keys(dependencies), `${handlers}\nreturn { entry, legacyView, detailBackLink, recordLoadError, setRoute:value=>{route=value;} };`)(...Object.values(dependencies));
+const app = await new AsyncFunction(...Object.keys(dependencies), `${handlers}\nreturn { entry, teaser, openEditor, persist, legacyView, detailBackLink, recordLoadError, setRoute:value=>{route=value;} };`)(...Object.values(dependencies));
 const root = document.querySelector('#records-app');
 const documentSource={body:'첫 문단\n다음 문단',legacyHtml:'<h2>기존 소제목</h2>',attachments:[{kind:'image',url:'https://example.test/photo.jpg',name:'사진',comment:'사진 설명',crop:{enabled:true,x:0,y:0,width:.5,height:1,aspect:.5,pixelWidth:600}},{kind:'file',url:'https://example.test/file.pdf',name:'자료.pdf'}],embeds:[{type:'chatgpt',url:'https://chatgpt.com/share/6a901ff4-0b9c-83e9-b058-8ecd80b68701',snapshot:{title:'대화',messages:[{role:'user',text:'원문'}]}}]};
 const documentBefore=JSON.stringify(documentSource);
@@ -107,11 +113,11 @@ assert.equal(documentHasContent('<p><br></p>'),false);
 assert.equal(documentHasContent(documentHtml),true);
 const orderedSource={...documentSource,title:'선택 제목',attachments:documentSource.attachments.map((item,index)=>({...item,id:`media-${index}`})),embeds:documentSource.embeds.map(item=>({...item,id:'chat',comment:'대화에 대한 감상'})),contentOrder:['chat','media-1','media-0']};
 const orderedHtml=documentRecordHtml(orderedSource);
-assert.match(orderedHtml,/<h1>선택 제목<\/h1>/);
+assert.doesNotMatch(orderedHtml,/선택 제목/,'Separate titles must not be inserted into the editable body');
 assert.ok(orderedHtml.indexOf('data-cwk-chatgpt-embed')<orderedHtml.indexOf('대화에 대한 감상')&&orderedHtml.indexOf('대화에 대한 감상')<orderedHtml.indexOf('file.pdf')&&orderedHtml.indexOf('file.pdf')<orderedHtml.indexOf('photo.jpg'),'Document conversion keeps mixed order and embed comments');
 assert.equal(orderedRecordContent(documentSource).length,3,'Unnormalized legacy objects must not lose id-less content');
 const legacyTitleRecord={legacySource:{title:'옛 제목'},legacyHtml:'<p>원래 본문</p>'};
-assert.match(documentRecordHtml(legacyTitleRecord),/<h1>옛 제목<\/h1>/,'Document editing imports the existing legacy title');
+assert.doesNotMatch(documentRecordHtml(legacyTitleRecord),/옛 제목/,'Legacy source titles stay separate from the editable body');
 const convertedTitleRecord={...legacyTitleRecord,title:'',titleExplicit:true,legacyHtml:'<!--cwk-document--><h1>옛 제목</h1><p>수정 본문</p>'};
 assert.equal((documentRecordHtml(convertedTitleRecord).match(/옛 제목/g)||[]).length,1,'Reopening a document must not duplicate its title');
 for(const legacyTitle of ['삭제한 제목','2026-09-18 기록']){
@@ -119,6 +125,16 @@ for(const legacyTitle of ['삭제한 제목','2026-09-18 기록']){
  assert.equal(app.entry(untitled).querySelector('.rv-record-title'),null,'Explicitly empty titles never use compatibility titles');
 }
 assert.equal(recordTitle(legacyTitleRecord),'옛 제목','Untouched legacy source titles remain visible');
+for (const category of ['posts', 'projects']) {
+  const titledDocument = { id: `document-${category}`, category, title: '따로 정한 제목', titleExplicit: true, legacyHtml: '<!--cwk-document--><h1>본문 소제목</h1><p>첫 문단</p>', attachments: [], embeds: [] };
+  const detail = app.entry(titledDocument, '', true);
+  assert.equal(detail.querySelector('.rv-record-title').textContent, '따로 정한 제목', 'Document detail displays the separate record title');
+  const preview = app.teaser(titledDocument);
+  assert.equal(preview.querySelector('.rv-record-title').textContent, '따로 정한 제목', 'Document lists prefer the separate title over the first body heading');
+  assert.match(preview.querySelector('.rv-teaser-excerpt').textContent, /본문 소제목/, 'A real body heading remains in the excerpt');
+  assert.equal(documentRecordHtml(titledDocument), titledDocument.legacyHtml, 'Conversion preserves body headings without adding the separate title');
+}
+
 
 
 const tick = () => new Promise(resolve => setImmediate(resolve));
@@ -229,6 +245,41 @@ assert.equal(mixed.querySelector('iframe').getAttribute('src'), 'https://www.you
 assert.equal(uploads, 0, 'Public rendering never uploads media');
 assert.equal(networkAttempts, 0, 'Even caught network attempts must fail this isolated suite');
 
+// Exercise real composer/title/save handlers with only the rich editor and I/O
+// replaced. This verifies the outgoing save payload, not the server persistence.
+for (const category of ['posts', 'projects']) {
+  const editorRecord = { id: `edit-${category}`, category, title: '원래 제목', titleExplicit: true, recordDate: '2026-09-21', legacyHtml: '<!--cwk-document--><h2>본문 소제목</h2><p>원문</p>', attachments: [], embeds: [] };
+  await app.openEditor(editorRecord);
+  const titleInput = root.querySelector('input[name="title"]');
+  assert.ok(titleInput, `${category} document editor exposes a separate title input`);
+  assert.equal(titleInput.value, '원래 제목');
+  assert.equal(documentEditorOptions.html, editorRecord.legacyHtml);
+  titleInput.value = '바꾼 제목'; event(titleInput, 'input');
+  saveJob = deferred(); saveJob.resolve({}); await app.persist('draft');
+  assert.equal(savedRequests.at(-1).record.title, '바꾼 제목', 'Title-only edits reach the save payload');
+  assert.equal(savedRequests.at(-1).record.legacyHtml, editorRecord.legacyHtml, 'Title-only edits leave the saved body intact');
+  documentEditorOptions.onChange('<h2>본문 소제목</h2><p>바뀐 본문</p>');
+  saveJob = deferred(); saveJob.resolve({}); await app.persist('draft');
+  assert.equal(savedRequests.at(-1).record.title, '바꾼 제목', 'Body changes preserve the chosen title');
+  assert.equal(savedRequests.at(-1).record.titleExplicit, true);
+  assert.equal(savedRequests.at(-1).record.legacyHtml, '<!--cwk-document--><h2>본문 소제목</h2><p>바뀐 본문</p>');
+  assert.equal(savedRequests.at(-1).options.replaceLegacyHtml, true);
+  assert.equal(editorRecord.title, '원래 제목', 'Opening and editing does not mutate the source record');
+}
+await app.openEditor({ id: 'legacy-title-edit', category: 'posts', recordDate: '2026-09-21', legacySource: { title: '옛 제목' }, legacyHtml: '<p>기존 본문</p>', attachments: [], embeds: [] });
+const legacyTitleInput = root.querySelector('input[name="title"]');
+assert.equal(legacyTitleInput.value, '옛 제목', 'Existing compatibility titles prefill the separate input');
+documentEditorOptions.onChange('<p>수정 본문</p>');
+saveJob = deferred(); saveJob.resolve({}); await app.persist('draft');
+assert.equal(savedRequests.at(-1).record.title, '옛 제목', 'Editing a legacy body preserves its existing title');
+legacyTitleInput.value = ''; event(legacyTitleInput, 'input');
+documentEditorOptions.onChange('<p>다시 수정 본문</p>');
+saveJob = deferred(); saveJob.resolve({}); await app.persist('draft');
+assert.equal(savedRequests.at(-1).record.title, '');
+assert.equal(savedRequests.at(-1).record.titleExplicit, true);
+assert.equal(recordTitle(savedRequests.at(-1).record), '', 'Clearing a title never revives the compatibility title');
+assert.equal(networkAttempts, 0, 'Composer tests must use injected I/O only');
+
 // Metadata may come from the isolated clone, while every media file still uses
 // its original source origin. Fetch is replaced by an in-memory fixture here.
 const metadataRequests = [];
@@ -252,5 +303,5 @@ assert.equal(previewVideo.querySelector('video').getAttribute('src'), 'https://c
 assert.equal(previewVideo.querySelector('video').getAttribute('poster'), 'https://coldwaterkim.com/api/files/media/testvideoid0001/poster.jpg');
 event(previewVideo.querySelector('video'), 'error');
 assert.equal(previewVideo.querySelector('video').getAttribute('src'), originalVideo, 'Derivative error falls back to unchanged original media URL');
-console.log('Records V2 actual DOM handlers passed: public title/mixed order/embed captions, document conversion, legacy excerpt/full source/crop, media carousel and video metadata.');
+console.log('Records V2 actual DOM handlers passed: public title/mixed order/embed captions, document conversion and separate-title save payloads, legacy excerpt/full source/crop, media carousel and video metadata.');
 console.log('Scope: DOM events with injected I/O; no layout, touch physics, real crop pointer gestures, network transfer, or persistence claims.');

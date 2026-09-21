@@ -1,12 +1,10 @@
-import { orderedRecordContent, recordTitle, sanitizeLegacyHtml } from './records-v2-model.mjs';
+import { orderedRecordContent, sanitizeLegacyHtml } from './records-v2-model.mjs';
 import { serializeImageCrop } from './image-crop.mjs';
 
 // Compose a document without mutating the stored record or deleting its media.
 export function documentRecordHtml(record) {
   const root=document.createElement('div');
   const paragraph=text=>{const p=document.createElement('p');p.textContent=text;root.append(p);};
-  const title = record.legacyHtml?.includes('<!--cwk-document-->') ? '' : recordTitle(record);
-  if(title){const h=document.createElement('h1');h.textContent=title;root.append(h);}
   if(record.body)String(record.body).split('\n').forEach(paragraph);
   if(record.legacyHtml){const content=document.createElement('div');content.innerHTML=sanitizeLegacyHtml(record.legacyHtml);root.append(...content.childNodes);}
   for(const item of orderedRecordContent(record)){
