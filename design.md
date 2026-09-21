@@ -120,3 +120,8 @@
 - Public document previews grow to 560px maximum (65svh on mobile). Header/title and original-link footer stay outside the inner scroll region. Carousel and content-editor previews fill their existing square frame.
 - All stored normalized text messages render with safe Markdown; snapshot fetch limits and original media/link data stay unchanged. Missing snapshots retain an original-link fallback. Opaque source citation IDs display as an original-source hint without mutating saved text.
 - Editor and public archive share one renderer. Carousel mouse dragging/arrow handling leaves the conversation region available for text selection and scrolling. Brand icon reuses the installed MIT Phosphor library.
+
+## 2026-09-21 문서형 제목 입력
+
+- 나으 생각/내가 만든 것들은 본문 위 별도 제목 입력란을 제공한다. 기존 제목은 입력란에 불러오고 본문 수정 중에도 보존한다.
+- 제목을 본문에 새로 삽입하던 동작은 대체했다. 목록·상세는 저장한 제목을 우선하고, 제목이 없으면 목록은 기존처럼 본문 첫 문장으로 표시한다. 이미 본문에 있는 제목/문단은 자동 삭제하지 않는다.

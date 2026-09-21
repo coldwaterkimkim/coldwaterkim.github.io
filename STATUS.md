@@ -425,3 +425,10 @@ PocketBase `v0.23.5` 기본 HTTP 읽기/쓰기 제한시간 3분은 느린 외�
 
 - Production release `e056250f7ba2`: committed and pushed to main, static dist activated with dist.previous retained. Backend and DB unchanged. Public site-version matches, runtime rsync diff empty, public smoke 33 checks passed.
 - Production browser confirmed 4-turn and 16-turn conversations within 560px previews; first conversation scrolled to the end with footer retained. Shared preview, Records UI and editor DOM regressions passed. Local square editor sizing verification remains documented above.
+
+## 문서형 별도 제목 · 배포 완료 (2026-09-21)
+
+- 프론트 `f1682fcacd36`: 나으 생각/내가 만든 것들의 제목 입력·기존 제목 불러오기·본문 수정 시 제목 보존·목록/상세 제목 표시를 반영했다.
+- 모델/DOM 회귀 검사, 로컬 실제 BlockNote 브라우저의 제목+본문 수정·모의 임시 저장·재열기, 운영 빌드 및 공개 서비스 33개 스모크 검사를 통과했다. 실제 운영 OWNER 게시/저장 테스트는 하지 않았다.
+- 공개 site-version과 배포 버전 일치, API health 정상, dist/runtime 체크섬 차이 없음. 프론트만 원자적으로 교체하고 dist.previous를 유지했다. DB·백엔드·원본 미디어 변경과 전체 콜드 백업은 없다.
+- 작업 전부터 존재하던 문서 정리 변경은 작업 트리에 보존하고 이번 제목 변경분만 별도 커밋했다.
