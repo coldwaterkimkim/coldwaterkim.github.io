@@ -264,7 +264,7 @@ body.sketch-site .rv-teaser-thumbnail img {
   object-fit: cover;
 }
 
-body.sketch-site:not(.rv-content-composing) #records-app button {
+body.sketch-site:not(.rv-content-composing) #records-app button:where(:not(.bn-container *)) {
   border: 1px solid #999;
   background: transparent;
   color: #222;

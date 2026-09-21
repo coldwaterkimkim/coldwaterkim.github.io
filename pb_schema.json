@@ -406,7 +406,7 @@
           "maxSelect": 1,
           "maxSize": 21474836480,
           "thumbs": ["400x400", "800x0", "1600x0"],
-          "mimeTypes": ["image/jpeg", "image/png", "image/gif", "image/webp", "video/mp4", "video/webm", "video/quicktime", "video/x-m4v", "audio/mpeg", "audio/mp3", "application/pdf"]
+          "mimeTypes": ["image/jpeg", "image/png", "image/gif", "image/webp", "video/mp4", "video/webm", "video/quicktime", "video/x-m4v", "audio/mpeg", "audio/mp3", "application/pdf", "application/zip"]
         },
         { "name": "alt_text", "type": "text", "required": false, "max": 200 },
         { "name": "caption", "type": "text", "required": false, "max": 500 },

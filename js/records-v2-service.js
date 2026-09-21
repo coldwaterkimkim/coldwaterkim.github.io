@@ -21,6 +21,40 @@ export async function listRecords({page=1,perPage=20,category,status}={}) {
   return {...result,items:Array.from(result.items || []).map(normalizeRecord)};
 }
 export async function getRecord(id) { return normalizeRecord(await pb.send(`${endpoint}/${encodeURIComponent(id)}`,{method:'GET',requestKey:null})); }
+// Keep the exact first POST until its outcome is known. The server hashes that
+// payload, so edited retries must recover its record before sending an update.
+const pendingCreates = new Map();
+const editableSnapshot = value => {
+  const {id,created,updated,sourceUpdated,firstPublishedAt,revision,legacySource,...content}=normalizeRecord(value);
+  // Go omits an empty legacyHtml; the compatibility bridge adds source metadata
+  // (including a derived/trimmed title) without changing editable document data.
+  if(!content.legacyHtml)delete content.legacyHtml;
+  return JSON.stringify(content);
+};
+async function saveNewRecord(body,clientRequestId) {
+  let pending=pendingCreates.get(clientRequestId);
+  if(!pending){pending={body:{...body,clientRequestId},uncertain:false,lastUpdate:null};pendingCreates.set(clientRequestId,pending);}
+  try{
+    const recovered=normalizeRecord(await pb.send(endpoint,{method:'POST',body:pending.body,requestKey:null}));
+    pending.uncertain=true;
+    let saved=recovered;
+    if(editableSnapshot(body)!==editableSnapshot(pending.body)&&editableSnapshot(recovered)!==editableSnapshot(body)){
+      // A different tab's edits must not be overwritten while recovering ours.
+      if(editableSnapshot(recovered)!==editableSnapshot(pending.body)&&(!pending.lastUpdate||editableSnapshot(recovered)!==editableSnapshot(pending.lastUpdate)))throw new Error('저장된 기록이 다른 곳에서 변경됐어. 현재 작성 내용은 유지돼. 다른 탭의 기록을 확인해줘.');
+      const update={...body,id:recovered.id,revision:recovered.revision,firstPublishedAt:recovered.firstPublishedAt,legacySource:recovered.legacySource,sourceUpdated:recovered.sourceUpdated};
+      pending.lastUpdate=structuredClone(update);
+      saved=normalizeRecord(await pb.send(`${endpoint}/${encodeURIComponent(recovered.id)}`,{method:'PUT',body:update,requestKey:null}));
+    }
+    pendingCreates.delete(clientRequestId);
+    return saved;
+  }catch(error){
+    // Only a definitive rejection of the first request permits a new payload.
+    // Network failures and server failures may have happened after commit.
+    if(!pending.uncertain&&error?.status>=400&&error.status<500)pendingCreates.delete(clientRequestId);
+    else pending.uncertain=true;
+    throw error;
+  }
+}
 export async function saveRecord(record, {replaceLegacyHtml=false,contentEditing=false}={}) {
   if (!isOwner()) throw new Error('OWNER 로그인이 필요해.');
   if(replaceLegacyHtml||contentEditing){
@@ -31,6 +65,7 @@ export async function saveRecord(record, {replaceLegacyHtml=false,contentEditing
   }
   const body = normalizeRecord(record);
   if(replaceLegacyHtml)body.replaceLegacyHtml=true;
+  if(!body.id&&record.clientRequestId)return saveNewRecord(body,record.clientRequestId);
   return normalizeRecord(await pb.send(body.id ? `${endpoint}/${encodeURIComponent(body.id)}` : endpoint,{method:body.id?'PUT':'POST',body,requestKey:null}));
 }
 export const deleteRecord = record => pb.send(`${endpoint}/${encodeURIComponent(record.id)}`,{method:'DELETE',query:{revision:record.revision,...(record.id.includes(':')?{sourceUpdated:record.sourceUpdated}:{})},requestKey:null});

@@ -1,4 +1,4 @@
-import { preferredTransferFiles, uniqueTransferFiles } from './editor-file-transfer.mjs';
+import { preferredTransferFiles, uniqueTransferFiles, transferDirectories, directoryUploadMessage } from './editor-file-transfer.mjs';
 
 const mounts = new WeakMap();
 
@@ -49,6 +49,8 @@ export async function mountDocumentEditor(host, {
   const uploaded = async files => {
     if (destroyed) return [];
     if (typeof uploadFiles !== 'function') throw new Error('첨부 업로드 연결이 없어.');
+    const appBundle = Array.from(files || []).find(file => /\.app$/i.test(file?.name || ''));
+    if (appBundle) throw new Error(directoryUploadMessage(appBundle.name));
     const results = await uploadFiles(uniqueTransferFiles(files));
     if (destroyed) return [];
     if (results?.errors?.length) report(new Error(results.errors.map(item => `${item.file?.name || '파일'}: ${item.error?.message || item.message || '전송 실패'}`).join('\n')));
@@ -100,7 +102,10 @@ export async function mountDocumentEditor(host, {
     };
     mount.querySelector('.blocknote-editor-badge')?.remove();
     const button = mount.querySelector('.markdown-editor-image-button');
-    if (button) button.textContent = '사진·영상·파일';
+    if (button) {
+      button.textContent = '사진·영상·파일';
+      button.title = '앱(.app)과 폴더는 Finder에서 압축한 ZIP 파일로 첨부해줘.';
+    }
     editor.setHtml(original);
     await Promise.race([editor.ready(), cancelled]);
     // BlockNote may normalize HTML during initialization. Do not persist that conversion.
@@ -112,6 +117,14 @@ export async function mountDocumentEditor(host, {
       void insertFiles(files).catch(report);
     }, { signal: events.signal });
     const transfer = event => {
+      const directories = transferDirectories(event.clipboardData || event.dataTransfer);
+      if (directories.length) {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        report(new Error(directories.map(directoryUploadMessage).join('\n')));
+        return;
+      }
       const files = preferredTransferFiles(event.clipboardData || event.dataTransfer);
       if (!files.length) return;
       event.preventDefault();

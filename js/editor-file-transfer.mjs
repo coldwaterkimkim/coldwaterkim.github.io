@@ -10,6 +10,22 @@ export function preferredTransferFiles(dataTransfer) {
         .filter(Boolean);
 }
 
+// macOS applications are directory bundles, not ordinary uploadable files.
+// Never flatten them: doing so drops their layout and executable permissions.
+export function transferDirectories(dataTransfer) {
+    return Array.from(dataTransfer?.items || []).flatMap(item => {
+        if (item.kind !== 'file') return [];
+        try {
+            const entry = item.webkitGetAsEntry?.();
+            return entry?.isDirectory ? [entry.name || '폴더'] : [];
+        } catch { return []; }
+    });
+}
+
+export function directoryUploadMessage(name = '폴더') {
+    return `${name}: 앱(.app)과 폴더는 Finder에서 우클릭 → ‘압축’한 뒤 만들어진 ZIP 파일을 첨부해줘.`;
+}
+
 export function preferredTransferImageFiles(dataTransfer) {
     return preferredTransferFiles(dataTransfer)
         .filter(file => file?.type?.startsWith('image/'));

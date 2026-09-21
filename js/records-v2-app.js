@@ -357,7 +357,7 @@ async function loadMore() {
           feed.append(link('',`${idHash(record.id)}/${encodeURIComponent(attachment.id)}`,{'aria-label':attachment.comment||attachment.name||'기록 열기'}));
           feed.lastChild.append(media);if(attachment.kind==='video')feed.lastChild.append(e('span',{},'영상'));
         }
-      } else if(route==='#drafts')feed.append(e('article',{class:'rv-entry'},e('div',{class:'rv-meta'},categoryNames[record.category]||'기록',record.recordDate),e('p',{class:'rv-body'},record.body||'첨부 기록'),button('이어서 쓰기',()=>openEditor(record))));
+      } else if(route==='#drafts')feed.append(draftEntry(record));
       else if(route==='#posts'||route==='#projects')feed.append(teaser(record));
       else { const view=entry(record); view.classList.toggle('rv-media-first',route==='#nasajab'); feed.append(view); }
     }
@@ -446,6 +446,7 @@ async function openEditor(record = null) {
   disposeDocumentEditor();
   draft=record?structuredClone(record):{category:categoryNames[previousRoute.slice(1)]?previousRoute.slice(1):'',body:'',attachments:[],embeds:[],status:'draft',recordDate:dayNow()};
   draft.attachments ||= [];draft.embeds ||= [];
+  if(!draft.id)draft.clientRequestId ||= crypto.randomUUID();
   baseline=JSON.stringify(draft);busy=false;
   history.pushState(null,'','#compose');route='#compose';window.dispatchEvent(new Event('cwk:route-sync'));
   document.body.classList.add('rv-composing');
@@ -503,9 +504,19 @@ async function openContentComposer(){
       busy=false;draft=null;views.clear();firstPages.clear();history.replaceState(null,'','#home');route='';await renderRoute();return true;
     }:undefined
   });
+  baseline=JSON.stringify(currentDraft);
   scrollContentTo(0);
 }
 
+function draftEntry(record){
+  return e('article',{class:'rv-entry'},e('div',{class:'rv-meta'},categoryNames[record.category]||'기록',record.recordDate),e('h2',{class:'rv-record-title'},recordTitle(record)||'제목 없는 기록'),e('p',{class:'rv-body'},draftExcerpt(record)),button('이어서 쓰기',()=>openEditor(record)));
+}
+function draftExcerpt(record){
+  const content=e('div');content.innerHTML=sanitizeLegacyHtml(record.legacyHtml||'');
+  content.querySelectorAll('script,style').forEach(node=>node.remove());
+  content.querySelectorAll('p,div,li,h1,h2,h3,br').forEach(node=>node.append(document.createTextNode(' ')));
+  return String(record.body||content.textContent||'').trim().slice(0,180)||'첨부 기록';
+}
 function growComposer(textarea){textarea.style.height='auto';if(textarea.scrollHeight)textarea.style.height=textarea.scrollHeight+'px';}
 async function openDocumentComposer(select){
   documentMode=true;

@@ -101,8 +101,12 @@ assert.equal(source.split(documentImport).length, 2, 'Review the document editor
 const handlers = source.slice(0, source.indexOf(bootstrap)).replace(/^import[^\n]+;\n/gm, '').replace(documentImport, '');
 assert.doesNotMatch(handlers, /^import\b/m, 'New multiline imports need explicit test dependency injection.');
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
-const app = await new AsyncFunction(...Object.keys(dependencies), `${handlers}\nreturn { entry, teaser, openEditor, persist, legacyView, detailBackLink, recordLoadError, setRoute:value=>{route=value;} };`)(...Object.values(dependencies));
+const app = await new AsyncFunction(...Object.keys(dependencies), `${handlers}\nreturn { entry, teaser, draftEntry, openEditor, persist, legacyView, detailBackLink, recordLoadError, setRoute:value=>{route=value;} };`)(...Object.values(dependencies));
 const root = document.querySelector('#records-app');
+const draftCard=app.draftEntry({category:'projects',title:'저장해 둔 글',body:'',legacyHtml:'<!--cwk-document--><p>오래 작성한 본문</p><p>두 번째 문단</p>'});
+assert.equal(draftCard.querySelector('.rv-record-title').textContent,'저장해 둔 글');
+assert.equal(draftCard.querySelector('.rv-body').textContent,'오래 작성한 본문 두 번째 문단');
+assert.equal(draftCard.querySelector('button').textContent,'이어서 쓰기');
 const documentSource={body:'첫 문단\n다음 문단',legacyHtml:'<h2>기존 소제목</h2>',attachments:[{kind:'image',url:'https://example.test/photo.jpg',name:'사진',comment:'사진 설명',crop:{enabled:true,x:0,y:0,width:.5,height:1,aspect:.5,pixelWidth:600}},{kind:'file',url:'https://example.test/file.pdf',name:'자료.pdf'}],embeds:[{type:'chatgpt',url:'https://chatgpt.com/share/6a901ff4-0b9c-83e9-b058-8ecd80b68701',snapshot:{title:'대화',messages:[{role:'user',text:'원문'}]}}]};
 const documentBefore=JSON.stringify(documentSource);
 const documentHtml=documentRecordHtml(documentSource);

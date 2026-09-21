@@ -59,7 +59,9 @@ const EDITOR_UPLOAD_MIME_TYPES = new Set([
     'video/x-m4v',
     'audio/mpeg',
     'audio/mp3',
-    'application/pdf'
+    'application/pdf',
+    'application/zip',
+    'application/x-zip-compressed'
 ]);
 
 const CROPPABLE_IMAGE_CONFIG = {
@@ -194,7 +196,7 @@ export function isSupportedEditorUpload(file) {
     const type = String(file.type || '').toLowerCase();
     if (EDITOR_UPLOAD_MIME_TYPES.has(type)) return true;
 
-    return /\.(jpe?g|png|gif|webp|mp4|webm|mov|m4v|mp3|pdf)$/i.test(file.name || '');
+    return /\.(jpe?g|png|gif|webp|mp4|webm|mov|m4v|mp3|pdf|zip)$/i.test(file.name || '');
 }
 
 export function editorUploadLabel(file) {
